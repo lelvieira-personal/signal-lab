@@ -1,0 +1,6 @@
+ticker,name,local_ccy,usd_series_daily_start,construction
+LET1TREU,euro_treasury_1_10y,EUR,1999-01-04,local x FRED spot; 218 days dropped where no FRED fix
+I12823GB,uk_gilt_1_10y,GBP,2006-01-03,local x FRED spot; 170 days dropped where no FRED fix
+I02913JP,japan_aggregate,JPY,2001-01-04,local x FRED spot; 234 days dropped where no FRED fix
+LP05TREU,pan_euro_agg_corporate,EUR,1999-01-04,local x FRED spot; 219 days dropped where no FRED fix
+LG38TRUU,global_agg_ex_usd,USD,2001-01-02,as pulled

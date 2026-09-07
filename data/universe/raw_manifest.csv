@@ -1,0 +1,7 @@
+file,sheet,layout,field,currency,role
+research_data_values_only.xlsx,TR Levels,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,returns
+research_data_values_only.xlsx,TR Levels Hedged,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD_hedged,returns_hedged
+research_data_values_only.xlsx,TR Levels Candidates,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,returns_substitutes
+research_data_values_only.xlsx,TR Benchmarks,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,benchmark
+research_data_values_only.xlsx,TR Analytics,wide_ticker_field_header,various,n/a,analytics
+bbg_exUSD__bonds_values_only.xlsx,Daily TR,paired_date_value,PX_LAST,local_or_USD,returns_ex_usd
