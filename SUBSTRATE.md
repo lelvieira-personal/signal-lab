@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.2, 2026-09-07. Owner: Leo. This document is the constitution of
+Status: v0.3, 2026-09-07. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never edit it.
 Changes are made by the owner, versioned, and recorded in `decisions/`.
 
@@ -82,7 +82,7 @@ not distinguishable from that null is not a result.
 | Tracking error | ≤ 6.0% trailing 3y; episodic excursions allowed, not rewarded on average |
 | Rebalance | Weekly, Friday close; alternates tested by averaging over Tue/Wed/Fri |
 | Benchmark | 50/50 MSCI ACWI net TR (`NDUEACWF`) / Bloomberg Global Aggregate unhedged USD (`LEGATRUU`), rebalanced with the strategy; pre-1999 extended with `MXWO` and `SBWGU` (see §5.6) |
-| FX | Unhedged USD by default; hedged series exist for a subset and are a separate axis, off in v0.1 |
+| FX | Benchmark is unhedged. FX exposure is taken through unhedged international fixed income indices (Euro, UK, Japan, global ex-US, EM local); hedged series are the counterfactual, not a separate live axis in v0.3 |
 
 TE handling: an asymmetric penalty, not a hard band. TE is cheap when
 conviction dispersion is high and expensive when it is not.
@@ -155,6 +155,13 @@ broad/AFE/EM dollar indices (2006), WTI and Brent.
 
 FRED's ICE BofA spread series start 2023-09 and are **not used**. Spreads
 come from Bloomberg.
+
+### 5.4a Unhedged international fixed income (requested)
+
+Unhedged-USD versions of Euro Treasury 1-10y, UK Gilt 1-10y, Japan
+Treasury, Pan-European Aggregate/Corporate and Global Aggregate ex-USD are
+requested from Bloomberg. Until they land, the FX axis is represented only
+by `LGTRTRGU`, `LGTRTRJU`, `I20344US`, and `I02513EU` (currency to confirm).
 
 ### 5.5 Benchmark
 
@@ -286,11 +293,24 @@ reported performance is net. Gross is stored for diagnostics only.
   weekly observations of slow signals overlap heavily.
 - Confidence intervals and the search null come from a **block bootstrap**
   on the daily panel, block length ≥ the longest signal horizon.
-- The **search null** is the distribution of the maximum IR obtained by
-  running the same search on signals with destroyed information
-  (block-shuffled in time, structure preserved). Every leaderboard IR is
-  reported with its percentile in this distribution. Deflated Sharpe/IR is
-  reported alongside.
+- **Multiple testing is controlled with Romano-Wolf stepdown** at
+  family-wise error rate α (params, v0.3: 5%). The joint distribution of
+  all test statistics in a search is obtained by block bootstrap on the
+  daily panel, so dependence between experiments is learned from the data,
+  not assumed. The procedure runs at the family level first, then within
+  surviving families. A hypothesis that is not rejected under Romano-Wolf
+  is not a result.
+- The single-step search null (distribution of the maximum IR over
+  block-shuffled signals) is reported for intuition; the stepdown
+  procedure is the gate.
+- Deflated IR (Bailey and López de Prado) is reported as a diagnostic
+  only, using an effective number of trials estimated from the correlation
+  of active-return streams. It is not a veto: with hundreds of correlated
+  trials it is excessively punitive, a finding already made in the
+  Research OS.
+- If Romano-Wolf rejects nothing across several cycles, the correct
+  discussion is FDR control (an owner decision recorded in `decisions/`),
+  never a lower bar on the same test.
 - Effective sample size is counted in macro cycles, not observations.
   Daily sampling of a slow signal does not increase it; the harness
   reports it.
@@ -315,7 +335,7 @@ statistic is shown. Failing any one kills the run with the reason logged.
 | lookahead | bitemporal check passes: no observation used before its knowledge date |
 | frequency | no series contributes returns before its true daily start |
 | seed_stability | IR range across resampling seeds ≤ 0.15 |
-| null_percentile | IR ≥ 95th percentile of the search null |
+| multiple_testing | survives Romano-Wolf stepdown at FWER α (family level, then within family) |
 | direction | realised sign matches pre-registered direction |
 
 Vetoes are not advisory and are not tuned per run.
