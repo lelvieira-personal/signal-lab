@@ -1,0 +1,98 @@
+ticker,Bloomberg Security Name,Section,first_any,first_daily,tier_by_daily_start,likely_price_only
+LD20TRUU,Bloomberg US Treasury Bills To,1. Risk-Free / Cash,1991-12-31,1998-01-02,backbone,False
+MXEU0EN,MSCI Europe Energy Sector Inde,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0MT,MSCI Europe Materials Sector I,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0IN,MSCI Europe Industrials Index,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0CD,MSCI Europe Consumer Discretio,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0CS,MSCI Europe Consumer Staples I,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0HC,MSCI Europe Health Care Index,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0FN,MSCI Europe Financials Index,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0IT,MSCI Europe Information Techno,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0TC,MSCI Europe Communication Serv,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0UT,MSCI Europe Utilities Sector I,10. European Sectors (MSCI Europe),1995-01-02,1995-01-02,backbone,True
+MXEU0RL,MSCI Europe Real Estate GICS L,10. European Sectors (MSCI Europe),2016-08-31,2017-01-02,tradable-only,True
+M1USQU,MSCI USA Quality Net Total Ret,11. Factor / Style - US,1994-06-01,1995-01-03,backbone,False
+M1USMMT,MSCI USA Momentum USD Net Tota,11. Factor / Style - US,1994-05-31,1995-01-03,backbone,False
+M1USMVOL,MSCI USA Minimum Volatility Ne,11. Factor / Style - US,1988-05-31,1995-01-03,backbone,False
+M1US000G,MSCI USA Growth Net Total Retu,11. Factor / Style - US,1974-12-31,1999-01-04,backbone,False
+M1US000V,MSCI USA Value Net Total Retur,11. Factor / Style - US,1974-12-31,2001-01-02,backbone,False
+M1CXNNA,MSCI USA High Dividend Yield N,11. Factor / Style - US,2016-05-13,2017-01-03,tradable-only,False
+M1EA000V,MSCI EAFE Value Net Total Retu,12. Factor / Style - EAFE,1974-12-31,2001-01-02,backbone,False
+M1EA000G,MSCI EAFE Growth Net Total Ret,12. Factor / Style - EAFE,1974-12-31,2001-01-02,backbone,False
+M1EAHDVD,MSCI EAFE HIGH DIVIDEND YIELD,12. Factor / Style - EAFE,1995-06-30,2001-01-02,backbone,False
+M1EAMVOL,MSCI EAFE Minimum Volatility N,12. Factor / Style - EAFE,2001-11-30,2002-01-02,second,False
+M1EAQU,MSCI EAFE Quality Net Total Re,12. Factor / Style - EAFE,2015-02-18,2015-02-18,tradable-only,False
+M1EAMM,MSCI EAFE MOMENTUM USD Net Tot,12. Factor / Style - EAFE,2016-07-15,2017-01-02,tradable-only,False
+NDUVWXUS,MSCI World ex USA Value Net To,13. Factor / Style - World ex-US,1998-12-31,1999-01-01,backbone,False
+M1WDUQU,MSCI ACWI ex USA QUALITY Net T,13. Factor / Style - World ex-US,1998-11-30,1999-01-04,backbone,False
+M1WOUDY,MSCI World Ex USA High Dividen,13. Factor / Style - World ex-US,1998-12-31,1999-01-04,backbone,False
+M1WDU00G,MSCI ACWI ex USA Growth Net To,13. Factor / Style - World ex-US,2000-12-29,2001-01-01,backbone,False
+M1CXVRSD,MSCI WORLD ex USA MINIMUM VOLA,13. Factor / Style - World ex-US,2015-06-30,2016-01-04,tradable-only,False
+M1WDUMMT,MSCI ACWI ex USA MOMENTUM USD,13. Factor / Style - World ex-US,2017-05-04,2018-01-01,tradable-only,False
+M1EFQU,MSCI EM Quality Net Total Retu,14. Factor / Style - EM,1992-05-29,1993-01-04,backbone,False
+M1EFMMT,MSCI EM Momentum Net Total Ret,14. Factor / Style - EM,1994-06-01,1995-01-02,backbone,False
+M1EF000G,MSCI Emerging Markets Growth N,14. Factor / Style - EM,2000-12-29,2001-01-01,backbone,False
+M1EFMVOL,MSCI EM Minimum Volatility Net,14. Factor / Style - EM,2001-11-30,2002-01-01,second,False
+M1EF000V,MSCI Emerging Markets Value Ne,14. Factor / Style - EM,2000-12-29,2003-01-01,second,False
+M1EFHDY,MSCI EM (EMERGING MARKETS) HIG,14. Factor / Style - EM,2015-07-29,2016-01-01,tradable-only,False
+BCOMTR,Bloomberg Commodity Index Tota,15. Real Assets,1970-01-01,1970-01-01,backbone,False
+BCOMGCTR,Bloomberg Gold Subindex Total,15. Real Assets,1975-01-14,1975-01-14,backbone,False
+M2WDCOMP,MSCI ACWI Commodity Producers,15. Real Assets,1998-12-31,1999-01-04,backbone,False
+SPGNRUT,S&P Global Natural Resources T,15. Real Assets,2002-11-18,2003-01-02,second,False
+FGCIICUT,FTSE Global Core Infrastructur,15. Real Assets,2005-12-30,2006-01-02,second,False
+ENXG,FTSE EPRA Nareit Global REITs,15. Real Assets,2008-10-31,2009-01-02,second,False
+LUTLTRUU,Bloomberg US Long Treasury Tot,2. US Treasury Maturity Buckets,1973-01-31,1994-01-31,backbone,False
+LT11TRUU,Bloomberg U.S. Treasury: 20+ Y,2. US Treasury Maturity Buckets,1992-02-28,1994-01-31,backbone,False
+LT01TRUU,Bloomberg U.S. Treasury: 1-3 Y,2. US Treasury Maturity Buckets,1992-01-31,1998-01-02,backbone,False
+LT09TRUU,Bloomberg U.S. Treasury: 7-10,2. US Treasury Maturity Buckets,1992-01-31,1998-01-02,backbone,False
+LT13TRUU,Bloomberg U.S. Treasury 3-7 Yr,2. US Treasury Maturity Buckets,1991-12-31,2007-01-08,second,False
+BTSYTRUH,Bloomberg Global Treasury Tota,3. International Government Bonds,1987-01-30,1998-01-02,backbone,False
+I02513EU,Bloomberg Pan-European Governm,3. International Government Bonds,1999-01-04,1999-01-04,backbone,False
+LGTRTRGU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2000-09-29,2001-01-16,backbone,False
+LGTRTRJU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2000-09-29,2001-01-16,backbone,False
+H09122US,Bloomberg Euro Treasury 1-10 Y,3. International Government Bonds,2004-01-30,2010-01-04,tradable-only,False
+H12823US,Bloomberg UK Gilt 1-10 Total R,3. International Government Bonds,2003-01-31,2010-01-04,tradable-only,False
+LBUTTRUU,Bloomberg US Treasury Inflatio,4. Inflation-Linked,1997-03-31,1999-01-04,backbone,False
+LTP5TRUU,Bloomberg US Treasury TIPS 0-5,4. Inflation-Linked,2002-09-30,2011-01-03,tradable-only,False
+LUACTRUU,Bloomberg US Corporate Total R,5. Credit,1973-01-31,1989-01-03,backbone,False
+LUMSTRUU,Bloomberg US MBS Index Total R,5. Credit,1976-01-30,1989-01-03,backbone,False
+EMUSTRUU,Bloomberg EM USD Aggregate Tot,5. Credit,1993-01-29,1997-01-02,backbone,False
+LF98TRUU,Bloomberg US Corporate High Yi,5. Credit,1983-07-29,1999-01-04,backbone,False
+I00183US,Bloomberg Intermediate Ba U.S.,5. Credit,1983-07-29,1999-01-04,backbone,False
+I00184US,Bloomberg Long Ba U.S. High Yi,5. Credit,1983-07-29,1999-01-04,backbone,False
+I00185US,Bloomberg B US High Yield  TR,5. Credit,1983-07-29,1999-01-04,backbone,False
+I00188US,Bloomberg Caa US High Yield To,5. Credit,1983-07-29,1999-01-04,backbone,False
+H02549US,Bloomberg Pan European Aggrega,5. Credit,1999-01-29,2001-01-02,backbone,False
+LP01TRUH,Bloomberg Pan-European High Yi,5. Credit,1999-01-29,2001-01-02,backbone,False
+LDC5TRUU,Bloomberg USD Corporate Bonds,5. Credit,1990-01-31,2004-01-02,second,False
+I12877US,Bloomberg: EM USD Aggregate: C,5. Credit,2003-01-31,2006-01-03,second,False
+SPBDALB,Morningstar LSTA US Leveraged,5. Credit,1997-01-01,2008-01-02,second,False
+I20344US,Bloomberg EM Local Currency Go,5. Credit,2008-06-30,2009-01-02,second,False
+SPXT,S&P 500 Total Return Index,6. Equity Regions - US,1989-09-11,1990-01-02,backbone,False
+MXUSMC,MSCI USA MID CAP INDEX,6. Equity Regions - US,1994-05-31,1995-01-03,backbone,True
+M1USSC,MSCI USA Small Cap Net Total R,6. Equity Regions - US (also 11. Factor/Style - US),2000-12-29,2001-01-02,backbone,False
+MXCA,MSCI Canada Index,7. Equity Regions - Developed ex-US,1970-01-01,1972-01-03,backbone,True
+MXEUG,MSCI Europe Excluding United K,7. Equity Regions - Developed ex-US,1995-01-02,1995-01-02,backbone,True
+NDDLUK,MSCI UK Net Total Return Local,7. Equity Regions - Developed ex-US,1970-01-01,1999-01-01,backbone,False
+NDDUUK,MSCI UK Net Total Return USD I,7. Equity Regions - Developed ex-US,1970-01-01,1999-01-01,backbone,False
+NDDUJN,MSCI Japan Net Total Return US,7. Equity Regions - Developed ex-US,1970-01-01,1999-01-01,backbone,False
+NDDUPXJ,MSCI Pacific ex Japan Net Tota,7. Equity Regions - Developed ex-US,1998-12-31,1999-01-04,backbone,False
+M0JPHUSD,MSCI Japan US Dollar Hedged Ne,7. Equity Regions - Developed ex-US,1987-12-31,2002-01-02,second,False
+MXKR,MSCI Korea Index,8. Equity Regions - Emerging Markets,1987-12-31,1988-01-04,backbone,True
+MXLA,MSCI Emerging Markets Latin Am,8. Equity Regions - Emerging Markets,1987-12-31,1988-01-04,backbone,True
+TAMSCI,MSCI Taiwan Index,8. Equity Regions - Emerging Markets,1987-12-31,1988-01-05,backbone,False
+MXCN,MSCI China Index,8. Equity Regions - Emerging Markets,1992-12-31,1993-01-04,backbone,True
+MXIN,MSCI India Index,8. Equity Regions - Emerging Markets,1992-12-31,1993-01-04,backbone,True
+M1CXBRV,MSCI Emerging Markets ex China,8. Equity Regions - Emerging Markets,1998-12-31,1999-01-04,backbone,False
+M1EF,MSCI Emerging Markets Net Tota,8. Equity Regions - Emerging Markets,2000-12-29,2001-01-01,backbone,False
+MXUS0MT,MSCI USA Materials Index,9. US Sectors (MSCI USA),1995-01-02,1995-01-02,backbone,True
+MXUS0CD,MSCI USA Consumer Discretionar,9. US Sectors (MSCI USA),1995-01-02,1995-01-02,backbone,True
+MXUS0HC,MSCI USA Health Care Index,9. US Sectors (MSCI USA),1995-01-02,1995-01-02,backbone,True
+MXUS0FN,MSCI USA Financials Index,9. US Sectors (MSCI USA),1995-01-02,1995-01-02,backbone,True
+MXUS0IT,MSCI USA Information Technolog,9. US Sectors (MSCI USA),1995-01-02,1995-01-02,backbone,True
+MXUS0TC,MSCI USA/COMM SVC STRD USD RT,9. US Sectors (MSCI USA),1995-01-02,1995-01-02,backbone,True
+MXUS0UT,MSCI USA Utilities Index,9. US Sectors (MSCI USA),1995-01-02,1995-01-02,backbone,True
+MXUS0EN,MSCI USA Energy Index,9. US Sectors (MSCI USA),1994-12-30,1995-01-03,backbone,True
+MXUS0IN,MSCI USA Industrials Index,9. US Sectors (MSCI USA),1994-12-30,1995-01-03,backbone,True
+MXUS0CS,MSCI USA Consumer Staples Inde,9. US Sectors (MSCI USA),1994-12-30,1995-01-03,backbone,True
+MXUS0RE,MSCI US Real Estate Index GICS,9. US Sectors (MSCI USA),1994-12-30,1995-01-03,backbone,True

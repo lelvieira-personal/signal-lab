@@ -1,0 +1,10 @@
+data/raw/
+data/snapshots/
+results/artifacts/
+results/*.db
+*key*
+*.secret
+.env
+__pycache__/
+*.pyc
+.venv/
