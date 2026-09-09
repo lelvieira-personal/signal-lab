@@ -253,6 +253,50 @@ def test_no_registered_hypothesis_claims_an_unverified_citation(params):
         assert h.reference is None
 
 
+def test_kind_defaults_to_signal_so_the_existing_eleven_are_unambiguous(params):
+    h = validate_hypothesis(good_doc(), params)
+    assert h.kind == "signal"
+    assert not h.is_measurement
+    assert h.objective == "net_ir"
+
+
+def test_a_measurement_hypothesis_is_ranked_on_a_different_objective(params):
+    """
+    decisions/0016: choosing a loading estimator on the strategy's own objective
+    would select the mapping on the outcome. The two classes are ranked apart.
+    """
+    h = validate_hypothesis(good_doc(kind="measurement", signal="shrunk_to_peer_mean"), params)
+    assert h.is_measurement
+    assert h.objective == "loading_fidelity"
+
+
+def test_portfolio_vetoes_do_not_apply_to_a_measurement_run(params):
+    """
+    A measurement run produces no portfolio, so turnover and drawdown are not
+    passes -- they are not applicable, and the store must show the difference.
+    """
+    from vetoes import VETOES
+
+    signal = validate_hypothesis(good_doc(), params)
+    measurement = validate_hypothesis(good_doc(kind="measurement"), params)
+
+    assert set(signal.applicable_vetoes(list(VETOES))) == set(VETOES)
+    applicable = set(measurement.applicable_vetoes(list(VETOES)))
+    assert {
+        "turnover",
+        "cash",
+        "positions",
+        "tracking_error",
+        "active_drawdown",
+    } & applicable == set()
+    assert {"lookahead", "frequency", "coverage", "multiple_testing", "direction"} <= applicable
+
+
+def test_an_unknown_kind_is_rejected(params):
+    with pytest.raises(HypothesisRejected, match="kind"):
+        validate_hypothesis(good_doc(kind="vibes"), params)
+
+
 def test_registered_ids_are_unique(params):
     reg = HypothesisRegistry(params=params)
     ids = [h.id for h in reg.load("pending")]

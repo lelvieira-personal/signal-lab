@@ -52,6 +52,18 @@ FAMILIES = (
 )
 
 DIRECTIONS = ("positive", "negative")
+
+# decisions/0016. A signal hypothesis is judged on net IR against the 50/50; a
+# measurement hypothesis is about the exposure matrix itself and is judged on
+# out-of-sample loading fidelity. Choosing an estimator on the strategy's own
+# objective would select the mapping on the outcome, so the two are ranked on
+# separate leaderboards with multiplicity controlled separately within each.
+KINDS = ("signal", "measurement")
+
+# Vetoes that describe a portfolio. A measurement run does not produce one, so
+# these are recorded as not_applicable rather than passed -- a measurement run
+# must never be mistakable for a portfolio run that passed everything.
+PORTFOLIO_VETOES = ("turnover", "cash", "positions", "tracking_error", "active_drawdown")
 PROVENANCE = ("literature", "adaptation", "novel")
 EXPRESSIONS = ("cross_sectional", "directional", "both")
 TARGET_AXES = ("duration", "credit", "region", "sector", "style", "real_nominal", "cash")
@@ -93,11 +105,28 @@ class Hypothesis:
     proposed_by: str
     provenance: str
     data_required: list[str]
+    kind: str = "signal"
     reference: str | None = None
     proxy_for: dict[str, str] | None = None
     notes: str = ""
     path: Path | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_measurement(self) -> bool:
+        """True when this hypothesis is about the exposure matrix, not a signal."""
+        return self.kind == "measurement"
+
+    @property
+    def objective(self) -> str:
+        """The pre-registered metric this hypothesis is ranked on."""
+        return "loading_fidelity" if self.is_measurement else "net_ir"
+
+    def applicable_vetoes(self, all_vetoes: tuple[str, ...] | list[str]) -> list[str]:
+        """The vetoes that can be evaluated for this kind of run."""
+        if not self.is_measurement:
+            return list(all_vetoes)
+        return [v for v in all_vetoes if v not in PORTFOLIO_VETOES]
 
     @property
     def is_proxy(self) -> bool:
@@ -113,6 +142,7 @@ class Hypothesis:
     def as_dict(self) -> dict[str, Any]:
         out = {
             "id": self.id,
+            "kind": self.kind,
             "family": self.family,
             "signal": self.signal,
             "direction": self.direction,
@@ -233,6 +263,10 @@ def validate_hypothesis(
             f"{where}: expected_expression {expression!r} is not one of {list(EXPRESSIONS)}"
         )
 
+    kind = str(doc.get("kind", "signal"))
+    if kind not in KINDS:
+        raise HypothesisRejected(f"{where}: kind {kind!r} is not one of {list(KINDS)}")
+
     provenance = str(doc["provenance"])
     if provenance not in PROVENANCE:
         raise HypothesisRejected(
@@ -259,6 +293,7 @@ def validate_hypothesis(
 
     return Hypothesis(
         id=hid,
+        kind=kind,
         family=family,
         signal=str(doc["signal"]),
         direction=direction,

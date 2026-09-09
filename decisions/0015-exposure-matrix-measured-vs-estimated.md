@@ -46,31 +46,33 @@ Three consequences follow. The first two are design, the third is a caution.
    prior while leaving the measured ones alone. Without the flag, neither is
    possible.
 
-3. **A caution I am reasoning to from one sentence, so treat it as a question
-   rather than a finding.** If targets propagate to many accounts, the turnover
-   that costs money is account-level, not model-level. The `turnover` veto
-   measures the model portfolio, and the cost model in SUBSTRATE section 8
-   prices the model portfolio's trades. Whether those are the right units for a
-   propagated strategy depends on platform mechanics I do not know. Worth a
-   look before phase 4, not before phase 1.
+3. **Propagation is explicitly out of scope for now** (owner, 2026-09-09). The
+   multi-account context is why exposure accuracy matters, not a thing to build
+   for. The project's objective is unchanged: beat the 50/50 net of costs, with
+   risk management strong enough and a model legible enough to defend in front
+   of a room of investment professionals. Anything account-level waits.
 
-## "Robust" is the owner's choice, not a default
+## "Robust" is a research question, not a parameter
 
-Robust estimation of a factor exposure has several reasonable readings, and the
-choice materially changes the target that reaches thousands of accounts:
+This note originally proposed putting the estimator in
+`params/characteristics.yaml` as a threshold for the owner to set. That was
+wrong, and the owner said so:
 
-- shrinkage toward a prior (zero, or a peer-group mean) — Bayesian or
-  Theil-Goldberger;
-- resampling across draws and averaging the loadings — the Michaud argument,
-  applied to exposures rather than to weights;
-- a robust regression that discounts outliers;
-- regime-conditional loadings, which is honest about the fact that the
-  equity-rate beta genuinely changed sign in the last decade, and expensive in
-  effective sample size.
+> "Robust estimation for the factor loadings is something that requires research
+> too. I don't have the answer and it is something that the agents will need to
+> study as part of the hypothesis too, because at the end of the day getting the
+> correct combination of factor exposures will not yield good results if the
+> instruments don't have a true sensitivity to them."
 
-No default is set. `params/characteristics.yaml` does not exist yet and will
-carry the estimator and its parameters when it does, so the choice is versioned
-and travels with `params_hash` like every other threshold.
+The exposure matrix is not infrastructure that the model runs on. It is **part
+of the model**. A correct view mapped through a wrong loading produces a wrong
+portfolio, and the failure is invisible: the signal was right, the weights were
+wrong, and the leaderboard shows a dead idea.
+
+So the estimator is pre-registered and tested like anything else. Because
+choosing it on the strategy's own objective would be circular, it needs a
+separate class of hypothesis with a separate objective — see
+`decisions/0016`.
 
 ## The part that is not obvious: an estimated matrix can leak
 
