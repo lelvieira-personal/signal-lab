@@ -44,3 +44,30 @@ def store(tmp_path):
     from signal_lab.results.store import ResultsStore
 
     return ResultsStore(tmp_path / "runs.db", tmp_path / "artifacts")
+
+
+@pytest.fixture(scope="session")
+def planted(panel):
+    """
+    A planted weight path plus its exact benchmark and ground truth.
+
+    Session-scoped because building it runs the engine once over the full
+    synthetic panel; five tests sharing one build is the difference between a
+    fast suite and a slow one.
+    """
+    from signal_lab.loaders.synthetic import plant_weight_path
+
+    rule, benchmark, truth = plant_weight_path(panel, target_ir=0.5, target_te=0.04)
+    return rule, benchmark, truth
+
+
+@pytest.fixture(scope="session")
+def planted_path(panel, planted):
+    import pandas as pd
+
+    from signal_lab.harness.engine import constant_exposures, run_walk_forward
+
+    rule, benchmark, _ = planted
+    ids = rule(panel.returns.index[0], panel).index
+    exposures = constant_exposures(pd.DataFrame(0.0, index=ids, columns=["f0"]))
+    return run_walk_forward(panel, rule, benchmark, exposures)

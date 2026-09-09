@@ -23,6 +23,7 @@ section, first date, tier -- and holds no prices, levels or returns.
 from __future__ import annotations
 
 import csv
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -607,3 +608,133 @@ class SyntheticLoader:
 
     def load_macro(self, snapshot_id: str = "synthetic-v1") -> VintagePanel:
         return make_vintage_panel(self.params, self.seed, snapshot_id)
+
+
+# --- benchmark and planted paths, for phase 1 -------------------------------
+
+
+@dataclass(frozen=True)
+class PlantedPath:
+    """
+    Ground truth for a planted weight path.
+
+    Phase 1's recovery test compares the engine's statistics against these. They
+    are true by construction rather than by simulation, so a mismatch is an
+    engine bug and not a sampling accident.
+    """
+
+    target_ir: float
+    target_te: float
+    target_max_drawdown: float
+    n_rebalances: int
+    seed: int
+    note: str = ""
+
+
+def make_benchmark(
+    panel: ReturnPanel, params: Params | None = None, seed: int | None = None
+) -> pd.Series:
+    """
+    A synthetic 50/50 benchmark, daily, over the panel's own calendar.
+
+    Two legs with the shape of the real ones -- an equity leg near 15%
+    annualised volatility and a bond leg near 5%, mildly correlated, rebalanced
+    daily to 50/50. Not built from panel members, so a strategy cannot beat it
+    by holding it.
+    """
+    params = params or get_params()
+    seed = int(params.get("data.synthetic.seed") if seed is None else seed)
+    rng = np.random.default_rng(seed + 31)
+
+    index = panel.returns.index
+    common = rng.standard_t(df=5, size=len(index)) / np.sqrt(5 / 3)
+    equity = (common * 0.85 + rng.normal(0, 1, len(index)) * 0.53) * (
+        0.15 / np.sqrt(252)
+    ) + 0.06 / 252
+    bond = (common * 0.25 + rng.normal(0, 1, len(index)) * 0.97) * (
+        0.05 / np.sqrt(252)
+    ) + 0.03 / 252
+
+    weights = params.get("constraints.benchmark.weights", [0.5, 0.5])
+    return pd.Series(weights[0] * equity + weights[1] * bond, index=index, name="benchmark")
+
+
+def plant_weight_path(
+    panel: ReturnPanel,
+    target_ir: float = 0.5,
+    target_te: float = 0.04,
+    n_instruments: int = 20,
+    seed: int = 777,
+) -> tuple[Callable[[pd.Timestamp, ReturnPanel], pd.Series], pd.Series, PlantedPath]:
+    """
+    A weight rule plus the benchmark that makes its active return stream exact.
+
+    The construction, so the phase 1 recovery test compares against arithmetic
+    rather than against a claim:
+
+      1. draw an active return stream `a` with the requested IR and TE;
+      2. build a deterministic, slowly rotating long-only weight path;
+      3. run the engine once against a zero benchmark to learn the path's net
+         return `n`;
+      4. define the benchmark as `n - a`.
+
+    The active stream is then exactly `a` by construction, so its IR, TE and
+    maximum drawdown are known. Any error in the engine's drift, cost or timing
+    arithmetic changes `n`, and the recovered statistics stop matching -- which
+    is what makes this a test of the accounting and not a tautology.
+
+    Returns (weight_rule, benchmark, ground truth).
+    """
+    from signal_lab.harness.engine import (
+        constant_exposures,
+        rebalance_dates,
+        run_walk_forward,
+    )
+
+    rng = np.random.default_rng(seed)
+    ids = [s for s in panel.estimation_universe() if s in panel.returns.columns][:n_instruments]
+    if len(ids) < 5:
+        raise ValueError("planting a weight path needs at least 5 instruments")
+
+    dates = rebalance_dates(panel.returns.index, "FRI")
+    n = len(dates) - 1
+
+    weekly_sd = target_te / np.sqrt(52.0)
+    active = pd.Series(rng.normal(target_ir * target_te / 52.0, weekly_sd, n), index=dates[1:])
+
+    # A deterministic rotation: every instrument's weight follows a slow sine
+    # with a different phase, so the book turns over steadily without any
+    # dependence on returns -- the path is the same whatever the panel does.
+    phases = np.linspace(0.0, 2.0 * np.pi, len(ids), endpoint=False)
+    order = {d: i for i, d in enumerate(dates)}
+
+    def weight_rule(date: pd.Timestamp, _panel: ReturnPanel) -> pd.Series:
+        t = order.get(pd.Timestamp(date), 0)
+        raw = 1.0 + 0.6 * np.sin(2.0 * np.pi * t / 26.0 + phases)
+        return pd.Series(raw / raw.sum(), index=ids)
+
+    zero = pd.Series(0.0, index=panel.returns.index)
+    reference = run_walk_forward(
+        panel,
+        weight_rule,
+        zero,
+        constant_exposures(pd.DataFrame(0.0, index=ids, columns=["f0"])),
+    )
+    benchmark_weekly = reference.net_returns - active.reindex(reference.dates)
+
+    cumulative = (1.0 + active).cumprod()
+    max_dd = float(-(cumulative / cumulative.cummax() - 1.0).min())
+
+    record = PlantedPath(
+        target_ir=float(active.mean() * 52.0 / (active.std() * np.sqrt(52.0))),
+        target_te=float(active.std() * np.sqrt(52.0)),
+        target_max_drawdown=max_dd,
+        n_rebalances=n,
+        seed=seed,
+        note=(
+            f"active stream drawn at IR {target_ir}, TE {target_te}; benchmark defined "
+            f"as the path's own net return minus that stream, so the active series is "
+            f"exact and any accounting error breaks it"
+        ),
+    )
+    return weight_rule, benchmark_weekly, record
