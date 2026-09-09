@@ -65,10 +65,47 @@ the veto set on the pre-registered objective**, at the pre-registered
 coefficient. It informs an owner decision about implementation. It never ranks,
 and a point on the curve is never promoted to the leaderboard.
 
-## What is needed before this can be built
+## Owner's answer (2026-09-09), and an arithmetic caveat
 
-1. The penalty coefficient, in bps per unit of turnover above target.
-2. A decision on shape: linear in the excess (a literal shadow cost, and the
-   natural reading of "extra bps") or quadratic (smoother for the solver, and
-   it punishes large excesses disproportionately). Linear is the more
-   defensible; quadratic is the more tractable. Not chosen.
+> "0.5bp cost for exceeding 100%, linear."
+
+Implemented as `coefficient: 0.5`, `form: linear`, in
+`params/constraints.yaml`, read as **0.5bp per unit of annualised turnover above
+the target** — the literal reading of the words.
+
+At that setting the penalty is very small next to the cost of the trading it is
+meant to discourage:
+
+| Annualised turnover | Penalty | Mid-bucket spread | Penalty as % of spread |
+|---|---|---|---|
+| 100% | 0.000bp | 10.0bp | 0.0% |
+| 125% | 0.125bp | 12.5bp | 1.0% |
+| 150% | 0.250bp | 15.0bp | 1.7% |
+| 200% | 0.500bp | 20.0bp | 2.5% |
+
+At the 150% veto ceiling the shadow cost is a quarter of a basis point a year
+against fifteen basis points of real spread. A term that size will not move an
+optimiser: it is roughly a fiftieth of the marginal cost the solver is already
+paying, so it cannot buy the "much lower turnover" the owner described.
+
+**The units are genuinely ambiguous and the readings differ by 100x.** "0.5bp
+for exceeding 100%" could mean per *unit* of turnover (0.25bp/yr at the ceiling,
+as implemented) or per *percentage point* of excess (50pp x 0.5bp = 25bp/yr at
+the ceiling, which is more than the entire mid-bucket spread and a very strong
+preference). The stated intent — "slightly lower expected alpha for much lower
+turnover" — sits between the two: giving up nothing, or giving up 25bp, are both
+away from "slightly".
+
+A coefficient near **10bp per unit** would put the shadow cost at 5bp/yr at the
+ceiling, about a third of the real spread, which is the range where a soft
+constraint actually trades one thing against another.
+
+Recorded as the owner's number with the arithmetic attached rather than
+adjusted. `tests/test_objective.py` asserts the magnitude, so changing the
+coefficient forces a look at this table.
+
+## Shape
+
+Linear, as the owner chose — a literal shadow cost, and the more defensible of
+the two. Quadratic would be smoother for the solver and would punish large
+excesses disproportionately; it is not used.

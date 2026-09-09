@@ -30,9 +30,14 @@ turnover:
     # worse for a reason that is not performance and the leaderboard stops being
     # comparable across runs.
     shape: one_sided_above_target
+    form: linear              # penalty = coefficient * max(0, T_annualised - target)
     units: bps_per_unit_turnover
-    coefficient: null         # unset: the objective refuses to build
-    owner_to_confirm: [coefficient]
+    coefficient: 0.5          # owner, 2026-09-09
+    # Magnitude, for the reader: at the 150% ceiling the excess is 0.5, so the
+    # penalty is 0.25bp a year. The actual spread on that turnover is 15bp a
+    # year in the mid bucket. The penalty is therefore ~1.7% of the real cost
+    # of the trading it is meant to discourage. See decisions/0018 -- this is
+    # recorded as the owner's number, with the arithmetic, rather than adjusted.
 
 tracking_error:
   # Section 4 describes an asymmetric penalty, not a hard band; section 10 makes

@@ -33,5 +33,9 @@ one place rather than scattered across decision records.
 - The robust estimator for factor loadings is unchosen — shrinkage, resampling,
   robust regression or regime-conditional. It will live in
   `params/characteristics.yaml`, which does not exist yet. (0015)
-- The turnover penalty coefficient (bps per unit above the 100% target) and its
-  shape, linear or quadratic. The objective refuses to build without it. (0018)
+- ~~The turnover penalty coefficient and shape.~~ Set: 0.5bp per unit, linear.
+  Open: whether "0.5bp" meant per unit (as implemented, 0.25bp/yr at the
+  ceiling) or per percentage point (25bp/yr) — a 100x difference, and the
+  as-implemented reading is too small to shape the optimiser. (0018)
+- The asymmetric tracking-error penalty coefficient is still null, so the full
+  objective refuses to build. (0003)
