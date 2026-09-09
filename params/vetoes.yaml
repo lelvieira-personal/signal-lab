@@ -4,6 +4,10 @@
 params_version: "0.4.0"
 
 turnover:
+  # Traded notional (sum |dw|, buys plus sells), annualised. decisions/0017.
+  # Reading the one-way figure here would permit 300% of NAV a year against a
+  # ceiling meant to permit 150%.
+  definition: traded_notional
   max_annualised: 1.50
 cash:
   max_weight: 0.20

@@ -13,8 +13,26 @@ positions:
   max_nonzero: 30
 
 turnover:
-  max_annualised: 1.50        # 150%
-  target_annualised: 1.00     # section 4 "target reduction to 100% later"; a target, not enforced
+  # decisions/0017: turnover is TRADED NOTIONAL, sum |dw| -- buys plus sells.
+  # Both the ceiling and the section 8 cost formula read this same figure.
+  definition: traded_notional
+  max_annualised: 1.50        # 150%, the hard veto
+  target_annualised: 1.00     # the soft target; see penalty below
+  penalty:
+    # decisions/0018. A one-sided soft constraint above the 100% target, so the
+    # optimiser can buy lower turnover with a little expected alpha. Expressed
+    # as a shadow COST in basis points per unit of annualised turnover above
+    # target, rather than an abstract lambda, because a number an investment
+    # professional can argue with is worth more than one they cannot.
+    #
+    # It shapes the weights. It does NOT enter the reported net IR, which is
+    # computed from actual costs only -- otherwise a heavily penalised run looks
+    # worse for a reason that is not performance and the leaderboard stops being
+    # comparable across runs.
+    shape: one_sided_above_target
+    units: bps_per_unit_turnover
+    coefficient: null         # unset: the objective refuses to build
+    owner_to_confirm: [coefficient]
 
 tracking_error:
   # Section 4 describes an asymmetric penalty, not a hard band; section 10 makes

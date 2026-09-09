@@ -64,7 +64,8 @@ class PortfolioPath:
     net_returns: pd.Series
     benchmark_returns: pd.Series
     active_returns: pd.Series
-    turnover: pd.Series
+    turnover: pd.Series  # traded notional per rebalance, sum |dw|
+    turnover_one_way: pd.Series  # half of it, for comparison with other conventions
     cost_drag: pd.Series
     cash_weights: pd.Series
     exposures: pd.DataFrame
@@ -105,7 +106,11 @@ class PortfolioPath:
         return float(active.mean() * periods_per_year / (sd * np.sqrt(periods_per_year)))
 
     def annualised_turnover(self, periods_per_year: int = 52) -> float:
+        """Annualised traded notional, the figure the 150% ceiling applies to."""
         return float(self.turnover.mean() * periods_per_year)
+
+    def annualised_turnover_one_way(self, periods_per_year: int = 52) -> float:
+        return float(self.turnover_one_way.mean() * periods_per_year)
 
     def total_cost_drag(self, periods_per_year: int = 52) -> float:
         """Annualised cost drag, the number that replaces gross IR (decisions/0004)."""
@@ -121,6 +126,7 @@ class PortfolioPath:
             if self.tracking_error().notna().any()
             else float("nan"),
             "turnover": self.annualised_turnover() * 100,
+            "turnover_one_way": self.annualised_turnover_one_way() * 100,
             "max_cash": float(self.cash_weights.max() * 100),
             "n_positions": float(self.n_positions().max()),
             "max_active_drawdown": self.max_active_drawdown() * 100,
@@ -236,7 +242,8 @@ def run_walk_forward(
                 "date": current,
                 "gross": gross,
                 "net": net,
-                "turnover": breakdown.turnover_one_way,
+                "turnover": breakdown.traded_notional,
+                "turnover_one_way": breakdown.turnover_one_way,
                 "cost_drag": breakdown.total,
                 "cash": cash,
             }
@@ -255,6 +262,7 @@ def run_walk_forward(
         benchmark_returns=bench,
         active_returns=frame["net"] - bench,
         turnover=frame["turnover"],
+        turnover_one_way=frame["turnover_one_way"],
         cost_drag=frame["cost_drag"],
         cash_weights=frame["cash"],
         exposures=pd.DataFrame(exposure_rows).T.reindex(index),
@@ -309,6 +317,7 @@ def run_averaged_over_rebalance_days(
         benchmark_returns=mean_series("benchmark_returns"),
         active_returns=mean_series("active_returns"),
         turnover=mean_series("turnover"),
+        turnover_one_way=mean_series("turnover_one_way"),
         cost_drag=mean_series("cost_drag"),
         cash_weights=mean_series("cash_weights"),
         exposures=primary.exposures,

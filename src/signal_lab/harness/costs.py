@@ -3,20 +3,18 @@ The cost model. SUBSTRATE section 8.
 
     net = gross - traded_notional * half_spread - annual_drag / weeks_per_year
 
-Two definitions that SUBSTRATE leaves implicit and that differ by a factor of
-two, so both are named here and neither is inferred at the call site:
+Turnover is **traded notional**: `sum |w_target - w_drifted|`, buys plus sells
+(owner, decisions/0017). Both the 150% veto ceiling and the section 8 cost
+formula read this same figure, which is what makes
 
-  turnover_one_way   0.5 * sum |w_target - w_drifted|
-                     The portfolio replacing itself once is 100%. This is what
-                     the `turnover` veto measures against the 150% ceiling.
+    net = gross - turnover * half_spread - drag / weeks_per_year
 
-  traded_notional    sum |w_target - w_drifted|, i.e. 2 * turnover_one_way
-                     Buys plus sells. This is what costs are charged on, since
-                     a half-spread is paid on every unit traded in either
-                     direction.
+dimensionally correct exactly as written: a half-spread is paid on every unit
+traded in either direction.
 
-Charging the one-way figure would halve every cost in the lab. See
-decisions/0017.
+`turnover_one_way` (half of it) is computed and reported alongside, because it
+is the figure some conventions use and a reader comparing against another
+manager's numbers will want it. Nothing in the lab is measured against it.
 
 Weight drift is the other thing this module exists to get right. Between
 rebalances a portfolio drifts with its own returns, so turnover is the distance
@@ -50,8 +48,8 @@ BPS = 1e-4
 class CostBreakdown:
     """Costs for one rebalance, kept apart so the digest can show why."""
 
-    turnover_one_way: float
-    traded_notional: float
+    traded_notional: float  # sum |dw| -- THE turnover figure, veto and cost
+    turnover_one_way: float  # half of it; reported for comparison only
     spread_cost: float
     drag_cost: float
 
@@ -111,7 +109,7 @@ class CostModel:
     @staticmethod
     def turnover(target: pd.Series, drifted: pd.Series) -> tuple[float, pd.Series]:
         """
-        (one-way turnover, per-instrument traded notional).
+        (traded notional, per-instrument traded notional).
 
         Both series are reindexed to their union with zeros, so an instrument
         entering or leaving the portfolio is a full-size trade rather than a
@@ -119,23 +117,24 @@ class CostModel:
         """
         idx = target.index.union(drifted.index)
         delta = (target.reindex(idx).fillna(0.0) - drifted.reindex(idx).fillna(0.0)).abs()
-        return float(0.5 * delta.sum()), delta
+        return float(delta.sum()), delta
 
     def rebalance_cost(self, target: pd.Series, drifted: pd.Series) -> CostBreakdown:
         """Spread cost of moving from the drifted book to the target, plus one week of drag."""
-        one_way, delta = self.turnover(target, drifted)
+        traded, delta = self.turnover(target, drifted)
         spread = float((delta * self.half_spread_vector(delta.index)).sum())
         held = target[target.abs() > 0]
         drag = float((held.abs() * self.annual_drag_vector(held.index)).sum() / self.weeks_per_year)
         return CostBreakdown(
-            turnover_one_way=one_way,
-            traded_notional=float(delta.sum()),
+            traded_notional=traded,
+            turnover_one_way=traded / 2.0,
             spread_cost=spread,
             drag_cost=drag,
         )
 
-    def annualised_turnover(self, one_way: pd.Series) -> float:
-        return float(pd.Series(one_way).mean() * self.weeks_per_year)
+    def annualised_turnover(self, traded_notional: pd.Series) -> float:
+        """Annualised traded notional. This is the figure the veto reads."""
+        return float(pd.Series(traded_notional).mean() * self.weeks_per_year)
 
 
 def drift_weights(weights: pd.Series, returns: pd.Series) -> pd.Series:

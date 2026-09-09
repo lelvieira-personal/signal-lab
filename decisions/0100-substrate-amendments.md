@@ -15,6 +15,7 @@ one place rather than scattered across decision records.
 | 11 | Add `hypothesis_transitions(id, ts, hypothesis_id, from_state, to_state, run_id, detail)` to the results schema. | 0008 |
 | 14 | First bullet reads "hard token **and cost** ceilings per run and per cycle". Model tiering names one model per section 13 role rather than `cheap`/`expensive`. | 0007, 0012 |
 | 15 | `src/` contains a single `signal_lab/` package; `loaders/`, `signals/`, `harness/`, `portfolio/`, `stats/` sit under it. `vetoes/` and `render/` unchanged. | 0010 |
+| 4, 8, 10 | Turnover is **traded notional** (buys plus sells). Section 8's formula is then literal. Section 4's 100% is a soft target with a one-sided penalty, not a second ceiling. | 0017, 0018 |
 | 5.1 | `index_etf_map.csv` is replaced for v0.3 by `investable`, `cost_bucket` and `reporting_class` columns on the coverage table. ETF selection deferred to phase 4. | 0013 |
 | 13 | The cycle's proposer runs **weekly**, not nightly. The deterministic steps may run nightly. | 0007 |
 | 5.6 | `VintagePanel`'s period field is `period_end`, not `real_date`: JPMaQS uses `real_date` for the knowledge date and the two inverted. | 0014 |
@@ -32,5 +33,5 @@ one place rather than scattered across decision records.
 - The robust estimator for factor loadings is unchosen — shrinkage, resampling,
   robust regression or regime-conditional. It will live in
   `params/characteristics.yaml`, which does not exist yet. (0015)
-- Whether the `turnover` veto and the section 8 cost model are in the right
-  units once exposure targets propagate to many accounts. (0015)
+- The turnover penalty coefficient (bps per unit above the 100% target) and its
+  shape, linear or quadratic. The objective refuses to build without it. (0018)

@@ -80,10 +80,10 @@ def test_turnover_is_measured_from_the_drifted_book_not_the_previous_target():
     target = pd.Series({"A": 0.5, "B": 0.5})
     drifted = drift_weights(target, pd.Series({"A": 0.10, "B": 0.0}))
 
-    one_way, delta = cm.turnover(target, drifted)
-    expected = abs(0.5 - 0.55 / 1.05)
-    assert one_way == pytest.approx(expected)
-    assert delta.sum() == pytest.approx(2 * expected)
+    traded, delta = cm.turnover(target, drifted)
+    leg = abs(0.5 - 0.55 / 1.05)
+    assert traded == pytest.approx(2 * leg), "traded notional is buys plus sells"
+    assert delta.sum() == pytest.approx(traded)
 
     naive, _ = cm.turnover(target, target)
     assert naive == 0.0, "the previous-target version would report no trade at all"
@@ -91,26 +91,48 @@ def test_turnover_is_measured_from_the_drifted_book_not_the_previous_target():
 
 def test_an_instrument_entering_the_book_is_a_full_size_trade():
     cm = CostModel()
-    one_way, delta = cm.turnover(pd.Series({"A": 0.5, "C": 0.5}), pd.Series({"A": 1.0}))
+    traded, delta = cm.turnover(pd.Series({"A": 0.5, "C": 0.5}), pd.Series({"A": 1.0}))
     assert delta["C"] == pytest.approx(0.5)
-    assert one_way == pytest.approx(0.5)
+    assert delta["A"] == pytest.approx(0.5)
+    assert traded == pytest.approx(1.0), "half sold out of A, half bought into C"
 
 
 # --- costs -------------------------------------------------------------------
 
 
-def test_costs_are_charged_on_traded_notional_not_on_one_way_turnover():
+def test_turnover_is_traded_notional_and_section_8_is_then_literal():
     """
-    decisions/0017. Charging the one-way figure halves every cost in the lab.
+    decisions/0017. Turnover is buys plus sells, so SUBSTRATE section 8's
+    `net = gross - turnover * half_spread - drag/52` is dimensionally correct
+    exactly as written, with no reinterpretation.
     """
     cm = CostModel(buckets={"A": "low", "B": "low"})
     target, drifted = pd.Series({"A": 0.6, "B": 0.4}), pd.Series({"A": 0.4, "B": 0.6})
     b = cm.rebalance_cost(target, drifted)
 
-    assert b.turnover_one_way == pytest.approx(0.2)
     assert b.traded_notional == pytest.approx(0.4)
-    assert b.spread_cost == pytest.approx(0.4 * 5e-4)
-    assert b.spread_cost == pytest.approx(2 * b.turnover_one_way * 5e-4)
+    assert b.turnover_one_way == pytest.approx(0.2)
+    assert b.spread_cost == pytest.approx(b.traded_notional * 5e-4), "section 8, literally"
+
+
+def test_the_veto_reads_traded_notional_not_the_one_way_figure(params):
+    """
+    Reading one-way here would let a strategy trade 300% of NAV a year against
+    a ceiling meant to permit 150%. Built to sit just inside and just outside.
+    """
+    from signal_lab.harness.run_context import RunContext
+    from vetoes.rules import veto_turnover
+
+    cap = float(params.require("vetoes.turnover.max_annualised"))
+    inside = RunContext(run_id="t", turnover=pd.Series([cap / 52] * 52))
+    assert veto_turnover(inside, params).passed
+
+    outside = RunContext(run_id="t", turnover=pd.Series([cap / 52 * 1.01] * 52))
+    assert not veto_turnover(outside, params).passed
+
+    # The one-way figure for the failing book is 0.75x the ceiling. A veto that
+    # read it would wave this through.
+    assert (outside.turnover.mean() / 2) * 52 < cap
 
 
 def test_drag_is_one_week_of_the_annual_fee_on_what_is_held():
@@ -149,6 +171,7 @@ def test_a_flat_panel_produces_only_cost():
     )
     assert (path.gross_returns == 0.0).all()
     assert path.turnover.sum() == pytest.approx(0.0), "a flat panel does not drift"
+    assert (path.turnover_one_way == path.turnover / 2).all()
     assert path.net_returns.iloc[0] == pytest.approx(-5e-4 / 52)
 
 

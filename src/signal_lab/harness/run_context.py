@@ -39,7 +39,7 @@ class RunContext:
     # --- portfolio-shape inputs ---
     weights: pd.DataFrame | None = None  # dates x instrument, sums to 1 with cash
     cash_weights: pd.Series | None = None  # dates, fraction of NAV in cash
-    turnover: pd.Series | None = None  # per rebalance, one-way fraction of NAV
+    turnover: pd.Series | None = None  # per rebalance, TRADED NOTIONAL (sum |dw|)
     rebalances_per_year: float = 52.0
     te_trailing_3y: pd.Series | None = None  # annualised, as a fraction
     active_returns: pd.Series | None = None  # per rebalance, strategy minus benchmark
@@ -71,6 +71,11 @@ class RunContext:
         return value
 
     def annualised_turnover(self) -> float:
-        """One-way turnover per rebalance, annualised."""
+        """
+        Annualised traded notional -- buys plus sells (decisions/0017).
+
+        Not the one-way figure. Reading one-way here would let a strategy trade
+        300% of NAV a year against a ceiling meant to permit 150%.
+        """
         turnover = self.require("turnover")
         return float(turnover.mean() * self.rebalances_per_year)
