@@ -60,26 +60,38 @@ def test_the_per_period_penalty_is_the_annual_one_divided_by_the_year(params):
     )
 
 
-def test_the_penalty_at_the_veto_ceiling_is_small_against_the_real_spread(params):
+def test_the_penalty_at_the_veto_ceiling_bites_without_dominating(params):
     """
-    Not an opinion, an arithmetic guard. If someone changes the coefficient this
-    fails and they are made to look at the magnitude, which is the whole
-    argument in decisions/0018.
+    An arithmetic guard, not an opinion. The calibration in decisions/0018 is
+    that the shadow cost should be a material fraction of the real spread on the
+    same trading -- enough to trade one thing against another, not enough to
+    dominate. Too small and the term is inert; too large and it stops being a
+    soft constraint. Changing the coefficient fails this and forces a look.
     """
     penalty_bp = annual_turnover_penalty(1.50, params) * 1e4
     mid_spread_bp = 1.50 * float(params.require("costs.buckets.mid.half_spread_bps"))
-    assert penalty_bp == pytest.approx(0.25, abs=0.01)
-    assert penalty_bp / mid_spread_bp < 0.05, (
-        "the penalty is under 5% of the cost of the trading it discourages; see "
-        "decisions/0018 for whether that is intended"
+    ratio = penalty_bp / mid_spread_bp
+
+    assert penalty_bp == pytest.approx(5.0, abs=0.01)
+    assert 0.15 < ratio < 0.75, (
+        f"shadow cost is {ratio:.0%} of the real spread at the ceiling; under 15% "
+        f"the optimiser ignores it, over 75% it is a hard constraint wearing a "
+        f"penalty's clothes. See decisions/0018."
     )
+
+
+def test_the_penalty_is_zero_at_target_and_grows_from_there(params):
+    """The soft-constraint shape: free up to the target, then priced."""
+    assert annual_turnover_penalty(0.99, params) == 0.0
+    assert annual_turnover_penalty(1.01, params) > 0.0
+    assert annual_turnover_penalty(1.50, params) < annual_turnover_penalty(1.51, params)
 
 
 # --- refusing rather than defaulting ----------------------------------------
 
 
 def test_an_unset_turnover_coefficient_refuses(tmp_path, params):
-    unset = variant(tmp_path, params, "coefficient: 0.5", "coefficient: null")
+    unset = variant(tmp_path, params, "coefficient: 10.0", "coefficient: null")
     with pytest.raises(ObjectiveNotConfigured, match="turnover.penalty.coefficient"):
         annual_turnover_penalty(1.50, unset)
 

@@ -65,44 +65,38 @@ the veto set on the pre-registered objective**, at the pre-registered
 coefficient. It informs an owner decision about implementation. It never ranks,
 and a point on the curve is never promoted to the leaderboard.
 
-## Owner's answer (2026-09-09), and an arithmetic caveat
+## Owner's answer (2026-09-09), after a units check
 
-> "0.5bp cost for exceeding 100%, linear."
+The owner first said "0.5bp cost for exceeding 100%, linear". That reading was
+ambiguous by a factor of 100 -- 0.5bp per *unit* of excess turnover, or per
+*percentage point* -- and the two land far apart:
 
-Implemented as `coefficient: 0.5`, `form: linear`, in
-`params/constraints.yaml`, read as **0.5bp per unit of annualised turnover above
-the target** — the literal reading of the words.
+| Reading | Shadow cost at the 150% ceiling | Against 15bp of real spread |
+|---|---|---|
+| 0.5bp per unit | 0.25bp/yr | 1.7% -- inert, the optimiser ignores it |
+| 0.5bp per percentage point | 25bp/yr | 167% -- a hard constraint in disguise |
 
-At that setting the penalty is very small next to the cost of the trading it is
-meant to discourage:
+Neither matches "slightly lower expected alpha for much lower turnover": one
+gives up nothing, the other gives up more than the trading costs in the first
+place. Settled at **10bp per unit of annualised turnover above target**:
 
-| Annualised turnover | Penalty | Mid-bucket spread | Penalty as % of spread |
+| Annualised turnover | Shadow cost | Mid-bucket spread | % of spread |
 |---|---|---|---|
-| 100% | 0.000bp | 10.0bp | 0.0% |
-| 125% | 0.125bp | 12.5bp | 1.0% |
-| 150% | 0.250bp | 15.0bp | 1.7% |
-| 200% | 0.500bp | 20.0bp | 2.5% |
+| 100% | 0.00bp | 10.0bp | 0% |
+| 125% | 2.50bp | 12.5bp | 20% |
+| 150% | 5.00bp | 15.0bp | 33% |
+| 200% | 10.00bp | 20.0bp | 50% |
+| 300% | 20.00bp | 30.0bp | 67% |
 
-At the 150% veto ceiling the shadow cost is a quarter of a basis point a year
-against fifteen basis points of real spread. A term that size will not move an
-optimiser: it is roughly a fiftieth of the marginal cost the solver is already
-paying, so it cannot buy the "much lower turnover" the owner described.
+At the veto ceiling the shadow cost is a third of the real spread on the same
+trading. That is the range where a soft constraint does what a soft constraint
+is for: enough to prefer the lower-turnover solution when the alpha give-up is
+small, not enough to dominate the objective and become a hard limit wearing a
+penalty's clothes.
 
-**The units are genuinely ambiguous and the readings differ by 100x.** "0.5bp
-for exceeding 100%" could mean per *unit* of turnover (0.25bp/yr at the ceiling,
-as implemented) or per *percentage point* of excess (50pp x 0.5bp = 25bp/yr at
-the ceiling, which is more than the entire mid-bucket spread and a very strong
-preference). The stated intent — "slightly lower expected alpha for much lower
-turnover" — sits between the two: giving up nothing, or giving up 25bp, are both
-away from "slightly".
-
-A coefficient near **10bp per unit** would put the shadow cost at 5bp/yr at the
-ceiling, about a third of the real spread, which is the range where a soft
-constraint actually trades one thing against another.
-
-Recorded as the owner's number with the arithmetic attached rather than
-adjusted. `tests/test_objective.py` asserts the magnitude, so changing the
-coefficient forces a look at this table.
+`tests/test_objective.py` asserts the ratio stays between 15% and 75% of the
+real spread, so changing the coefficient fails the suite and forces a look at
+this table rather than silently making the term inert or overwhelming.
 
 ## Shape
 
