@@ -47,11 +47,23 @@ tracking_error:
   max_trailing_3y: 0.060
   window_years: 3
   penalty:
-    shape: asymmetric
-    # No coefficient is set here. SUBSTRATE does not give one and thresholds
-    # are not invented. The objective refuses to build until the owner sets it.
-    coefficient: null
-    owner_to_confirm: true
+    # SUBSTRATE section 4: "TE is cheap when conviction dispersion is high and
+    # expensive when it is not." So the coefficient is a FUNCTION of conviction,
+    # not a number (decisions/0019):
+    #
+    #     lambda(c) = coefficient_low_conviction
+    #                 - (coefficient_low_conviction - coefficient_high_conviction) * c
+    #
+    # with c in [0, 1]. At c = 0 the model knows nothing and TE is dear; at
+    # c = 1 it is certain and TE is cheap. Bounded at BOTH ends on purpose: an
+    # overconfident regime estimate must not be able to buy unlimited tracking
+    # error, so the coefficient floors at coefficient_high_conviction rather
+    # than reaching zero.
+    shape: asymmetric_conviction_scaled
+    conviction_measure: entropy       # see harness/conviction.py; alt: max_probability
+    coefficient_low_conviction: null  # lambda at c = 0, TE expensive
+    coefficient_high_conviction: null # lambda at c = 1, TE cheap, NOT zero
+    owner_to_confirm: [coefficient_low_conviction, coefficient_high_conviction]
 
 rebalance:
   frequency: weekly

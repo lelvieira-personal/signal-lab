@@ -20,7 +20,8 @@ one place rather than scattered across decision records.
 | 13 | The cycle's proposer runs **weekly**, not nightly. The deterministic steps may run nightly. | 0007 |
 | 5.6 | `VintagePanel`'s period field is `period_end`, not `real_date`: JPMaQS uses `real_date` for the knowledge date and the two inverted. | 0014 |
 | 6 | The characteristic map carries per-cell provenance (measured vs estimated) and is **time-varying**; estimated loadings are fitted walk-forward. | 0015 |
-| 10 | The `lookahead` veto extends to estimated parameters, not only observed vintages — an exposure matrix fitted on the full sample leaks without misdating anything. | 0015 |
+| 10 | The `lookahead` veto extends to estimated parameters, not only observed vintages — an exposure matrix or a set of regime probabilities fitted on the full sample leaks without misdating anything. | 0015, 0019 |
+| 4 | The tracking-error penalty coefficient is a function of conviction, not a number. | 0019 |
 
 ## Not yet amendments, but open questions against the constitution
 
@@ -36,5 +37,11 @@ one place rather than scattered across decision records.
 - ~~The turnover penalty coefficient and shape.~~ Settled: 10bp per unit of
   excess turnover, linear, one-sided above the 100% target. 5bp/yr at the 150%
   ceiling, a third of the real spread. (0018)
-- The asymmetric tracking-error penalty coefficient is still null, so the full
-  objective refuses to build. (0003)
+- The tracking-error penalty's FORM is settled: conviction-scaled, linear
+  between two endpoints, floored (0019). The two coefficients are still null and
+  the objective refuses to build. (0003, 0019)
+- Whether the penalty reads conviction as certainty (the owner's HMM example) or
+  as cross-sectional dispersion (section 4's wording). Both implemented; the
+  default is certainty. (0019)
+- Conviction scaling is a falsifiable claim and should be registered as a
+  measurement hypothesis rather than tuned against net IR. (0016, 0019)

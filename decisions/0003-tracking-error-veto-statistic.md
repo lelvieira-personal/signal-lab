@@ -61,9 +61,10 @@ Stated maximum active drawdown: **10%.**
 Both mechanisms now exist, and there are eleven vetoes rather than ten.
 
 1. **In the optimiser**, TE is a hard per-rebalance cap with a conviction-scaled
-   target. `params/constraints.yaml` carries the asymmetric penalty's shape with
-   a `null` coefficient; the objective refuses to build until the owner sets it.
-   Still outstanding.
+   penalty. The functional form was settled in `decisions/0019`: the coefficient
+   interpolates between a dear value at zero conviction and a cheap one at full
+   conviction, floored so an overconfident estimate cannot buy unlimited TE.
+   The two coefficients remain `null` and the objective refuses to build.
 
 2. **As a veto**, `tracking_error` is retained but loosened from the worst
    trailing-3y reading to the **95th percentile** (`statistic: p95`). TE is the

@@ -24,7 +24,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from signal_lab.params import ParamNotConfigured, Params, get_params
+import numpy as np
+
+from signal_lab.params import Params, get_params
 
 BPS = 1e-4
 
@@ -88,28 +90,53 @@ def annual_turnover_penalty(annualised_turnover: float, params: Params | None = 
     return turnover_penalty(annualised_turnover, params, periods_per_year=1.0)
 
 
-def tracking_error_penalty(
-    trailing_te: float, params: Params | None = None, periods_per_year: float = 52.0
-) -> float:
+def te_coefficient(conviction: float, params: Params | None = None) -> float:
     """
-    The asymmetric tracking-error penalty of SUBSTRATE section 4.
+    The tracking-error penalty coefficient at a given conviction.
 
-    "TE is cheap when conviction dispersion is high and expensive when it is
-    not", which makes the coefficient conviction-dependent rather than constant.
-    Unset, so this refuses. See decisions/0003.
+    SUBSTRATE section 4 makes this a function rather than a number: TE is cheap
+    when conviction is high and expensive when it is not. Linear between the two
+    endpoints, and floored at the high-conviction value rather than reaching
+    zero -- an overconfident regime estimate must not be able to buy unlimited
+    tracking error (decisions/0019).
     """
     params = params or get_params()
-    try:
-        coefficient = params.require("constraints.tracking_error.penalty.coefficient")
-    except ParamNotConfigured as exc:
+    cfg = params.get("constraints.tracking_error.penalty", {}) or {}
+    low = cfg.get("coefficient_low_conviction")
+    high = cfg.get("coefficient_high_conviction")
+    if low is None or high is None:
         raise ObjectiveNotConfigured(
-            "constraints.tracking_error.penalty.coefficient is null in params/. "
-            "SUBSTRATE section 4 requires an asymmetric penalty and states no "
-            "coefficient; see decisions/0003."
-        ) from exc
+            "constraints.tracking_error.penalty.coefficient_{low,high}_conviction "
+            "are null in params/. SUBSTRATE section 4 requires a conviction-scaled "
+            "penalty and states no coefficients; see decisions/0019."
+        )
+    if float(high) > float(low):
+        raise ObjectiveNotConfigured(
+            "the high-conviction coefficient must not exceed the low-conviction one; "
+            "section 4 says TE is CHEAPER when conviction is high"
+        )
+    c = float(np.clip(conviction, 0.0, 1.0))
+    return float(low) - (float(low) - float(high)) * c
+
+
+def tracking_error_penalty(
+    trailing_te: float,
+    conviction: float = 0.0,
+    params: Params | None = None,
+    periods_per_year: float = 52.0,
+) -> float:
+    """
+    The asymmetric, conviction-scaled tracking-error penalty (section 4).
+
+    One-sided above the ceiling, like the turnover penalty. `conviction`
+    defaults to 0 -- the dear end -- so a caller that forgets to supply it is
+    penalised rather than let off.
+    """
+    params = params or get_params()
+    coefficient = te_coefficient(conviction, params)
     cap = float(params.require("constraints.tracking_error.max_trailing_3y"))
     excess = max(0.0, float(trailing_te) - cap)
-    return float(coefficient) * excess / periods_per_year
+    return coefficient * excess / periods_per_year
 
 
 def is_configured(params: Params | None = None) -> tuple[bool, str]:
@@ -119,7 +146,14 @@ def is_configured(params: Params | None = None) -> tuple[bool, str]:
         name
         for name, path in (
             ("turnover penalty", "constraints.turnover.penalty.coefficient"),
-            ("tracking-error penalty", "constraints.tracking_error.penalty.coefficient"),
+            (
+                "tracking-error penalty (low conviction)",
+                "constraints.tracking_error.penalty.coefficient_low_conviction",
+            ),
+            (
+                "tracking-error penalty (high conviction)",
+                "constraints.tracking_error.penalty.coefficient_high_conviction",
+            ),
         )
         if params.get(path, None) is None
     ]

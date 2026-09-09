@@ -67,13 +67,16 @@ def test_require_refuses_a_null_threshold(params):
     """
     SUBSTRATE forbids inventing thresholds; unset means refuse, not default.
 
-    Every ceiling is now set (decisions/0007), so this is asserted against a
-    parameter the owner deliberately left null: the TE penalty coefficient,
-    which the objective needs and which nobody has chosen yet.
+    Every ceiling is now set (decisions/0007), so this is asserted against
+    parameters the owner deliberately left null: the conviction-scaled TE
+    penalty coefficients, whose functional form is settled (decisions/0019) but
+    whose endpoints cannot sensibly be chosen before there is a candidate model.
     """
-    assert params.get("constraints.tracking_error.penalty.coefficient") is None
-    with pytest.raises(ParamNotConfigured):
-        params.require("constraints.tracking_error.penalty.coefficient")
+    for endpoint in ("coefficient_low_conviction", "coefficient_high_conviction"):
+        path = f"constraints.tracking_error.penalty.{endpoint}"
+        assert params.get(path) is None
+        with pytest.raises(ParamNotConfigured):
+            params.require(path)
 
 
 def test_unknown_path_raises_but_default_is_honoured(params):
