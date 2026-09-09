@@ -159,39 +159,53 @@ class VintagePanel:
     """
     Bitemporal macro data. SUBSTRATE section 5.6.
 
-    Long format, one row per (series_id, real_date, knowledge_date). `real_date`
-    is the period the number describes; `knowledge_date` is when it could first
-    have been known. A revision is a new row with the same real_date and a later
-    knowledge_date, never an overwrite.
+    Long format, one row per (series_id, period_end, knowledge_date).
+    `period_end` is the last date of the period the number describes;
+    `knowledge_date` is when it could first have been known. A revision is a new
+    row with the same period_end and a later knowledge_date, never an overwrite.
+
+    NAMING, DELIBERATE: these fields were called `real_date` and
+    `knowledge_date` until the JPMaQS access details arrived. JPMaQS also has a
+    column called `real_date`, and it means the OPPOSITE end of the pair -- "the
+    date of the information state as observed by the markets", i.e. what this
+    class calls `knowledge_date`. Two columns with the same name and inverted
+    meanings, joined by a loader, is a lookahead bug that no test would catch
+    because the panel would look perfectly well-formed. The field is therefore
+    `period_end`, which is also what JPMaQS lets you recover:
+
+        period_end     = jpmaqs.real_date - jpmaqs.eop_lag days
+        knowledge_date = jpmaqs.real_date
+
+    See decisions/0014.
 
     `as_of` is the only sanctioned way to read it. Reading `frame` directly and
-    filtering by real_date is exactly the lookahead the veto exists to catch.
+    filtering by period_end is exactly the lookahead the veto exists to catch.
     """
 
-    frame: pd.DataFrame  # series_id, real_date, knowledge_date, value, grading, eop_lag
+    frame: pd.DataFrame  # series_id, period_end, knowledge_date, value, grading, eop_lag
     meta: dict[str, SeriesMeta]
     snapshot_id: str = "unknown"
     source: str = "unknown"
 
-    REQUIRED_COLUMNS = ("series_id", "real_date", "knowledge_date", "value")
+    REQUIRED_COLUMNS = ("series_id", "period_end", "knowledge_date", "value")
 
     def __post_init__(self) -> None:
         missing = [c for c in self.REQUIRED_COLUMNS if c not in self.frame.columns]
         if missing:
             raise ValueError(f"VintagePanel is missing columns {missing}")
-        bad = self.frame["knowledge_date"] < self.frame["real_date"]
+        bad = self.frame["knowledge_date"] < self.frame["period_end"]
         if bool(bad.any()):
             raise ValueError(
                 f"{int(bad.sum())} observation(s) have knowledge_date before "
-                f"real_date, which would be knowing a number before the period it "
+                f"period_end, which would be knowing a number before the period it "
                 f"describes has ended"
             )
 
     def as_of(self, knowledge_date, series_ids: list[str] | None = None) -> pd.DataFrame:
         """
-        What was knowable at `knowledge_date`, wide: real_date x series_id.
+        What was knowable at `knowledge_date`, wide: period_end x series_id.
 
-        For each series and real_date, the latest vintage published on or before
+        For each series and period_end, the latest vintage published on or before
         knowledge_date. Rows whose first vintage came later are absent, not
         filled: a number nobody had is not zero and is not the previous number.
         """
@@ -200,11 +214,11 @@ class VintagePanel:
         if series_ids is not None:
             sub = sub[sub["series_id"].isin(series_ids)]
         if sub.empty:
-            return pd.DataFrame(index=pd.DatetimeIndex([], name="real_date"))
-        sub = sub.sort_values(["series_id", "real_date", "knowledge_date"])
-        latest = sub.groupby(["series_id", "real_date"], as_index=False).last()
-        wide = latest.pivot(index="real_date", columns="series_id", values="value")
-        wide.index = pd.DatetimeIndex(wide.index, name="real_date")
+            return pd.DataFrame(index=pd.DatetimeIndex([], name="period_end"))
+        sub = sub.sort_values(["series_id", "period_end", "knowledge_date"])
+        latest = sub.groupby(["series_id", "period_end"], as_index=False).last()
+        wide = latest.pivot(index="period_end", columns="series_id", values="value")
+        wide.index = pd.DatetimeIndex(wide.index, name="period_end")
         wide.columns.name = None
         return wide.sort_index()
 
@@ -228,7 +242,7 @@ class VintagePanel:
         sub = self.frame[self.frame["knowledge_date"] <= kd]
         if series_ids is not None:
             sub = sub[sub["series_id"].isin(series_ids)]
-        out = sub[["series_id", "real_date", "knowledge_date"]].copy()
+        out = sub[["series_id", "period_end", "knowledge_date"]].copy()
         out["used_on_date"] = kd
         return out.reset_index(drop=True)
 

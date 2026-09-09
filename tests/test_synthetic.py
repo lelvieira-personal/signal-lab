@@ -132,9 +132,9 @@ def test_analytics_field_start_dates_follow_substrate_5_3(analytics):
 
 
 def test_vintage_panel_is_bitemporal_with_revisions(macro):
-    counts = macro.frame.groupby(["series_id", "real_date"]).size()
+    counts = macro.frame.groupby(["series_id", "period_end"]).size()
     assert (counts > 1).any(), "no revisions means as_of is never exercised"
-    assert (macro.frame["knowledge_date"] >= macro.frame["real_date"]).all()
+    assert (macro.frame["knowledge_date"] >= macro.frame["period_end"]).all()
 
 
 def test_as_of_hides_what_was_not_yet_published(macro):
@@ -148,13 +148,13 @@ def test_as_of_returns_the_latest_vintage_not_the_first(macro):
     sid = macro.frame["series_id"].iloc[0]
     revised = (
         macro.frame[macro.frame["series_id"] == sid]
-        .groupby("real_date")
+        .groupby("period_end")
         .filter(lambda g: len(g) > 1)
     )
     if revised.empty:
         pytest.skip("this series has no revision")
-    period = revised["real_date"].iloc[0]
-    vintages = revised[revised["real_date"] == period].sort_values("knowledge_date")
+    period = revised["period_end"].iloc[0]
+    vintages = revised[revised["period_end"] == period].sort_values("knowledge_date")
     first, last = vintages.iloc[0], vintages.iloc[-1]
     seen_early = macro.as_of(first["knowledge_date"], [sid]).loc[period, sid]
     seen_late = macro.as_of(last["knowledge_date"], [sid]).loc[period, sid]

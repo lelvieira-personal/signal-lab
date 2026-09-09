@@ -29,9 +29,9 @@ proposed_by: agent
 provenance: adaptation
 reference: null
 data_required:
-  - JPMAQS.USD_MBASEGDP_SA_D1M1ML12
-  - JPMAQS.USD_RM1GDP_SA_D1M1ML12
-  - JPMAQS.EUR_RM3GDP_SA_D1M1ML12
+  - USD_MBASEGDP_SA_D1M1ML12
+  - USD_RM1GDP_SA_D1M1ML12
+  - EUR_RM3GDP_SA_D1M1ML12
   - NFCI
   - LUACTRUU
   - LF98TRUU

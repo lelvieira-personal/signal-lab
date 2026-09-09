@@ -28,10 +28,10 @@ proposed_by: owner
 provenance: adaptation
 reference: null
 data_required:
-  - JPMAQS.USD_RIR_NSA
-  - JPMAQS.EUR_RIR_NSA
-  - JPMAQS.JPY_RIR_NSA
-  - JPMAQS.GBP_RIR_NSA
+  - USD_RIR_NSA
+  - EUR_RIR_NSA
+  - JPY_RIR_NSA
+  - GBP_RIR_NSA
   - DFF
   - DGS2
   - DGS10

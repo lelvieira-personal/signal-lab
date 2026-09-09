@@ -30,8 +30,8 @@ proposed_by: agent
 provenance: adaptation
 reference: null
 data_required:
-  - JPMAQS.USD_CPIC_SJA_P6M6ML6AR
-  - JPMAQS.EUR_CPIC_SJA_P6M6ML6AR
+  - USD_CPIC_SJA_P6M6ML6AR
+  - EUR_CPIC_SJA_P6M6ML6AR
   - T10YIE
   - T5YIE
   - DFII10

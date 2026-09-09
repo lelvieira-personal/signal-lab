@@ -78,7 +78,7 @@ def test_synthetic_panel_never_reaches_the_holdout(panel, params):
 
 def test_macro_panel_never_reaches_the_holdout(macro, params):
     enforce_holdout(macro.frame["knowledge_date"], params)
-    enforce_holdout(macro.frame["real_date"], params)
+    enforce_holdout(macro.frame["period_end"], params)
 
 
 def test_unlocking_requires_a_named_owner_and_a_date(params, tmp_path):

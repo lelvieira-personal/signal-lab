@@ -4,28 +4,28 @@ family: terms_of_trade
 requested_by: agent
 status: awaiting_owner
 series:
-- id: JPMAQS.AUD_CTOT_NSA_P1M1ML12
+- id: AUD_CTOT_NSA_P1M1ML12
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.BRL_CTOT_NSA_P1M1ML12
+- id: BRL_CTOT_NSA_P1M1ML12
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.CAD_CTOT_NSA_P1M1ML12
+- id: CAD_CTOT_NSA_P1M1ML12
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.ZAR_CTOT_NSA_P1M1ML12
+- id: ZAR_CTOT_NSA_P1M1ML12
   source: jpmaqs
   fields:
   - value
 - id: DCOILWTICO
-  source: unknown
+  source: fred
   fields:
   - value
 - id: DCOILBRENTEU
-  source: unknown
+  source: fred
   fields:
   - value
 - id: MXEF

@@ -119,15 +119,15 @@ def test_proxy_must_be_declared_as_a_mapping(params):
 
 
 def test_missing_series_blocks_and_writes_a_request(params, tmp_path):
-    h = validate_hypothesis(good_doc(data_required=["DGS2", "JPMAQS.USD_RIR_NSA"]), params)
+    h = validate_hypothesis(good_doc(data_required=["DGS2", "USD_RIR_NSA"]), params)
     check = check_data(h, {"DGS2"})
     assert check.blocked and check.status == "blocked:data"
-    assert check.missing == ["JPMAQS.USD_RIR_NSA"]
+    assert check.missing == ["USD_RIR_NSA"]
 
     path = write_data_request(h, check, tmp_path)
     doc = yaml.safe_load(path.read_text())
     assert doc["hypothesis_id"] == h.id
-    assert doc["series"][0]["id"] == "JPMAQS.USD_RIR_NSA"
+    assert doc["series"][0]["id"] == "USD_RIR_NSA"
     assert doc["series"][0]["source"] == "jpmaqs"
     assert doc["series"][0]["fields"]
     assert doc["status"] == "awaiting_owner"
@@ -136,6 +136,42 @@ def test_missing_series_blocks_and_writes_a_request(params, tmp_path):
 def test_a_fully_covered_hypothesis_is_ready(params):
     h = validate_hypothesis(good_doc(), params)
     assert not check_data(h, {"DGS2", "DGS10", "SPX"}).blocked
+
+
+def test_source_hints_distinguish_the_three_vendors(params):
+    """
+    A JPMaQS ticker and a Bloomberg ticker are both bare uppercase strings.
+    Misrouting one sends the owner to the wrong vendor on a data request.
+    """
+    from signal_lab.harness.hypotheses import _guess_source
+
+    assert _guess_source("USD_INTRGDP_NSA_P1M1ML12_D1M1ML3") == "jpmaqs"
+    assert _guess_source("EUR_CPIC_SJA_P6M6ML6AR") == "jpmaqs"
+    assert _guess_source("LUACTRUU") == "bloomberg"
+    assert _guess_source("MXUS0EN") == "bloomberg"
+    assert _guess_source("BCOMGCTR") == "bloomberg"
+    assert _guess_source("DGS10") == "fred"
+    assert _guess_source("VIXCLS") == "fred"
+    assert _guess_source("MOVE") == "unknown"
+
+
+def test_every_registered_jpmaqs_ticker_is_well_formed(params):
+    """
+    The registry's tickers must survive split_ticker(), or phase 3 discovers
+    eleven malformed pre-registrations on the night the search opens.
+    """
+    from signal_lab.harness.hypotheses import HypothesisRegistry
+    from signal_lab.loaders.jpmaqs import is_jpmaqs_ticker, split_ticker
+
+    reg = HypothesisRegistry(params=params)
+    n = 0
+    for h in reg.load("pending"):
+        for sid in h.data_required:
+            if is_jpmaqs_ticker(sid):
+                cid, xcat = split_ticker(sid)
+                assert len(cid) == 3 and xcat
+                n += 1
+    assert n >= 20, f"expected the macro families to name JPMaQS tickers, found {n}"
 
 
 # --- the lifecycle -----------------------------------------------------------

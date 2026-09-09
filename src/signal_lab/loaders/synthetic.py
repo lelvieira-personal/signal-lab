@@ -409,7 +409,7 @@ def make_vintage_panel(
                 rows.append(
                     {
                         "series_id": series_id,
-                        "real_date": period,
+                        "period_end": period,
                         "knowledge_date": first_release,
                         "value": level + rng.normal(0.0, 0.12),
                         "grading": float(rng.choice([1.0, 2.0, 3.0], p=[0.70, 0.22, 0.08])),
@@ -424,7 +424,7 @@ def make_vintage_panel(
                         rows.append(
                             {
                                 "series_id": series_id,
-                                "real_date": period,
+                                "period_end": period,
                                 "knowledge_date": revision,
                                 "value": level + rng.normal(0.0, 0.05),
                                 "grading": 1.0,
@@ -433,7 +433,7 @@ def make_vintage_panel(
                             }
                         )
 
-    frame = pd.DataFrame(rows).sort_values(["series_id", "real_date", "knowledge_date"])
+    frame = pd.DataFrame(rows).sort_values(["series_id", "period_end", "knowledge_date"])
     frame = frame.reset_index(drop=True)
 
     meta = {
@@ -451,7 +451,7 @@ def make_vintage_panel(
     enforce_holdout(
         frame["knowledge_date"], params, what="synthetic vintage panel (knowledge dates)"
     )
-    enforce_holdout(frame["real_date"], params, what="synthetic vintage panel (real dates)")
+    enforce_holdout(frame["period_end"], params, what="synthetic vintage panel (real dates)")
     return VintagePanel(frame=frame, meta=meta, snapshot_id=snapshot_id, source="synthetic")
 
 

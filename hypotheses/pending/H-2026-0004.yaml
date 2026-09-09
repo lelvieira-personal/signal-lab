@@ -30,8 +30,8 @@ proposed_by: agent
 provenance: adaptation
 reference: null
 data_required:
-  - JPMAQS.USD_BLSDCLN_SA_D1Q1QL1
-  - JPMAQS.EUR_BLSDCLN_SA_D1Q1QL1
+  - USD_BLSDCLN_SA_D1Q1QL1
+  - EUR_BLSDCLN_SA_D1Q1QL1
   - DRTSCILM
   - LF98TRUU
   - LUACTRUU

@@ -30,9 +30,9 @@ proposed_by: owner
 provenance: adaptation
 reference: null
 data_required:
-  - JPMAQS.USD_EQCRR_NSA
-  - JPMAQS.EUR_EQCRR_NSA
-  - JPMAQS.JPY_EQCRR_NSA
+  - USD_EQCRR_NSA
+  - EUR_EQCRR_NSA
+  - JPY_EQCRR_NSA
   - DFII10
   - MXUS
   - MXEU

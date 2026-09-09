@@ -4,16 +4,16 @@ family: credit_conditions
 requested_by: agent
 status: awaiting_owner
 series:
-- id: JPMAQS.USD_BLSDCLN_SA_D1Q1QL1
+- id: USD_BLSDCLN_SA_D1Q1QL1
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.EUR_BLSDCLN_SA_D1Q1QL1
+- id: EUR_BLSDCLN_SA_D1Q1QL1
   source: jpmaqs
   fields:
   - value
 - id: DRTSCILM
-  source: unknown
+  source: fred
   fields:
   - value
 - id: LF98TRUU

@@ -4,11 +4,11 @@ family: inflation
 requested_by: agent
 status: awaiting_owner
 series:
-- id: JPMAQS.USD_CPIC_SJA_P6M6ML6AR
+- id: USD_CPIC_SJA_P6M6ML6AR
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.EUR_CPIC_SJA_P6M6ML6AR
+- id: EUR_CPIC_SJA_P6M6ML6AR
   source: jpmaqs
   fields:
   - value
@@ -29,9 +29,9 @@ series:
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
 - id: LBUTTRUU
-  source: unknown
+  source: bloomberg
   fields:
-  - value
+  - TOT_RETURN_INDEX_GROSS_DVDS
 reason: H-2026-0002 requires 7 series absent from the snapshot. The hypothesis is
   blocked:data rather than run on a substitute.
 available_already: []

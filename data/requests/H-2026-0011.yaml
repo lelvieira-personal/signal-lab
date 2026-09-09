@@ -4,15 +4,15 @@ family: valuation
 requested_by: owner
 status: awaiting_owner
 series:
-- id: JPMAQS.USD_EQCRR_NSA
+- id: USD_EQCRR_NSA
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.EUR_EQCRR_NSA
+- id: EUR_EQCRR_NSA
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.JPY_EQCRR_NSA
+- id: JPY_EQCRR_NSA
   source: jpmaqs
   fields:
   - value

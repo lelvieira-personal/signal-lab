@@ -4,24 +4,24 @@ family: policy_rates
 requested_by: owner
 status: awaiting_owner
 series:
-- id: JPMAQS.USD_RIR_NSA
+- id: USD_RIR_NSA
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.EUR_RIR_NSA
+- id: EUR_RIR_NSA
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.JPY_RIR_NSA
+- id: JPY_RIR_NSA
   source: jpmaqs
   fields:
   - value
-- id: JPMAQS.GBP_RIR_NSA
+- id: GBP_RIR_NSA
   source: jpmaqs
   fields:
   - value
 - id: DFF
-  source: unknown
+  source: fred
   fields:
   - value
 - id: DGS2

@@ -31,7 +31,18 @@ sources:
     package: macrosynergy
     client: JPMaQSDownload
     env_keys: ["DQ_CLIENT_ID", "DQ_CLIENT_SECRET"]
-    proxy_env_prefix: PROXY   # the owner's get_proxies(prefix="PROXY") convention
+    proxy:
+      # The owner's production helper builds
+      #   http://{os.getlogin()}:{PROXY_PWD}@proxynew.itau:8080
+      # for both http and https. That host resolves on the corporate network and
+      # nowhere else, and this lab runs on a personal machine, so the proxy is
+      # OFF by default and the loader connects directly. Flip enabled to true
+      # when running somewhere the host resolves.
+      enabled: false
+      host: proxynew.itau
+      port: 8080
+      user_from: os.getlogin
+      password_env: PROXY_PWD
     start_date: "1990-01-01"
     # SUBSTRATE section 5.6 requires value, grading AND eop_lag on every ticker.
     # The owner's working snippet requests metrics=["value"] only; with just the

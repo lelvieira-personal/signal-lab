@@ -237,7 +237,7 @@ def test_lookahead_passes_when_nothing_is_used_early(params):
     usage = pd.DataFrame(
         {
             "series_id": ["growth.gdp_intuitive"] * 2,
-            "real_date": pd.to_datetime(["2010-01-31", "2010-02-28"]),
+            "period_end": pd.to_datetime(["2010-01-31", "2010-02-28"]),
             "knowledge_date": pd.to_datetime(["2010-03-01", "2010-03-29"]),
             "used_on_date": pd.to_datetime(["2010-03-05", "2010-04-02"]),
         }
@@ -250,7 +250,7 @@ def test_lookahead_fails_on_a_single_peek(params):
     usage = pd.DataFrame(
         {
             "series_id": ["growth.gdp_intuitive"],
-            "real_date": pd.to_datetime(["2010-01-31"]),
+            "period_end": pd.to_datetime(["2010-01-31"]),
             "knowledge_date": pd.to_datetime(["2010-03-01"]),
             "used_on_date": pd.to_datetime(["2010-02-15"]),
         }
@@ -264,7 +264,7 @@ def test_lookahead_boundary_same_day_use_is_allowed(params):
     usage = pd.DataFrame(
         {
             "series_id": ["x"],
-            "real_date": [pd.Timestamp("2010-01-31")],
+            "period_end": [pd.Timestamp("2010-01-31")],
             "knowledge_date": [day],
             "used_on_date": [day],
         }
@@ -278,19 +278,19 @@ def test_lookahead_boundary_same_day_use_is_allowed(params):
 def test_lookahead_against_the_synthetic_vintage_panel(macro, params):
     """
     The real shape: as_of produces a usage log that must pass, and reading the
-    panel by real_date instead of knowledge_date must fail.
+    panel by period_end instead of knowledge_date must fail.
     """
     as_of_date = pd.Timestamp("2008-06-30")
     honest = macro.usage_log(as_of_date)
     assert len(honest) > 0
     assert veto_lookahead(ctx(observation_usage=honest), params).passed
 
-    # The mistake this veto exists to catch: treating real_date as if it were
+    # The mistake this veto exists to catch: treating period_end as if it were
     # the knowledge date, which uses every number the moment its period ends.
-    cheating = macro.frame[macro.frame["real_date"] <= as_of_date][
-        ["series_id", "real_date", "knowledge_date"]
+    cheating = macro.frame[macro.frame["period_end"] <= as_of_date][
+        ["series_id", "period_end", "knowledge_date"]
     ].copy()
-    cheating["used_on_date"] = cheating["real_date"]
+    cheating["used_on_date"] = cheating["period_end"]
     v = veto_lookahead(ctx(observation_usage=cheating), params)
     assert not v.passed, "using a number on its period end date is a peek at the release"
 
@@ -517,7 +517,7 @@ def full_context(panel, **overrides) -> RunContext:
         observation_usage=pd.DataFrame(
             {
                 "series_id": ["x"],
-                "real_date": [pd.Timestamp("2010-01-31")],
+                "period_end": [pd.Timestamp("2010-01-31")],
                 "knowledge_date": [pd.Timestamp("2010-03-01")],
                 "used_on_date": [pd.Timestamp("2010-03-05")],
             }
@@ -564,7 +564,7 @@ def test_apply_vetoes_returns_first_failure_in_configured_order(panel, params):
         observation_usage=pd.DataFrame(
             {
                 "series_id": ["x"],
-                "real_date": [pd.Timestamp("2010-01-31")],
+                "period_end": [pd.Timestamp("2010-01-31")],
                 "knowledge_date": [pd.Timestamp("2010-03-01")],
                 "used_on_date": [pd.Timestamp("2010-02-01")],
             }

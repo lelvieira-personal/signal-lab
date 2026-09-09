@@ -122,4 +122,12 @@ Three coherent positions:
 - **Set `absolute: 0.10` and keep TE at 6%** — the veto then rejects almost
   everything, which may be the intent if the bar is meant to be near-impossible.
 
-Status: **implemented at 3x TE; open** on which of the three the owner wants.
+### Owner's answer (2026-09-09)
+
+> "let's keep the 18%"
+
+`te_multiple: 3.0` stands, `absolute: null`. At the current 6.0% TE ceiling the
+active-drawdown veto fires above 18.0%, and it moves with the TE budget if that
+is ever cut.
+
+Status: **closed.**

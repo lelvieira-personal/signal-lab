@@ -348,10 +348,27 @@ def _guess_source(series_id: str) -> str:
     an inference: anything unrecognised is reported as unknown rather than
     assigned to a vendor that may not carry it.
     """
-    sid = series_id.upper()
-    if sid.startswith(("JPMAQS.", "MACROSYNERGY.")) or "_" in series_id and series_id.isupper():
+    from signal_lab.loaders.jpmaqs import is_jpmaqs_ticker
+
+    if is_jpmaqs_ticker(series_id):
         return "jpmaqs"
-    if sid.startswith(("DGS", "DFII", "T10", "T5", "VIXCLS", "NFCI", "ANFCI", "STLFSI", "DTWEX")):
+    sid = series_id.upper()
+    if sid.startswith(
+        (
+            "DGS",
+            "DFII",
+            "T10",
+            "T5",
+            "VIXCLS",
+            "NFCI",
+            "ANFCI",
+            "STLFSI",
+            "DTWEX",
+            "DFF",
+            "DCOIL",
+            "DRTSCILM",
+        )
+    ):
         return "fred"
     if sid.startswith(
         (
@@ -360,9 +377,14 @@ def _guess_source(series_id: str) -> str:
             "LF",
             "LEGA",
             "LP0",
+            "LD",
+            "LB",
+            "LG",
             "MX",
             "ND",
             "M1",
+            "M2",
+            "M0",
             "I0",
             "I1",
             "I2",
@@ -372,6 +394,15 @@ def _guess_source(series_id: str) -> str:
             "SPBD",
             "G3O",
             "SBWG",
+            "EMUS",
+            "BCOM",
+            "SPX",
+            "TAMSCI",
+            "ENXG",
+            "FGCI",
+            "SPGNR",
+            "LET",
+            "NDU",
         )
     ):
         return "bloomberg"

@@ -8,7 +8,7 @@ them rather than rediscovering them:
     from Bloomberg (SUBSTRATE section 5.4).
   * FRED is not point-in-time. Its series are revised in place, so anything
     loaded from here is knowable only at its release, and the loader must
-    construct knowledge dates rather than assume real_date == knowledge_date.
+    construct knowledge dates rather than assume period_end == knowledge_date.
 
 The API key comes from the FRED_API_KEY environment variable. No key is ever
 written to params/ or committed.
