@@ -1,0 +1,33 @@
+hypothesis_id: H-2026-0007
+signal: oas_zscore_vs_own_5y_history
+family: spreads_curve
+requested_by: agent
+status: awaiting_owner
+series:
+- id: LUACTRUU Index|INDEX_OAS_TSY
+  source: bloomberg
+  fields:
+  - INDEX_OAS_TSY
+- id: LF98TRUU Index|INDEX_OAS_TSY
+  source: bloomberg
+  fields:
+  - INDEX_OAS_TSY
+- id: LUALTRUU Index|INDEX_OAS_TSY
+  source: bloomberg
+  fields:
+  - INDEX_OAS_TSY
+- id: EMUSTRUU Index|INDEX_OAS_TSY
+  source: unknown
+  fields:
+  - INDEX_OAS_TSY
+- id: LUACTRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: LF98TRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+reason: H-2026-0007 requires 6 series absent from the snapshot. The hypothesis is
+  blocked:data rather than run on a substitute.
+available_already: []

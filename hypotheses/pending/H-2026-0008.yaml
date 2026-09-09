@@ -1,0 +1,39 @@
+id: H-2026-0008
+family: volatility_stress
+signal: move_vix_composite_change_1m
+direction: negative
+target_axis: cash
+rationale: >
+  Implied volatility in rates and equities is a price for insurance, and it
+  rises when dealers' capacity to warehouse risk falls. Because that capacity
+  recovers slowly, volatility clusters: a rise this month predicts elevated
+  volatility next month, which predicts wider realised dispersion and lower
+  risk-adjusted returns on every risk asset simultaneously. The practical
+  consequence for a long-only multi-asset book is not that a particular sleeve
+  becomes unattractive but that the whole opportunity set does, and the only
+  instrument that expresses that is cash. The relationship is negative: rising
+  volatility implies less risk exposure, which mechanically means more cash.
+  The horizon is short, four to eight weeks, matching the persistence of
+  volatility itself, which decays far faster than any macro signal in this set.
+  This is honestly a weak expression: the cash bucket is capped at twenty per
+  cent of NAV, so the maximum defensive move available is small, and the
+  signal will be right about risk far more often than it can profit from being
+  right. It is registered anyway because its interaction with the other
+  families matters: if volatility scaling adds nothing on its own but improves
+  the seed stability and drawdown profile of a combination, that is a result
+  worth having, and it cannot be found without testing the standalone case
+  first.
+horizon_weeks: 4-8
+expected_expression: directional
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - MOVE
+  - VIXCLS
+  - NFCI
+  - ANFCI
+  - STLFSI4
+notes: >
+  Fast block. Constrained by the 20% cash ceiling in params/constraints.yaml;
+  the modest ceiling is part of the hypothesis, not an obstacle to it.

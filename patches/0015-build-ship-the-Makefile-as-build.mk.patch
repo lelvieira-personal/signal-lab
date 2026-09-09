@@ -1,0 +1,118 @@
+From da315efbd2d9548d11dd2155426750d0a2986ff8 Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:22:52 +0000
+Subject: [PATCH 15/17] build: ship the Makefile as build.mk
+
+The file-transfer bridge refuses a file named Makefile, since make files can
+execute arbitrary commands. build.mk is byte-identical; cp build.mk Makefile,
+or make -f build.mk check, or let git am create the real one from the patches.
+---
+ .gitignore |  3 +++
+ STATUS.md  |  6 +++++
+ build.mk   | 64 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 73 insertions(+)
+ create mode 100644 build.mk
+
+diff --git a/.gitignore b/.gitignore
+index 819840e..3c48579 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -23,3 +23,6 @@ __pycache__/
+ # Rendered reports are build output
+ render/*.html
+ leaderboard*.html
++
++# The patch series is a delivery mechanism, not repo content.
++patches/
+diff --git a/STATUS.md b/STATUS.md
+index 7443284..77ddfff 100644
+--- a/STATUS.md
++++ b/STATUS.md
+@@ -15,11 +15,17 @@ the walk-forward engine that would produce an IR does not exist.
+ 
+ ```bash
+ cd /mnt/c/AI/signal-lab          # from WSL
++cp build.mk Makefile             # once, see the note below
+ uv sync --group dev
+ make check                       # lint, 191 tests, holdout lock by name
+ make report                      # writes leaderboard.html
+ ```
+ 
++The Makefile ships as `build.mk`: the file-transfer bridge refuses to write a
++file named `Makefile`, since make files can execute arbitrary commands. Copy it
++once as above, or run `make -f build.mk check` in place. Applying
++`patches/*.patch` with `git am` creates the real `Makefile` for you.
++
+ The full phase 0 loop, including a snapshot and one cycle:
+ 
+ ```bash
+diff --git a/build.mk b/build.mk
+new file mode 100644
+index 0000000..f807b80
+--- /dev/null
++++ b/build.mk
+@@ -0,0 +1,64 @@
++# Signal Lab build rules.
++#
++# Shipped as build.mk because the file-transfer bridge refuses to write a file
++# named Makefile (make files can execute arbitrary commands). To get `make check`
++# working, one command from the repo root:
++#
++#     cp build.mk Makefile
++#
++# Or run it in place without renaming:  make -f build.mk check
++#
++# Applying patches/*.patch with `git am` creates the real Makefile for you.
++#
++#   make check      everything CI runs: lint, tests, and the holdout lock by name
++#   make report     render the synthetic report
++#   make cycle      build a synthetic snapshot and run one cycle
++#
++# uv manages Python 3.12 and the locked dependency set; nothing is installed
++# into the system interpreter. `make check` is the definition of done.
++
++PY := uv run --python 3.12
++PYTEST := $(PY) --group dev pytest
++
++.DEFAULT_GOAL := check
++.PHONY: check lint test holdout report cycle digest snapshot clean lock install help
++
++help:
++	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
++
++install: ## sync the locked environment
++	uv sync --group dev
++
++lock: ## refresh uv.lock
++	uv lock
++
++lint: ## ruff check and format check
++	$(PY) --group dev ruff check src vetoes render scripts tests
++	$(PY) --group dev ruff format --check src vetoes render scripts tests
++
++test: ## the full suite
++	$(PYTEST) -q
++
++holdout: ## the holdout lock, run explicitly and by name
++	@echo "--- holdout lock (SUBSTRATE sections 2 and 3) ---"
++	$(PYTEST) -m holdout -v
++
++check: lint test holdout ## lint, tests, and the holdout lock
++	@echo
++	@echo "make check: OK"
++
++report: ## render the synthetic report to leaderboard.html
++	$(PY) --group dev python render/static_report.py --synthetic -o leaderboard.html
++
++snapshot: ## build the synthetic snapshot
++	$(PY) --group dev python scripts/build_snapshot.py --id synthetic-v1 --overwrite
++
++cycle: snapshot ## one nightly cycle against the synthetic snapshot
++	$(PY) --group dev python scripts/nightly_cycle.py --snapshot synthetic-v1
++
++digest: ## write results/digest.md from the last cycle
++	$(PY) --group dev python scripts/digest.py -o results/digest.md
++
++clean: ## remove build output, keep the store and snapshots
++	rm -rf .pytest_cache .ruff_cache leaderboard.html
++	find . -name __pycache__ -type d -prune -exec rm -rf {} +

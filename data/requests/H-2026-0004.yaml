@@ -1,0 +1,33 @@
+hypothesis_id: H-2026-0004
+signal: bank_lending_standards_change_2q
+family: credit_conditions
+requested_by: agent
+status: awaiting_owner
+series:
+- id: JPMAQS.USD_BLSDCLN_SA_D1Q1QL1
+  source: jpmaqs
+  fields:
+  - value
+- id: JPMAQS.EUR_BLSDCLN_SA_D1Q1QL1
+  source: jpmaqs
+  fields:
+  - value
+- id: DRTSCILM
+  source: unknown
+  fields:
+  - value
+- id: LF98TRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: LUACTRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: LUALTRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+reason: H-2026-0004 requires 6 series absent from the snapshot. The hypothesis is
+  blocked:data rather than run on a substitute.
+available_already: []

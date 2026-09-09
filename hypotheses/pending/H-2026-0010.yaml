@@ -1,0 +1,41 @@
+id: H-2026-0010
+family: carry
+signal: duration_carry_term_spread
+direction: positive
+target_axis: duration
+rationale: >
+  Carry is the return an asset delivers if prices do not move, and for a bond
+  it is the yield plus the roll-down along the curve. When the curve is steep,
+  a long-maturity bond earns more than the funding rate and also rolls into a
+  lower yield as it ages, so both components are positive and known in advance.
+  Realised bond returns are the sum of that known carry and an unknown yield
+  change; the unknown part is close to unforecastable at a quarterly horizon,
+  so the known part dominates the expectation even though it does not dominate
+  the variance. The relationship is positive: steeper curves imply more
+  duration exposure. Ranked across government bond markets this is a
+  cross-sectional tilt toward the steepest curves, fully expressible long-only
+  within a bond sleeve the benchmark already holds. The horizon is one quarter,
+  which is long enough for carry to accumulate against the noise of daily yield
+  moves and short enough that the curve shape used is still current. Two
+  declared risks. Carry is negatively skewed: it pays a small amount most of
+  the time and loses a large amount in a rapid bear steepening, so the mean is
+  not the whole distribution. And carry across markets is highly correlated
+  with the level of global term premia, so a cross-sectional carry signal may
+  turn out to be a single directional bet on term premium wearing the clothes
+  of a diversified tilt, which the risk decomposition is meant to expose.
+horizon_weeks: 4-13
+expected_expression: cross_sectional
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - DGS2
+  - DGS10
+  - DGS30
+  - JPMAQS.USD_GB10YXGB_NSA
+  - JPMAQS.EUR_GB10YXGB_NSA
+  - LT01TRUU Index|INDEX_YIELD_TO_WORST
+  - LT08TRUU Index|INDEX_YIELD_TO_WORST
+notes: >
+  Fast block, though the underlying curve shape moves slowly. Risk
+  decomposition must show whether this is a tilt or a single factor bet.

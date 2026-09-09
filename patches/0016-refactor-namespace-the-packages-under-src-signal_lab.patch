@@ -1,0 +1,878 @@
+From 0a9fd6bdea79b8e1a4d1f407b162c6bf0c893187 Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Wed, 9 Sep 2026 15:14:10 +0000
+Subject: [PATCH 16/17] refactor: namespace the packages under src/signal_lab
+ (decision 0010)
+
+stats, results and signals are all plausible third-party names; a shadowing
+collision would surface as a mysterious import error rather than as a layout
+problem. vetoes/ and render/ stay where SUBSTRATE section 15 puts them.
+---
+ render/mock_data.py                         |  2 +-
+ render/sources.py                           |  6 +++---
+ render/static_report.py                     |  2 +-
+ render/streamlit_app.py                     |  2 +-
+ render/views.py                             |  4 ++--
+ scripts/build_snapshot.py                   |  4 ++--
+ scripts/digest.py                           |  6 +++---
+ scripts/nightly_cycle.py                    | 12 ++++++------
+ src/signal_lab/__init__.py                  | 11 +++++++++++
+ src/{ => signal_lab}/harness/__init__.py    |  0
+ src/{ => signal_lab}/harness/budgets.py     |  6 +++---
+ src/{ => signal_lab}/harness/hypotheses.py  |  6 +++---
+ src/{ => signal_lab}/harness/run_context.py |  0
+ src/{ => signal_lab}/harness/snapshot.py    | 10 +++++-----
+ src/{ => signal_lab}/loaders/__init__.py    | 14 +++++++-------
+ src/{ => signal_lab}/loaders/base.py        |  0
+ src/{ => signal_lab}/loaders/bloomberg.py   |  4 ++--
+ src/{ => signal_lab}/loaders/fred.py        |  6 +++---
+ src/{ => signal_lab}/loaders/holdout.py     |  2 +-
+ src/{ => signal_lab}/loaders/invariants.py  |  2 +-
+ src/{ => signal_lab}/loaders/jpmaqs.py      |  6 +++---
+ src/{ => signal_lab}/loaders/synthetic.py   | 10 +++++-----
+ src/{ => signal_lab}/params.py              |  2 +-
+ src/{ => signal_lab}/portfolio/.keep        |  0
+ src/{ => signal_lab}/portfolio/__init__.py  |  0
+ src/{ => signal_lab}/results/__init__.py    |  0
+ src/{ => signal_lab}/results/schema.sql     |  0
+ src/{ => signal_lab}/results/store.py       |  4 ++--
+ src/{ => signal_lab}/signals/.keep          |  0
+ src/{ => signal_lab}/signals/__init__.py    |  0
+ src/{ => signal_lab}/stats/__init__.py      |  0
+ tests/conftest.py                           | 10 +++++-----
+ tests/test_budgets.py                       |  4 ++--
+ tests/test_holdout.py                       |  6 +++---
+ tests/test_hypotheses.py                    |  2 +-
+ tests/test_loader_invariants.py             |  4 ++--
+ tests/test_params.py                        |  2 +-
+ tests/test_render.py                        |  2 +-
+ tests/test_scripts.py                       | 14 +++++++-------
+ tests/test_store.py                         |  2 +-
+ tests/test_synthetic.py                     | 12 ++++++------
+ tests/test_vetoes.py                        |  4 ++--
+ vetoes/registry.py                          |  6 +++---
+ vetoes/rules.py                             |  8 ++++----
+ 44 files changed, 104 insertions(+), 93 deletions(-)
+ create mode 100644 src/signal_lab/__init__.py
+ rename src/{ => signal_lab}/harness/__init__.py (100%)
+ rename src/{ => signal_lab}/harness/budgets.py (98%)
+ rename src/{ => signal_lab}/harness/hypotheses.py (99%)
+ rename src/{ => signal_lab}/harness/run_context.py (100%)
+ rename src/{ => signal_lab}/harness/snapshot.py (96%)
+ rename src/{ => signal_lab}/loaders/__init__.py (73%)
+ rename src/{ => signal_lab}/loaders/base.py (100%)
+ rename src/{ => signal_lab}/loaders/bloomberg.py (93%)
+ rename src/{ => signal_lab}/loaders/fred.py (90%)
+ rename src/{ => signal_lab}/loaders/holdout.py (98%)
+ rename src/{ => signal_lab}/loaders/invariants.py (99%)
+ rename src/{ => signal_lab}/loaders/jpmaqs.py (90%)
+ rename src/{ => signal_lab}/loaders/synthetic.py (98%)
+ rename src/{ => signal_lab}/params.py (99%)
+ rename src/{ => signal_lab}/portfolio/.keep (100%)
+ rename src/{ => signal_lab}/portfolio/__init__.py (100%)
+ rename src/{ => signal_lab}/results/__init__.py (100%)
+ rename src/{ => signal_lab}/results/schema.sql (100%)
+ rename src/{ => signal_lab}/results/store.py (99%)
+ rename src/{ => signal_lab}/signals/.keep (100%)
+ rename src/{ => signal_lab}/signals/__init__.py (100%)
+ rename src/{ => signal_lab}/stats/__init__.py (100%)
+
+diff --git a/render/mock_data.py b/render/mock_data.py
+index decdfd6..66454e6 100644
+--- a/render/mock_data.py
++++ b/render/mock_data.py
+@@ -17,7 +17,7 @@ RNG = np.random.default_rng(SEED)
+ def _window():
+     """The development window comes from params, never from a literal here."""
+     try:
+-        from params import get_params
++        from signal_lab.params import get_params
+ 
+         p = get_params()
+         return str(p.require("data.windows.dev_start")), str(p.require("data.windows.dev_end"))
+diff --git a/render/sources.py b/render/sources.py
+index 72a68a5..09d2489 100644
+--- a/render/sources.py
++++ b/render/sources.py
+@@ -44,7 +44,7 @@ class SyntheticSource:
+     is_synthetic = True
+ 
+     def __init__(self, params=None):
+-        from params import get_params
++        from signal_lab.params import get_params
+ 
+         self.params = params or get_params()
+ 
+@@ -83,8 +83,8 @@ class StoreSource:
+     is_synthetic = False
+ 
+     def __init__(self, db_path=None, artifacts_dir=None, params=None):
+-        from params import get_params
+-        from results.store import DEFAULT_ARTIFACTS, DEFAULT_DB, ResultsStore
++        from signal_lab.params import get_params
++        from signal_lab.results.store import DEFAULT_ARTIFACTS, DEFAULT_DB, ResultsStore
+ 
+         self.params = params or get_params()
+         self.store = ResultsStore(
+diff --git a/render/static_report.py b/render/static_report.py
+index a3d5534..47af401 100644
+--- a/render/static_report.py
++++ b/render/static_report.py
+@@ -234,7 +234,7 @@ def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
+     runs present. The synthetic banner is not optional: a mock report that could
+     pass for a real one is a hazard, not a convenience.
+     """
+-    from params import get_params
++    from signal_lab.params import get_params
+ 
+     params = params or get_params()
+     source = get_source(
+diff --git a/render/streamlit_app.py b/render/streamlit_app.py
+index dbe9cc7..3be2dc3 100644
+--- a/render/streamlit_app.py
++++ b/render/streamlit_app.py
+@@ -38,7 +38,7 @@ def parse_args(argv=None):
+ def main() -> None:
+     import streamlit as st
+ 
+-    from params import get_params
++    from signal_lab.params import get_params
+ 
+     args = parse_args()
+     params = get_params()
+diff --git a/render/views.py b/render/views.py
+index 935d65d..71f4bea 100644
+--- a/render/views.py
++++ b/render/views.py
+@@ -311,7 +311,7 @@ def veto_legend(params=None):
+     The veto set as the report shows it: all ten of SUBSTRATE section 10, with
+     their live thresholds read from params rather than retyped into the HTML.
+     """
+-    from params import get_params
++    from signal_lab.params import get_params
+ 
+     p = params or get_params()
+     pct = lambda x: f"{float(x):.0%}"  # noqa: E731
+@@ -350,7 +350,7 @@ def holdout_panel(params=None):
+     SUBSTRATE section 12: holdout metrics are absent until unlocked. This
+     returns the text and a locked flag; it never returns a metric.
+     """
+-    from params import get_params
++    from signal_lab.params import get_params
+ 
+     p = params or get_params()
+     locked = bool(p.get("data.holdout.locked", True))
+diff --git a/scripts/build_snapshot.py b/scripts/build_snapshot.py
+index c51fbfd..891a6d5 100755
+--- a/scripts/build_snapshot.py
++++ b/scripts/build_snapshot.py
+@@ -18,8 +18,8 @@ import _bootstrap  # noqa: F401
+ 
+ 
+ def main(argv=None) -> int:
+-    from harness.snapshot import build_snapshot, load_snapshot, verify_snapshot
+-    from params import get_params
++    from signal_lab.harness.snapshot import build_snapshot, load_snapshot, verify_snapshot
++    from signal_lab.params import get_params
+ 
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument("--id", default="synthetic-v1", help="snapshot id")
+diff --git a/scripts/digest.py b/scripts/digest.py
+index 0c1840f..9594a8c 100755
+--- a/scripts/digest.py
++++ b/scripts/digest.py
+@@ -137,9 +137,9 @@ def build_digest(store, params, registry, requests_dir: Path) -> str:
+ 
+ 
+ def main(argv=None) -> int:
+-    from harness.hypotheses import REQUESTS_DIR, HypothesisRegistry
+-    from params import get_params
+-    from results.store import ResultsStore
++    from signal_lab.harness.hypotheses import REQUESTS_DIR, HypothesisRegistry
++    from signal_lab.params import get_params
++    from signal_lab.results.store import ResultsStore
+ 
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument("-o", "--out", default="results/digest.md")
+diff --git a/scripts/nightly_cycle.py b/scripts/nightly_cycle.py
+index aafa00d..48e092f 100755
+--- a/scripts/nightly_cycle.py
++++ b/scripts/nightly_cycle.py
+@@ -54,12 +54,12 @@ def run_experiment(hypothesis, snapshot, params, seed):
+ def main(argv=None) -> int:
+     from datetime import datetime
+ 
+-    from harness.budgets import model_calls_enabled
+-    from harness.hypotheses import HypothesisRegistry
+-    from harness.snapshot import load_snapshot, verify_snapshot
+-    from loaders.jpmaqs import search_is_open
+-    from params import get_params
+-    from results.store import ResultsStore, new_run_id
++    from signal_lab.harness.budgets import model_calls_enabled
++    from signal_lab.harness.hypotheses import HypothesisRegistry
++    from signal_lab.harness.snapshot import load_snapshot, verify_snapshot
++    from signal_lab.loaders.jpmaqs import search_is_open
++    from signal_lab.params import get_params
++    from signal_lab.results.store import ResultsStore, new_run_id
+     from vetoes import apply_vetoes
+ 
+     parser = argparse.ArgumentParser(description=__doc__)
+diff --git a/src/signal_lab/__init__.py b/src/signal_lab/__init__.py
+new file mode 100644
+index 0000000..12e9688
+--- /dev/null
++++ b/src/signal_lab/__init__.py
+@@ -0,0 +1,11 @@
++"""
++Signal Lab. Read SUBSTRATE.md first; it is the constitution of this repository.
++
++Namespaced under `signal_lab` rather than as flat top-level packages, per
++decisions/0010: `stats`, `results` and `signals` are all plausible names for a
++third-party dependency, and a shadowing collision would be diagnosed as a
++mysterious import error rather than as a layout problem. SUBSTRATE section 15
++was amended to match.
++"""
++
++__all__ = ["params"]
+diff --git a/src/harness/__init__.py b/src/signal_lab/harness/__init__.py
+similarity index 100%
+rename from src/harness/__init__.py
+rename to src/signal_lab/harness/__init__.py
+diff --git a/src/harness/budgets.py b/src/signal_lab/harness/budgets.py
+similarity index 98%
+rename from src/harness/budgets.py
+rename to src/signal_lab/harness/budgets.py
+index b28e9a3..aea07af 100644
+--- a/src/harness/budgets.py
++++ b/src/signal_lab/harness/budgets.py
+@@ -28,8 +28,8 @@ from collections.abc import Callable
+ from dataclasses import dataclass, field
+ from typing import Any
+ 
+-from params import ParamNotConfigured, Params, get_params
+-from results.store import ResultsStore
++from signal_lab.params import ParamNotConfigured, Params, get_params
++from signal_lab.results.store import ResultsStore
+ 
+ 
+ class BudgetExceeded(Exception):
+@@ -236,7 +236,7 @@ class BudgetLedger:
+         """
+         if self.store is None:
+             return
+-        from results.store import StoreError
++        from signal_lab.results.store import StoreError
+ 
+         try:
+             self.store.record_run(
+diff --git a/src/harness/hypotheses.py b/src/signal_lab/harness/hypotheses.py
+similarity index 99%
+rename from src/harness/hypotheses.py
+rename to src/signal_lab/harness/hypotheses.py
+index 3ca09b7..2fa00d4 100644
+--- a/src/harness/hypotheses.py
++++ b/src/signal_lab/harness/hypotheses.py
+@@ -27,10 +27,10 @@ from typing import Any
+ 
+ import yaml
+ 
+-from params import Params, get_params
+-from results.store import ResultsStore
++from signal_lab.params import Params, get_params
++from signal_lab.results.store import ResultsStore
+ 
+-REPO_ROOT = Path(__file__).resolve().parents[2]
++REPO_ROOT = Path(__file__).resolve().parents[3]
+ HYPOTHESES_DIR = REPO_ROOT / "hypotheses"
+ REQUESTS_DIR = REPO_ROOT / "data" / "requests"
+ 
+diff --git a/src/harness/run_context.py b/src/signal_lab/harness/run_context.py
+similarity index 100%
+rename from src/harness/run_context.py
+rename to src/signal_lab/harness/run_context.py
+diff --git a/src/harness/snapshot.py b/src/signal_lab/harness/snapshot.py
+similarity index 96%
+rename from src/harness/snapshot.py
+rename to src/signal_lab/harness/snapshot.py
+index 7ce5cab..f64104d 100644
+--- a/src/harness/snapshot.py
++++ b/src/signal_lab/harness/snapshot.py
+@@ -22,11 +22,11 @@ from typing import Any
+ import pandas as pd
+ import yaml
+ 
+-from loaders.base import ReturnPanel
+-from loaders.holdout import enforce_holdout
+-from params import Params, get_params
++from signal_lab.loaders.base import ReturnPanel
++from signal_lab.loaders.holdout import enforce_holdout
++from signal_lab.params import Params, get_params
+ 
+-REPO_ROOT = Path(__file__).resolve().parents[2]
++REPO_ROOT = Path(__file__).resolve().parents[3]
+ SNAPSHOTS_DIR = REPO_ROOT / "data" / "snapshots"
+ 
+ 
+@@ -97,7 +97,7 @@ def build_snapshot(
+     snapshot is the thing every later run reads, so a leak here would be a leak
+     everywhere, and the check is cheap.
+     """
+-    from loaders import get_loader
++    from signal_lab.loaders import get_loader
+ 
+     params = params or get_params()
+     out = snapshots_root(snapshots_dir) / snapshot_id
+diff --git a/src/loaders/__init__.py b/src/signal_lab/loaders/__init__.py
+similarity index 73%
+rename from src/loaders/__init__.py
+rename to src/signal_lab/loaders/__init__.py
+index d6d6d9f..31a9718 100644
+--- a/src/loaders/__init__.py
++++ b/src/signal_lab/loaders/__init__.py
+@@ -7,7 +7,7 @@ error is a clear "phase 2" rather than an import failure or, worse, a silently
+ empty panel.
+ """
+ 
+-from loaders.base import (
++from signal_lab.loaders.base import (
+     AnalyticsPanel,
+     PanelLoader,
+     ReturnPanel,
+@@ -15,9 +15,9 @@ from loaders.base import (
+     SpliceRecord,
+     VintagePanel,
+ )
+-from loaders.holdout import HoldoutViolation, enforce_holdout, holdout_start
+-from loaders.invariants import InvariantViolation
+-from loaders.synthetic import SyntheticLoader, plant
++from signal_lab.loaders.holdout import HoldoutViolation, enforce_holdout, holdout_start
++from signal_lab.loaders.invariants import InvariantViolation
++from signal_lab.loaders.synthetic import SyntheticLoader, plant
+ 
+ __all__ = [
+     "AnalyticsPanel",
+@@ -41,15 +41,15 @@ def get_loader(source: str = "synthetic", **kwargs) -> PanelLoader:
+     if source == "synthetic":
+         return SyntheticLoader(**kwargs)
+     if source == "bloomberg":
+-        from loaders.bloomberg import BloombergLoader
++        from signal_lab.loaders.bloomberg import BloombergLoader
+ 
+         return BloombergLoader(**kwargs)
+     if source == "fred":
+-        from loaders.fred import FredLoader
++        from signal_lab.loaders.fred import FredLoader
+ 
+         return FredLoader(**kwargs)
+     if source == "jpmaqs":
+-        from loaders.jpmaqs import JPMaQSLoader
++        from signal_lab.loaders.jpmaqs import JPMaQSLoader
+ 
+         return JPMaQSLoader(**kwargs)
+     raise ValueError(f"unknown loader source {source!r}")
+diff --git a/src/loaders/base.py b/src/signal_lab/loaders/base.py
+similarity index 100%
+rename from src/loaders/base.py
+rename to src/signal_lab/loaders/base.py
+diff --git a/src/loaders/bloomberg.py b/src/signal_lab/loaders/bloomberg.py
+similarity index 93%
+rename from src/loaders/bloomberg.py
+rename to src/signal_lab/loaders/bloomberg.py
+index 48e9e3e..4fa33de 100644
+--- a/src/loaders/bloomberg.py
++++ b/src/signal_lab/loaders/bloomberg.py
+@@ -13,8 +13,8 @@ would be a wrong diagnosis of a missing implementation.
+ 
+ from __future__ import annotations
+ 
+-from loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
+-from params import Params, get_params
++from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
++from signal_lab.params import Params, get_params
+ 
+ 
+ class LoaderNotImplemented(NotImplementedError):
+diff --git a/src/loaders/fred.py b/src/signal_lab/loaders/fred.py
+similarity index 90%
+rename from src/loaders/fred.py
+rename to src/signal_lab/loaders/fred.py
+index 9e4db55..728037e 100644
+--- a/src/loaders/fred.py
++++ b/src/signal_lab/loaders/fred.py
+@@ -18,9 +18,9 @@ from __future__ import annotations
+ 
+ import os
+ 
+-from loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
+-from loaders.bloomberg import LoaderNotImplemented
+-from params import Params, get_params
++from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
++from signal_lab.loaders.bloomberg import LoaderNotImplemented
++from signal_lab.params import Params, get_params
+ 
+ 
+ class FredLoader:
+diff --git a/src/loaders/holdout.py b/src/signal_lab/loaders/holdout.py
+similarity index 98%
+rename from src/loaders/holdout.py
+rename to src/signal_lab/loaders/holdout.py
+index cd0a720..0f0b549 100644
+--- a/src/loaders/holdout.py
++++ b/src/signal_lab/loaders/holdout.py
+@@ -18,7 +18,7 @@ from collections.abc import Iterable
+ 
+ import pandas as pd
+ 
+-from params import Params, get_params
++from signal_lab.params import Params, get_params
+ 
+ 
+ class HoldoutViolation(Exception):
+diff --git a/src/loaders/invariants.py b/src/signal_lab/loaders/invariants.py
+similarity index 99%
+rename from src/loaders/invariants.py
+rename to src/signal_lab/loaders/invariants.py
+index 9d5c551..ba61856 100644
+--- a/src/loaders/invariants.py
++++ b/src/signal_lab/loaders/invariants.py
+@@ -19,7 +19,7 @@ from __future__ import annotations
+ import numpy as np
+ import pandas as pd
+ 
+-from loaders.base import SeriesMeta, SpliceRecord
++from signal_lab.loaders.base import SeriesMeta, SpliceRecord
+ 
+ 
+ class InvariantViolation(Exception):
+diff --git a/src/loaders/jpmaqs.py b/src/signal_lab/loaders/jpmaqs.py
+similarity index 90%
+rename from src/loaders/jpmaqs.py
+rename to src/signal_lab/loaders/jpmaqs.py
+index e855562..ef2c51e 100644
+--- a/src/loaders/jpmaqs.py
++++ b/src/signal_lab/loaders/jpmaqs.py
+@@ -10,9 +10,9 @@ cycle cannot quietly open the search while the macro block is missing.
+ 
+ from __future__ import annotations
+ 
+-from loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
+-from loaders.bloomberg import LoaderNotImplemented
+-from params import Params, get_params
++from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
++from signal_lab.loaders.bloomberg import LoaderNotImplemented
++from signal_lab.params import Params, get_params
+ 
+ 
+ class JPMaQSLoader:
+diff --git a/src/loaders/synthetic.py b/src/signal_lab/loaders/synthetic.py
+similarity index 98%
+rename from src/loaders/synthetic.py
+rename to src/signal_lab/loaders/synthetic.py
+index 72938b0..ac2183a 100644
+--- a/src/loaders/synthetic.py
++++ b/src/signal_lab/loaders/synthetic.py
+@@ -29,18 +29,18 @@ from pathlib import Path
+ import numpy as np
+ import pandas as pd
+ 
+-from loaders.base import AnalyticsPanel, ReturnPanel, SeriesMeta, VintagePanel
+-from loaders.holdout import enforce_holdout
+-from loaders.invariants import (
++from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, SeriesMeta, VintagePanel
++from signal_lab.loaders.holdout import enforce_holdout
++from signal_lab.loaders.invariants import (
+     apply_splices,
+     filter_business_days,
+     propagate_hedge_flags,
+     returns_from_prior_observation,
+     truncate_at_daily_start,
+ )
+-from params import Params, get_params
++from signal_lab.params import Params, get_params
+ 
+-REPO_ROOT = Path(__file__).resolve().parents[2]
++REPO_ROOT = Path(__file__).resolve().parents[3]
+ 
+ # Region labels drive the 2-day overlapping covariance rule, so the synthetic
+ # universe carries them. Weights are roughly the shape of the real universe:
+diff --git a/src/params.py b/src/signal_lab/params.py
+similarity index 99%
+rename from src/params.py
+rename to src/signal_lab/params.py
+index 5baade4..05a19cd 100644
+--- a/src/params.py
++++ b/src/signal_lab/params.py
+@@ -18,7 +18,7 @@ from typing import Any
+ 
+ import yaml
+ 
+-REPO_ROOT = Path(__file__).resolve().parents[1]
++REPO_ROOT = Path(__file__).resolve().parents[2]
+ PARAMS_DIR = REPO_ROOT / "params"
+ 
+ # The files that make up the configuration. A file added to params/ but not
+diff --git a/src/portfolio/.keep b/src/signal_lab/portfolio/.keep
+similarity index 100%
+rename from src/portfolio/.keep
+rename to src/signal_lab/portfolio/.keep
+diff --git a/src/portfolio/__init__.py b/src/signal_lab/portfolio/__init__.py
+similarity index 100%
+rename from src/portfolio/__init__.py
+rename to src/signal_lab/portfolio/__init__.py
+diff --git a/src/results/__init__.py b/src/signal_lab/results/__init__.py
+similarity index 100%
+rename from src/results/__init__.py
+rename to src/signal_lab/results/__init__.py
+diff --git a/src/results/schema.sql b/src/signal_lab/results/schema.sql
+similarity index 100%
+rename from src/results/schema.sql
+rename to src/signal_lab/results/schema.sql
+diff --git a/src/results/store.py b/src/signal_lab/results/store.py
+similarity index 99%
+rename from src/results/store.py
+rename to src/signal_lab/results/store.py
+index d1aa93e..ff03fac 100644
+--- a/src/results/store.py
++++ b/src/signal_lab/results/store.py
+@@ -22,9 +22,9 @@ from typing import Any
+ 
+ import pandas as pd
+ 
+-from params import Params, get_params
++from signal_lab.params import Params, get_params
+ 
+-REPO_ROOT = Path(__file__).resolve().parents[2]
++REPO_ROOT = Path(__file__).resolve().parents[3]
+ DEFAULT_DB = REPO_ROOT / "results" / "runs.db"
+ DEFAULT_ARTIFACTS = REPO_ROOT / "results" / "artifacts"
+ SCHEMA = Path(__file__).with_name("schema.sql")
+diff --git a/src/signals/.keep b/src/signal_lab/signals/.keep
+similarity index 100%
+rename from src/signals/.keep
+rename to src/signal_lab/signals/.keep
+diff --git a/src/signals/__init__.py b/src/signal_lab/signals/__init__.py
+similarity index 100%
+rename from src/signals/__init__.py
+rename to src/signal_lab/signals/__init__.py
+diff --git a/src/stats/__init__.py b/src/signal_lab/stats/__init__.py
+similarity index 100%
+rename from src/stats/__init__.py
+rename to src/signal_lab/stats/__init__.py
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 8b50bc0..032baa3 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -13,34 +13,34 @@ sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT)]
+ 
+ @pytest.fixture(scope="session")
+ def params():
+-    from params import get_params
++    from signal_lab.params import get_params
+ 
+     return get_params()
+ 
+ 
+ @pytest.fixture(scope="session")
+ def panel(params):
+-    from loaders.synthetic import SyntheticLoader
++    from signal_lab.loaders.synthetic import SyntheticLoader
+ 
+     return SyntheticLoader(params).load_returns()
+ 
+ 
+ @pytest.fixture(scope="session")
+ def macro(params):
+-    from loaders.synthetic import SyntheticLoader
++    from signal_lab.loaders.synthetic import SyntheticLoader
+ 
+     return SyntheticLoader(params).load_macro()
+ 
+ 
+ @pytest.fixture(scope="session")
+ def analytics(params):
+-    from loaders.synthetic import SyntheticLoader
++    from signal_lab.loaders.synthetic import SyntheticLoader
+ 
+     return SyntheticLoader(params).load_analytics()
+ 
+ 
+ @pytest.fixture
+ def store(tmp_path):
+-    from results.store import ResultsStore
++    from signal_lab.results.store import ResultsStore
+ 
+     return ResultsStore(tmp_path / "runs.db", tmp_path / "artifacts")
+diff --git a/tests/test_budgets.py b/tests/test_budgets.py
+index e9da4d6..9be22ec 100644
+--- a/tests/test_budgets.py
++++ b/tests/test_budgets.py
+@@ -11,7 +11,7 @@ from pathlib import Path
+ 
+ import pytest
+ 
+-from harness.budgets import (
++from signal_lab.harness.budgets import (
+     BudgetExceeded,
+     BudgetLedger,
+     BudgetNotConfigured,
+@@ -20,7 +20,7 @@ from harness.budgets import (
+     cycle_budget,
+     model_calls_enabled,
+ )
+-from params import PARAM_FILES, load_params
++from signal_lab.params import PARAM_FILES, load_params
+ 
+ 
+ @pytest.fixture
+diff --git a/tests/test_holdout.py b/tests/test_holdout.py
+index 511ccc6..ed6a95a 100644
+--- a/tests/test_holdout.py
++++ b/tests/test_holdout.py
+@@ -10,7 +10,7 @@ from __future__ import annotations
+ import pandas as pd
+ import pytest
+ 
+-from loaders.holdout import HoldoutViolation, clip_to_development, enforce_holdout, holdout_start
++from signal_lab.loaders.holdout import HoldoutViolation, clip_to_development, enforce_holdout, holdout_start
+ 
+ pytestmark = pytest.mark.holdout
+ 
+@@ -56,7 +56,7 @@ def test_there_is_no_bypass_argument():
+     """
+     import inspect
+ 
+-    from loaders import holdout as module
++    from signal_lab.loaders import holdout as module
+ 
+     forbidden = {"force", "bypass", "allow_holdout", "unlock", "override", "unsafe"}
+     for name, fn in vars(module).items():
+@@ -81,7 +81,7 @@ def test_unlocking_requires_a_named_owner_and_a_date(params, tmp_path):
+     import shutil
+     from pathlib import Path
+ 
+-    from params import PARAM_FILES, load_params
++    from signal_lab.params import PARAM_FILES, load_params
+ 
+     src = Path(params.params_dir)
+     for name in PARAM_FILES:
+diff --git a/tests/test_hypotheses.py b/tests/test_hypotheses.py
+index 803d711..c3615b0 100644
+--- a/tests/test_hypotheses.py
++++ b/tests/test_hypotheses.py
+@@ -11,7 +11,7 @@ from __future__ import annotations
+ import pytest
+ import yaml
+ 
+-from harness.hypotheses import (
++from signal_lab.harness.hypotheses import (
+     FAMILIES,
+     HypothesisRegistry,
+     HypothesisRejected,
+diff --git a/tests/test_loader_invariants.py b/tests/test_loader_invariants.py
+index b674bc5..95f4cce 100644
+--- a/tests/test_loader_invariants.py
++++ b/tests/test_loader_invariants.py
+@@ -8,8 +8,8 @@ import numpy as np
+ import pandas as pd
+ import pytest
+ 
+-from loaders.base import SeriesMeta
+-from loaders.invariants import (
++from signal_lab.loaders.base import SeriesMeta
++from signal_lab.loaders.invariants import (
+     InvariantViolation,
+     apply_splices,
+     assert_no_forward_fill,
+diff --git a/tests/test_params.py b/tests/test_params.py
+index 365ab2f..77a83ca 100644
+--- a/tests/test_params.py
++++ b/tests/test_params.py
+@@ -4,7 +4,7 @@ from __future__ import annotations
+ 
+ import pytest
+ 
+-from params import PARAM_FILES, ParamNotConfigured, ParamsError, hash_params_dir, load_params
++from signal_lab.params import PARAM_FILES, ParamNotConfigured, ParamsError, hash_params_dir, load_params
+ 
+ 
+ def test_all_param_files_present_and_versions_agree(params):
+diff --git a/tests/test_render.py b/tests/test_render.py
+index b44cdd0..92943f1 100644
+--- a/tests/test_render.py
++++ b/tests/test_render.py
+@@ -121,7 +121,7 @@ def test_empty_store_renders_a_report_rather_than_failing(tmp_path, params):
+ def test_report_from_a_store_with_runs(tmp_path, params, store):
+     from static_report import build
+ 
+-    from results.store import Verdict
++    from signal_lab.results.store import Verdict
+ 
+     for i, (ir, ok) in enumerate([(0.42, True), (0.61, False)]):
+         rid = f"R-{i}"
+diff --git a/tests/test_scripts.py b/tests/test_scripts.py
+index c8ac8dc..724859d 100644
+--- a/tests/test_scripts.py
++++ b/tests/test_scripts.py
+@@ -12,7 +12,7 @@ import pytest
+ REPO_ROOT = Path(__file__).resolve().parents[1]
+ sys.path[:0] = [str(REPO_ROOT / "scripts")]
+ 
+-from harness.snapshot import (  # noqa: E402
++from signal_lab.harness.snapshot import (  # noqa: E402
+     build_snapshot,
+     hash_directory,
+     load_snapshot,
+@@ -22,7 +22,7 @@ from harness.snapshot import (  # noqa: E402
+ 
+ @pytest.fixture(scope="module")
+ def snapshot(tmp_path_factory):
+-    from params import get_params
++    from signal_lab.params import get_params
+ 
+     out = tmp_path_factory.mktemp("snapshots")
+     return build_snapshot("test-v1", "synthetic", get_params(), snapshots_dir=out)
+@@ -89,8 +89,8 @@ def test_nightly_cycle_records_blocked_not_a_fake_veto_failure(tmp_path, capsys)
+     """
+     import nightly_cycle as cycle
+ 
+-    from params import get_params
+-    from results.store import ResultsStore
++    from signal_lab.params import get_params
++    from signal_lab.results.store import ResultsStore
+ 
+     params = get_params()
+     build_snapshot("cyc-v1", "synthetic", params, snapshots_dir=tmp_path)
+@@ -112,7 +112,7 @@ def test_nightly_cycle_records_blocked_not_a_fake_veto_failure(tmp_path, capsys)
+ def test_nightly_cycle_refuses_a_tampered_snapshot(tmp_path, capsys):
+     import nightly_cycle as cycle
+ 
+-    from params import get_params
++    from signal_lab.params import get_params
+ 
+     build_snapshot("tamp-v1", "synthetic", get_params(), snapshots_dir=tmp_path)
+     (tmp_path / "tamp-v1" / "returns.parquet").write_bytes(b"tampered")
+@@ -134,8 +134,8 @@ def test_run_experiment_is_the_only_entry_point_and_it_raises():
+ def test_digest_writes_a_markdown_summary(tmp_path, params, store):
+     import digest as digest_script
+ 
+-    from harness.hypotheses import HypothesisRegistry
+-    from results.store import Verdict
++    from signal_lab.harness.hypotheses import HypothesisRegistry
++    from signal_lab.results.store import Verdict
+ 
+     store.record_run(
+         "R-a", status="completed", data_snapshot_hash="h", family="trend", params=params
+diff --git a/tests/test_store.py b/tests/test_store.py
+index 6f5a6cf..d934aca 100644
+--- a/tests/test_store.py
++++ b/tests/test_store.py
+@@ -8,7 +8,7 @@ from datetime import UTC
+ import pandas as pd
+ import pytest
+ 
+-from results.store import StoreError, Verdict, new_run_id
++from signal_lab.results.store import StoreError, Verdict, new_run_id
+ 
+ 
+ def a_run(store, run_id="R-1", params=None, **kw):
+diff --git a/tests/test_synthetic.py b/tests/test_synthetic.py
+index 04d0af3..0ede9a6 100644
+--- a/tests/test_synthetic.py
++++ b/tests/test_synthetic.py
+@@ -12,8 +12,8 @@ import numpy as np
+ import pandas as pd
+ import pytest
+ 
+-from loaders.invariants import returns_from_prior_observation
+-from loaders.synthetic import make_return_panel, plant
++from signal_lab.loaders.invariants import returns_from_prior_observation
++from signal_lab.loaders.synthetic import make_return_panel, plant
+ 
+ # --- shape -------------------------------------------------------------------
+ 
+@@ -236,7 +236,7 @@ def test_plant_refuses_a_universe_too_small(panel):
+ 
+ 
+ def test_loader_satisfies_the_protocol(params):
+-    from loaders import get_loader
++    from signal_lab.loaders import get_loader
+ 
+     loader = get_loader("synthetic", params=params)
+     for method in ("load_returns", "load_analytics", "load_macro"):
+@@ -246,8 +246,8 @@ def test_loader_satisfies_the_protocol(params):
+ 
+ 
+ def test_vendor_backends_raise_rather_than_returning_empty(params):
+-    from loaders import get_loader
+-    from loaders.bloomberg import LoaderNotImplemented
++    from signal_lab.loaders import get_loader
++    from signal_lab.loaders.bloomberg import LoaderNotImplemented
+ 
+     for source in ("bloomberg", "fred", "jpmaqs"):
+         with pytest.raises(LoaderNotImplemented):
+@@ -255,7 +255,7 @@ def test_vendor_backends_raise_rather_than_returning_empty(params):
+ 
+ 
+ def test_the_search_gate_is_closed_while_jpmaqs_is_pending(params):
+-    from loaders.jpmaqs import search_is_open
++    from signal_lab.loaders.jpmaqs import search_is_open
+ 
+     is_open, detail = search_is_open(params)
+     assert not is_open and "5.6" in detail
+diff --git a/tests/test_vetoes.py b/tests/test_vetoes.py
+index d3fb018..848bca5 100644
+--- a/tests/test_vetoes.py
++++ b/tests/test_vetoes.py
+@@ -13,7 +13,7 @@ from __future__ import annotations
+ import numpy as np
+ import pandas as pd
+ 
+-from harness.run_context import RunContext
++from signal_lab.harness.run_context import RunContext
+ from vetoes import VETO_ORDER, VETOES, apply_vetoes, first_failure
+ from vetoes.rules import (
+     veto_cash,
+@@ -479,6 +479,6 @@ def test_a_crashing_veto_fails_rather_than_passing(panel, params, monkeypatch):
+ 
+ 
+ def test_first_failure_is_none_when_all_pass():
+-    from results.store import Verdict
++    from signal_lab.results.store import Verdict
+ 
+     assert first_failure({"a": Verdict(True), "b": Verdict(True)}, ["a", "b"]) is None
+diff --git a/vetoes/registry.py b/vetoes/registry.py
+index bbd059d..24eb218 100644
+--- a/vetoes/registry.py
++++ b/vetoes/registry.py
+@@ -11,9 +11,9 @@ from __future__ import annotations
+ 
+ from collections.abc import Callable
+ 
+-from harness.run_context import RunContext
+-from params import Params, get_params
+-from results.store import ResultsStore, Verdict
++from signal_lab.harness.run_context import RunContext
++from signal_lab.params import Params, get_params
++from signal_lab.results.store import ResultsStore, Verdict
+ from vetoes import rules
+ 
+ VETOES: dict[str, Callable[..., Verdict]] = {
+diff --git a/vetoes/rules.py b/vetoes/rules.py
+index b7e690b..b915ccd 100644
+--- a/vetoes/rules.py
++++ b/vetoes/rules.py
+@@ -11,10 +11,10 @@ from __future__ import annotations
+ import numpy as np
+ import pandas as pd
+ 
+-from harness.run_context import MissingInput, RunContext
+-from loaders.invariants import frequency_breaches
+-from params import Params, get_params
+-from results.store import Verdict
++from signal_lab.harness.run_context import MissingInput, RunContext
++from signal_lab.loaders.invariants import frequency_breaches
++from signal_lab.params import Params, get_params
++from signal_lab.results.store import Verdict
+ 
+ 
+ def _p(params: Params | None) -> Params:

@@ -1,0 +1,42 @@
+id: H-2026-0006
+family: terms_of_trade
+signal: commodity_terms_of_trade_change_6m
+direction: positive
+target_axis: region
+rationale: >
+  A country's commodity terms of trade is the price of what it exports against
+  the price of what it imports, weighted by trade shares. When it improves, the
+  national income of the exporting economy rises without any change in
+  volumes, which flows to corporate margins in the export sector, to the fiscal
+  balance through royalties and taxes, and to the currency through the trade
+  account. Equity markets in commodity-exporting economies are unusually
+  concentrated in the exporting sector, so the index-level effect is larger
+  than the aggregate income effect. This should tilt regional equity weight
+  toward economies with improving terms of trade: the relationship is positive.
+  Six-month change rather than level is deliberate, because the level is
+  largely a structural fact about a country's endowment and is already
+  reflected in long-run valuation, while the change is news. The horizon is one
+  to two quarters, the time it takes for realised commodity prices to reach
+  reported earnings. This is expressible long-only as a relative regional tilt
+  within an always-positive equity budget. The declared risk is that the
+  benchmark is unhedged, so a terms-of-trade improvement that shows up mostly
+  in the currency will be captured through the FX return of the unhedged index
+  rather than the local equity return, and the signal may be measuring an FX
+  effect while claiming an equity one.
+horizon_weeks: 8-26
+expected_expression: cross_sectional
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - JPMAQS.AUD_CTOT_NSA_P1M1ML12
+  - JPMAQS.BRL_CTOT_NSA_P1M1ML12
+  - JPMAQS.CAD_CTOT_NSA_P1M1ML12
+  - JPMAQS.ZAR_CTOT_NSA_P1M1ML12
+  - DCOILWTICO
+  - DCOILBRENTEU
+  - MXEF
+  - MXCA
+notes: >
+  Slow block. The FX-versus-equity attribution must be decomposed before this
+  is claimed as a regional equity signal.

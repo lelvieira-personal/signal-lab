@@ -1,5 +1,5 @@
 """
-SYNTHETIC DATA ONLY — for UI layout review.
+SYNTHETIC DATA ONLY -- for UI layout review.
 
 Every number produced here is generated from a fixed random seed.
 None of it comes from real market data, real signals, or real backtests.
@@ -13,13 +13,33 @@ import pandas as pd
 SEED = 20260905
 RNG = np.random.default_rng(SEED)
 
-DEV_START = "2007-01-05"
-DEV_END = "2019-12-27"
-HOLDOUT_END = "2026-08-28"
 
+def _window():
+    """The development window comes from params, never from a literal here."""
+    try:
+        from signal_lab.params import get_params
+
+        p = get_params()
+        return str(p.require("data.windows.dev_start")), str(p.require("data.windows.dev_end"))
+    except Exception:  # noqa: BLE001 - the mock must render even with no params
+        return "2001-01-05", "2019-12-27"
+
+
+DEV_START, DEV_END = _window()
+
+# SUBSTRATE section 6, all eleven.
 SIGNAL_FAMILIES = [
-    "growth", "inflation", "policy_rates", "credit_conditions",
-    "liquidity", "terms_of_trade", "trend", "carry", "valuation",
+    "growth",
+    "inflation",
+    "policy_rates",
+    "credit_conditions",
+    "liquidity",
+    "terms_of_trade",
+    "spreads_curve",
+    "volatility_stress",
+    "trend",
+    "carry",
+    "valuation",
 ]
 
 AGGREGATIONS = [
@@ -30,13 +50,20 @@ AGGREGATIONS = [
     "rank-IC weighted",
 ]
 
+# All ten of SUBSTRATE section 10. The labels are only for the mock; the live
+# report reads them from params via views.veto_legend().
 VETOES = [
     ("turnover", "Annualised turnover \u2264 150%"),
     ("cash", "Max cash weight \u2264 20%"),
-    ("te", "Tracking error \u2264 6.0% (trailing 3y)"),
-    ("coverage", "Signal coverage \u2265 80% of universe"),
+    ("tracking_error", "Trailing-3y tracking error \u2264 6.0%"),
+    ("positions", "Non-zero holdings \u2264 30"),
+    ("coverage", "Signal coverage \u2265 80% of universe on \u2265 90% of dates"),
     ("lookahead", "Bitemporal check: no future vintages"),
-    ("seed", "Seed stability: IR range across draws \u2264 0.15"),
+    ("frequency", "No return before a series' true daily start"),
+    ("active_drawdown", "Max active drawdown \u2264 18.0%"),
+    ("seed_stability", "IR range across resampling seeds \u2264 0.15"),
+    ("multiple_testing", "Survives Romano-Wolf stepdown at FWER 5%"),
+    ("direction", "Realised sign matches the pre-registered direction"),
 ]
 
 
@@ -71,34 +98,51 @@ def build_runs():
         max_cash = float(np.clip(rng.normal(11, 7), 0, 34))
         coverage = float(np.clip(rng.normal(0.91, 0.09), 0.55, 1.0))
         seed_range = float(np.clip(rng.normal(0.09, 0.06), 0.01, 0.34))
+        max_active_dd = float(np.clip(rng.normal(16.0, 6.0), 3.0, 42.0))
+        cost_drag = float(np.clip(rng.normal(0.22, 0.08), 0.05, 0.55))
         lookahead_ok = rng.random() > 0.07
+        n_positions = int(rng.integers(18, 33))
+        null_pct = float(np.clip(rng.normal(0.72, 0.20), 0.01, 0.999))
+        ess_cycles = float(rng.integers(3, 14))
 
         verdicts = {
+            "lookahead": bool(lookahead_ok),
+            "frequency": bool(rng.random() > 0.04),
+            "active_drawdown": max_active_dd <= 18.0,
+            "coverage": coverage >= 0.80,
             "turnover": turnover <= 150,
             "cash": max_cash <= 20,
-            "te": te <= 6.0,
-            "coverage": coverage >= 0.80,
-            "lookahead": bool(lookahead_ok),
-            "seed": seed_range <= 0.15,
+            "tracking_error": te <= 6.0,
+            "positions": n_positions <= 30,
+            "seed_stability": seed_range <= 0.15,
+            "multiple_testing": bool(rng.random() > 0.55),
+            "direction": bool(rng.random() > 0.18),
         }
         passed = all(verdicts.values())
 
-        rows.append({
-            "run_id": f"R-{2026}{i:03d}",
-            "family": fam,
-            "aggregation": agg,
-            "net_ir": round(ir, 2),
-            "gross_ir": round(ir + rng.uniform(0.10, 0.34), 2),
-            "te": round(te, 1),
-            "turnover": round(turnover),
-            "max_cash": round(max_cash, 1),
-            "coverage": round(coverage, 2),
-            "seed_range": round(seed_range, 2),
-            "n_positions": int(rng.integers(18, 31)),
-            "verdicts": verdicts,
-            "passed": passed,
-            "series": _run_series(dates, ir, te / 100, SEED + 500 + i),
-        })
+        rows.append(
+            {
+                "run_id": f"R-{2026}{i:03d}",
+                "family": fam,
+                "aggregation": agg,
+                "net_ir": round(ir, 2),
+                "te": round(te, 1),
+                "turnover": round(turnover),
+                "max_cash": round(max_cash, 1),
+                "coverage": round(coverage, 2),
+                "seed_range": round(seed_range, 2),
+                "max_active_drawdown": round(max_active_dd, 1),
+                "cost_drag": round(cost_drag, 2),
+                "n_positions": n_positions,
+                "null_pct": round(null_pct, 3),
+                "ess_cycles": ess_cycles,
+                "status": "completed",
+                "killed_by": None,
+                "verdicts": verdicts,
+                "passed": passed,
+                "series": _run_series(dates, ir, te / 100, SEED + 500 + i),
+            }
+        )
 
     runs = sorted(rows, key=lambda r: (-r["passed"], -r["net_ir"]))
     return runs, dates
@@ -110,8 +154,9 @@ def build_detail(run, dates):
     active = run["series"]
 
     bench_wk = pd.Series(
-        rng.standard_t(df=5, size=len(dates)) / np.sqrt(5 / 3) * (0.095 / np.sqrt(52))
-        + 0.055 / 52, index=dates)
+        rng.standard_t(df=5, size=len(dates)) / np.sqrt(5 / 3) * (0.095 / np.sqrt(52)) + 0.055 / 52,
+        index=dates,
+    )
     strat_wk = bench_wk + active
 
     cum_strat = (1 + strat_wk).cumprod()
@@ -123,8 +168,7 @@ def build_detail(run, dates):
     roll_excess = active.rolling(52).sum()
     roll_te = active.rolling(52).std() * np.sqrt(52) * 100
 
-    turnover_wk = pd.Series(
-        np.clip(rng.gamma(2.2, 0.9, len(dates)), 0.1, None), index=dates)
+    turnover_wk = pd.Series(np.clip(rng.gamma(2.2, 0.9, len(dates)), 0.1, None), index=dates)
     turnover_wk = turnover_wk / turnover_wk.sum() * (run["turnover"] / 100) * (len(dates) / 52)
     cost_wk = turnover_wk * 0.0006  # 6bp per unit turnover, placeholder
     cum_cost = cost_wk.cumsum() * 100
@@ -137,25 +181,36 @@ def build_detail(run, dates):
         w[:, j] = (s / s.std()).to_numpy() * base[j] * 3.0
     active_weights = pd.DataFrame(w, index=dates, columns=axes)
 
-    risk_axes = ["Duration", "Credit spread", "Equity region", "Sector",
-                 "Style", "FX", "Idiosyncratic"]
+    risk_axes = [
+        "Duration",
+        "Credit spread",
+        "Equity region",
+        "Sector",
+        "Style",
+        "FX",
+        "Idiosyncratic",
+    ]
     risk_contrib = np.array([1.42, 0.88, 1.05, 0.61, 0.74, 0.22, 0.38])
     risk_contrib = risk_contrib / risk_contrib.sum() * run["te"]
 
-    ic_mean = {f: float(np.clip(rng.normal(0.035, 0.028), -0.03, 0.11))
-               for f in SIGNAL_FAMILIES}
-    ic_se = {f: float(np.clip(rng.normal(0.019, 0.005), 0.008, 0.035))
-             for f in SIGNAL_FAMILIES}
+    ic_mean = {f: float(np.clip(rng.normal(0.035, 0.028), -0.03, 0.11)) for f in SIGNAL_FAMILIES}
+    ic_se = {f: float(np.clip(rng.normal(0.019, 0.005), 0.008, 0.035)) for f in SIGNAL_FAMILIES}
 
     null_max_ir = rng.normal(0.41, 0.13, 4000)
 
     return {
         "dates": dates,
-        "cum_strat": cum_strat, "cum_bench": cum_bench,
-        "drawdown": dd, "roll_excess": roll_excess, "roll_te": roll_te,
-        "turnover_wk": turnover_wk, "cum_cost": cum_cost,
+        "cum_strat": cum_strat,
+        "cum_bench": cum_bench,
+        "drawdown": dd,
+        "roll_excess": roll_excess,
+        "roll_te": roll_te,
+        "turnover_wk": turnover_wk,
+        "cum_cost": cum_cost,
         "active_weights": active_weights,
-        "risk_axes": risk_axes, "risk_contrib": risk_contrib,
-        "ic_mean": ic_mean, "ic_se": ic_se,
+        "risk_axes": risk_axes,
+        "risk_contrib": risk_contrib,
+        "ic_mean": ic_mean,
+        "ic_se": ic_se,
         "null_max_ir": null_max_ir,
     }

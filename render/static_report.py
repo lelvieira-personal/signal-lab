@@ -7,11 +7,20 @@ no network. A Streamlit renderer would import the same views module and
 call st.plotly_chart on the same figure objects.
 """
 
+from __future__ import annotations
+
+import argparse
 import io
+import sys
+from pathlib import Path
+
 from plotly.io import to_html
 
-import mock_data as md
-import views as v
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT), str(REPO_ROOT / "render")]
+
+import views as v  # noqa: E402
+from sources import get_source  # noqa: E402
 
 ORANGE, INK, SLATE, ICE = v.ORANGE, v.INK, v.SLATE, v.ICE
 
@@ -104,27 +113,31 @@ footer {{ margin-top:56px; padding-top:16px; border-top:1px solid var(--rule);
 
 
 def _plot(fig, first=False):
-    return to_html(fig, include_plotlyjs=("inline" if first else False),
-                   full_html=False, config={"displayModeBar": False,
-                                            "responsive": True})
+    return to_html(
+        fig,
+        include_plotlyjs=("inline" if first else False),
+        full_html=False,
+        config={"displayModeBar": False, "responsive": True},
+    )
 
 
 def _veto_dots(verdicts):
     cells = "".join(
         f'<span class="dot {"ok" if ok else "bad"}" title="{key}"></span>'
-        for key, ok in verdicts.items())
+        for key, ok in verdicts.items()
+    )
     return f'<div class="dots">{cells}</div>'
 
 
-def _first_failure(verdicts):
-    labels = dict(md.VETOES)
-    for k, ok in verdicts.items():
-        if not ok:
-            return labels[k].split(":")[0].split("\u2264")[0].strip()
+def _first_failure(verdicts, order=None):
+    """The veto that stopped a run. Failed runs keep their reason on the table."""
+    for k in order or list(verdicts):
+        if k in verdicts and not verdicts[k]:
+            return k
     return ""
 
 
-def leaderboard_html(rows):
+def leaderboard_html(rows, order=None):
     body = io.StringIO()
     lead_id = next((r["run_id"] for r in rows if r["passed"]), None)
     for r in rows:
@@ -133,19 +146,20 @@ def leaderboard_html(rows):
             cls.append("killed")
         if r["run_id"] == lead_id:
             cls.append("lead")
-        ir_cls = "ir-strong" if r["passed"] and r["net_ir"] >= 0.45 else ""
+        ir = r.get("net_ir")
+        ir_cls = "ir-strong" if r["passed"] and ir is not None and ir >= 0.45 else ""
         body.write(f"""
-<tr class="{' '.join(cls)}">
-  <td class="id">{r['run_id']}</td>
-  <td>{r['family']}</td>
-  <td class="agg">{r['aggregation']}</td>
-  <td class="num {ir_cls}">{r['net_ir']:.2f}</td>
-  <td class="num">{r['te']:.1f}</td>
-  <td class="num">{r['turnover']}</td>
-  <td class="num">{r['max_cash']:.1f}</td>
-  <td class="num">{r['n_positions']}</td>
-  <td>{_veto_dots(r['verdicts'])}</td>
-  <td class="why">{'' if r['passed'] else _first_failure(r['verdicts'])}</td>
+<tr class="{" ".join(cls)}">
+  <td class="id">{r["run_id"]}</td>
+  <td>{r["family"]}</td>
+  <td class="agg">{r["aggregation"]}</td>
+  <td class="num {ir_cls}">{_num(ir, "{:.2f}")}</td>
+  <td class="num">{_num(r.get("te"), "{:.1f}")}</td>
+  <td class="num">{_num(r.get("turnover"), "{:.0f}")}</td>
+  <td class="num">{_num(r.get("max_cash"), "{:.1f}")}</td>
+  <td class="num">{_num(r.get("n_positions"), "{:.0f}")}</td>
+  <td>{_veto_dots(r["verdicts"])}</td>
+  <td class="why">{"" if r["passed"] else _first_failure(r["verdicts"], order)}</td>
 </tr>""")
     return f"""
 <table>
@@ -165,152 +179,231 @@ def leaderboard_html(rows):
 </div>"""
 
 
-def build(path="leaderboard_mock.html"):
-    runs, dates = md.build_runs()
-    rows = v.leaderboard_table(runs)
-    champ = next(r for r in runs if r["passed"])
-    d = md.build_detail(champ, dates)
+def _num(value, fmt="{:.2f}"):
+    """Render a number, or an em dash where the harness has not produced one."""
+    return "—" if value is None else fmt.format(value)
 
-    n_pass = sum(r["passed"] for r in runs)
-    veto_list = "".join(f"<li>{label}</li>" for _, label in md.VETOES)
 
-    figs = [
-        _plot(v.ir_vs_te_scatter(runs), first=True),
-        _plot(v.cumulative_vs_benchmark(d)),
-        _plot(v.rolling_excess(d)),
-        _plot(v.active_drawdown(d)),
-        _plot(v.rolling_te(d)),
-        _plot(v.turnover_and_cost(d)),
-        _plot(v.active_weights_area(d)),
-        _plot(v.risk_decomposition(d)),
-        _plot(v.ic_by_family(d)),
-        _plot(v.null_distribution(d, champ["net_ir"])),
-    ]
+def _empty_report(data, params, path):
+    """
+    The report for a lab with no runs.
 
+    An empty leaderboard is the correct picture of phase 0, and saying so beats
+    rendering nothing or, worse, falling back to the mock without a banner.
+    """
+    holdout = v.holdout_panel(params)
+    vetoes = "".join(f"<li><b>{name}</b> — {label}</li>" for name, label in v.veto_legend(params))
     html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Research OS — run browser (mock)</title>
+<title>Signal Lab — run browser</title>
 <style>{CSS}</style></head>
 <body><div class="wrap">
-
 <header>
-  <h1>Research OS — signal search, cycle 2026-W36</h1>
-  <p class="sub">Read-only browser over a completed agentic run. Nothing here
-     changes a portfolio.</p>
+  <h1>Signal Lab — run browser</h1>
+  <p class="sub">Read-only browser over the results store. Nothing here changes a portfolio.</p>
   <div class="meta">
-    <div>Experiments<b>{len(runs)}</b></div>
-    <div>Survived all vetoes<b>{n_pass}</b></div>
-    <div>Development window<b>2007–2019</b></div>
-    <div>Holdout<b>locked</b></div>
-    <div>Rebalance<b>Weekly, Friday</b></div>
-    <div>Universe<b>30 ETFs</b></div>
+    <div>Experiments<b>0</b></div>
+    <div>Survived all vetoes<b>0</b></div>
+    <div>Development window<b>{data.dev_start} to {data.dev_end}</b></div>
+    <div>Holdout<b>{"locked" if holdout["locked"] else "unlocked"}</b></div>
+    <div>Params version<b>{params.params_version}</b></div>
+    <div>Params hash<b>{params.params_hash[:12]}</b></div>
   </div>
 </header>
+<div class="notice"><b>No runs recorded.</b> The results store is empty. This is the
+  expected state until the walk-forward engine lands in phase 1; the veto set below is
+  already live and is read from <code>params/vetoes.yaml</code>.</div>
+<h2><span class="n">1</span>Veto set</h2>
+<p class="lede">Fixed before any cycle runs. A run failing any one is killed with the
+  reason logged; none of these are advisory, and none is tuned per run.</p>
+<ol style="font-size:13px;color:var(--slate);padding-left:20px;line-height:1.9">{vetoes}</ol>
+<div class="locked"><b>{holdout["title"]}</b><br>{holdout["body"]}</div>
+<footer>Signal Lab · params {params.params_version} ({params.params_hash[:12]}) ·
+  rendered from views.py, which streamlit_app.py also imports.</footer>
+</div></body></html>"""
+    Path(path).write_text(html, encoding="utf-8")
+    return str(path)
 
-<div class="notice">
-  <b>Synthetic data.</b> Every number and chart below is randomly generated
-  from a fixed seed so the layout can be reviewed. No market data, no signals,
-  no backtest.
-</div>
 
-<h2><span class="n">1</span>Leaderboard</h2>
-<p class="lede">All {len(runs)} experiments, survivors first. Failures stay
-  visible with the veto that stopped them — knowing what died and why is most
-  of the diagnostic value, and hiding it invites the same idea to be proposed
-  again next cycle.</p>
-{leaderboard_html(rows)}
+def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
+    """
+    Render the report.
 
-<div class="grid2" style="margin-top:30px">
-  <div class="panel">
-    <h3>Where the survivors sit</h3>
-    <p>Dotted line is the 6% tracking error veto.</p>
-    {figs[0]}
-  </div>
-  <div class="panel">
-    <h3>Veto set</h3>
-    <p>Fixed before the cycle ran. A run failing any one is killed with the
-       reason logged; none of these are advisory.</p>
-    <ol style="font-size:13px;color:var(--slate);padding-left:20px;margin:8px 0 0;
-               line-height:1.85">{veto_list}</ol>
-  </div>
-</div>
+    `synthetic=True` regenerates the mock so the layout can be reviewed with no
+    runs present. The synthetic banner is not optional: a mock report that could
+    pass for a real one is a hazard, not a convenience.
+    """
+    from signal_lab.params import get_params
 
+    params = params or get_params()
+    source = get_source(
+        synthetic=synthetic, **({"db_path": db_path} if db_path and not synthetic else {})
+    )
+    data = source.load()
+
+    if not data.runs:
+        return _empty_report(data, params, path)
+
+    order = [name for name, _ in v.veto_legend(params)]
+    rows = v.leaderboard_table(data.runs)
+    champ = data.champion
+    detail = data.detail
+    holdout = v.holdout_panel(params)
+    te_cap = float(params.require("vetoes.tracking_error.max_trailing_3y")) * 100
+
+    veto_list = "".join(
+        f"<li><b>{name}</b> — {label}</li>" for name, label in v.veto_legend(params)
+    )
+
+    figs = [_plot(v.ir_vs_te_scatter(data.runs, te_cap=te_cap), first=True)]
+    have_detail = bool(detail) and "dates" in (detail or {})
+    if have_detail:
+        figs += [
+            _plot(v.cumulative_vs_benchmark(detail)),
+            _plot(v.rolling_excess(detail)),
+            _plot(v.active_drawdown(detail)),
+            _plot(v.rolling_te(detail, cap=te_cap)),
+            _plot(v.turnover_and_cost(detail)),
+            _plot(v.active_weights_area(detail)),
+            _plot(v.risk_decomposition(detail)),
+            _plot(v.ic_by_family(detail)),
+            _plot(v.null_distribution(detail, champ["net_ir"])),
+        ]
+
+    banner = ""
+    if data.is_synthetic:
+        banner = """<div class="notice"><b>Synthetic data.</b> Every number and chart below is
+  randomly generated from a fixed seed so the layout can be reviewed. No market data,
+  no signals, no backtest, no result.</div>"""
+    elif data.notes:
+        banner = f"""<div class="notice">{" ".join(data.notes)}</div>"""
+
+    detail_section = ""
+    if have_detail and champ:
+        stats = "".join(
+            f"<div>{s['label']}<b{' class="hl"' if s['highlight'] else ''}>{s['value']}</b></div>"
+            for s in v.run_summary_stats(champ)
+        )
+        detail_section = f"""
 <h2><span class="n">2</span>Run detail</h2>
 <div class="runhead">
-  <span class="rid">{champ['run_id']}</span>
-  <span class="tag">{champ['family']} · {champ['aggregation']} ·
-        {champ['n_positions']} holdings</span>
+  <span class="rid">{champ["run_id"]}</span>
+  <span class="tag">{champ.get("family", "")} · {champ.get("aggregation", "")} ·
+        {_num(champ.get("n_positions"), "{:.0f}")} holdings</span>
 </div>
-
-<div class="stats">
-  <div>Net IR<b class="hl">{champ['net_ir']:.2f}</b></div>
-  <div>Gross IR<b>{champ['gross_ir']:.2f}</b></div>
-  <div>Tracking error<b>{champ['te']:.1f}%</b></div>
-  <div>Turnover<b>{champ['turnover']}%</b></div>
-  <div>Max cash<b>{champ['max_cash']:.1f}%</b></div>
-  <div>Signal coverage<b>{champ['coverage']:.0%}</b></div>
-  <div>Seed IR range<b>{champ['seed_range']:.2f}</b></div>
-</div>
-
+<div class="stats">{stats}</div>
 <div class="panel" style="margin-bottom:26px">
   <h3>Net of costs vs the 50/50 benchmark</h3>
-  <p>Gross is recorded but never plotted — only the net line is the deliverable.</p>
+  <p>Gross is recorded for diagnostics and never plotted — only the net line is the
+     deliverable (SUBSTRATE sections 3 and 12).</p>
   {figs[1]}
 </div>
-
 <div class="grid2">
   <div class="panel"><h3>Rolling 12-month excess return</h3>
     <p>How long the strategy can stay behind.</p>{figs[2]}</div>
   <div class="panel"><h3>Active drawdown</h3>
     <p>Peak-to-trough on the excess return stream.</p>{figs[3]}</div>
   <div class="panel"><h3>Rolling tracking error</h3>
-    <p>Dashed line is the 6% veto threshold.</p>{figs[4]}</div>
+    <p>Dashed line is the {te_cap:.1f}% veto threshold from params.</p>{figs[4]}</div>
   <div class="panel"><h3>Turnover and cumulative cost</h3>
     <p>Cost drag as its own series, not buried in the return.</p>{figs[5]}</div>
 </div>
 
 <h2><span class="n">3</span>What the portfolio is actually doing</h2>
-<p class="lede">Positions are ETFs, but the decisions are exposures. These two
-  views are where the claim that 30 holdings tackle distinct risks gets checked
-  — or falsified.</p>
+<p class="lede">Positions are ETFs, but the decisions are exposures. These two views are
+  where the claim that the holdings tackle distinct risks gets checked, or falsified.</p>
 <div class="grid2">
   <div class="panel"><h3>Active weight by risk axis</h3>
-    <p>Aggregated from instrument weights through the characteristic map.</p>
-    {figs[6]}</div>
+    <p>Aggregated from instrument weights through the characteristic map.</p>{figs[6]}</div>
   <div class="panel"><h3>Active risk decomposition</h3>
-    <p>A large idiosyncratic share means the exposures aren't the story.</p>
-    {figs[7]}</div>
+    <p>A large idiosyncratic share means the exposures aren't the story.</p>{figs[7]}</div>
 </div>
 
 <h2><span class="n">4</span>Is the result real?</h2>
-<p class="lede">The search tested many signals, so the best IR is a maximum
-  over many draws. These two panels are the check on that.</p>
+<p class="lede">The search tested many signals, so the best IR is a maximum over many
+  draws. Romano-Wolf stepdown is the gate; these two panels are the intuition.</p>
 <div class="grid2">
   <div class="panel"><h3>Rank IC by signal family</h3>
-    <p>HAC bands account for overlapping weekly observations. Grey where the
-       band spans zero.</p>{figs[8]}</div>
+    <p>HAC bands account for overlapping weekly observations. Grey where the band
+       spans zero.</p>{figs[8]}</div>
   <div class="panel"><h3>Realised IR against the search null</h3>
-    <p>Block bootstrap on shuffled signals, same search width.</p>
-    {figs[9]}</div>
+    <p>Block bootstrap on shuffled signals, same search width. Reported for intuition;
+       the stepdown is the gate.</p>{figs[9]}</div>
+</div>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Lab — run browser</title>
+<style>{CSS}</style></head>
+<body><div class="wrap">
+
+<header>
+  <h1>Signal Lab — run browser</h1>
+  <p class="sub">Read-only browser over {data.label}. Nothing here changes a portfolio.</p>
+  <div class="meta">
+    <div>Experiments<b>{data.n_runs}</b></div>
+    <div>Survived all vetoes<b>{data.n_passed}</b></div>
+    <div>Development window<b>{data.dev_start} to {data.dev_end}</b></div>
+    <div>Holdout<b>{"locked" if holdout["locked"] else "unlocked"}</b></div>
+    <div>Rebalance<b>Weekly, {params.get("constraints.rebalance.day", "FRI")}</b></div>
+    <div>Params<b>{params.params_version} · {params.params_hash[:12]}</b></div>
+  </div>
+</header>
+
+{banner}
+
+<h2><span class="n">1</span>Leaderboard</h2>
+<p class="lede">All {data.n_runs} experiments, survivors first. Failures stay visible with
+  the veto that stopped them — knowing what died and why is most of the diagnostic value,
+  and hiding it invites the same idea to be proposed again next cycle.</p>
+{leaderboard_html(rows, order)}
+
+<div class="grid2" style="margin-top:30px">
+  <div class="panel">
+    <h3>Where the survivors sit</h3>
+    <p>Dotted line is the {te_cap:.1f}% tracking error veto.</p>
+    {figs[0]}
+  </div>
+  <div class="panel">
+    <h3>Veto set</h3>
+    <p>Fixed before the cycle ran, read live from params/vetoes.yaml. A run failing any
+       one is killed with the reason logged; none of these are advisory.</p>
+    <ol style="font-size:12.5px;color:var(--slate);padding-left:20px;margin:8px 0 0;
+               line-height:1.75">{veto_list}</ol>
+  </div>
 </div>
 
-<div class="locked">
-  <b>Holdout 2020–2026 is locked.</b> It opens once, on the run you take to
-  production. Unlocking is recorded in the decision log with who and when.
-</div>
+{detail_section}
+
+<div class="locked"><b>{holdout["title"]}</b><br>{holdout["body"]}</div>
 
 <footer>
-  Research OS mock · synthetic data, fixed seed 20260905 · rendered from
-  views.py, which the Streamlit app also imports.
+  Signal Lab · {data.label} · params {params.params_version} ({params.params_hash[:12]}) ·
+  rendered from views.py, which streamlit_app.py also imports.
 </footer>
 
 </div></body></html>"""
 
-    with open(path, "w") as fh:
-        fh.write(html)
-    return path
+    Path(path).write_text(html, encoding="utf-8")
+    return str(path)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Render the Signal Lab run browser.")
+    parser.add_argument("-o", "--out", default="leaderboard.html", help="output HTML path")
+    parser.add_argument(
+        "--synthetic",
+        action="store_true",
+        help="regenerate the mock so the report can be built with no runs present",
+    )
+    parser.add_argument("--db", default=None, help="results store path (default results/runs.db)")
+    args = parser.parse_args(argv)
+    out = build(args.out, synthetic=args.synthetic, db_path=args.db)
+    print(out)
+    return out
 
 
 if __name__ == "__main__":
-    print(build())
+    main()

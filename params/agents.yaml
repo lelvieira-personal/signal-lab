@@ -1,0 +1,88 @@
+# Agent budgets and quotas. SUBSTRATE.md section 14, as amended by
+# decisions/0007 and decisions/0012. Owner-only.
+params_version: "0.4.0"
+
+runtime:
+  # decisions/0007. The autonomous cycle runs as a headless process against the
+  # Anthropic API with a key from the environment, NOT as a scheduled Cowork or
+  # Claude Code session on the Pro subscription. Three reasons:
+  #   - the budget wrapper reads per-call usage off the API response; a
+  #     subscription session does not expose those fields to the script;
+  #   - cron in WSL needs a headless process, not a desktop app that has to be
+  #     open and reachable;
+  #   - a nightly batch on the subscription would consume the same rate limits
+  #     the owner uses interactively.
+  # Development (building the harness) stays on the subscription. Only the
+  # unattended routine is metered.
+  transport: api
+  env_keys: ["ANTHROPIC_API_KEY"]
+  use_batch_api: true          # the cycle is async by nature; batch is 50% cheaper
+
+budgets:
+  # decisions/0012: SUBSTRATE section 14 specifies a token ceiling. With a 10x
+  # price spread across model tiers a token cap is a poor proxy for a dollar
+  # cap -- the same number of tokens costs five times more on Fable than on
+  # Sonnet -- and the owner's constraint is stated in dollars. Both are
+  # enforced; whichever binds first kills the run.
+  cost_per_run_usd: 3.50
+  cost_per_cycle_usd: 23.00
+  cost_per_month_usd: 100.00   # early-build ceiling; steady state is 30.00
+  tokens_per_run: 400000       # secondary guard against a runaway loop
+  tokens_per_cycle: 3000000
+  on_breach: kill              # section 14: "kills on breach, it does not warn"
+  on_unset: refuse
+  # Sized for a WEEKLY proposal cycle (4.3/month), not nightly. See
+  # decisions/0007: 7 proposals x 30 nights is 210 correlated tests a month, and
+  # Romano-Wolf across 210 draws sets a bar a real macro signal will not clear.
+  # The cadence is a statistical decision that happens to also be the cost lever.
+  cycle_cadence: weekly
+
+quotas:
+  max_proposals_per_family_per_cycle: 7
+  max_refinement_rounds_per_proposal: 2
+  novel_provenance_per_cycle: 2
+  # decisions/0007: a proposal that exhausts its refinement rounds is NOT
+  # discarded. It returns to hypotheses/pending/ with the Diagnostician's notes
+  # attached and is picked up next cycle. The cap therefore limits spend per
+  # cycle without ever throwing away a promising idea, which is what makes a
+  # low cap safe. Revisit K from four weeks of logged rounds-used.
+  on_refinement_cap: requeue_to_pending
+
+models:
+  # decisions/0007. Cost per million tokens at the time of writing:
+  #   Fable 5.1   $10 in / $50 out   <- the DEAREST tier, 2x Opus on output
+  #   Opus 5      $5  in / $25 out
+  #   Sonnet 5    $2  in / $10 out
+  #   Haiku 4.5   $1  in / $5  out
+  # The Evaluator is the single most expensive step because evaluation output is
+  # long prose priced at Fable's output rate. If the bill binds, shorten the
+  # evaluator's output before cutting anywhere else.
+  proposer: claude-fable-5-1        # hypothesis generation
+  implementer: claude-sonnet-5      # writes the signal module from the hypothesis
+  critic: claude-sonnet-5           # reviews implementation against the hypothesis
+  diagnostician: claude-opus-5      # reads a failure, decides if a refinement is worth it
+  evaluator: claude-fable-5-1       # evaluates results
+  coordinator: claude-sonnet-5      # orders the queue, mechanical
+  # Model ids are validated against the API at cycle start; an unknown id
+  # refuses rather than silently falling back to a default.
+  validate_ids: true
+
+pricing:
+  # Per million tokens, USD. Used for cost_usd on every run and for the dollar
+  # ceilings above. Update when Anthropic's published prices change; the
+  # params_hash changes with it, so runs before and after are distinguishable.
+  currency: USD
+  source: "https://platform.claude.com/docs/en/about-claude/pricing"
+  as_of: "2026-09-09"
+  per_million_tokens:
+    claude-fable-5-1:  {input: 10.0, output: 50.0, cache_write_5m: 12.50, cache_read: 0.25}
+    claude-opus-5:     {input:  5.0, output: 25.0, cache_write_5m:  6.25, cache_read: 0.50}
+    claude-sonnet-5:   {input:  2.0, output: 10.0, cache_write_5m:  2.50, cache_read: 0.20}
+    claude-haiku-4-5:  {input:  1.0, output:  5.0, cache_write_5m:  1.25, cache_read: 0.10}
+  batch_discount: 0.50
+
+policy:
+  agents_read_summary_statistics_only: true   # section 14: never raw return panels
+  prompt_cache: [SUBSTRATE.md, params/, data/universe/]
+  log_cost_per_run: true
+  log_cost_per_accepted_idea: true

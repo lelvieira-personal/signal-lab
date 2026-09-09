@@ -1,0 +1,1440 @@
+From 013f8fe2a9d4a4a5113efb47566b96eb132bf11c Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:15 +0000
+Subject: [PATCH 09/17] tests: pass, fail and boundary for every veto; the
+ holdout lock by name
+
+Each veto gets all three cases, because a threshold written < instead of <= is
+a silent permanent change to the mandate. lookahead and frequency are tested
+against the synthetic panel's known break dates and against the real mistake,
+treating real_date as the knowledge date. The holdout tests assert no bypass
+argument exists in any signature.
+---
+ tests/conftest.py               |  46 +++
+ tests/test_holdout.py           |  99 +++++++
+ tests/test_loader_invariants.py | 266 ++++++++++++++++++
+ tests/test_params.py            |  80 ++++++
+ tests/test_store.py             | 134 +++++++++
+ tests/test_synthetic.py         | 261 +++++++++++++++++
+ tests/test_vetoes.py            | 484 ++++++++++++++++++++++++++++++++
+ 7 files changed, 1370 insertions(+)
+ create mode 100644 tests/conftest.py
+ create mode 100644 tests/test_holdout.py
+ create mode 100644 tests/test_loader_invariants.py
+ create mode 100644 tests/test_params.py
+ create mode 100644 tests/test_store.py
+ create mode 100644 tests/test_synthetic.py
+ create mode 100644 tests/test_vetoes.py
+
+diff --git a/tests/conftest.py b/tests/conftest.py
+new file mode 100644
+index 0000000..8b50bc0
+--- /dev/null
++++ b/tests/conftest.py
+@@ -0,0 +1,46 @@
++"""Shared fixtures. The synthetic panel is expensive to build, so it is session-scoped."""
++
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++
++import pytest
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT)]
++
++
++@pytest.fixture(scope="session")
++def params():
++    from params import get_params
++
++    return get_params()
++
++
++@pytest.fixture(scope="session")
++def panel(params):
++    from loaders.synthetic import SyntheticLoader
++
++    return SyntheticLoader(params).load_returns()
++
++
++@pytest.fixture(scope="session")
++def macro(params):
++    from loaders.synthetic import SyntheticLoader
++
++    return SyntheticLoader(params).load_macro()
++
++
++@pytest.fixture(scope="session")
++def analytics(params):
++    from loaders.synthetic import SyntheticLoader
++
++    return SyntheticLoader(params).load_analytics()
++
++
++@pytest.fixture
++def store(tmp_path):
++    from results.store import ResultsStore
++
++    return ResultsStore(tmp_path / "runs.db", tmp_path / "artifacts")
+diff --git a/tests/test_holdout.py b/tests/test_holdout.py
+new file mode 100644
+index 0000000..511ccc6
+--- /dev/null
++++ b/tests/test_holdout.py
+@@ -0,0 +1,99 @@
++"""
++The holdout lock. SUBSTRATE sections 2 and 3.
++
++Marked `holdout` so `make check` can run these explicitly and by name, rather
++than trusting that they were somewhere in the suite.
++"""
++
++from __future__ import annotations
++
++import pandas as pd
++import pytest
++
++from loaders.holdout import HoldoutViolation, clip_to_development, enforce_holdout, holdout_start
++
++pytestmark = pytest.mark.holdout
++
++
++def test_holdout_start_is_2020(params):
++    assert holdout_start(params) == pd.Timestamp("2020-01-01")
++
++
++def test_raises_on_a_single_holdout_date(params):
++    with pytest.raises(HoldoutViolation, match="HOLDOUT_START"):
++        enforce_holdout([pd.Timestamp("2020-01-02")], params)
++
++
++def test_raises_on_a_frame_whose_index_reaches_the_holdout(params):
++    frame = pd.DataFrame({"x": [1.0, 2.0]}, index=pd.to_datetime(["2019-12-27", "2020-01-02"]))
++    with pytest.raises(HoldoutViolation):
++        enforce_holdout(frame, params)
++
++
++def test_boundary_the_day_before_passes_and_the_day_itself_raises(params):
++    enforce_holdout([pd.Timestamp("2019-12-31")], params)  # must not raise
++    with pytest.raises(HoldoutViolation):
++        enforce_holdout([pd.Timestamp("2020-01-01")], params)
++
++
++def test_empty_input_passes(params):
++    enforce_holdout([], params)
++    enforce_holdout(pd.DatetimeIndex([]), params)
++
++
++def test_series_of_dates_is_checked(params):
++    s = pd.Series(pd.to_datetime(["2018-06-01", "2021-06-01"]))
++    with pytest.raises(HoldoutViolation):
++        enforce_holdout(s, params)
++
++
++def test_there_is_no_bypass_argument():
++    """
++    SUBSTRATE section 2: 'The loader refuses these dates; do not work around it.'
++
++    A keyword like force= or allow_holdout= would be exactly that workaround, so
++    its absence is asserted rather than left to reviewer vigilance.
++    """
++    import inspect
++
++    from loaders import holdout as module
++
++    forbidden = {"force", "bypass", "allow_holdout", "unlock", "override", "unsafe"}
++    for name, fn in vars(module).items():
++        if not callable(fn) or not hasattr(fn, "__code__"):
++            continue
++        args = set(inspect.signature(fn).parameters)
++        assert not (args & forbidden), f"{name} exposes a holdout bypass: {args & forbidden}"
++
++
++def test_synthetic_panel_never_reaches_the_holdout(panel, params):
++    assert panel.returns.index.max() < holdout_start(params)
++    enforce_holdout(panel.returns, params)
++
++
++def test_macro_panel_never_reaches_the_holdout(macro, params):
++    enforce_holdout(macro.frame["knowledge_date"], params)
++    enforce_holdout(macro.frame["real_date"], params)
++
++
++def test_unlocking_requires_a_named_owner_and_a_date(params, tmp_path):
++    """An unlock that does not say who and when is not an unlock."""
++    import shutil
++    from pathlib import Path
++
++    from params import PARAM_FILES, load_params
++
++    src = Path(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    data = tmp_path / "data.yaml"
++    data.write_text(data.read_text().replace("locked: true", "locked: false"))
++    loosened = load_params(tmp_path)
++    with pytest.raises(HoldoutViolation, match="unlocked_by"):
++        enforce_holdout([pd.Timestamp("2021-01-04")], loosened)
++
++
++def test_clip_to_development_removes_rather_than_serves(panel, params):
++    clipped = clip_to_development(panel.returns, params)
++    assert clipped.index.min() >= pd.Timestamp(params.require("data.windows.dev_start"))
++    assert clipped.index.max() <= pd.Timestamp(params.require("data.windows.dev_end"))
+diff --git a/tests/test_loader_invariants.py b/tests/test_loader_invariants.py
+new file mode 100644
+index 0000000..b674bc5
+--- /dev/null
++++ b/tests/test_loader_invariants.py
+@@ -0,0 +1,266 @@
++"""
++The seven loader invariants of SUBSTRATE section 5.1, one test group each.
++"""
++
++from __future__ import annotations
++
++import numpy as np
++import pandas as pd
++import pytest
++
++from loaders.base import SeriesMeta
++from loaders.invariants import (
++    InvariantViolation,
++    apply_splices,
++    assert_no_forward_fill,
++    cross_region_covariance,
++    filter_business_days,
++    flag_net_of_withholding,
++    frequency_breaches,
++    hedge_mixing_breach,
++    overlapping_returns,
++    propagate_hedge_flags,
++    region_signal_universe,
++    returns_from_prior_observation,
++    same_day_cross_region_pairs,
++    spanned_gap_days,
++    to_missing,
++    truncate_at_daily_start,
++)
++
++
++def meta_for(series_id, start, **kw):
++    return SeriesMeta(
++        series_id=series_id, true_daily_start=pd.Timestamp(start), tier="backbone", **kw
++    )
++
++
++# --- 1. business days and missing markers -----------------------------------
++
++
++def test_na_marker_becomes_nan_not_zero():
++    frame = pd.DataFrame(
++        {"A": ["100.0", "#N/A", "102.0"]}, index=pd.date_range("2010-01-04", periods=3)
++    )
++    out = to_missing(frame, ["#N/A"])
++    assert out["A"].isna().iloc[1]
++    assert not (out["A"] == 0).any(), "a missing observation must never become a zero return"
++
++
++def test_weekends_are_dropped():
++    index = pd.date_range("2010-01-01", "2010-01-11", freq="D")
++    frame = pd.DataFrame({"A": range(len(index))}, index=index)
++    out = filter_business_days(frame)
++    assert (pd.DatetimeIndex(out.index).dayofweek < 5).all()
++    assert len(out) < len(frame)
++
++
++def test_named_holidays_are_dropped():
++    index = pd.bdate_range("2010-01-04", "2010-01-08")
++    frame = pd.DataFrame({"A": range(len(index))}, index=index)
++    out = filter_business_days(frame, holidays=[pd.Timestamp("2010-01-06")])
++    assert pd.Timestamp("2010-01-06") not in out.index
++
++
++def test_forward_fill_is_detected():
++    index = pd.date_range("2010-01-04", periods=4, freq="B")
++    before = pd.DataFrame({"A": [1.0, np.nan, 3.0, 4.0]}, index=index)
++    assert_no_forward_fill(before, before)  # identity passes
++    after = before.ffill()
++    with pytest.raises(InvariantViolation, match="Forward fill is forbidden"):
++        assert_no_forward_fill(before, after)
++
++
++# --- 2. truncation at the true daily start -----------------------------------
++
++
++def test_truncation_blanks_everything_before_the_daily_start():
++    index = pd.date_range("2010-01-04", periods=6, freq="B")
++    levels = pd.DataFrame({"A": np.arange(6, dtype=float)}, index=index)
++    meta = {"A": meta_for("A", index[3])}
++    out = truncate_at_daily_start(levels, meta)
++    assert out["A"].iloc[:3].isna().all()
++    assert out["A"].iloc[3:].notna().all()
++
++
++def test_truncation_needs_metadata_for_every_column():
++    levels = pd.DataFrame({"A": [1.0]}, index=pd.to_datetime(["2010-01-04"]))
++    with pytest.raises(InvariantViolation, match="no metadata"):
++        truncate_at_daily_start(levels, {})
++
++
++def test_frequency_breaches_finds_pre_start_contributions():
++    meta = {"A": meta_for("A", "2005-01-03")}
++    contributions = pd.DataFrame(
++        {
++            "series_id": ["A", "A", "A"],
++            "date": pd.to_datetime(["2004-11-30", "2005-01-03", "2006-02-01"]),
++        }
++    )
++    breaches = frequency_breaches(contributions, meta)
++    assert len(breaches) == 1
++    assert breaches["date"].iloc[0] == pd.Timestamp("2004-11-30")
++
++
++# --- 3. returns from each series' own prior observation ----------------------
++
++
++def test_return_spans_a_gap_rather_than_becoming_nan():
++    """
++    The invariant that pct_change() gets wrong.
++
++    B does not trade on the 5th. Its return on the 6th is measured against its
++    own last observation on the 4th, not against a NaN.
++    """
++    index = pd.to_datetime(["2010-01-04", "2010-01-05", "2010-01-06"])
++    levels = pd.DataFrame({"A": [100.0, 101.0, 102.0], "B": [100.0, np.nan, 110.0]}, index=index)
++    rets = returns_from_prior_observation(levels)
++    assert np.isnan(rets["B"].iloc[1]), "no observation means no return, not a zero"
++    assert rets["B"].iloc[2] == pytest.approx(0.10)
++    assert rets["A"].iloc[2] == pytest.approx(102.0 / 101.0 - 1)
++    naive = levels.pct_change()
++    assert np.isnan(naive["B"].iloc[2]), "pct_change loses the return; this is why the rule exists"
++
++
++def test_first_observation_has_no_return():
++    index = pd.date_range("2010-01-04", periods=3, freq="B")
++    levels = pd.DataFrame({"A": [100.0, 101.0, 102.0]}, index=index)
++    assert np.isnan(returns_from_prior_observation(levels)["A"].iloc[0])
++
++
++def test_single_observation_series_yields_no_returns():
++    index = pd.date_range("2010-01-04", periods=3, freq="B")
++    levels = pd.DataFrame({"A": [np.nan, 100.0, np.nan]}, index=index)
++    assert returns_from_prior_observation(levels)["A"].isna().all()
++
++
++def test_spanned_gap_days_flags_a_month_end_print():
++    index = pd.to_datetime(["2010-01-29", "2010-02-26", "2010-03-01"])
++    levels = pd.DataFrame({"A": [100.0, 101.0, 101.5]}, index=index)
++    gaps = spanned_gap_days(levels)
++    assert gaps["A"].iloc[1] == 28
++    assert gaps["A"].iloc[2] == 3
++
++
++# --- 4. gross / net ----------------------------------------------------------
++
++
++def test_net_of_withholding_is_flagged_not_corrected():
++    meta = {
++        "NDDUUS": meta_for("NDDUUS", "2000-01-03"),
++        "LEGATRUU": meta_for("LEGATRUU", "2000-01-03"),
++    }
++    out = flag_net_of_withholding(meta, ["NDDU", "M1"])
++    assert out["NDDUUS"].gross is False
++    assert out["LEGATRUU"].gross is True
++
++
++# --- 5. splices --------------------------------------------------------------
++
++
++def test_splice_fills_only_the_gap_and_is_logged():
++    index = pd.date_range("2010-01-04", periods=4, freq="B")
++    levels = pd.DataFrame(
++        {"LT13TRUU": [np.nan, np.nan, 50.0, 51.0], "G3OC": [10.0, 11.0, 12.0, 13.0]}, index=index
++    )
++    meta = {"LT13TRUU": meta_for("LT13TRUU", index[0]), "G3OC": meta_for("G3OC", index[0])}
++    spec = [{"target": "LT13TRUU", "source": "G3OC", "reason": "ICE BofA", "active": True}]
++    out, new_meta, records = apply_splices(levels, spec, meta)
++
++    assert out["LT13TRUU"].tolist() == [10.0, 11.0, 50.0, 51.0], "the target wins where both exist"
++    assert len(records) == 1
++    assert records[0].n_observations_taken == 2
++    assert records[0].splice_date == index[0].date()
++    assert new_meta["LT13TRUU"].splice is records[0]
++
++
++def test_inactive_and_unresolved_splices_are_skipped():
++    index = pd.date_range("2010-01-04", periods=2, freq="B")
++    levels = pd.DataFrame({"SPBDALB": [np.nan, 1.0], "OTHER": [5.0, 6.0]}, index=index)
++    meta = {"SPBDALB": meta_for("SPBDALB", index[0]), "OTHER": meta_for("OTHER", index[0])}
++    specs = [
++        {"target": "SPBDALB", "source": None, "reason": "no TR loan index", "active": False},
++        {"target": "SPBDALB", "source": "MISSING", "reason": "not in panel", "active": True},
++    ]
++    out, _, records = apply_splices(levels, specs, meta)
++    assert records == []
++    assert np.isnan(out["SPBDALB"].iloc[0])
++
++
++# --- 6. hedge flags ----------------------------------------------------------
++
++
++def test_hedge_flags_propagate_from_params():
++    meta = {sid: meta_for(sid, "2000-01-03") for sid in ["H09122US", "LEGATRUU"]}
++    out = propagate_hedge_flags(meta, ["H09122US"])
++    assert out["H09122US"].hedged is True
++    assert out["LEGATRUU"].hedged is False
++
++
++def test_region_signal_universe_excludes_hedged_by_default():
++    meta = propagate_hedge_flags(
++        {sid: meta_for(sid, "2000-01-03") for sid in ["H09122US", "LEGATRUU"]}, ["H09122US"]
++    )
++    assert region_signal_universe(meta) == ["LEGATRUU"]
++    assert region_signal_universe(meta, allow_hedged=True) == ["H09122US"]
++
++
++def test_mixing_hedged_and_unhedged_is_reported():
++    meta = propagate_hedge_flags(
++        {sid: meta_for(sid, "2000-01-03") for sid in ["H09122US", "LEGATRUU"]}, ["H09122US"]
++    )
++    assert hedge_mixing_breach(["H09122US", "LEGATRUU"], meta) == ["H09122US"]
++    assert hedge_mixing_breach(["LEGATRUU"], meta) == []
++
++
++def test_synthetic_panel_carries_exactly_six_hedged_series(panel, params):
++    assert len(panel.hedged_ids()) == params.get("data.synthetic.n_hedged")
++
++
++# --- 7. cross-region covariance on overlapping returns -----------------------
++
++
++def test_overlapping_returns_compound_the_window():
++    rets = pd.Series([0.01, 0.02, -0.01], index=pd.date_range("2010-01-04", periods=3, freq="B"))
++    out = overlapping_returns(rets.to_frame("A"), 2)["A"]
++    assert np.isnan(out.iloc[0])
++    assert out.iloc[1] == pytest.approx(1.01 * 1.02 - 1)
++
++
++def test_cross_region_pairs_use_overlapping_returns():
++    """
++    Built so same-day correlation understates the truth: EUR reacts to the US
++    factor one day late, exactly the non-synchronous-close problem.
++    """
++    rng = np.random.default_rng(0)
++    n = 900
++    index = pd.bdate_range("2010-01-04", periods=n)
++    shock = rng.normal(0, 0.01, n)
++    us = shock + rng.normal(0, 0.002, n)
++    eur = np.concatenate([[0.0], shock[:-1]]) + rng.normal(0, 0.002, n)
++    returns = pd.DataFrame({"US1": us, "EUR1": eur}, index=index)
++    meta = {
++        "US1": meta_for("US1", index[0], region="US"),
++        "EUR1": meta_for("EUR1", index[0], region="EUR"),
++    }
++    same_day = returns.cov().loc["US1", "EUR1"]
++    cov = cross_region_covariance(returns, meta, overlap_days=2)
++    assert cov.loc["US1", "EUR1"] > same_day, "overlapping returns must recover the lagged link"
++    assert cov.loc["US1", "EUR1"] == cov.loc["EUR1", "US1"]
++
++
++def test_same_region_pairs_keep_daily_covariance():
++    rng = np.random.default_rng(1)
++    index = pd.bdate_range("2010-01-04", periods=400)
++    returns = pd.DataFrame(rng.normal(0, 0.01, (400, 2)), index=index, columns=["US1", "US2"])
++    meta = {
++        "US1": meta_for("US1", index[0], region="US"),
++        "US2": meta_for("US2", index[0], region="US"),
++    }
++    cov = cross_region_covariance(returns, meta, overlap_days=2)
++    assert cov.loc["US1", "US2"] == pytest.approx(returns.cov().loc["US1", "US2"])
++
++
++def test_cross_region_pairs_are_enumerable(panel):
++    pairs = same_day_cross_region_pairs(panel.meta, panel.series_ids[:12])
++    assert pairs, "the synthetic universe must contain cross-region pairs to test the rule on"
+diff --git a/tests/test_params.py b/tests/test_params.py
+new file mode 100644
+index 0000000..365ab2f
+--- /dev/null
++++ b/tests/test_params.py
+@@ -0,0 +1,80 @@
++"""params/ is the single source of every threshold, and it is hashed."""
++
++from __future__ import annotations
++
++import pytest
++
++from params import PARAM_FILES, ParamNotConfigured, ParamsError, hash_params_dir, load_params
++
++
++def test_all_param_files_present_and_versions_agree(params):
++    assert params.params_version
++    assert len(params.params_hash) == 64
++
++
++def test_hash_is_content_addressed_and_changes_with_content(tmp_path, params):
++    import shutil
++    from pathlib import Path
++
++    src = Path(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    assert hash_params_dir(tmp_path) == params.params_hash
++
++    target = tmp_path / "vetoes.yaml"
++    target.write_text(target.read_text() + "\n# a comment changes the bytes\n")
++    assert hash_params_dir(tmp_path) != params.params_hash
++
++
++def test_missing_param_file_is_an_error(tmp_path, params):
++    import shutil
++    from pathlib import Path
++
++    src = Path(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    (tmp_path / "costs.yaml").unlink()
++    with pytest.raises(ParamsError):
++        load_params(tmp_path)
++
++
++def test_version_disagreement_is_refused(tmp_path, params):
++    import shutil
++    from pathlib import Path
++
++    src = Path(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    target = tmp_path / "costs.yaml"
++    target.write_text(
++        target.read_text().replace('params_version: "0.3.0"', 'params_version: "9.9.9"')
++    )
++    with pytest.raises(ParamsError, match="disagrees"):
++        load_params(tmp_path)
++
++
++def test_require_refuses_a_null_threshold(params):
++    """SUBSTRATE forbids inventing thresholds; unset means refuse, not default."""
++    with pytest.raises(ParamNotConfigured):
++        params.require("agents.budgets.tokens_per_run")
++
++
++def test_unknown_path_raises_but_default_is_honoured(params):
++    with pytest.raises(ParamsError):
++        params.get("vetoes.no_such_veto.threshold")
++    assert params.get("vetoes.no_such_veto.threshold", 1.23) == 1.23
++
++
++def test_every_substrate_threshold_is_in_params(params):
++    """The section 10 table, read back out of params rather than out of code."""
++    assert params.require("vetoes.turnover.max_annualised") == 1.50
++    assert params.require("vetoes.cash.max_weight") == 0.20
++    assert params.require("vetoes.tracking_error.max_trailing_3y") == 0.060
++    assert params.require("vetoes.positions.max_nonzero") == 30
++    assert params.require("vetoes.coverage.min_universe_fraction") == 0.80
++    assert params.require("vetoes.coverage.min_date_fraction") == 0.90
++    assert params.require("vetoes.seed_stability.max_ir_range") == 0.15
++    assert params.require("vetoes.multiple_testing.fwer_alpha") == 0.05
++    assert params.require("data.windows.holdout_start") == "2020-01-01"
++    assert params.require("costs.buckets.low.half_spread_bps") == 5
++    assert params.require("costs.buckets.high.annual_fee_tracking_bps") == 35
+diff --git a/tests/test_store.py b/tests/test_store.py
+new file mode 100644
+index 0000000..6f5a6cf
+--- /dev/null
++++ b/tests/test_store.py
+@@ -0,0 +1,134 @@
++"""The results store. SUBSTRATE section 11: append-only, and provenance on every run."""
++
++from __future__ import annotations
++
++import sqlite3
++from datetime import UTC
++
++import pandas as pd
++import pytest
++
++from results.store import StoreError, Verdict, new_run_id
++
++
++def a_run(store, run_id="R-1", params=None, **kw):
++    return store.record_run(
++        run_id,
++        status=kw.pop("status", "completed"),
++        data_snapshot_hash=kw.pop("data_snapshot_hash", "snap123"),
++        params=params,
++        **kw,
++    )
++
++
++def test_every_run_records_its_provenance(store, params):
++    a_run(store, family="trend", aggregation="shrunk z-score mean", seed=7, params=params)
++    row = store.list_runs().iloc[0]
++    assert row["params_version"] == params.params_version
++    assert row["params_hash"] == params.params_hash
++    assert row["data_snapshot_hash"] == "snap123"
++    assert row["seed"] == 7
++
++
++@pytest.mark.parametrize(
++    "statement",
++    [
++        "UPDATE runs SET status = 'x'",
++        "DELETE FROM runs",
++        "UPDATE metrics SET value = 9",
++        "DELETE FROM metrics",
++        "UPDATE verdicts SET passed = 1",
++        "DELETE FROM verdicts",
++        "UPDATE hypothesis_transitions SET to_state = 'done'",
++        "DELETE FROM hypothesis_transitions",
++    ],
++)
++def test_history_cannot_be_rewritten(store, params, statement):
++    a_run(store, params=params)
++    store.record_metrics("R-1", {"net_ir": 0.3})
++    store.record_verdicts("R-1", {"turnover": Verdict(True, "ok")})
++    store.record_transition("H-1", "pending", "running")
++    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
++        with store.connect() as conn:
++            conn.execute(statement)
++
++
++def test_recording_the_same_run_twice_is_refused(store, params):
++    a_run(store, params=params)
++    with pytest.raises(StoreError, match="append-only"):
++        a_run(store, params=params)
++
++
++def test_metrics_and_verdicts_need_their_run_first(store):
++    with pytest.raises(StoreError, match="no such run"):
++        store.record_metrics("R-ghost", {"net_ir": 0.3})
++    with pytest.raises(StoreError, match="no such run"):
++        store.record_verdicts("R-ghost", {"turnover": Verdict(True)})
++
++
++def test_list_runs_joins_metrics_and_verdicts(store, params):
++    a_run(store, "R-a", params=params)
++    a_run(store, "R-b", params=params)
++    store.record_metrics("R-a", {"net_ir": 0.42, "te": 4.1})
++    store.record_verdicts("R-a", {"turnover": Verdict(True, "ok"), "cash": Verdict(True, "ok")})
++    store.record_verdicts("R-b", {"turnover": Verdict(False, "260% over 150%")})
++
++    runs = store.list_runs().set_index("run_id")
++    assert runs.loc["R-a", "net_ir"] == 0.42
++    assert runs.loc["R-a", "passed"]
++    assert not runs.loc["R-b", "passed"]
++    assert runs.loc["R-b", "verdict_details"]["turnover"].startswith("260%")
++
++
++def test_a_run_with_no_verdicts_has_not_passed(store, params):
++    """Vetoes are applied to every run; absence of verdicts is not a pass."""
++    a_run(store, params=params)
++    assert not store.list_runs().loc[0, "passed"]
++
++
++def test_list_runs_offers_no_ordering_by_metric(store):
++    """
++    SUBSTRATE section 12 allows one sort, the objective, and it belongs to the
++    render layer. A store that offered order_by would be offering selection.
++    """
++    import inspect
++
++    args = set(inspect.signature(store.list_runs).parameters)
++    assert not (args & {"order_by", "sort", "sort_by", "ascending", "rank"})
++
++
++def test_artifacts_round_trip_as_parquet(store, params):
++    a_run(store, params=params)
++    frame = pd.DataFrame({"w": [0.1, 0.2]}, index=pd.date_range("2010-01-04", periods=2, freq="B"))
++    store.write_artifact("R-1", "weights", frame)
++    loaded = store.load_artifacts("R-1")
++    assert set(loaded) == {"weights"}
++    assert loaded["weights"]["w"].tolist() == [0.1, 0.2]
++
++
++def test_load_artifacts_is_empty_not_an_error_when_there_are_none(store, params):
++    a_run(store, params=params)
++    assert store.load_artifacts("R-1") == {}
++
++
++def test_transitions_are_ordered_and_complete(store):
++    store.record_transition("H-1", "pending", "running", "R-1")
++    store.record_transition("H-1", "running", "done", "R-1", "killed by turnover")
++    trans = store.transitions("H-1")
++    assert list(trans["to_state"]) == ["running", "done"]
++    assert trans.iloc[1]["detail"] == "killed by turnover"
++
++
++def test_summary_counts_runs_kills_and_tokens(store, params):
++    a_run(store, "R-a", cost_tokens=1000, params=params)
++    a_run(store, "R-b", status="killed", killed_by="budget", cost_tokens=500, params=params)
++    s = store.summary()
++    assert s["n_runs"] == 2 and s["n_killed"] == 1 and s["cost_tokens"] == 1500
++
++
++def test_run_ids_are_sortable_by_time():
++    from datetime import datetime
++
++    early = new_run_id(when=datetime(2026, 1, 1, tzinfo=UTC))
++    late = new_run_id(when=datetime(2026, 6, 1, tzinfo=UTC))
++    assert early < late
+diff --git a/tests/test_synthetic.py b/tests/test_synthetic.py
+new file mode 100644
+index 0000000..04d0af3
+--- /dev/null
++++ b/tests/test_synthetic.py
+@@ -0,0 +1,261 @@
++"""
++The synthetic backend: shaped like the vendors, and planted with known truth.
++
++These tests are what let phase 1 trust a recovery result. If the panel does not
++have ragged starts, gaps and a factor structure, a harness that passes on it
++proves nothing about a harness on real data.
++"""
++
++from __future__ import annotations
++
++import numpy as np
++import pandas as pd
++import pytest
++
++from loaders.invariants import returns_from_prior_observation
++from loaders.synthetic import make_return_panel, plant
++
++# --- shape -------------------------------------------------------------------
++
++
++def test_panel_has_the_configured_size_and_span(panel, params):
++    cfg = params.get("data.synthetic")
++    assert len(panel.series_ids) == cfg["n_series"]
++    assert panel.returns.index.min() >= pd.Timestamp(cfg["start"])
++    assert panel.returns.index.max() <= pd.Timestamp(cfg["end"])
++
++
++def test_only_business_days(panel):
++    assert (pd.DatetimeIndex(panel.levels.index).dayofweek < 5).all()
++
++
++def test_starts_are_ragged_across_three_decades(panel):
++    starts = pd.Series(panel.daily_starts())
++    assert starts.nunique() > 30, "a panel where everything starts together tests nothing"
++    assert starts.min().year <= 1995
++    assert starts.max().year >= 2010
++
++
++def test_tiers_reflect_the_real_coverage_distribution(panel):
++    """
++    The real universe is roughly 75 backbone, 12 second, 10 tradable-only.
++    The synthetic draw should land in the same neighbourhood, not on the nose.
++    """
++    counts = {t: len(panel.by_tier(t)) for t in ("backbone", "second", "tradable-only")}
++    assert counts["backbone"] > counts["second"] + counts["tradable-only"]
++    assert 55 <= counts["backbone"] <= 90
++    assert counts["second"] >= 3 and counts["tradable-only"] >= 3
++
++
++def test_there_are_holiday_and_idiosyncratic_gaps(panel):
++    """Gaps must not be aligned across series, or prior-observation returns
++    and row-differencing would agree and the invariant would be untested."""
++    live = panel.levels.notna()
++    started = live.cummax()
++    holes = started & ~live
++    assert holes.to_numpy().any(), "no gaps after each series started"
++    per_date = holes.sum(axis=1)
++    assert (per_date > 0).sum() > 100
++    assert per_date.max() < len(panel.series_ids), (
++        "a date where every series is missing is a holiday, not a gap"
++    )
++
++
++def test_exactly_six_hedged_series_flagged(panel, params):
++    assert len(panel.hedged_ids()) == params.get("data.synthetic.n_hedged") == 6
++    assert set(panel.hedged_ids()).isdisjoint(panel.unhedged_ids())
++
++
++def test_frequency_break_series_exist_and_are_dated(panel):
++    broken = {s: m for s, m in panel.meta.items() if m.month_end_only_before is not None}
++    assert len(broken) >= 5
++    for m in broken.values():
++        assert m.month_end_only_before == m.true_daily_start
++
++
++def test_no_return_predates_its_series_daily_start(panel):
++    """The invariant the `frequency` veto enforces, checked on the panel itself."""
++    for sid, m in panel.meta.items():
++        observed = panel.returns[sid].dropna()
++        if observed.empty:
++            continue
++        assert observed.index.min() >= pd.Timestamp(m.true_daily_start), sid
++
++
++def test_five_latent_factors_are_recoverable(panel):
++    """
++    A cross-sectional signal needs common structure to find. PCA on the
++    backbone slice should show a handful of dominant components.
++    """
++    backbone = panel.by_tier("backbone")
++    sub = panel.returns[backbone].loc["2005-01-01":"2015-12-31"].dropna(axis=1, thresh=2000)
++    sub = sub.dropna()
++    assert sub.shape[0] > 1000 and sub.shape[1] > 30
++    corr = np.corrcoef(sub.to_numpy(), rowvar=False)
++    eigs = np.sort(np.linalg.eigvalsh(corr))[::-1]
++    share = eigs[:5].sum() / eigs.sum()
++    assert 0.25 < share < 0.95, f"top-5 eigenvalue share {share:.2f} is not a factor structure"
++
++
++def test_returns_match_the_invariant_function(panel):
++    rebuilt = returns_from_prior_observation(panel.levels)
++    pd.testing.assert_frame_equal(rebuilt, panel.returns)
++
++
++def test_generation_is_deterministic(params):
++    a = make_return_panel(params, seed=123, snapshot_id="t")
++    b = make_return_panel(params, seed=123, snapshot_id="t")
++    pd.testing.assert_frame_equal(a.returns, b.returns)
++    c = make_return_panel(params, seed=124, snapshot_id="t")
++    assert not c.returns.equals(a.returns)
++
++
++# --- analytics and macro -----------------------------------------------------
++
++
++def test_oas_is_dropped_on_treasury_buckets(analytics):
++    treasuries = {"2. US Treasury Maturity Buckets", "1. Risk-Free / Cash"}
++    oas = analytics.field("INDEX_OAS_TSY")
++    for sid in oas.columns:
++        assert analytics.meta[sid].section not in treasuries
++    oad = analytics.field("INDEX_OAD_TSY")
++    assert any(analytics.meta[s].section in treasuries for s in oad.columns), (
++        "OAD on Treasury buckets is kept: it is the duration axis of the characteristic map"
++    )
++
++
++def test_analytics_field_start_dates_follow_substrate_5_3(analytics):
++    oas = analytics.field("INDEX_OAS_TSY").dropna(how="all")
++    ytw = analytics.field("INDEX_YIELD_TO_WORST").dropna(how="all")
++    assert oas.index.min() >= pd.Timestamp("2003-01-01"), "spreads from 2003"
++    assert ytw.index.min() < oas.index.min(), "yields start earlier than spreads"
++
++
++def test_vintage_panel_is_bitemporal_with_revisions(macro):
++    counts = macro.frame.groupby(["series_id", "real_date"]).size()
++    assert (counts > 1).any(), "no revisions means as_of is never exercised"
++    assert (macro.frame["knowledge_date"] >= macro.frame["real_date"]).all()
++
++
++def test_as_of_hides_what_was_not_yet_published(macro):
++    early = macro.as_of("2005-03-15")
++    late = macro.as_of("2005-09-15")
++    assert early.index.max() < late.index.max(), "later knowledge date sees more periods"
++    assert set(early.columns) <= set(late.columns)
++
++
++def test_as_of_returns_the_latest_vintage_not_the_first(macro):
++    sid = macro.frame["series_id"].iloc[0]
++    revised = (
++        macro.frame[macro.frame["series_id"] == sid]
++        .groupby("real_date")
++        .filter(lambda g: len(g) > 1)
++    )
++    if revised.empty:
++        pytest.skip("this series has no revision")
++    period = revised["real_date"].iloc[0]
++    vintages = revised[revised["real_date"] == period].sort_values("knowledge_date")
++    first, last = vintages.iloc[0], vintages.iloc[-1]
++    seen_early = macro.as_of(first["knowledge_date"], [sid]).loc[period, sid]
++    seen_late = macro.as_of(last["knowledge_date"], [sid]).loc[period, sid]
++    assert seen_early == pytest.approx(first["value"])
++    assert seen_late == pytest.approx(last["value"])
++
++
++def test_usage_log_never_predates_a_knowledge_date(macro):
++    log = macro.usage_log("2010-06-30")
++    assert (pd.to_datetime(log["used_on_date"]) >= pd.to_datetime(log["knowledge_date"])).all()
++
++
++# --- the plant ---------------------------------------------------------------
++
++
++def test_plant_returns_ground_truth(panel):
++    planted, signal, record = plant(panel, "trend", strength_ic=0.05, horizon_days=20, seed=99)
++    assert record.strength_ic == 0.05
++    assert record.horizon_days == 20
++    assert len(record.series_ids) > 20
++    assert record.note
++
++
++def test_planted_relationship_is_recoverable_at_the_stated_strength(panel):
++    """
++    Ground truth for phase 1.
++
++    Rank IC only. No information ratio is computed anywhere in phase 0; the
++    engine that would produce one does not exist yet.
++    """
++    planted, signal, record = plant(panel, "trend", strength_ic=0.05, horizon_days=20, seed=99)
++    ids, h = list(record.series_ids), record.horizon_days
++    forward = (1 + planted.returns[ids]).rolling(h).apply(np.prod, raw=True).shift(-h) - 1
++
++    ics = []
++    for date in signal.index[::20]:
++        a, b = signal.loc[date, ids], forward.loc[date, ids]
++        mask = a.notna() & b.notna()
++        if mask.sum() >= 20:
++            ics.append(a[mask].rank().corr(b[mask].rank()))
++    realised = float(np.nanmean(ics))
++    assert len(ics) > 100
++    assert realised == pytest.approx(0.05, abs=0.02), f"planted 0.05, recovered {realised:.3f}"
++
++
++def test_the_same_signal_finds_nothing_in_the_unplanted_panel(panel):
++    """The control. Without it, the recovery test could be measuring the signal
++    construction rather than the plant."""
++    _, signal, record = plant(panel, "trend", strength_ic=0.05, horizon_days=20, seed=99)
++    ids, h = list(record.series_ids), record.horizon_days
++    forward = (1 + panel.returns[ids]).rolling(h).apply(np.prod, raw=True).shift(-h) - 1
++    ics = []
++    for date in signal.index[::20]:
++        a, b = signal.loc[date, ids], forward.loc[date, ids]
++        mask = a.notna() & b.notna()
++        if mask.sum() >= 20:
++            ics.append(a[mask].rank().corr(b[mask].rank()))
++    assert abs(float(np.nanmean(ics))) < 0.02
++
++
++def test_plant_scales_with_requested_strength(panel):
++    weak = plant(panel, "trend", strength_ic=0.02, horizon_days=20, seed=5)[2]
++    strong = plant(panel, "trend", strength_ic=0.10, horizon_days=20, seed=5)[2]
++    assert weak.strength_ic < strong.strength_ic
++
++
++def test_plant_respects_ragged_starts(panel):
++    planted, signal, record = plant(panel, "trend", strength_ic=0.05, seed=1)
++    for sid in record.series_ids:
++        assert planted.returns[sid].dropna().index.min() >= pd.Timestamp(
++            panel.meta[sid].true_daily_start
++        )
++        assert signal[sid].notna().sum() <= panel.returns[sid].notna().sum()
++
++
++def test_plant_refuses_a_universe_too_small(panel):
++    with pytest.raises(ValueError, match="at least 5"):
++        plant(panel, "trend", series_ids=panel.series_ids[:3])
++
++
++def test_loader_satisfies_the_protocol(params):
++    from loaders import get_loader
++
++    loader = get_loader("synthetic", params=params)
++    for method in ("load_returns", "load_analytics", "load_macro"):
++        assert callable(getattr(loader, method))
++    with pytest.raises(ValueError, match="unknown loader"):
++        get_loader("bogus")
++
++
++def test_vendor_backends_raise_rather_than_returning_empty(params):
++    from loaders import get_loader
++    from loaders.bloomberg import LoaderNotImplemented
++
++    for source in ("bloomberg", "fred", "jpmaqs"):
++        with pytest.raises(LoaderNotImplemented):
++            get_loader(source, params=params).load_returns("x")
++
++
++def test_the_search_gate_is_closed_while_jpmaqs_is_pending(params):
++    from loaders.jpmaqs import search_is_open
++
++    is_open, detail = search_is_open(params)
++    assert not is_open and "5.6" in detail
+diff --git a/tests/test_vetoes.py b/tests/test_vetoes.py
+new file mode 100644
+index 0000000..d3fb018
+--- /dev/null
++++ b/tests/test_vetoes.py
+@@ -0,0 +1,484 @@
++"""
++All ten vetoes of SUBSTRATE section 10.
++
++Each gets a passing case, a failing case and a boundary case, because a
++threshold implemented as `<` instead of `<=` is a silent, permanent, invisible
++change to the mandate. `lookahead` and `frequency` are additionally tested
++against the synthetic panel's known break dates, so they are exercised on the
++shape of data they will actually see.
++"""
++
++from __future__ import annotations
++
++import numpy as np
++import pandas as pd
++
++from harness.run_context import RunContext
++from vetoes import VETO_ORDER, VETOES, apply_vetoes, first_failure
++from vetoes.rules import (
++    veto_cash,
++    veto_coverage,
++    veto_direction,
++    veto_frequency,
++    veto_lookahead,
++    veto_multiple_testing,
++    veto_positions,
++    veto_seed_stability,
++    veto_tracking_error,
++    veto_turnover,
++)
++
++DATES = pd.bdate_range("2010-01-04", periods=52)
++
++
++def ctx(**kw) -> RunContext:
++    return RunContext(run_id="R-test", **kw)
++
++
++# --- the set itself ----------------------------------------------------------
++
++
++def test_exactly_the_ten_vetoes_of_substrate_section_10():
++    assert set(VETOES) == {
++        "turnover",
++        "cash",
++        "tracking_error",
++        "positions",
++        "coverage",
++        "lookahead",
++        "frequency",
++        "seed_stability",
++        "multiple_testing",
++        "direction",
++    }
++    assert len(VETOES) == 10
++
++
++def test_every_veto_is_ordered(params):
++    assert sorted(VETO_ORDER(params)) == sorted(VETOES)
++
++
++def test_data_integrity_vetoes_run_first(params):
++    order = VETO_ORDER(params)
++    assert order[:2] == ["lookahead", "frequency"]
++
++
++# --- 1. turnover -------------------------------------------------------------
++
++
++def test_turnover_passes_under_the_ceiling(params):
++    c = ctx(turnover=pd.Series(0.02, index=DATES))  # 104% annualised
++    assert veto_turnover(c, params).passed
++
++
++def test_turnover_fails_over_the_ceiling(params):
++    c = ctx(turnover=pd.Series(0.05, index=DATES))  # 260% annualised
++    v = veto_turnover(c, params)
++    assert not v.passed and "260" in v.detail
++
++
++def test_turnover_boundary_is_inclusive(params):
++    cap = params.require("vetoes.turnover.max_annualised")
++    c = ctx(turnover=pd.Series(cap / 52.0, index=DATES))
++    assert veto_turnover(c, params).passed, "the ceiling itself must pass"
++    c_over = ctx(turnover=pd.Series(cap / 52.0 * 1.001, index=DATES))
++    assert not veto_turnover(c_over, params).passed
++
++
++def test_turnover_without_input_fails_closed(params):
++    v = veto_turnover(ctx(), params)
++    assert not v.passed and "cannot evaluate" in v.detail
++
++
++# --- 2. cash -----------------------------------------------------------------
++
++
++def test_cash_passes_fails_and_boundary(params):
++    cap = params.require("vetoes.cash.max_weight")
++    assert veto_cash(ctx(cash_weights=pd.Series([0.0, 0.12], index=DATES[:2])), params).passed
++    assert not veto_cash(ctx(cash_weights=pd.Series([0.0, 0.31], index=DATES[:2])), params).passed
++    assert veto_cash(ctx(cash_weights=pd.Series([cap], index=DATES[:1])), params).passed
++    assert not veto_cash(ctx(cash_weights=pd.Series([cap + 1e-6], index=DATES[:1])), params).passed
++
++
++def test_cash_without_input_fails_closed(params):
++    assert not veto_cash(ctx(), params).passed
++
++
++# --- 3. tracking_error -------------------------------------------------------
++
++
++def test_tracking_error_passes_fails_and_boundary(params):
++    cap = params.require("vetoes.tracking_error.max_trailing_3y")
++    assert veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.041, 0.052])), params).passed
++    assert not veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.041, 0.071])), params).passed
++    assert veto_tracking_error(ctx(te_trailing_3y=pd.Series([cap])), params).passed
++    assert not veto_tracking_error(ctx(te_trailing_3y=pd.Series([cap + 1e-9])), params).passed
++
++
++def test_tracking_error_uses_the_worst_reading_not_the_last(params):
++    """params/vetoes.yaml sets statistic: max. An excursion that has since
++    subsided still counts; see decisions/proposed/0003."""
++    c = ctx(te_trailing_3y=pd.Series([0.03, 0.075, 0.04]))
++    assert not veto_tracking_error(c, params).passed
++
++
++def test_tracking_error_all_nan_fails_closed(params):
++    assert not veto_tracking_error(ctx(te_trailing_3y=pd.Series([np.nan, np.nan])), params).passed
++
++
++# --- 4. positions ------------------------------------------------------------
++
++
++def weights_with(n_nonzero: int, n_cols: int = 40) -> pd.DataFrame:
++    frame = pd.DataFrame(0.0, index=DATES[:3], columns=[f"I{i}" for i in range(n_cols)])
++    frame.iloc[1, :n_nonzero] = 1.0 / n_nonzero
++    return frame
++
++
++def test_positions_passes_fails_and_boundary(params):
++    cap = int(params.require("vetoes.positions.max_nonzero"))
++    assert veto_positions(ctx(weights=weights_with(cap - 5)), params).passed
++    assert not veto_positions(ctx(weights=weights_with(cap + 1)), params).passed
++    assert veto_positions(ctx(weights=weights_with(cap)), params).passed
++
++
++def test_positions_without_input_fails_closed(params):
++    assert not veto_positions(ctx(), params).passed
++
++
++# --- 5. coverage -------------------------------------------------------------
++
++
++def availability(universe_frac: float, date_frac: float, n_series: int = 50) -> pd.DataFrame:
++    n_dates = 100
++    frame = pd.DataFrame(
++        False,
++        index=pd.bdate_range("2010-01-04", periods=n_dates),
++        columns=[f"S{i}" for i in range(n_series)],
++    )
++    n_good_dates = int(round(date_frac * n_dates))
++    n_cols = int(round(universe_frac * n_series))
++    frame.iloc[:n_good_dates, :n_cols] = True
++    return frame
++
++
++def test_coverage_passes_fails_and_boundary(params):
++    good = ctx(signal_availability=availability(0.95, 0.97))
++    assert veto_coverage(good, params).passed
++
++    thin_universe = ctx(signal_availability=availability(0.60, 1.00))
++    assert not veto_coverage(thin_universe, params).passed
++
++    thin_dates = ctx(signal_availability=availability(0.95, 0.70))
++    assert not veto_coverage(thin_dates, params).passed
++
++    boundary = ctx(signal_availability=availability(0.80, 0.90))
++    assert veto_coverage(boundary, params).passed, "80% of universe on 90% of dates must pass"
++
++
++def test_coverage_measured_on_the_estimation_universe_only(params, panel):
++    """
++    Tradable-only series never estimate a signal (SUBSTRATE 5.2), so covering
++    them must not rescue a signal that misses the estimation universe.
++    """
++    estimation = panel.estimation_universe()[:40]
++    tradable = panel.by_tier("tradable-only")
++    cols = estimation + tradable
++    frame = pd.DataFrame(False, index=pd.bdate_range("2010-01-04", periods=100), columns=cols)
++    frame.loc[:, tradable] = True
++    frame.loc[:, estimation[:4]] = True
++    c = ctx(signal_availability=frame, estimation_universe=estimation)
++    assert not veto_coverage(c, params).passed
++
++
++def test_coverage_without_input_fails_closed(params):
++    assert not veto_coverage(ctx(), params).passed
++
++
++# --- 6. lookahead ------------------------------------------------------------
++
++
++def test_lookahead_passes_when_nothing_is_used_early(params):
++    usage = pd.DataFrame(
++        {
++            "series_id": ["growth.gdp_intuitive"] * 2,
++            "real_date": pd.to_datetime(["2010-01-31", "2010-02-28"]),
++            "knowledge_date": pd.to_datetime(["2010-03-01", "2010-03-29"]),
++            "used_on_date": pd.to_datetime(["2010-03-05", "2010-04-02"]),
++        }
++    )
++    v = veto_lookahead(ctx(observation_usage=usage), params)
++    assert v.passed and "none used before" in v.detail
++
++
++def test_lookahead_fails_on_a_single_peek(params):
++    usage = pd.DataFrame(
++        {
++            "series_id": ["growth.gdp_intuitive"],
++            "real_date": pd.to_datetime(["2010-01-31"]),
++            "knowledge_date": pd.to_datetime(["2010-03-01"]),
++            "used_on_date": pd.to_datetime(["2010-02-15"]),
++        }
++    )
++    v = veto_lookahead(ctx(observation_usage=usage), params)
++    assert not v.passed and "14 days" in v.detail
++
++
++def test_lookahead_boundary_same_day_use_is_allowed(params):
++    day = pd.Timestamp("2010-03-01")
++    usage = pd.DataFrame(
++        {
++            "series_id": ["x"],
++            "real_date": [pd.Timestamp("2010-01-31")],
++            "knowledge_date": [day],
++            "used_on_date": [day],
++        }
++    )
++    assert veto_lookahead(ctx(observation_usage=usage), params).passed
++    early = usage.copy()
++    early["used_on_date"] = [day - pd.Timedelta(days=1)]
++    assert not veto_lookahead(ctx(observation_usage=early), params).passed
++
++
++def test_lookahead_against_the_synthetic_vintage_panel(macro, params):
++    """
++    The real shape: as_of produces a usage log that must pass, and reading the
++    panel by real_date instead of knowledge_date must fail.
++    """
++    as_of_date = pd.Timestamp("2008-06-30")
++    honest = macro.usage_log(as_of_date)
++    assert len(honest) > 0
++    assert veto_lookahead(ctx(observation_usage=honest), params).passed
++
++    # The mistake this veto exists to catch: treating real_date as if it were
++    # the knowledge date, which uses every number the moment its period ends.
++    cheating = macro.frame[macro.frame["real_date"] <= as_of_date][
++        ["series_id", "real_date", "knowledge_date"]
++    ].copy()
++    cheating["used_on_date"] = cheating["real_date"]
++    v = veto_lookahead(ctx(observation_usage=cheating), params)
++    assert not v.passed, "using a number on its period end date is a peek at the release"
++
++
++def test_lookahead_without_input_fails_closed(params):
++    assert not veto_lookahead(ctx(), params).passed
++
++
++# --- 7. frequency ------------------------------------------------------------
++
++
++def contributions_for(panel, series_ids, offset_days: int) -> pd.DataFrame:
++    rows = []
++    for sid in series_ids:
++        start = pd.Timestamp(panel.meta[sid].true_daily_start)
++        rows.append({"series_id": sid, "date": start + pd.Timedelta(days=offset_days)})
++    return pd.DataFrame(rows)
++
++
++def test_frequency_passes_when_nothing_predates_its_daily_start(panel, params):
++    ids = panel.series_ids[:20]
++    c = ctx(return_contributions=contributions_for(panel, ids, +30), series_meta=panel.meta)
++    v = veto_frequency(c, params)
++    assert v.passed and "none before" in v.detail
++
++
++def test_frequency_fails_on_a_month_end_splice(panel, params):
++    """
++    Against the synthetic panel's known break dates: the series that were
++    month-end only before their break are exactly the ones whose pre-break
++    observations must never contribute a daily return.
++    """
++    broken = [s for s, m in panel.meta.items() if m.month_end_only_before is not None]
++    assert broken, "the synthetic panel must contain frequency breaks"
++    rows = []
++    for sid in broken[:5]:
++        start = pd.Timestamp(panel.meta[sid].true_daily_start)
++        rows.append({"series_id": sid, "date": start - pd.DateOffset(years=2)})
++    c = ctx(return_contributions=pd.DataFrame(rows), series_meta=panel.meta)
++    v = veto_frequency(c, params)
++    assert not v.passed and "before the series' true daily start" in v.detail
++
++
++def test_frequency_boundary_the_start_date_itself_is_allowed(panel, params):
++    ids = panel.series_ids[:10]
++    on_start = ctx(return_contributions=contributions_for(panel, ids, 0), series_meta=panel.meta)
++    assert veto_frequency(on_start, params).passed
++    day_before = ctx(return_contributions=contributions_for(panel, ids, -1), series_meta=panel.meta)
++    assert not veto_frequency(day_before, params).passed
++
++
++def test_frequency_without_input_fails_closed(params):
++    assert not veto_frequency(ctx(), params).passed
++
++
++# --- 8. seed_stability -------------------------------------------------------
++
++
++def test_seed_stability_passes_fails_and_boundary(params):
++    cap = params.require("vetoes.seed_stability.max_ir_range")
++    assert veto_seed_stability(ctx(seed_irs={1: 0.30, 2: 0.36, 3: 0.33}), params).passed
++    assert not veto_seed_stability(ctx(seed_irs={1: 0.10, 2: 0.55}), params).passed
++    assert veto_seed_stability(ctx(seed_irs={1: 0.20, 2: 0.20 + cap}), params).passed
++    assert not veto_seed_stability(ctx(seed_irs={1: 0.20, 2: 0.20 + cap + 1e-6}), params).passed
++
++
++def test_seed_stability_needs_at_least_two_seeds(params):
++    assert not veto_seed_stability(ctx(seed_irs={1: 0.30}), params).passed
++
++
++# --- 9. multiple_testing -----------------------------------------------------
++
++
++def test_multiple_testing_passes_when_the_stepdown_rejects(params):
++    rw = {"rejected": True, "fwer_alpha": 0.05, "procedure": "romano_wolf", "n_tests": 120}
++    assert veto_multiple_testing(ctx(romano_wolf=rw), params).passed
++
++
++def test_multiple_testing_fails_when_the_stepdown_does_not_reject(params):
++    rw = {"rejected": False, "fwer_alpha": 0.05, "procedure": "romano_wolf", "n_tests": 120}
++    v = veto_multiple_testing(ctx(romano_wolf=rw), params)
++    assert not v.passed and "did not reject" in v.detail
++
++
++def test_multiple_testing_rejects_a_verdict_from_a_looser_alpha(params):
++    """The boundary that matters: a stepdown run at 10% is not this test."""
++    rw = {"rejected": True, "fwer_alpha": 0.10, "procedure": "romano_wolf"}
++    v = veto_multiple_testing(ctx(romano_wolf=rw), params)
++    assert not v.passed and "0.1" in v.detail
++
++
++def test_multiple_testing_rejects_a_verdict_from_another_procedure(params):
++    rw = {"rejected": True, "fwer_alpha": 0.05, "procedure": "bonferroni"}
++    assert not veto_multiple_testing(ctx(romano_wolf=rw), params).passed
++
++
++def test_multiple_testing_without_input_fails_closed(params):
++    assert not veto_multiple_testing(ctx(), params).passed
++
++
++# --- 10. direction -----------------------------------------------------------
++
++
++def test_direction_passes_on_a_match(params):
++    c = ctx(preregistered_direction="negative", realised_direction="negative")
++    assert veto_direction(c, params).passed
++
++
++def test_direction_fails_on_a_flip_and_is_not_reinterpreted(params):
++    """
++    SUBSTRATE section 7: a result contradicting its stated direction is a
++    failure, not a discovery with the sign flipped.
++    """
++    c = ctx(preregistered_direction="negative", realised_direction="positive")
++    v = veto_direction(c, params)
++    assert not v.passed and "pre-registered negative, realised positive" in v.detail
++
++
++def test_direction_boundary_flat_is_not_a_match(params):
++    c = ctx(preregistered_direction="positive", realised_direction="flat")
++    assert not veto_direction(c, params).passed
++
++
++def test_direction_without_input_fails_closed(params):
++    assert not veto_direction(ctx(), params).passed
++
++
++# --- apply_vetoes ------------------------------------------------------------
++
++
++def full_context(panel, **overrides) -> RunContext:
++    ids = panel.estimation_universe()[:25]
++    base = dict(
++        turnover=pd.Series(0.02, index=DATES),
++        cash_weights=pd.Series(0.10, index=DATES),
++        te_trailing_3y=pd.Series([0.045, 0.050]),
++        weights=weights_with(25),
++        signal_availability=availability(0.95, 0.97),
++        estimation_universe=None,
++        observation_usage=pd.DataFrame(
++            {
++                "series_id": ["x"],
++                "real_date": [pd.Timestamp("2010-01-31")],
++                "knowledge_date": [pd.Timestamp("2010-03-01")],
++                "used_on_date": [pd.Timestamp("2010-03-05")],
++            }
++        ),
++        return_contributions=contributions_for(panel, ids, +30),
++        series_meta=panel.meta,
++        seed_irs={1: 0.30, 2: 0.34},
++        romano_wolf={
++            "rejected": True,
++            "fwer_alpha": 0.05,
++            "procedure": "romano_wolf",
++            "n_tests": 90,
++        },
++        preregistered_direction="positive",
++        realised_direction="positive",
++    )
++    base.pop("estimation_universe")
++    base.update(overrides)
++    return RunContext(run_id="R-full", **base)
++
++
++def test_apply_vetoes_passes_a_clean_run(panel, params):
++    verdicts, failure = apply_vetoes(full_context(panel), params)
++    assert failure is None, {k: v.detail for k, v in verdicts.items() if not v.passed}
++    assert len(verdicts) == 10
++    assert all(v.passed for v in verdicts.values())
++
++
++def test_apply_vetoes_records_every_verdict_not_only_the_failure(panel, params):
++    c = full_context(
++        panel, cash_weights=pd.Series(0.35, index=DATES), turnover=pd.Series(0.06, index=DATES)
++    )
++    verdicts, failure = apply_vetoes(c, params)
++    assert len(verdicts) == 10
++    failed = {k for k, v in verdicts.items() if not v.passed}
++    assert failed == {"cash", "turnover"}, "both breaches must be visible, not only the first"
++    assert failure == "turnover", "first failure follows the configured order"
++
++
++def test_apply_vetoes_returns_first_failure_in_configured_order(panel, params):
++    c = full_context(
++        panel,
++        cash_weights=pd.Series(0.35, index=DATES),
++        observation_usage=pd.DataFrame(
++            {
++                "series_id": ["x"],
++                "real_date": [pd.Timestamp("2010-01-31")],
++                "knowledge_date": [pd.Timestamp("2010-03-01")],
++                "used_on_date": [pd.Timestamp("2010-02-01")],
++            }
++        ),
++    )
++    _, failure = apply_vetoes(c, params)
++    assert failure == "lookahead", "a data-integrity breach outranks a constraint breach"
++
++
++def test_apply_vetoes_writes_verdicts_to_the_store(panel, params, store):
++    ctx_full = full_context(panel)
++    store.record_run(ctx_full.run_id, status="completed", data_snapshot_hash="h", params=params)
++    apply_vetoes(ctx_full, params, store=store)
++    rows = store.list_runs()
++    assert rows.loc[0, "passed"]
++    assert len(rows.loc[0, "verdicts"]) == 10
++
++
++def test_a_crashing_veto_fails_rather_than_passing(panel, params, monkeypatch):
++    from vetoes import registry
++
++    def explode(ctx, params=None):
++        raise RuntimeError("boom")
++
++    monkeypatch.setitem(registry.VETOES, "turnover", explode)
++    verdicts, failure = registry.apply_vetoes(full_context(panel), params)
++    assert not verdicts["turnover"].passed
++    assert "RuntimeError" in verdicts["turnover"].detail
++    assert failure == "turnover"
++
++
++def test_first_failure_is_none_when_all_pass():
++    from results.store import Verdict
++
++    assert first_failure({"a": Verdict(True), "b": Verdict(True)}, ["a", "b"]) is None

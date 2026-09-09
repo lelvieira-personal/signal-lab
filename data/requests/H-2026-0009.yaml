@@ -1,0 +1,37 @@
+hypothesis_id: H-2026-0009
+signal: multi_horizon_price_trend_1_3_12m
+family: trend
+requested_by: owner
+status: awaiting_owner
+series:
+- id: MXUS
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: MXEU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: MXJP
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: MXEF
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: MXWO
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: LEGATRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: LUACTRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+reason: H-2026-0009 requires 7 series absent from the snapshot. The hypothesis is
+  blocked:data rather than run on a substitute.
+available_already: []

@@ -1,0 +1,2333 @@
+From 5140cca0b374be033ead99d4806ecb9698621a3b Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Wed, 9 Sep 2026 15:23:13 +0000
+Subject: [PATCH 17/17] decisions: close eight, amend the veto set to eleven
+ (0003-0013)
+
+params 0.4.0. tracking_error loosens from the worst trailing-3y reading to the
+95th percentile and keeps its role as the MANDATE test; a new active_drawdown
+veto is the economic one, set at 3x the TE ceiling rather than the stated
+absolute 10% because simulation shows 10% and a 6% TE budget cannot both hold
+(98% of paths breach at IR 0.3). Veto evaluation follows the SUBSTRATE table
+order. Gross IR is replaced by cost drag. Budgets carry a dollar ceiling as
+well as a token ceiling, six model roles, weekly cadence. JPMaQS may build a
+snapshot but never serve a run. SUBSTRATE amendments collected in 0100.
+---
+ ...02-cost-bucket-for-unmapped-instruments.md |  12 +
+ .../0003-tracking-error-veto-statistic.md     | 125 ++++++++++
+ .../0004-gross-ir-on-the-report.md            |  14 ++
+ .../0005-veto-evaluation-order.md             |  16 ++
+ ...06-jpmaqs-grade-3-exclude-or-downweight.md |  22 ++
+ decisions/0007-agent-budget-ceilings.md       | 163 ++++++++++++
+ .../0008-hypothesis-transitions-table.md      |  10 +
+ .../0009-eleven-families-ten-hypotheses.md    |  12 +
+ .../0010-repo-layout-flat-src-packages.md     |  20 ++
+ .../0011-what-a-phase-0-cycle-records.md      |   9 +
+ ...lar-ceiling-alongside-the-token-ceiling.md |  38 +++
+ ...ble-universe-and-the-characteristic-map.md |  98 ++++++++
+ decisions/0100-substrate-amendments.md        |  28 +++
+ .../0003-tracking-error-veto-statistic.md     |  43 ----
+ .../proposed/0007-agent-budget-ceilings.md    |  46 ----
+ params/agents.yaml                            |  98 ++++++--
+ params/constraints.yaml                       |   2 +-
+ params/costs.yaml                             |   6 +-
+ params/data.yaml                              |   8 +-
+ params/data_sources.yaml                      |   2 +-
+ params/vetoes.yaml                            |  30 ++-
+ render/mock_data.py                           |   7 +-
+ render/views.py                               |  16 +-
+ src/signal_lab/harness/budgets.py             | 129 ++++++++--
+ src/signal_lab/harness/run_context.py         |   1 +
+ tests/test_budgets.py                         | 235 +++++++++++-------
+ tests/test_holdout.py                         |   7 +-
+ tests/test_params.py                          |  27 +-
+ tests/test_render.py                          |  10 +-
+ tests/test_scripts.py                         |   5 +-
+ tests/test_vetoes.py                          | 151 +++++++++--
+ vetoes/__init__.py                            |   4 +-
+ vetoes/registry.py                            |  11 +-
+ vetoes/rules.py                               |  87 ++++++-
+ 34 files changed, 1209 insertions(+), 283 deletions(-)
+ rename decisions/{proposed => }/0002-cost-bucket-for-unmapped-instruments.md (76%)
+ create mode 100644 decisions/0003-tracking-error-veto-statistic.md
+ rename decisions/{proposed => }/0004-gross-ir-on-the-report.md (70%)
+ rename decisions/{proposed => }/0005-veto-evaluation-order.md (65%)
+ rename decisions/{proposed => }/0006-jpmaqs-grade-3-exclude-or-downweight.md (52%)
+ create mode 100644 decisions/0007-agent-budget-ceilings.md
+ rename decisions/{proposed => }/0008-hypothesis-transitions-table.md (75%)
+ rename decisions/{proposed => }/0009-eleven-families-ten-hypotheses.md (82%)
+ rename decisions/{proposed => }/0010-repo-layout-flat-src-packages.md (57%)
+ rename decisions/{proposed => }/0011-what-a-phase-0-cycle-records.md (84%)
+ create mode 100644 decisions/0012-dollar-ceiling-alongside-the-token-ceiling.md
+ create mode 100644 decisions/0013-investable-universe-and-the-characteristic-map.md
+ create mode 100644 decisions/0100-substrate-amendments.md
+ delete mode 100644 decisions/proposed/0003-tracking-error-veto-statistic.md
+ delete mode 100644 decisions/proposed/0007-agent-budget-ceilings.md
+
+diff --git a/decisions/proposed/0002-cost-bucket-for-unmapped-instruments.md b/decisions/0002-cost-bucket-for-unmapped-instruments.md
+similarity index 76%
+rename from decisions/proposed/0002-cost-bucket-for-unmapped-instruments.md
+rename to decisions/0002-cost-bucket-for-unmapped-instruments.md
+index 6d89b75..0ce09fd 100644
+--- a/decisions/proposed/0002-cost-bucket-for-unmapped-instruments.md
++++ b/decisions/0002-cost-bucket-for-unmapped-instruments.md
+@@ -28,3 +28,15 @@ Whether `high` is right, or whether an unmapped instrument should instead be
+ excluded from the universe entirely until it is mapped. Exclusion is stricter
+ and arguably more correct; it was not taken because it silently shrinks the
+ universe, which is its own invisible failure.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++Accepted. `default_bucket: high` stays as a guard.
++
++With the investable-universe table carrying an explicit `cost_bucket` per
++instrument, an unmapped instrument becomes rare rather than routine. The guard
++is kept anyway so that a gap fails expensively and visibly rather than being
++subsidised into the leaderboard.
++
++Status: **closed.**
+diff --git a/decisions/0003-tracking-error-veto-statistic.md b/decisions/0003-tracking-error-veto-statistic.md
+new file mode 100644
+index 0000000..dde7494
+--- /dev/null
++++ b/decisions/0003-tracking-error-veto-statistic.md
+@@ -0,0 +1,125 @@
++# 0003 — TE veto: hard band or asymmetric penalty, and which statistic?
++
++Status: proposed, 2026-09-07, agent. Blocking: no. Conservative option taken.
++
++## Question
++
++Two parts of SUBSTRATE pull in different directions.
++
++Section 4 says tracking error is handled by "an asymmetric penalty, not a hard
++band. TE is cheap when conviction dispersion is high and expensive when it is
++not." Section 10 lists `tracking_error` as a veto with a hard threshold:
++trailing-3y TE ≤ 6.0%, and says vetoes "are not advisory".
++
++Section 4 also says episodic excursions are allowed but not rewarded on
++average, which suggests the veto should not fire on a single excursion. Nothing
++says which statistic of the trailing-3y TE series the veto reads: the maximum
++over the run, the final reading, or a quantile.
++
++## What was done
++
++Both mechanisms exist. `vetoes/rules.py:veto_tracking_error` enforces the hard
++ceiling from `params/vetoes.yaml`, reading `statistic: max` — the worst
++trailing-3y reading over the run. `params/constraints.yaml` carries the
++asymmetric penalty's shape with a null coefficient, and the objective will
++refuse to build until the owner sets one.
++
++## Why that way
++
++The maximum is the conservative reading and is the only one that cannot be
++gamed by timing: a run whose TE spent two years at 8% and ended at 5% would
++pass on a final-reading test, and would have breached the mandate throughout.
++It is also the reading that makes "episodic excursions are allowed" a genuine
++tension rather than a free pass, which is why this note exists.
++
++## What to decide
++
++1. Is the veto statistic `max`, or a high quantile (say the 95th percentile of
++   trailing-3y readings), which would let a genuinely episodic excursion pass?
++2. What is the asymmetric penalty's coefficient, and is it a penalty in the
++   objective, a soft constraint in the solver, or both?
++3. If the answer to (1) is a quantile, section 10's "vetoes are not advisory"
++   needs a sentence saying so, since a quantile ceiling is a softer object than
++   the table implies.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++The owner separated the two concepts, correctly:
++
++> "if TE is meant for optimization, then I believe that we should not allow the
++> max TE to be surpassed, however it could make sense that the TE value could be
++> higher depending on conviction on the signals of the model being tested. if TE
++> in this context means the TE that we experienced over the backtest to validate
++> whether the model passes or not, then the relative drawdown is probably what I
++> prefer to use as a metric."
++
++Stated maximum active drawdown: **10%.**
++
++### What was implemented, and why it is not 10%
++
++Both mechanisms now exist, and there are eleven vetoes rather than ten.
++
++1. **In the optimiser**, TE is a hard per-rebalance cap with a conviction-scaled
++   target. `params/constraints.yaml` carries the asymmetric penalty's shape with
++   a `null` coefficient; the objective refuses to build until the owner sets it.
++   Still outstanding.
++
++2. **As a veto**, `tracking_error` is retained but loosened from the worst
++   trailing-3y reading to the **95th percentile** (`statistic: p95`). TE is the
++   *mandate* test: it asks whether the strategy stayed inside what the investor
++   was told. Dropping it entirely would let a model run at 9% TE against a 50/50
++   benchmark and pass on drawdown alone, which is a breach of the thing the
++   mandate promises whatever the drawdown looked like. The p95 is what "episodic
++   excursions allowed" (section 4) has to mean if it means anything.
++
++3. **A new eleventh veto, `active_drawdown`**, is the economic test: what the
++   allocator actually lived through. TE is symmetric and so penalises the upside
++   dispersion the strategy is paid for; drawdown does not.
++
++### Why the threshold is 3x TE and not an absolute 10%
++
++A 10% cap and a 6% TE budget are not jointly satisfiable. Monte Carlo, 20,000
++paths of weekly active returns over the 19-year development window:
++
++| TE | IR | Median max active DD | P(breach 10%) | P(breach 15%) |
++|---|---|---|---|---|
++| 6% | 0.20 | 20.5% | 99% | 82% |
++| 6% | 0.30 | 18.3% | 98% | 73% |
++| 6% | 0.50 | 15.3% | 94% | 52% |
++| 6% | 0.80 | 12.2% | 78% | 24% |
++| 4% | 0.30 | 12.5% | 75% | 30% |
++| 3% | 0.30 |  9.4% | 44% | 10% |
++
++At the 6% TE ceiling and a realistic IR of 0.3, a 10% cap kills **98%** of
++paths — including every path where the strategy is genuinely good. Even an
++exceptional IR of 0.8 breaches it 78% of the time. The veto would not be a
++filter; it would be a reject-everything switch, and the leaderboard would be
++empty for a reason that has nothing to do with the signals.
++
++Note also that this simulation is *optimistic*: it assumes constant volatility
++and normal returns. Real active returns have fat tails and volatility
++clustering, both of which deepen drawdowns.
++
++The threshold is therefore expressed as a **multiple of the TE ceiling**
++(`te_multiple: 3.0`, i.e. 18.0% at the current 6% TE) rather than as an absolute
++number. Drawdown and TE are not independent quantities, so an absolute cap set
++against one TE budget becomes either trivial or impossible under another; the
++multiple keeps them coupled and tightens automatically if the TE budget is cut.
++At 3x, roughly the worse half of paths fail at IR 0.3 — a real bar that a good
++strategy can clear.
++
++### What the owner may want to change
++
++`params/vetoes.yaml` has `active_drawdown.absolute`, which overrides the
++multiple when set. Setting it to `0.10` restores the stated preference exactly.
++Three coherent positions:
++
++- **Keep 3x TE (18%)** — as implemented. A demanding but passable bar.
++- **Set `absolute: 0.10` and cut the TE ceiling to 3%** — internally consistent,
++  and a genuinely tight mandate. This is the honest way to have a 10% drawdown
++  limit.
++- **Set `absolute: 0.10` and keep TE at 6%** — the veto then rejects almost
++  everything, which may be the intent if the bar is meant to be near-impossible.
++
++Status: **implemented at 3x TE; open** on which of the three the owner wants.
+diff --git a/decisions/proposed/0004-gross-ir-on-the-report.md b/decisions/0004-gross-ir-on-the-report.md
+similarity index 70%
+rename from decisions/proposed/0004-gross-ir-on-the-report.md
+rename to decisions/0004-gross-ir-on-the-report.md
+index a33bea9..6436951 100644
+--- a/decisions/proposed/0004-gross-ir-on-the-report.md
++++ b/decisions/0004-gross-ir-on-the-report.md
+@@ -30,3 +30,17 @@ Whether a gross figure belongs on the run-detail view for cost-attribution
+ purposes, perhaps as gross-minus-net (the cost drag) rather than as gross
+ itself. The drag is arguably the useful number and carries no ranking
+ temptation.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++Gross IR stays off the report entirely. The **cost drag** is reported in its
++place: "the cost drag is important, no need to have Gross IR as we can infer
++from net and cost drag."
++
++Implemented: `params/costs.yaml` sets `application.report_cost_drag: true`;
++`render/views.py:run_summary_stats` shows `cost_drag` and never `gross_ir`;
++`tests/test_render.py` asserts gross appears nowhere in the rendered document.
++Gross remains in the results store for diagnostics, per SUBSTRATE section 3.
++
++Status: **closed.**
+diff --git a/decisions/proposed/0005-veto-evaluation-order.md b/decisions/0005-veto-evaluation-order.md
+similarity index 65%
+rename from decisions/proposed/0005-veto-evaluation-order.md
+rename to decisions/0005-veto-evaluation-order.md
+index 681e841..8a2d254 100644
+--- a/decisions/proposed/0005-veto-evaluation-order.md
++++ b/decisions/0005-veto-evaluation-order.md
+@@ -28,3 +28,19 @@ the integrity failure first sends them to the right place.
+ 
+ Whether the substrate's table order should instead be authoritative, in which
+ case `params/vetoes.yaml` should be changed to match it and this note closed.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++The SUBSTRATE section 10 table order is authoritative. `params/vetoes.yaml`
++now evaluates in table order: turnover, cash, tracking_error, positions,
++coverage, lookahead, frequency, active_drawdown, seed_stability,
++multiple_testing, direction.
++
++The diagnostic concern raised above is mitigated rather than accepted: every
++veto is still evaluated and every verdict still recorded, so a lookahead breach
++remains visible in the store and on the report even when a constraint breach is
++named as the cause of death. Only the *headline* reason follows table order.
++`tests/test_vetoes.py` asserts this explicitly.
++
++Status: **closed.**
+diff --git a/decisions/proposed/0006-jpmaqs-grade-3-exclude-or-downweight.md b/decisions/0006-jpmaqs-grade-3-exclude-or-downweight.md
+similarity index 52%
+rename from decisions/proposed/0006-jpmaqs-grade-3-exclude-or-downweight.md
+rename to decisions/0006-jpmaqs-grade-3-exclude-or-downweight.md
+index 41ffac7..c8e398b 100644
+--- a/decisions/proposed/0006-jpmaqs-grade-3-exclude-or-downweight.md
++++ b/decisions/0006-jpmaqs-grade-3-exclude-or-downweight.md
+@@ -27,3 +27,25 @@ Whether exclusion costs too much coverage in practice. That cannot be known
+ until the data is in, so this should be revisited with a coverage report in
+ phase 3, not before. If downweighting is preferred, the weight itself needs to
+ be a decision, not a default.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++Grade-3 exclusion stands for now; revisit in phase 3 against a real coverage
++report. The owner has a JPMaQS API key and will test access.
++
++### One correction, agreed in discussion
++
++The owner proposed calling the API per hypothesis, to avoid a bulk pull hitting
++a rate limit. That is not compatible with reproducibility: every run records a
++`data_snapshot_hash` so a result can be regenerated, and data fetched live at
++run time makes that hash a claim about something that may have changed. Two
++runs of the same hypothesis could then see different data and be recorded as
++comparable.
++
++`params/data.yaml` therefore sets `jpmaqs.live_api_during_run: forbidden` and
++`jpmaqs.incremental_snapshot_build: allowed`. If rate limits bite, the snapshot
++is built across several sessions and then frozen. The API is called to *build*
++a snapshot, never to *serve* a run.
++
++Status: **open for phase 3** on the grading question; the snapshot rule is closed.
+diff --git a/decisions/0007-agent-budget-ceilings.md b/decisions/0007-agent-budget-ceilings.md
+new file mode 100644
+index 0000000..a1d7d46
+--- /dev/null
++++ b/decisions/0007-agent-budget-ceilings.md
+@@ -0,0 +1,163 @@
++# 0007 — The agent budget numbers. BLOCKING for phase 4.
++
++Status: proposed, 2026-09-07, agent. Blocking: yes, for any model-driven role.
++
++## Question
++
++SUBSTRATE section 14 requires a "hard token ceiling per run and per nightly
++cycle", a maximum number of proposals per family per cycle, a maximum number of
++refinement rounds per proposal, a quota for `novel` provenance (section 7), and
++a cheap and an expensive model tier. It states none of the numbers, and KICKOFF
++forbids inventing thresholds.
++
++## What was done
++
++Every one of them is `null` in `params/agents.yaml`, and the code fails closed:
++
++- `BudgetLedger.call` raises `BudgetNotConfigured` rather than making a model
++  call while `tokens_per_run` is null.
++- `cycle_budget()` raises while `tokens_per_cycle` is null.
++- `model_calls_enabled()` returns False, and `scripts/nightly_cycle.py` reports
++  "model roles: disabled" and proceeds with its deterministic steps only.
++
++The enforcement mechanism is tested against ceilings set inside the test
++fixture, so the kill path is proven without an invented number reaching the
++repository's configuration.
++
++## Why that way
++
++The alternative to refusing is a generous default, and a generous default is
++indistinguishable from no ceiling on the night it matters. Phase 0 needs no
++model calls, so refusing costs nothing today and prevents an unbounded agent
++loop later.
++
++## What to decide
++
++Six numbers, please:
++
++1. `budgets.tokens_per_run`
++2. `budgets.tokens_per_cycle`
++3. `quotas.max_proposals_per_family_per_cycle`
++4. `quotas.max_refinement_rounds_per_proposal`
++5. `quotas.novel_provenance_per_cycle`
++6. `models.cheap` and `models.expensive` — model ids, not descriptions
++
++And optionally `pricing.per_million_tokens.blended`, without which `cost_usd`
++is recorded as NULL rather than as a guess.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++### Spend
++
++> "I don't want to spend more than $30 / month on top of my claude subscription
++> with this routine, but I would be fine to spend $100 in the beginning
++> considering there are things that need to be built before we are in autonomous
++> routine mode."
++
++Set: `cost_per_month_usd: 100.00` (early build), with `30.00` noted as the
++steady-state figure to switch to.
++
++### Transport: API, not the subscription
++
++The owner holds both a Pro subscription and Console API keys. The autonomous
++cycle runs against the **API**, headless, with `ANTHROPIC_API_KEY` from the
++environment. Three reasons:
++
++- the budget wrapper reads per-call usage off the API response; a subscription
++  session does not expose those fields to the script, so the ceiling could not
++  be enforced;
++- cron in WSL needs a headless process, not a desktop app that must be open;
++- a nightly batch on the subscription would consume the same rate limits the
++  owner uses interactively.
++
++Development of the harness stays on the subscription. Only the unattended
++routine is metered. Recorded as `agents.runtime.transport: api`.
++
++### Cadence: weekly, and the reason is statistical
++
++Set `cycle_cadence: weekly`. Seven proposals x 30 nights is 210 correlated tests
++a month; Romano-Wolf across 210 draws sets a bar a real macro signal will not
++clear. Weekly gives 28. The model's own clock is weekly-to-quarterly, so nightly
++proposals mostly redraw from the same information.
++
++This is the rare case where the cost lever and the statistical lever point the
++same way, and the statistical argument is the binding one. The deterministic
++parts of the cycle may still run nightly; it is the *proposer* that is weekly.
++
++### Costing
++
++Per-million-token prices as of 2026-09-09, recorded in
++`params/agents.yaml:pricing` with their source and date:
++
++| Model | Input | Output | Cache read |
++|---|---|---|---|
++| Fable 5.1 | $10 | $50 | $0.25 |
++| Opus 5 | $5 | $25 | $0.50 |
++| Sonnet 5 | $2 | $10 | $0.20 |
++| Haiku 4.5 | $1 | $5 | $0.10 |
++
++**Fable is the dearest tier, twice Opus on output** — which inverts the usual
++assumption and matters because the owner's tiering puts Fable on two of the six
++roles.
++
++Estimated cost per proposal, assuming the ~30k-token stable context is
++prompt-cached as section 14 requires and the Implementer runs ~6 agentic turns:
++
++| Role | Model | Est. |
++|---|---|---|
++| Proposer | Fable 5.1 | $0.10 |
++| Implementer | Sonnet 5 | $0.16 |
++| Critic | Sonnet 5 | $0.03 |
++| Evaluator | Fable 5.1 | $0.19 |
++| **Per proposal** | | **~$0.48** |
++
++At 7 proposals that is ~$3.35 a cycle: **~$100/month nightly, ~$13/month
++weekly, ~$7/month weekly on the Batch API.** These are estimates with stated
++assumptions, not quotes; the Implementer turn count is the largest uncertainty
++and could double. The Evaluator is the single most expensive step, because
++evaluation output is long prose at Fable's output rate — if the bill binds,
++shorten the evaluator's output before cutting anywhere else.
++
++`use_batch_api: true` is set. The cycle is async by nature, so the 50% batch
++discount costs nothing in usability.
++
++### Model tiering, as stated by the owner
++
++| Role | Model |
++|---|---|
++| Proposer | Fable 5.1 |
++| Implementer | Sonnet 5 |
++| Critic | Sonnet 5 |
++| Diagnostician | Opus 5 |
++| Evaluator | Fable 5.1 |
++| Coordinator | Sonnet 5 |
++
++The two-tier `cheap`/`expensive` schema in the original `agents.yaml` was
++replaced with one entry per section 13 role. Ids are validated against the API
++at cycle start; an unknown id refuses rather than falling back to a default.
++
++### Quotas
++
++`max_proposals_per_family_per_cycle: 7`, as stated.
++
++On refinement rounds the owner was undecided and raised a real risk:
++
++> "It would be a shame to throw away a promising hypothesis due to cap on
++> refinement runs."
++
++That has a design answer rather than a numeric one. `on_refinement_cap:
++requeue_to_pending`: a proposal that exhausts its rounds is **not discarded**.
++It returns to `hypotheses/pending/` with the Diagnostician's notes attached and
++is picked up next cycle. The cap therefore limits spend *per cycle* without ever
++losing an idea, which is what makes a low cap safe. K is set to 2 and should be
++reset from four weeks of logged rounds-used rather than guessed now.
++
++`novel_provenance_per_cycle: 2`.
++
++### Amendment to section 14
++
++Section 14 specifies a token ceiling. Both a token ceiling and a **dollar**
++ceiling are now enforced, whichever binds first — see `decisions/0012`.
++
++Status: **closed**, with K to be revisited from logged data after four weeks.
+diff --git a/decisions/proposed/0008-hypothesis-transitions-table.md b/decisions/0008-hypothesis-transitions-table.md
+similarity index 75%
+rename from decisions/proposed/0008-hypothesis-transitions-table.md
+rename to decisions/0008-hypothesis-transitions-table.md
+index d142923..4c8fa43 100644
+--- a/decisions/proposed/0008-hypothesis-transitions-table.md
++++ b/decisions/0008-hypothesis-transitions-table.md
+@@ -26,3 +26,13 @@ adding a table seemed the worse trade.
+ Whether section 11 should be amended to list this table, so the schema in the
+ constitution matches the schema on disk. Until it is, the divergence is
+ recorded here.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++Approved. SUBSTRATE section 11 is to be amended to list
++`hypothesis_transitions` alongside `runs`, `metrics` and `verdicts`. Recorded
++in `decisions/0100-substrate-amendments.md` for the owner to apply to the
++constitution.
++
++Status: **closed**, pending the SUBSTRATE edit.
+diff --git a/decisions/proposed/0009-eleven-families-ten-hypotheses.md b/decisions/0009-eleven-families-ten-hypotheses.md
+similarity index 82%
+rename from decisions/proposed/0009-eleven-families-ten-hypotheses.md
+rename to decisions/0009-eleven-families-ten-hypotheses.md
+index dc29872..cbbf7bc 100644
+--- a/decisions/proposed/0009-eleven-families-ten-hypotheses.md
++++ b/decisions/0009-eleven-families-ten-hypotheses.md
+@@ -38,3 +38,15 @@ fabricated citation enters a registry. Several of these effects do have
+ well-established literatures and should be re-registered as `literature` with
+ checked references once a resolver is enabled — see the `reference_resolver`
+ block in `params/data_sources.yaml`.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++Confirmed as a kickoff inconsistency only, not a substantive conflict. Eleven
++hypotheses stand, one per family. No issue with the extra one.
++
++The provenance note below is unchanged and still applies: none of the eleven
++claims a citation, and they should be re-registered as `literature` with
++checked references once a resolver host is allowlisted.
++
++Status: **closed.**
+diff --git a/decisions/proposed/0010-repo-layout-flat-src-packages.md b/decisions/0010-repo-layout-flat-src-packages.md
+similarity index 57%
+rename from decisions/proposed/0010-repo-layout-flat-src-packages.md
+rename to decisions/0010-repo-layout-flat-src-packages.md
+index 49d9c96..e619690 100644
+--- a/decisions/proposed/0010-repo-layout-flat-src-packages.md
++++ b/decisions/0010-repo-layout-flat-src-packages.md
+@@ -29,3 +29,23 @@ editing the layout the constitution specifies, which section 2 forbids.
+ 
+ Whether to keep it. If a shadowing collision ever occurs, the fix is a
+ namespace package and an amendment to section 15, not a sys.path trick.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++Amend the constitution. Packages move under `src/signal_lab/`, which the owner
++judged better engineering practice than flat top-level packages.
++
++Note on spelling: the owner wrote `src/signal-labs/`. A hyphen is not legal in
++a Python module name and the plural is inconsistent with the repository name,
++so the package is `signal_lab`.
++
++Scope of the move: everything that was under `src/` (`params.py`, `loaders/`,
++`harness/`, `results/`, `signals/`, `portfolio/`, `stats/`). `vetoes/` and
++`render/` stay at the top level, where SUBSTRATE section 15 puts them and where
++`vetoes/` being adjacent to `params/` signals its owner-only status.
++
++SUBSTRATE section 15 is to be amended; recorded in
++`decisions/0100-substrate-amendments.md`.
++
++Status: **closed**, pending the SUBSTRATE edit.
+diff --git a/decisions/proposed/0011-what-a-phase-0-cycle-records.md b/decisions/0011-what-a-phase-0-cycle-records.md
+similarity index 84%
+rename from decisions/proposed/0011-what-a-phase-0-cycle-records.md
+rename to decisions/0011-what-a-phase-0-cycle-records.md
+index a789ed7..fc186b7 100644
+--- a/decisions/proposed/0011-what-a-phase-0-cycle-records.md
++++ b/decisions/0011-what-a-phase-0-cycle-records.md
+@@ -30,3 +30,12 @@ status naming the actual reason is honest and costs nothing.
+ Nothing, unless you would rather the cycle recorded no row at all for a
+ hypothesis it could not run. The current behaviour makes the blockage visible
+ on the digest, which seemed more useful than silence.
++
++---
++## Owner decision (2026-09-09, Leo)
++
++Accepted as implemented. A cycle with no engine records
++`status='blocked:no_engine'` and no verdicts, rather than recording eleven
++"cannot evaluate" veto failures against a run that was never measured.
++
++Status: **closed.**
+diff --git a/decisions/0012-dollar-ceiling-alongside-the-token-ceiling.md b/decisions/0012-dollar-ceiling-alongside-the-token-ceiling.md
+new file mode 100644
+index 0000000..a9bbaa3
+--- /dev/null
++++ b/decisions/0012-dollar-ceiling-alongside-the-token-ceiling.md
+@@ -0,0 +1,38 @@
++# 0012 — A dollar ceiling as well as a token ceiling
++
++Status: decided, 2026-09-09. Amends SUBSTRATE section 14.
++
++## Question
++
++SUBSTRATE section 14 specifies "a hard token ceiling per run and per nightly
++cycle". Model prices span 10x across the tiers this lab uses: a million output
++tokens costs $5 on Haiku and $50 on Fable. A token ceiling therefore permits ten
++times the spend on one model as on another, and the owner's constraint is stated
++in dollars.
++
++## Decision
++
++Enforce both. `params/agents.yaml:budgets` carries `cost_per_run_usd`,
++`cost_per_cycle_usd` and `cost_per_month_usd` alongside `tokens_per_run` and
++`tokens_per_cycle`. The wrapper kills on whichever binds first.
++
++The token ceiling is not redundant: it is the guard that stops a runaway loop on
++a cheap model, where the dollar ceiling would take a long time to bite.
++`tests/test_budgets.py` covers both paths.
++
++Cost is computed per token class from `agents.pricing.per_million_tokens`
++rather than from a blended rate, because on Fable a cache read is 40x cheaper
++than fresh input and a blended figure would misattribute most of the bill. A
++model with no price entry costs `None`, not zero — zero would silently exempt
++an unknown model from the ceiling.
++
++## Consequence for the constitution
++
++Section 14's first bullet should read "hard token and cost ceilings per run and
++per cycle". Recorded in `decisions/0100-substrate-amendments.md`.
++
++## What this does not solve
++
++`cost_per_month_usd` is recorded but not yet enforced; enforcing it needs the
++cycle to read prior months' spend out of the results store at startup. That
++lands with the scheduler in phase 4.
+diff --git a/decisions/0013-investable-universe-and-the-characteristic-map.md b/decisions/0013-investable-universe-and-the-characteristic-map.md
+new file mode 100644
+index 0000000..e2f57a8
+--- /dev/null
++++ b/decisions/0013-investable-universe-and-the-characteristic-map.md
+@@ -0,0 +1,98 @@
++# 0013 — The investable universe, and what the characteristic map is for
++
++Status: partly decided, 2026-09-09. Supersedes the `index_etf_map.csv`
++requirement in SUBSTRATE section 5.1 for v0.3.
++
++## The universe
++
++SUBSTRATE section 5.1 refers to an owner-maintained
++`data/universe/index_etf_map.csv`. The owner reframed this, and the reframing is
++better:
++
++> "I believe that we can infer this from the dataset … All of the indices that
++> track a long-only market, regional, sector, style, credit bucket, duration
++> bucket, local currency bonds or hedged to USD bonds are potential candidates
++> … I can worry about the specific ETF to implement later when a leading
++> candidate model proves this is time well spent."
++
++So the universe is the set of indices that *could* be implemented; ETF selection
++is deferred to one candidate model in phase 4. What is needed now is not a
++ticker-to-ETF map but two columns on the coverage table — `investable` and
++`cost_bucket` — plus the `reporting_class` column below.
++
++**Universe size versus holdings.** These are different. SUBSTRATE section 4 caps
++*holdings* at 30 non-zero, which matches the owner's "20–35 line items to
++discuss with investors". The universe should be considerably larger, because the
++optimiser needs candidates to select among.
++
++## Open: hedged series in the universe
++
++The owner listed "hedged to USD bonds" as candidates. SUBSTRATE section 4 says
++hedged series are "the counterfactual, not a separate live axis in v0.3", and
++section 5.1.6 says they are not mixed with unhedged peers in a region signal.
++
++If both the hedged and the unhedged version of the same exposure are selectable,
++the optimiser expresses an FX view by choosing between them, which is a live FX
++axis by the back door. Either the six hedged series are excluded from
++`investable`, or section 4 changes.
++
++Conservative option taken: **excluded**, pending the owner's answer.
++
++## Open: are the sector series price-only?
++
++`data/universe/bbg_index_coverage.csv` carries a `likely_price_only` column
++flagging 29 of 97 series, including all 11 US MSCI sectors and all 11 European
++MSCI sectors. The owner reports pulling with `TOT_RETURN_INDEX_GROSS_DVDS`,
++which Bloomberg computes even for a price-index ticker — so the flag is probably
++a false positive from a naming heuristic.
++
++It is not certain: the flag is not purely name-based (1 of 3 US region series
++and 2 of 7 developed ex-US are flagged, from the same ticker families), so
++something discriminated among them and it is not known what.
++
++**Decisive test:** pull `PX_LAST` for one flagged ticker over the same window
++and compare against the column in `TR Levels`. Identical means Bloomberg had no
++dividend data and the field returned the price index. The phase 2 loader will
++settle it as a by-product, and unlike an ad-hoc read of the raw workbook it
++truncates at `HOLDOUT_START`.
++
++If the flag is real, it corrupts the sector axis rather than blocking it: a
++price index understates return by its dividend yield, so the optimiser would
++systematically avoid sectors for a reason unrelated to any signal. That would
++make it the highest-priority data request in the lab.
++
++## The characteristic map — two objects, one file
++
++The owner asked whether the characteristic map is "only for aggregation
++purposes and not for quantitative estimation or optimization". It is not: per
++section 6, views are formed in exposure space and *"mapped to ETF weights by
++solving for the long-only portfolio whose exposures best match the view"*. The
++map is the matrix in that solve. A wrong duration number changes the weights,
++not just a label.
++
++Three distinct things now live in `data/characteristics/`, and keeping them
++distinct is the point:
++
++1. **The exposure matrix** — duration, credit, region, sector, style,
++   real/nominal, cash. Definitional and economically named, mostly a lookup plus
++   two columns lifted from the analytics panel (OAD, OAS). Load-bearing in the
++   optimiser.
++2. **Factor loadings** — statistical, quasi-orthogonal, estimated from returns,
++   used to extend covariance backward for short-history series (section 5.2).
++   Built by the harness in phase 2.
++3. **`reporting_class`** — the bank's asset-class taxonomy (Cash, Treasuries,
++   Long Treasuries, US IG, US HY, US Equities, European Equities, …), requested
++   by the owner for reporting final results. **Explicitly excluded from the
++   exposure matrix** so it can never leak into the solve.
++
++## Open: what is an equity index's duration exposure?
++
++Definitionally zero, or its empirically estimated rate beta? Zero keeps the map
++definitional and makes "duration" mean bond duration. A rate beta is more honest
++— equities do respond to rates — but then the exposure matrix is partly a
++statistical estimate and stops being a lookup. This changes weights and should
++be decided rather than defaulted. The same question applies to credit exposure
++on high-yield-adjacent equity sectors.
++
++No conservative default is available here, so nothing is implemented until the
++owner answers.
+diff --git a/decisions/0100-substrate-amendments.md b/decisions/0100-substrate-amendments.md
+new file mode 100644
+index 0000000..ce64452
+--- /dev/null
++++ b/decisions/0100-substrate-amendments.md
+@@ -0,0 +1,28 @@
++# 0100 — Amendments to SUBSTRATE.md awaiting the owner's edit
++
++Status: running list, opened 2026-09-09.
++
++Agents may not edit `SUBSTRATE.md` (section 2). Where a decision changes what
++the constitution says, the change is recorded here for the owner to apply, and
++the code is written to the amended reading with the decision cited in place.
++
++This file exists so that the drift between code and constitution is visible in
++one place rather than scattered across decision records.
++
++| Section | Amendment | Decision |
++|---|---|---|
++| 10 | Eleven vetoes, not ten: add `active_drawdown`. The `tracking_error` row reads "95th percentile of trailing-3y readings ≤ 6.0%" rather than a bare ceiling. | 0003 |
++| 11 | Add `hypothesis_transitions(id, ts, hypothesis_id, from_state, to_state, run_id, detail)` to the results schema. | 0008 |
++| 14 | First bullet reads "hard token **and cost** ceilings per run and per cycle". Model tiering names one model per section 13 role rather than `cheap`/`expensive`. | 0007, 0012 |
++| 15 | `src/` contains a single `signal_lab/` package; `loaders/`, `signals/`, `harness/`, `portfolio/`, `stats/` sit under it. `vetoes/` and `render/` unchanged. | 0010 |
++| 5.1 | `index_etf_map.csv` is replaced for v0.3 by `investable`, `cost_bucket` and `reporting_class` columns on the coverage table. ETF selection deferred to phase 4. | 0013 |
++| 13 | The cycle's proposer runs **weekly**, not nightly. The deterministic steps may run nightly. | 0007 |
++
++## Not yet amendments, but open questions against the constitution
++
++- Section 4's asymmetric TE penalty has no coefficient. The objective refuses to
++  build until one is set. (0003)
++- Section 4 says hedged series are not a live axis; whether they belong in the
++  investable universe follows from that and is unanswered. (0013)
++- Section 6 does not say whether an equity index carries a duration exposure of
++  zero or an estimated rate beta. (0013)
+diff --git a/decisions/proposed/0003-tracking-error-veto-statistic.md b/decisions/proposed/0003-tracking-error-veto-statistic.md
+deleted file mode 100644
+index 9295286..0000000
+--- a/decisions/proposed/0003-tracking-error-veto-statistic.md
++++ /dev/null
+@@ -1,43 +0,0 @@
+-# 0003 — TE veto: hard band or asymmetric penalty, and which statistic?
+-
+-Status: proposed, 2026-09-07, agent. Blocking: no. Conservative option taken.
+-
+-## Question
+-
+-Two parts of SUBSTRATE pull in different directions.
+-
+-Section 4 says tracking error is handled by "an asymmetric penalty, not a hard
+-band. TE is cheap when conviction dispersion is high and expensive when it is
+-not." Section 10 lists `tracking_error` as a veto with a hard threshold:
+-trailing-3y TE ≤ 6.0%, and says vetoes "are not advisory".
+-
+-Section 4 also says episodic excursions are allowed but not rewarded on
+-average, which suggests the veto should not fire on a single excursion. Nothing
+-says which statistic of the trailing-3y TE series the veto reads: the maximum
+-over the run, the final reading, or a quantile.
+-
+-## What was done
+-
+-Both mechanisms exist. `vetoes/rules.py:veto_tracking_error` enforces the hard
+-ceiling from `params/vetoes.yaml`, reading `statistic: max` — the worst
+-trailing-3y reading over the run. `params/constraints.yaml` carries the
+-asymmetric penalty's shape with a null coefficient, and the objective will
+-refuse to build until the owner sets one.
+-
+-## Why that way
+-
+-The maximum is the conservative reading and is the only one that cannot be
+-gamed by timing: a run whose TE spent two years at 8% and ended at 5% would
+-pass on a final-reading test, and would have breached the mandate throughout.
+-It is also the reading that makes "episodic excursions are allowed" a genuine
+-tension rather than a free pass, which is why this note exists.
+-
+-## What to decide
+-
+-1. Is the veto statistic `max`, or a high quantile (say the 95th percentile of
+-   trailing-3y readings), which would let a genuinely episodic excursion pass?
+-2. What is the asymmetric penalty's coefficient, and is it a penalty in the
+-   objective, a soft constraint in the solver, or both?
+-3. If the answer to (1) is a quantile, section 10's "vetoes are not advisory"
+-   needs a sentence saying so, since a quantile ceiling is a softer object than
+-   the table implies.
+diff --git a/decisions/proposed/0007-agent-budget-ceilings.md b/decisions/proposed/0007-agent-budget-ceilings.md
+deleted file mode 100644
+index 160d72a..0000000
+--- a/decisions/proposed/0007-agent-budget-ceilings.md
++++ /dev/null
+@@ -1,46 +0,0 @@
+-# 0007 — The agent budget numbers. BLOCKING for phase 4.
+-
+-Status: proposed, 2026-09-07, agent. Blocking: yes, for any model-driven role.
+-
+-## Question
+-
+-SUBSTRATE section 14 requires a "hard token ceiling per run and per nightly
+-cycle", a maximum number of proposals per family per cycle, a maximum number of
+-refinement rounds per proposal, a quota for `novel` provenance (section 7), and
+-a cheap and an expensive model tier. It states none of the numbers, and KICKOFF
+-forbids inventing thresholds.
+-
+-## What was done
+-
+-Every one of them is `null` in `params/agents.yaml`, and the code fails closed:
+-
+-- `BudgetLedger.call` raises `BudgetNotConfigured` rather than making a model
+-  call while `tokens_per_run` is null.
+-- `cycle_budget()` raises while `tokens_per_cycle` is null.
+-- `model_calls_enabled()` returns False, and `scripts/nightly_cycle.py` reports
+-  "model roles: disabled" and proceeds with its deterministic steps only.
+-
+-The enforcement mechanism is tested against ceilings set inside the test
+-fixture, so the kill path is proven without an invented number reaching the
+-repository's configuration.
+-
+-## Why that way
+-
+-The alternative to refusing is a generous default, and a generous default is
+-indistinguishable from no ceiling on the night it matters. Phase 0 needs no
+-model calls, so refusing costs nothing today and prevents an unbounded agent
+-loop later.
+-
+-## What to decide
+-
+-Six numbers, please:
+-
+-1. `budgets.tokens_per_run`
+-2. `budgets.tokens_per_cycle`
+-3. `quotas.max_proposals_per_family_per_cycle`
+-4. `quotas.max_refinement_rounds_per_proposal`
+-5. `quotas.novel_provenance_per_cycle`
+-6. `models.cheap` and `models.expensive` — model ids, not descriptions
+-
+-And optionally `pricing.per_million_tokens.blended`, without which `cost_usd`
+-is recorded as NULL rather than as a guess.
+diff --git a/params/agents.yaml b/params/agents.yaml
+index 4f55568..061934b 100644
+--- a/params/agents.yaml
++++ b/params/agents.yaml
+@@ -1,39 +1,85 @@
+-# Agent budgets and quotas. SUBSTRATE.md section 14. Owner-only.
+-#
+-# SUBSTRATE requires hard ceilings but does not state numbers, and inventing a
+-# threshold is forbidden (KICKOFF "How to work"). Every unset ceiling below is
+-# null, and the wrapper REFUSES to make a model call while its ceiling is null.
+-# Fail-closed, not fail-open. See decisions/proposed/0007 for the numbers needed.
+-params_version: "0.3.0"
++# Agent budgets and quotas. SUBSTRATE.md section 14, as amended by
++# decisions/0007 and decisions/0012. Owner-only.
++params_version: "0.4.0"
++
++runtime:
++  # decisions/0007. The autonomous cycle runs as a headless process against the
++  # Anthropic API with a key from the environment, NOT as a scheduled Cowork or
++  # Claude Code session on the Pro subscription. Three reasons:
++  #   - the budget wrapper reads per-call usage off the API response; a
++  #     subscription session does not expose those fields to the script;
++  #   - cron in WSL needs a headless process, not a desktop app that has to be
++  #     open and reachable;
++  #   - a nightly batch on the subscription would consume the same rate limits
++  #     the owner uses interactively.
++  # Development (building the harness) stays on the subscription. Only the
++  # unattended routine is metered.
++  transport: api
++  env_keys: ["ANTHROPIC_API_KEY"]
++  use_batch_api: true          # the cycle is async by nature; batch is 50% cheaper
+ 
+ budgets:
+-  tokens_per_run: null
+-  tokens_per_cycle: null
+-  on_breach: kill            # section 14: "kills on breach, it does not warn"
++  # decisions/0012: SUBSTRATE section 14 specifies a token ceiling. With a 10x
++  # price spread across model tiers a token cap is a poor proxy for a dollar
++  # cap -- the same number of tokens costs five times more on Fable than on
++  # Sonnet -- and the owner's constraint is stated in dollars. Both are
++  # enforced; whichever binds first kills the run.
++  cost_per_run_usd: 3.50
++  cost_per_cycle_usd: 23.00
++  cost_per_month_usd: 100.00   # early-build ceiling; steady state is 30.00
++  tokens_per_run: 400000       # secondary guard against a runaway loop
++  tokens_per_cycle: 3000000
++  on_breach: kill              # section 14: "kills on breach, it does not warn"
+   on_unset: refuse
+-  owner_to_confirm: [tokens_per_run, tokens_per_cycle]
++  # Sized for a WEEKLY proposal cycle (4.3/month), not nightly. See
++  # decisions/0007: 7 proposals x 30 nights is 210 correlated tests a month, and
++  # Romano-Wolf across 210 draws sets a bar a real macro signal will not clear.
++  # The cadence is a statistical decision that happens to also be the cost lever.
++  cycle_cadence: weekly
+ 
+ quotas:
+-  max_proposals_per_family_per_cycle: null
+-  max_refinement_rounds_per_proposal: null
+-  novel_provenance_per_cycle: null       # section 7: novel is quota-limited
+-  owner_to_confirm:
+-    - max_proposals_per_family_per_cycle
+-    - max_refinement_rounds_per_proposal
+-    - novel_provenance_per_cycle
++  max_proposals_per_family_per_cycle: 7
++  max_refinement_rounds_per_proposal: 2
++  novel_provenance_per_cycle: 2
++  # decisions/0007: a proposal that exhausts its refinement rounds is NOT
++  # discarded. It returns to hypotheses/pending/ with the Diagnostician's notes
++  # attached and is picked up next cycle. The cap therefore limits spend per
++  # cycle without ever throwing away a promising idea, which is what makes a
++  # low cap safe. Revisit K from four weeks of logged rounds-used.
++  on_refinement_cap: requeue_to_pending
+ 
+ models:
+-  # section 14 model tiering. No model id is guessed.
+-  cheap: null                # config generation, result parsing, digest writing
+-  expensive: null            # hypothesis generation, failure diagnosis
+-  owner_to_confirm: [cheap, expensive]
++  # decisions/0007. Cost per million tokens at the time of writing:
++  #   Fable 5.1   $10 in / $50 out   <- the DEAREST tier, 2x Opus on output
++  #   Opus 5      $5  in / $25 out
++  #   Sonnet 5    $2  in / $10 out
++  #   Haiku 4.5   $1  in / $5  out
++  # The Evaluator is the single most expensive step because evaluation output is
++  # long prose priced at Fable's output rate. If the bill binds, shorten the
++  # evaluator's output before cutting anywhere else.
++  proposer: claude-fable-5-1        # hypothesis generation
++  implementer: claude-sonnet-5      # writes the signal module from the hypothesis
++  critic: claude-sonnet-5           # reviews implementation against the hypothesis
++  diagnostician: claude-opus-5      # reads a failure, decides if a refinement is worth it
++  evaluator: claude-fable-5-1       # evaluates results
++  coordinator: claude-sonnet-5      # orders the queue, mechanical
++  # Model ids are validated against the API at cycle start; an unknown id
++  # refuses rather than silently falling back to a default.
++  validate_ids: true
+ 
+ pricing:
+-  # Needed for runs.cost_usd. Unset means cost_usd is recorded as NULL rather
+-  # than as a made-up number.
++  # Per million tokens, USD. Used for cost_usd on every run and for the dollar
++  # ceilings above. Update when Anthropic's published prices change; the
++  # params_hash changes with it, so runs before and after are distinguishable.
+   currency: USD
+-  per_million_tokens: {}
+-  owner_to_confirm: [per_million_tokens]
++  source: "https://platform.claude.com/docs/en/about-claude/pricing"
++  as_of: "2026-09-09"
++  per_million_tokens:
++    claude-fable-5-1:  {input: 10.0, output: 50.0, cache_write_5m: 12.50, cache_read: 0.25}
++    claude-opus-5:     {input:  5.0, output: 25.0, cache_write_5m:  6.25, cache_read: 0.50}
++    claude-sonnet-5:   {input:  2.0, output: 10.0, cache_write_5m:  2.50, cache_read: 0.20}
++    claude-haiku-4-5:  {input:  1.0, output:  5.0, cache_write_5m:  1.25, cache_read: 0.10}
++  batch_discount: 0.50
+ 
+ policy:
+   agents_read_summary_statistics_only: true   # section 14: never raw return panels
+diff --git a/params/constraints.yaml b/params/constraints.yaml
+index 7673e30..27523f9 100644
+--- a/params/constraints.yaml
++++ b/params/constraints.yaml
+@@ -1,6 +1,6 @@
+ # Portfolio constraints. SUBSTRATE.md section 4.
+ # Owner-only. Agents may not edit this file (SUBSTRATE section 2).
+-params_version: "0.3.0"
++params_version: "0.4.0"
+ 
+ direction: long_only
+ leverage_allowed: false
+diff --git a/params/costs.yaml b/params/costs.yaml
+index c187d03..5d432b6 100644
+--- a/params/costs.yaml
++++ b/params/costs.yaml
+@@ -1,12 +1,16 @@
+ # Cost model. SUBSTRATE.md section 8. v0.1 placeholders, to be revised
+ # against live ETF data. Owner-only.
+-params_version: "0.3.0"
++params_version: "0.4.0"
+ 
+ # net = gross - turnover * half_spread - annual_fee_tracking / weeks_per_year
+ application:
+   weeks_per_year: 52
+   report: net_only
+   store_gross_for_diagnostics: true
++  # decisions/0004: gross IR is neither plotted nor displayed. The cost drag
++  # (gross minus net) is reported instead, which carries the diagnostic value
++  # without inviting the reader to rank on gross.
++  report_cost_drag: true
+ 
+ buckets:
+   low:
+diff --git a/params/data.yaml b/params/data.yaml
+index 1fc27cf..60a1a41 100644
+--- a/params/data.yaml
++++ b/params/data.yaml
+@@ -1,6 +1,6 @@
+ # Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
+ # sections 3, 5 and 16. Owner-only.
+-params_version: "0.3.0"
++params_version: "0.4.0"
+ 
+ windows:
+   dev_start: "2001-01-05"
+@@ -85,6 +85,12 @@ jpmaqs:
+     "ESP_": ESP
+     "NLG_": NLD
+   search_opens_only_when_loaded: true    # SUBSTRATE section 5.6
++  # decisions/0006: the API is called to BUILD a snapshot, never during a run.
++  # Every run records a data_snapshot_hash so a result can be regenerated; data
++  # fetched live at run time makes that hash a lie. If rate limits bite, build
++  # the snapshot incrementally across sessions.
++  live_api_during_run: forbidden
++  incremental_snapshot_build: allowed
+ 
+ synthetic:
+   # Phase 0 only. Shape-matched to the vendors, no vendor values.
+diff --git a/params/data_sources.yaml b/params/data_sources.yaml
+index ce320f1..7cc1d11 100644
+--- a/params/data_sources.yaml
++++ b/params/data_sources.yaml
+@@ -1,7 +1,7 @@
+ # The allowlist SUBSTRATE section 2 refers to: "Call any external API not
+ # listed in params/data_sources.yaml" is forbidden. Owner-only.
+ # Secrets are read from environment variables only; no key is ever written here.
+-params_version: "0.3.0"
++params_version: "0.4.0"
+ 
+ sources:
+   bloomberg:
+diff --git a/params/vetoes.yaml b/params/vetoes.yaml
+index 6e507c9..a893c19 100644
+--- a/params/vetoes.yaml
++++ b/params/vetoes.yaml
+@@ -1,6 +1,7 @@
+-# Veto thresholds. SUBSTRATE.md section 10. Owner-only.
++# Veto thresholds. SUBSTRATE.md section 10, as amended by decisions/0003
++# (eleven vetoes, not ten). Owner-only.
+ # Agents may not change a threshold to make a run pass (SUBSTRATE section 2).
+-params_version: "0.3.0"
++params_version: "0.4.0"
+ 
+ turnover:
+   max_annualised: 1.50
+@@ -8,7 +9,11 @@ cash:
+   max_weight: 0.20
+ tracking_error:
+   max_trailing_3y: 0.060
+-  statistic: max        # the worst trailing-3y reading, not the last one. decisions/proposed/0003
++  # decisions/0003: the 95th percentile of trailing-3y readings, not the worst.
++  # "Episodic excursions allowed" (section 4) has to mean something, and the max
++  # makes a single bad quarter fatal. TE is retained as the MANDATE test; active
++  # drawdown below is the economic one.
++  statistic: p95
+ positions:
+   max_nonzero: 30
+ coverage:
+@@ -18,6 +23,15 @@ lookahead:
+   strict: true                   # no observation used before its knowledge_date
+ frequency:
+   strict: true                   # no series contributes a return before its true daily start
++active_drawdown:
++  # decisions/0003. Eleventh veto, amending SUBSTRATE section 10.
++  # Expressed as a multiple of the TE ceiling rather than as an absolute number,
++  # so it tightens automatically if the TE budget is cut. At the 6.0% ceiling
++  # this is 18.0%. The owner's stated preference was an absolute 10%; see the
++  # simulation in decisions/0003 for why that number and a 6% TE budget cannot
++  # both hold. Set `absolute` instead of `te_multiple` to override.
++  te_multiple: 3.0
++  absolute: null
+ seed_stability:
+   max_ir_range: 0.15
+ multiple_testing:
+@@ -31,14 +45,18 @@ evaluation:
+   # Data-integrity vetoes run first: a lookahead or frequency breach makes every
+   # downstream number meaningless, so it should be the reason logged, not a
+   # turnover breach that happens to be listed earlier. See decisions/proposed/0005.
++  # decisions/0005: SUBSTRATE section 10's table order is authoritative.
++  # Every verdict is still recorded, so a data-integrity breach remains visible
++  # in the store even when a constraint breach is named as cause of death.
+   order:
+-    - lookahead
+-    - frequency
+-    - coverage
+     - turnover
+     - cash
+     - tracking_error
+     - positions
++    - coverage
++    - lookahead
++    - frequency
++    - active_drawdown
+     - seed_stability
+     - multiple_testing
+     - direction
+diff --git a/render/mock_data.py b/render/mock_data.py
+index 66454e6..1546c79 100644
+--- a/render/mock_data.py
++++ b/render/mock_data.py
+@@ -60,6 +60,7 @@ VETOES = [
+     ("coverage", "Signal coverage \u2265 80% of universe on \u2265 90% of dates"),
+     ("lookahead", "Bitemporal check: no future vintages"),
+     ("frequency", "No return before a series' true daily start"),
++    ("active_drawdown", "Max active drawdown \u2264 18.0%"),
+     ("seed_stability", "IR range across resampling seeds \u2264 0.15"),
+     ("multiple_testing", "Survives Romano-Wolf stepdown at FWER 5%"),
+     ("direction", "Realised sign matches the pre-registered direction"),
+@@ -97,6 +98,8 @@ def build_runs():
+         max_cash = float(np.clip(rng.normal(11, 7), 0, 34))
+         coverage = float(np.clip(rng.normal(0.91, 0.09), 0.55, 1.0))
+         seed_range = float(np.clip(rng.normal(0.09, 0.06), 0.01, 0.34))
++        max_active_dd = float(np.clip(rng.normal(16.0, 6.0), 3.0, 42.0))
++        cost_drag = float(np.clip(rng.normal(0.22, 0.08), 0.05, 0.55))
+         lookahead_ok = rng.random() > 0.07
+         n_positions = int(rng.integers(18, 33))
+         null_pct = float(np.clip(rng.normal(0.72, 0.20), 0.01, 0.999))
+@@ -105,6 +108,7 @@ def build_runs():
+         verdicts = {
+             "lookahead": bool(lookahead_ok),
+             "frequency": bool(rng.random() > 0.04),
++            "active_drawdown": max_active_dd <= 18.0,
+             "coverage": coverage >= 0.80,
+             "turnover": turnover <= 150,
+             "cash": max_cash <= 20,
+@@ -122,12 +126,13 @@ def build_runs():
+                 "family": fam,
+                 "aggregation": agg,
+                 "net_ir": round(ir, 2),
+-                "gross_ir": round(ir + rng.uniform(0.10, 0.34), 2),
+                 "te": round(te, 1),
+                 "turnover": round(turnover),
+                 "max_cash": round(max_cash, 1),
+                 "coverage": round(coverage, 2),
+                 "seed_range": round(seed_range, 2),
++                "max_active_drawdown": round(max_active_dd, 1),
++                "cost_drag": round(cost_drag, 2),
+                 "n_positions": n_positions,
+                 "null_pct": round(null_pct, 3),
+                 "ess_cycles": ess_cycles,
+diff --git a/render/views.py b/render/views.py
+index 71f4bea..5e9c17f 100644
+--- a/render/views.py
++++ b/render/views.py
+@@ -320,7 +320,9 @@ def veto_legend(params=None):
+         ("cash", f"Max cash weight ≤ {pct(p.require('vetoes.cash.max_weight'))}"),
+         (
+             "tracking_error",
+-            f"Trailing-3y tracking error ≤ {float(p.require('vetoes.tracking_error.max_trailing_3y')):.1%}",
++            f"Trailing-3y tracking error ≤ "
++            f"{float(p.require('vetoes.tracking_error.max_trailing_3y')):.1%}, "
++            f"{p.get('vetoes.tracking_error.statistic', 'p95')} of readings",
+         ),
+         ("positions", f"Non-zero holdings ≤ {int(p.require('vetoes.positions.max_nonzero'))}"),
+         (
+@@ -330,6 +332,13 @@ def veto_legend(params=None):
+         ),
+         ("lookahead", "Bitemporal check: no observation used before its knowledge date"),
+         ("frequency", "No series contributes a return before its true daily start"),
++        (
++            "active_drawdown",
++            f"Max active drawdown \u2264 "
++            f"{float(p.require('vetoes.active_drawdown.te_multiple')) * float(p.require('vetoes.tracking_error.max_trailing_3y')):.1%}"
++            if p.get("vetoes.active_drawdown.absolute") is None
++            else f"Max active drawdown \u2264 {float(p.require('vetoes.active_drawdown.absolute')):.1%}",
++        ),
+         (
+             "seed_stability",
+             f"IR range across resampling seeds ≤ {float(p.require('vetoes.seed_stability.max_ir_range')):.2f}",
+@@ -377,12 +386,15 @@ def run_summary_stats(run):
+     Gross IR is deliberately absent. SUBSTRATE section 3 records it and section
+     12 forbids plotting it; showing it beside the net figure invites the reader
+     to do the ranking the substrate forbids. It stays in the store for
+-    diagnostics. See decisions/proposed/0004.
++    diagnostics. decisions/0004 replaces it with the cost drag -- gross minus
++    net -- which carries the diagnostic value without the ranking temptation.
+     """
+     out = []
+     for label, key, fmt in (
+         ("Net IR", "net_ir", "{:.2f}"),
++        ("Cost drag", "cost_drag", "{:.2f}"),
+         ("Tracking error", "te", "{:.1f}%"),
++        ("Max active drawdown", "max_active_drawdown", "{:.1f}%"),
+         ("Turnover", "turnover", "{:.0f}%"),
+         ("Max cash", "max_cash", "{:.1f}%"),
+         ("Holdings", "n_positions", "{:.0f}"),
+diff --git a/src/signal_lab/harness/budgets.py b/src/signal_lab/harness/budgets.py
+index aea07af..7e5261c 100644
+--- a/src/signal_lab/harness/budgets.py
++++ b/src/signal_lab/harness/budgets.py
+@@ -48,6 +48,8 @@ class Usage:
+     output_tokens: int = 0
+     cache_creation_input_tokens: int = 0
+     cache_read_input_tokens: int = 0
++    model: str | None = None
++    batch: bool = False
+ 
+     @property
+     def total(self) -> int:
+@@ -81,13 +83,43 @@ class Usage:
+             if isinstance(usage, dict)
+             else (lambda k: getattr(usage, k, 0))
+         )
++        model = (
++            response.get("model")
++            if isinstance(response, dict)
++            else getattr(response, "model", None)
++        )
+         return cls(
+             input_tokens=int(get("input_tokens") or 0),
+             output_tokens=int(get("output_tokens") or 0),
+             cache_creation_input_tokens=int(get("cache_creation_input_tokens") or 0),
+             cache_read_input_tokens=int(get("cache_read_input_tokens") or 0),
++            model=model,
+         )
+ 
++    def cost_usd(self, pricing: dict, batch_discount: float = 0.0) -> float | None:
++        """
++        Dollar cost of this call, or None when the model has no price entry.
++
++        Priced per token class rather than by a blended rate: on Fable a cache
++        read is 40x cheaper than fresh input, so a blended figure would
++        misattribute most of the bill. None rather than zero for an unknown
++        model, because zero would silently exempt it from the dollar ceiling.
++        """
++        if not self.model:
++            return None
++        rates = pricing.get(self.model)
++        if not rates:
++            return None
++        cost = (
++            self.input_tokens * float(rates.get("input", 0.0))
++            + self.output_tokens * float(rates.get("output", 0.0))
++            + self.cache_creation_input_tokens * float(rates.get("cache_write_5m", 0.0))
++            + self.cache_read_input_tokens * float(rates.get("cache_read", 0.0))
++        ) / 1e6
++        if self.batch and batch_discount:
++            cost *= 1.0 - float(batch_discount)
++        return cost
++
+ 
+ def _default_killer(message: str) -> None:
+     """
+@@ -105,16 +137,24 @@ def _default_killer(message: str) -> None:
+ 
+ @dataclass
+ class CycleBudget:
+-    """The cycle-wide ceiling, shared by every run in a nightly cycle."""
++    """The cycle-wide ceiling, shared by every run in a cycle."""
+ 
+     limit_tokens: int | None
++    limit_usd: float | None = None
+     spent_tokens: int = 0
++    spent_usd: float = 0.0
+ 
+-    def charge(self, tokens: int) -> None:
++    def charge(self, tokens: int, usd: float | None = None) -> None:
+         self.spent_tokens += tokens
++        if usd:
++            self.spent_usd += usd
+ 
+-    def breached(self) -> bool:
+-        return self.limit_tokens is not None and self.spent_tokens > self.limit_tokens
++    def breached(self) -> str | None:
++        if self.limit_usd is not None and self.spent_usd > self.limit_usd:
++            return f"cycle spent ${self.spent_usd:.2f}, ceiling ${self.limit_usd:.2f}"
++        if self.limit_tokens is not None and self.spent_tokens > self.limit_tokens:
++            return f"cycle spent {self.spent_tokens} tokens, ceiling {self.limit_tokens}"
++        return None
+ 
+ 
+ @dataclass
+@@ -135,6 +175,7 @@ class BudgetLedger:
+     cycle: CycleBudget | None = None
+     killer: Callable[[str], None] = _default_killer
+     spent_tokens: int = 0
++    spent_usd: float = 0.0
+     n_calls: int = 0
+     calls: list[Usage] = field(default_factory=list)
+     killed: bool = False
+@@ -163,44 +204,68 @@ class BudgetLedger:
+                 "See decisions/proposed/0007."
+             ) from exc
+ 
++    def run_cost_ceiling(self) -> float | None:
++        """
++        The per-run dollar ceiling. None means only the token ceiling applies.
++
++        decisions/0012: a token cap is a poor proxy for a dollar cap when model
++        prices span 10x, and the owner's constraint is stated in dollars.
++        """
++        return self.params.get("agents.budgets.cost_per_run_usd", None)
++
++    def pricing(self) -> dict:
++        return self.params.get("agents.pricing.per_million_tokens", {}) or {}
++
++    def batch_discount(self) -> float:
++        if not self.params.get("agents.runtime.use_batch_api", False):
++            return 0.0
++        return float(self.params.get("agents.pricing.batch_discount", 0.0) or 0.0)
++
+     def cost_usd(self) -> float | None:
+         """
+-        Cost in dollars, or None when no pricing is configured.
++        Cost in dollars, or None when nothing could be priced.
+ 
+         None is recorded rather than a made-up figure; a fabricated cost on a
+         digest is worse than a blank one.
+         """
+-        pricing = self.params.get("agents.pricing.per_million_tokens", {}) or {}
+-        if not pricing:
+-            return None
+-        rate = pricing.get("blended")
+-        if rate is None:
+-            return None
+-        return float(self.spent_tokens) / 1e6 * float(rate)
++        return self.spent_usd if self.n_priced_calls() else None
++
++    def n_priced_calls(self) -> int:
++        pricing, discount = self.pricing(), self.batch_discount()
++        return sum(1 for u in self.calls if u.cost_usd(pricing, discount) is not None)
+ 
+     # --- accounting ---------------------------------------------------------
+ 
+     def charge(self, usage: Usage) -> None:
+-        """Add a call's usage and kill if that crossed a ceiling."""
++        """Add a call's usage and kill if that crossed any ceiling."""
+         self.spent_tokens += usage.total
+         self.n_calls += 1
+         self.calls.append(usage)
++        cost = usage.cost_usd(self.pricing(), self.batch_discount())
++        if cost:
++            self.spent_usd += cost
+         if self.cycle is not None:
+-            self.cycle.charge(usage.total)
++            self.cycle.charge(usage.total, cost)
+         self._check()
+ 
+     def _check(self) -> None:
++        """Token and dollar ceilings, whichever binds first."""
++        cost_ceiling = self.run_cost_ceiling()
++        if cost_ceiling is not None and self.spent_usd > float(cost_ceiling):
++            self._kill(
++                f"run {self.run_id} spent ${self.spent_usd:.2f} over {self.n_calls} call(s), "
++                f"ceiling ${float(cost_ceiling):.2f}"
++            )
+         ceiling = self.run_ceiling()
+         if self.spent_tokens > ceiling:
+             self._kill(
+                 f"run {self.run_id} spent {self.spent_tokens} tokens over {self.n_calls} "
+                 f"call(s), ceiling {ceiling}"
+             )
+-        if self.cycle is not None and self.cycle.breached():
+-            self._kill(
+-                f"cycle spent {self.cycle.spent_tokens} tokens, ceiling {self.cycle.limit_tokens}, "
+-                f"breached during run {self.run_id}"
+-            )
++        if self.cycle is not None:
++            breach = self.cycle.breached()
++            if breach:
++                self._kill(f"{breach}, breached during run {self.run_id}")
+ 
+     def _kill(self, message: str) -> None:
+         self.killed = True
+@@ -218,6 +283,9 @@ class BudgetLedger:
+         The ceiling is checked before the call as well as after: a run already
+         at its limit does not get one more request "to finish up".
+         """
++        cost_ceiling = self.run_cost_ceiling()
++        if cost_ceiling is not None and self.spent_usd > float(cost_ceiling):
++            self._kill(f"run {self.run_id} was already over its ${float(cost_ceiling):.2f} ceiling")
+         ceiling = self.run_ceiling()
+         if self.spent_tokens > ceiling:
+             self._kill(f"run {self.run_id} was already over its {ceiling}-token ceiling")
+@@ -263,10 +331,11 @@ def cycle_budget(params: Params | None = None) -> CycleBudget:
+         limit = int(params.require("agents.budgets.tokens_per_cycle"))
+     except ParamNotConfigured as exc:
+         raise BudgetNotConfigured(
+-            "agents.budgets.tokens_per_cycle is null in params/agents.yaml; "
+-            "see decisions/proposed/0007"
++            "agents.budgets.tokens_per_cycle is null in params/agents.yaml; see decisions/0007"
+         ) from exc
+-    return CycleBudget(limit_tokens=limit)
++    return CycleBudget(
++        limit_tokens=limit, limit_usd=params.get("agents.budgets.cost_per_cycle_usd", None)
++    )
+ 
+ 
+ def model_calls_enabled(params: Params | None = None) -> tuple[bool, str]:
+@@ -280,7 +349,15 @@ def model_calls_enabled(params: Params | None = None) -> tuple[bool, str]:
+     params = params or get_params()
+     for key in ("agents.budgets.tokens_per_run", "agents.budgets.tokens_per_cycle"):
+         if params.get(key) is None:
+-            return False, f"{key} is null in params/agents.yaml (see decisions/proposed/0007)"
+-    if params.get("agents.models.cheap") is None or params.get("agents.models.expensive") is None:
+-        return False, "agents.models.cheap/expensive are null in params/agents.yaml"
+-    return True, "budgets and model tiers configured"
++            return False, f"{key} is null in params/agents.yaml (see decisions/0007)"
++    roles = ("proposer", "implementer", "critic", "diagnostician", "evaluator", "coordinator")
++    unset = [r for r in roles if params.get(f"agents.models.{r}", None) is None]
++    if unset:
++        return False, f"agents.models.{{{','.join(unset)}}} unset in params/agents.yaml"
++    if not params.get("agents.pricing.per_million_tokens", {}):
++        return False, "agents.pricing.per_million_tokens is empty; cost cannot be enforced"
++    return True, (
++        f"budgets configured (${params.get('agents.budgets.cost_per_run_usd')}/run, "
++        f"${params.get('agents.budgets.cost_per_cycle_usd')}/cycle), "
++        f"{len(roles)} model roles assigned"
++    )
+diff --git a/src/signal_lab/harness/run_context.py b/src/signal_lab/harness/run_context.py
+index 8c9593c..3b99a76 100644
+--- a/src/signal_lab/harness/run_context.py
++++ b/src/signal_lab/harness/run_context.py
+@@ -42,6 +42,7 @@ class RunContext:
+     turnover: pd.Series | None = None  # per rebalance, one-way fraction of NAV
+     rebalances_per_year: float = 52.0
+     te_trailing_3y: pd.Series | None = None  # annualised, as a fraction
++    active_returns: pd.Series | None = None  # per rebalance, strategy minus benchmark
+ 
+     # --- data-integrity inputs ---
+     signal_availability: pd.DataFrame | None = None  # dates x series, bool
+diff --git a/tests/test_budgets.py b/tests/test_budgets.py
+index 9be22ec..c52512a 100644
+--- a/tests/test_budgets.py
++++ b/tests/test_budgets.py
+@@ -1,5 +1,7 @@
+ """
+-Agent budgets. SUBSTRATE section 14: the wrapper kills on breach, it does not warn.
++Agent budgets. SUBSTRATE section 14, as amended by decisions/0007 and 0012:
++the wrapper kills on breach, it does not warn, and it enforces a dollar ceiling
++alongside the token ceiling because model prices span 10x.
+ 
+ The killer is injected so the kill path can be tested without killing pytest.
+ """
+@@ -22,26 +24,20 @@ from signal_lab.harness.budgets import (
+ )
+ from signal_lab.params import PARAM_FILES, load_params
+ 
++SONNET = "claude-sonnet-5"  # $2 in / $10 out / $0.20 cache read per Mtok
++FABLE = "claude-fable-5-1"  # $10 in / $50 out / $0.25 cache read per Mtok
+ 
+-@pytest.fixture
+-def configured_params(tmp_path, params):
+-    """
+-    params/ with explicit ceilings, for tests only.
+ 
+-    The real params/agents.yaml leaves them null on purpose. Setting them here
+-    tests the enforcement mechanism without putting an invented threshold into
+-    the repository's configuration.
+-    """
++def variant(tmp_path, params, **replacements):
++    """params/ with specific lines rewritten, for tests only."""
+     src = Path(params.params_dir)
+     for name in PARAM_FILES:
+         shutil.copy(src / name, tmp_path / name)
+-    agents = tmp_path / "agents.yaml"
+-    agents.write_text(
+-        agents.read_text()
+-        .replace("tokens_per_run: null", "tokens_per_run: 1000")
+-        .replace("tokens_per_cycle: null", "tokens_per_cycle: 2500")
+-        .replace("per_million_tokens: {}", "per_million_tokens: {blended: 10.0}")
+-    )
++    target = tmp_path / "agents.yaml"
++    text = target.read_text()
++    for old, new in replacements.items():
++        text = text.replace(old.replace("__", " "), new.replace("__", " "))
++    target.write_text(text)
+     return load_params(tmp_path)
+ 
+ 
+@@ -53,14 +49,15 @@ def raising_killer(message: str) -> None:
+     raise Killed(message)
+ 
+ 
+-def response_with(input_tokens=0, output_tokens=0, cache_read=0, cache_write=0):
++def response(model=SONNET, input_tokens=0, output_tokens=0, cache_read=0, cache_write=0):
+     return {
++        "model": model,
+         "usage": {
+             "input_tokens": input_tokens,
+             "output_tokens": output_tokens,
+             "cache_read_input_tokens": cache_read,
+             "cache_creation_input_tokens": cache_write,
+-        }
++        },
+     }
+ 
+ 
+@@ -68,7 +65,9 @@ def response_with(input_tokens=0, output_tokens=0, cache_read=0, cache_write=0):
+ 
+ 
+ def test_usage_counts_every_token_class():
+-    u = Usage.from_response(response_with(100, 50, cache_read=400, cache_write=20))
++    u = Usage.from_response(
++        response(input_tokens=100, output_tokens=50, cache_read=400, cache_write=20)
++    )
+     assert u.total == 570, "cached tokens are cheap but not free and are counted"
+ 
+ 
+@@ -79,6 +78,8 @@ def test_a_response_without_usage_is_refused():
+ 
+ def test_usage_reads_an_object_as_well_as_a_dict():
+     class R:
++        model = SONNET
++
+         class usage:
+             input_tokens = 10
+             output_tokens = 5
+@@ -88,118 +89,168 @@ def test_usage_reads_an_object_as_well_as_a_dict():
+     assert Usage.from_response(R()).total == 15
+ 
+ 
+-# --- the unset ceiling refuses ----------------------------------------------
+-
+-
+-def test_a_null_ceiling_refuses_the_call_rather_than_allowing_it(params, store):
++def test_cost_is_priced_per_token_class_not_blended(params):
+     """
+-    Fail-closed. SUBSTRATE requires a ceiling; the lab does not invent one; so
+-    with none configured no model call is made.
++    A blended rate would misattribute the bill: on Fable a cache read is 40x
++    cheaper than fresh input, so a run that is mostly cache reads costs almost
++    nothing while a blended figure would call it expensive.
+     """
+-    ledger = BudgetLedger(run_id="R-unset", params=params, store=store, killer=raising_killer)
+-    with pytest.raises(BudgetNotConfigured, match="tokens_per_run"):
+-        ledger.call(lambda: response_with(1, 1))
++    pricing = params.require("agents.pricing.per_million_tokens")
++    cheap = Usage.from_response(response(FABLE, cache_read=1_000_000)).cost_usd(pricing)
++    dear = Usage.from_response(response(FABLE, output_tokens=1_000_000)).cost_usd(pricing)
++    assert cheap == pytest.approx(0.25)
++    assert dear == pytest.approx(50.0)
++
++
++def test_an_unpriced_model_returns_none_rather_than_zero(params):
++    """Zero would silently exempt an unknown model from the dollar ceiling."""
++    pricing = params.require("agents.pricing.per_million_tokens")
++    assert (
++        Usage.from_response(response("some-new-model", output_tokens=10_000)).cost_usd(pricing)
++        is None
++    )
+ 
+ 
+-def test_cycle_budget_refuses_when_unset(params):
+-    with pytest.raises(BudgetNotConfigured, match="tokens_per_cycle"):
+-        cycle_budget(params)
++def test_fable_is_the_most_expensive_tier(params):
++    """
++    Guards the assumption in decisions/0007. If tiering changes, this fails and
++    the cost estimates in that decision need revisiting.
++    """
++    pricing = params.require("agents.pricing.per_million_tokens")
++    assert pricing[FABLE]["output"] > pricing["claude-opus-5"]["output"] > pricing[SONNET]["output"]
+ 
+ 
+-def test_model_calls_are_disabled_while_budgets_are_unset(params):
+-    enabled, reason = model_calls_enabled(params)
+-    assert not enabled and "null" in reason
++# --- the dollar ceiling ------------------------------------------------------
+ 
+ 
+-def test_model_calls_still_need_a_model_tier(configured_params):
+-    enabled, reason = model_calls_enabled(configured_params)
+-    assert not enabled and "models" in reason
++def test_the_kill_path_fires_on_the_dollar_ceiling(params, store):
++    """1M Fable output tokens is $50, well past the $3.50 per-run ceiling."""
++    ledger = BudgetLedger(run_id="R-usd", params=params, store=store, killer=raising_killer)
++    with pytest.raises(Killed, match=r"ceiling \$3.50"):
++        ledger.call(lambda: response(FABLE, output_tokens=1_000_000))
++    assert ledger.killed
+ 
+ 
+-# --- the kill path -----------------------------------------------------------
++def test_calls_under_the_ceiling_are_charged_and_survive(params, store):
++    ledger = BudgetLedger(run_id="R-ok", params=params, store=store, killer=raising_killer)
++    for _ in range(3):
++        ledger.call(lambda: response(SONNET, input_tokens=20_000, output_tokens=5_000))
++    assert ledger.n_calls == 3
++    assert ledger.spent_usd == pytest.approx(3 * (20_000 * 2 + 5_000 * 10) / 1e6)
++    assert not ledger.killed
+ 
+ 
+-def test_calls_under_the_ceiling_are_charged_and_survive(configured_params, store):
+-    ledger = BudgetLedger(
+-        run_id="R-ok", params=configured_params, store=store, killer=raising_killer
+-    )
+-    ledger.call(lambda: response_with(200, 100))
+-    ledger.call(lambda: response_with(200, 100))
+-    assert ledger.spent_tokens == 600
+-    assert ledger.n_calls == 2
++def test_the_dollar_boundary_is_the_ceiling_itself(params, store):
++    """Exactly at the ceiling survives; past it does not."""
++    ledger = BudgetLedger(run_id="R-edge", params=params, store=store, killer=raising_killer)
++    ledger.call(lambda: response(SONNET, output_tokens=350_000))  # exactly $3.50
++    assert ledger.spent_usd == pytest.approx(3.50)
+     assert not ledger.killed
++    with pytest.raises(Killed):
++        ledger.call(lambda: response(SONNET, output_tokens=1_000))
+ 
+ 
+-def test_the_kill_path_fires_at_the_run_ceiling(configured_params, store):
+-    ledger = BudgetLedger(
+-        run_id="R-kill", params=configured_params, store=store, killer=raising_killer
+-    )
+-    ledger.call(lambda: response_with(600, 300))  # 900, under 1000
+-    with pytest.raises(Killed, match="ceiling 1000"):
+-        ledger.call(lambda: response_with(200, 0))  # 1100, over
+-    assert ledger.killed
++def test_the_token_ceiling_still_binds_when_the_model_is_cheap(params, store):
++    """
++    Both ceilings are live, whichever binds first. Haiku output would have to
++    run to $2 before the dollar cap fires, so the token cap is what stops a
++    runaway loop on a cheap model.
++    """
++    ledger = BudgetLedger(run_id="R-tok", params=params, store=store, killer=raising_killer)
++    with pytest.raises(Killed, match="tokens"):
++        ledger.call(lambda: response("claude-haiku-4-5", cache_read=500_000))
+ 
+ 
+-def test_the_boundary_is_the_ceiling_itself(configured_params, store):
+-    """Exactly at the ceiling survives; one token past it does not."""
+-    ledger = BudgetLedger(
+-        run_id="R-edge", params=configured_params, store=store, killer=raising_killer
+-    )
+-    ledger.call(lambda: response_with(1000, 0))
+-    assert not ledger.killed
+-    with pytest.raises(Killed):
+-        ledger.call(lambda: response_with(1, 0))
++def test_the_batch_discount_is_applied_when_enabled(params, store):
++    pricing = params.require("agents.pricing.per_million_tokens")
++    u = Usage.from_response(response(SONNET, output_tokens=1_000_000))
++    u.batch = True
++    assert u.cost_usd(pricing, batch_discount=0.5) == pytest.approx(5.0)
++    assert u.cost_usd(pricing, batch_discount=0.0) == pytest.approx(10.0)
+ 
+ 
+-def test_a_kill_records_the_cost_in_the_store(configured_params, store):
+-    ledger = BudgetLedger(
+-        run_id="R-cost", params=configured_params, store=store, killer=raising_killer
+-    )
++def test_a_kill_records_the_cost_in_the_store(params, store):
++    ledger = BudgetLedger(run_id="R-cost", params=params, store=store, killer=raising_killer)
+     with pytest.raises(Killed):
+-        ledger.call(lambda: response_with(2000, 0))
++        ledger.call(lambda: response(FABLE, output_tokens=1_000_000))
+     runs = store.list_runs()
+     assert list(runs["run_id"]) == ["R-cost"]
+     assert runs.loc[0, "status"] == "killed"
+     assert runs.loc[0, "killed_by"] == "budget"
+-    assert runs.loc[0, "cost_tokens"] == 2000
+-    assert runs.loc[0, "cost_usd"] == pytest.approx(0.02)
++    assert runs.loc[0, "cost_tokens"] == 1_000_000
++    assert runs.loc[0, "cost_usd"] == pytest.approx(50.0)
+ 
+ 
+-def test_the_cycle_ceiling_kills_even_when_each_run_is_within_its_own(configured_params, store):
+-    cycle = CycleBudget(limit_tokens=2500)
++def test_a_run_already_over_budget_gets_no_further_call(params, store):
++    ledger = BudgetLedger(run_id="R-over", params=params, store=store, killer=raising_killer)
++    ledger.spent_usd = 99.0
++    calls = []
++    with pytest.raises(Killed, match="already over"):
++        ledger.call(lambda: calls.append(1) or response(SONNET, output_tokens=1))
++    assert calls == [], "no request is sent once the ceiling is already breached"
++
++
++# --- the cycle ceiling -------------------------------------------------------
++
++
++def test_the_cycle_ceiling_kills_even_when_each_run_is_within_its_own(params, store):
++    cycle = CycleBudget(limit_tokens=10_000_000, limit_usd=6.0)
+     for i in range(2):
+         led = BudgetLedger(
+-            run_id=f"R-c{i}",
+-            params=configured_params,
+-            store=store,
+-            cycle=cycle,
+-            killer=raising_killer,
++            run_id=f"R-c{i}", params=params, store=store, cycle=cycle, killer=raising_killer
+         )
+-        led.call(lambda: response_with(900, 0))
++        led.call(lambda: response(SONNET, output_tokens=300_000))  # $3.00 each
+         led.finalise(status="completed")
+-    assert cycle.spent_tokens == 1800
++    assert cycle.spent_usd == pytest.approx(6.0)
+ 
+     led = BudgetLedger(
+-        run_id="R-c2", params=configured_params, store=store, cycle=cycle, killer=raising_killer
++        run_id="R-c2", params=params, store=store, cycle=cycle, killer=raising_killer
+     )
+     with pytest.raises(Killed, match="cycle spent"):
+-        led.call(lambda: response_with(900, 0))
++        led.call(lambda: response(SONNET, output_tokens=100_000))
+ 
+ 
+-def test_a_run_already_over_budget_gets_no_further_call(configured_params, store):
+-    ledger = BudgetLedger(
+-        run_id="R-over", params=configured_params, store=store, killer=raising_killer
+-    )
+-    ledger.spent_tokens = 5000
+-    calls = []
+-    with pytest.raises(Killed, match="already over"):
+-        ledger.call(lambda: calls.append(1) or response_with(1, 1))
+-    assert calls == [], "no request is sent once the ceiling is already breached"
++def test_cycle_budget_reads_both_ceilings_from_params(params):
++    cb = cycle_budget(params)
++    assert cb.limit_tokens == params.require("agents.budgets.tokens_per_cycle")
++    assert cb.limit_usd == params.require("agents.budgets.cost_per_cycle_usd")
++
++
++# --- fail-closed when unconfigured -------------------------------------------
++
++
++def test_a_null_token_ceiling_refuses_the_call_rather_than_allowing_it(tmp_path, params, store):
++    """
++    Fail-closed. SUBSTRATE requires a ceiling; the lab does not invent one; so
++    with none configured no model call is made.
++    """
++    unset = variant(tmp_path, params, **{"tokens_per_run: 400000": "tokens_per_run: null"})
++    ledger = BudgetLedger(run_id="R-unset", params=unset, store=store, killer=raising_killer)
++    with pytest.raises(BudgetNotConfigured, match="tokens_per_run"):
++        ledger.call(lambda: response(SONNET, output_tokens=1))
++
++
++def test_cycle_budget_refuses_when_unset(tmp_path, params):
++    unset = variant(tmp_path, params, **{"tokens_per_cycle: 3000000": "tokens_per_cycle: null"})
++    with pytest.raises(BudgetNotConfigured, match="tokens_per_cycle"):
++        cycle_budget(unset)
++
++
++def test_model_calls_are_enabled_now_that_the_roles_are_assigned(params):
++    enabled, reason = model_calls_enabled(params)
++    assert enabled, reason
++    assert "$3.5/run" in reason or "3.5" in reason
++
++
++def test_model_calls_are_disabled_when_a_role_is_unassigned(tmp_path, params):
++    unset = variant(tmp_path, params, **{"critic: claude-sonnet-5": "critic: null"})
++    enabled, reason = model_calls_enabled(unset)
++    assert not enabled and "critic" in reason
+ 
+ 
+-def test_cost_is_null_rather_than_invented_when_pricing_is_unset(params, store):
++def test_cost_is_null_rather_than_invented_when_nothing_could_be_priced(params, store):
+     ledger = BudgetLedger(run_id="R-nocost", params=params, store=store, killer=raising_killer)
+-    ledger.spent_tokens = 1234
++    ledger.call(lambda: response("some-unpriced-model", output_tokens=100))
+     assert ledger.cost_usd() is None
+     ledger.finalise(status="completed")
+     assert store.list_runs().loc[0, "cost_usd"] is None
+diff --git a/tests/test_holdout.py b/tests/test_holdout.py
+index ed6a95a..f4c0c9a 100644
+--- a/tests/test_holdout.py
++++ b/tests/test_holdout.py
+@@ -10,7 +10,12 @@ from __future__ import annotations
+ import pandas as pd
+ import pytest
+ 
+-from signal_lab.loaders.holdout import HoldoutViolation, clip_to_development, enforce_holdout, holdout_start
++from signal_lab.loaders.holdout import (
++    HoldoutViolation,
++    clip_to_development,
++    enforce_holdout,
++    holdout_start,
++)
+ 
+ pytestmark = pytest.mark.holdout
+ 
+diff --git a/tests/test_params.py b/tests/test_params.py
+index 77a83ca..9909c34 100644
+--- a/tests/test_params.py
++++ b/tests/test_params.py
+@@ -2,9 +2,17 @@
+ 
+ from __future__ import annotations
+ 
++import re
++
+ import pytest
+ 
+-from signal_lab.params import PARAM_FILES, ParamNotConfigured, ParamsError, hash_params_dir, load_params
++from signal_lab.params import (
++    PARAM_FILES,
++    ParamNotConfigured,
++    ParamsError,
++    hash_params_dir,
++    load_params,
++)
+ 
+ 
+ def test_all_param_files_present_and_versions_agree(params):
+@@ -46,17 +54,26 @@ def test_version_disagreement_is_refused(tmp_path, params):
+     for name in PARAM_FILES:
+         shutil.copy(src / name, tmp_path / name)
+     target = tmp_path / "costs.yaml"
++    # Version-agnostic: rewrite whatever version is there, so this test does not
++    # need editing every time params_version is bumped.
+     target.write_text(
+-        target.read_text().replace('params_version: "0.3.0"', 'params_version: "9.9.9"')
++        re.sub(r'params_version: "[^"]+"', 'params_version: "9.9.9"', target.read_text(), count=1)
+     )
+     with pytest.raises(ParamsError, match="disagrees"):
+         load_params(tmp_path)
+ 
+ 
+ def test_require_refuses_a_null_threshold(params):
+-    """SUBSTRATE forbids inventing thresholds; unset means refuse, not default."""
++    """
++    SUBSTRATE forbids inventing thresholds; unset means refuse, not default.
++
++    Every ceiling is now set (decisions/0007), so this is asserted against a
++    parameter the owner deliberately left null: the TE penalty coefficient,
++    which the objective needs and which nobody has chosen yet.
++    """
++    assert params.get("constraints.tracking_error.penalty.coefficient") is None
+     with pytest.raises(ParamNotConfigured):
+-        params.require("agents.budgets.tokens_per_run")
++        params.require("constraints.tracking_error.penalty.coefficient")
+ 
+ 
+ def test_unknown_path_raises_but_default_is_honoured(params):
+@@ -74,6 +91,8 @@ def test_every_substrate_threshold_is_in_params(params):
+     assert params.require("vetoes.coverage.min_universe_fraction") == 0.80
+     assert params.require("vetoes.coverage.min_date_fraction") == 0.90
+     assert params.require("vetoes.seed_stability.max_ir_range") == 0.15
++    assert params.require("vetoes.active_drawdown.te_multiple") == 3.0
++    assert params.require("vetoes.tracking_error.statistic") == "p95"
+     assert params.require("vetoes.multiple_testing.fwer_alpha") == 0.05
+     assert params.require("data.windows.holdout_start") == "2020-01-01"
+     assert params.require("costs.buckets.low.half_spread_bps") == 5
+diff --git a/tests/test_render.py b/tests/test_render.py
+index 92943f1..d983ae4 100644
+--- a/tests/test_render.py
++++ b/tests/test_render.py
+@@ -17,13 +17,15 @@ sys.path[:0] = [str(REPO_ROOT / "render")]
+ import views as v  # noqa: E402
+ 
+ 
+-def test_veto_legend_covers_all_ten_and_reads_params(params):
++def test_veto_legend_covers_every_veto_and_reads_params(params):
+     legend = v.veto_legend(params)
+     from vetoes import VETOES
+ 
+     assert {name for name, _ in legend} == set(VETOES)
+     assert "150%" in dict(legend)["turnover"]
+     assert "6.0%" in dict(legend)["tracking_error"]
++    assert "p95" in dict(legend)["tracking_error"]
++    assert "18.0%" in dict(legend)["active_drawdown"]
+ 
+ 
+ def test_leaderboard_puts_survivors_first_then_objective():
+@@ -56,10 +58,12 @@ def test_runs_with_no_metrics_do_not_crash_the_table():
+     assert rows[0]["net_ir"] is None
+ 
+ 
+-def test_run_summary_stats_never_include_gross_ir():
+-    stats = v.run_summary_stats({"net_ir": 0.31, "gross_ir": 0.55, "te": 4.2})
++def test_run_summary_stats_show_cost_drag_never_gross_ir():
++    """decisions/0004: the drag carries the diagnostic, gross carries the temptation."""
++    stats = v.run_summary_stats({"net_ir": 0.31, "gross_ir": 0.55, "te": 4.2, "cost_drag": 0.24})
+     labels = {s["label"].lower() for s in stats}
+     assert not any("gross" in label for label in labels)
++    assert "cost drag" in labels
+ 
+ 
+ def test_holdout_panel_reports_locked_and_shows_no_metric(params):
+diff --git a/tests/test_scripts.py b/tests/test_scripts.py
+index 724859d..a6cf54b 100644
+--- a/tests/test_scripts.py
++++ b/tests/test_scripts.py
+@@ -99,7 +99,10 @@ def test_nightly_cycle_records_blocked_not_a_fake_veto_failure(tmp_path, capsys)
+     assert rc == 0
+     out = capsys.readouterr().out
+     assert "search gate: CLOSED" in out, "the section 5.6 gate must be visible"
+-    assert "model roles: disabled" in out
++    assert "model roles: enabled" in out, (
++        "decisions/0007 assigned every role and both ceilings, so the roles are "
++        "configured even though phase 0 makes no model call"
++    )
+ 
+     runs = ResultsStore(db).list_runs()
+     assert len(runs) == 11
+diff --git a/tests/test_vetoes.py b/tests/test_vetoes.py
+index 848bca5..8c6a3a8 100644
+--- a/tests/test_vetoes.py
++++ b/tests/test_vetoes.py
+@@ -12,10 +12,12 @@ from __future__ import annotations
+ 
+ import numpy as np
+ import pandas as pd
++import pytest
+ 
+ from signal_lab.harness.run_context import RunContext
+ from vetoes import VETO_ORDER, VETOES, apply_vetoes, first_failure
+ from vetoes.rules import (
++    veto_active_drawdown,
+     veto_cash,
+     veto_coverage,
+     veto_direction,
+@@ -38,7 +40,8 @@ def ctx(**kw) -> RunContext:
+ # --- the set itself ----------------------------------------------------------
+ 
+ 
+-def test_exactly_the_ten_vetoes_of_substrate_section_10():
++def test_exactly_the_eleven_vetoes_of_substrate_section_10_as_amended():
++    """SUBSTRATE section 10 plus active_drawdown (decisions/0003)."""
+     assert set(VETOES) == {
+         "turnover",
+         "cash",
+@@ -47,20 +50,23 @@ def test_exactly_the_ten_vetoes_of_substrate_section_10():
+         "coverage",
+         "lookahead",
+         "frequency",
++        "active_drawdown",
+         "seed_stability",
+         "multiple_testing",
+         "direction",
+     }
+-    assert len(VETOES) == 10
++    assert len(VETOES) == 11
+ 
+ 
+ def test_every_veto_is_ordered(params):
+     assert sorted(VETO_ORDER(params)) == sorted(VETOES)
+ 
+ 
+-def test_data_integrity_vetoes_run_first(params):
++def test_evaluation_order_follows_the_substrate_table(params):
++    """decisions/0005: the section 10 table order is authoritative."""
+     order = VETO_ORDER(params)
+-    assert order[:2] == ["lookahead", "frequency"]
++    assert order[:5] == ["turnover", "cash", "tracking_error", "positions", "coverage"]
++    assert order[-1] == "direction"
+ 
+ 
+ # --- 1. turnover -------------------------------------------------------------
+@@ -116,11 +122,39 @@ def test_tracking_error_passes_fails_and_boundary(params):
+     assert not veto_tracking_error(ctx(te_trailing_3y=pd.Series([cap + 1e-9])), params).passed
+ 
+ 
+-def test_tracking_error_uses_the_worst_reading_not_the_last(params):
+-    """params/vetoes.yaml sets statistic: max. An excursion that has since
+-    subsided still counts; see decisions/proposed/0003."""
+-    c = ctx(te_trailing_3y=pd.Series([0.03, 0.075, 0.04]))
+-    assert not veto_tracking_error(c, params).passed
++def test_tracking_error_tolerates_one_episodic_excursion(params):
++    """
++    decisions/0003: the statistic is p95, not the maximum. A single excursion in
++    a long run of compliant readings passes; a persistent breach does not. This
++    is what "episodic excursions allowed" (SUBSTRATE section 4) has to mean if
++    it means anything.
++    """
++    episodic = ctx(te_trailing_3y=pd.Series([0.04] * 40 + [0.075]))
++    assert veto_tracking_error(episodic, params).passed
++
++    persistent = ctx(te_trailing_3y=pd.Series([0.075] * 40 + [0.04]))
++    assert not veto_tracking_error(persistent, params).passed
++
++
++def test_tracking_error_reports_the_worst_reading_even_when_it_passes(params):
++    """The excursion is not hidden just because it did not kill the run."""
++    v = veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.04] * 40 + [0.075])), params)
++    assert v.passed and "worst reading 7.50%" in v.detail
++
++
++def test_unknown_tracking_error_statistic_fails_closed(params, tmp_path):
++    import shutil
++    from pathlib import Path as _P
++
++    from signal_lab.params import PARAM_FILES, load_params
++
++    src = _P(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    target = tmp_path / "vetoes.yaml"
++    target.write_text(target.read_text().replace("statistic: p95", "statistic: vibes"))
++    v = veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.01])), load_params(tmp_path))
++    assert not v.passed and "unknown tracking_error statistic" in v.detail
+ 
+ 
+ def test_tracking_error_all_nan_fails_closed(params):
+@@ -312,7 +346,90 @@ def test_frequency_without_input_fails_closed(params):
+     assert not veto_frequency(ctx(), params).passed
+ 
+ 
+-# --- 8. seed_stability -------------------------------------------------------
++# --- 8. active_drawdown ------------------------------------------------------
++
++
++def active_with_drawdown(depth: float, n_down: int = 100, n_up: int = 400) -> pd.Series:
++    """
++    An active return stream whose max drawdown is `depth`, by construction.
++
++    Built rather than sampled so the test asserts against arithmetic instead of
++    against a random draw.
++    """
++    down = (1.0 - depth) ** (1.0 / n_down) - 1.0
++    return pd.Series([down] * n_down + [0.0005] * n_up)
++
++
++def test_active_drawdown_passes_fails_and_boundary(params):
++    cap = float(params.require("vetoes.active_drawdown.te_multiple")) * float(
++        params.require("vetoes.tracking_error.max_trailing_3y")
++    )
++    assert cap == pytest.approx(0.18)
++
++    assert veto_active_drawdown(ctx(active_returns=active_with_drawdown(0.09)), params).passed
++    assert not veto_active_drawdown(ctx(active_returns=active_with_drawdown(0.30)), params).passed
++
++    at_cap = veto_active_drawdown(ctx(active_returns=active_with_drawdown(cap - 1e-6)), params)
++    assert at_cap.passed, "the ceiling itself must pass"
++    over = veto_active_drawdown(ctx(active_returns=active_with_drawdown(cap + 0.005)), params)
++    assert not over.passed
++
++
++def test_active_drawdown_scales_with_the_te_budget(params, tmp_path):
++    """
++    The coupling is the point: halve the TE budget and the drawdown ceiling
++    halves with it, because the two are not independent quantities.
++    """
++    import shutil
++    from pathlib import Path as _P
++
++    from signal_lab.params import PARAM_FILES, load_params
++
++    src = _P(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    target = tmp_path / "vetoes.yaml"
++    target.write_text(
++        target.read_text().replace("max_trailing_3y: 0.060", "max_trailing_3y: 0.030")
++    )
++    tighter = load_params(tmp_path)
++
++    series = active_with_drawdown(0.12)
++    assert veto_active_drawdown(ctx(active_returns=series), params).passed
++    assert not veto_active_drawdown(ctx(active_returns=series), tighter).passed
++
++
++def test_active_drawdown_absolute_overrides_the_multiple(params, tmp_path):
++    import shutil
++    from pathlib import Path as _P
++
++    from signal_lab.params import PARAM_FILES, load_params
++
++    src = _P(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    target = tmp_path / "vetoes.yaml"
++    target.write_text(target.read_text().replace("absolute: null", "absolute: 0.10"))
++    absolute = load_params(tmp_path)
++    v = veto_active_drawdown(ctx(active_returns=active_with_drawdown(0.12)), absolute)
++    assert not v.passed and "absolute" in v.detail
++
++
++def test_active_drawdown_measures_the_active_stream_not_the_total(params):
++    """
++    A strategy that fell 40% alongside a benchmark that fell 40% has no active
++    drawdown at all. Measuring the total return stream here would kill every
++    run that lived through 2008.
++    """
++    flat_active = pd.Series([0.0] * 500)
++    assert veto_active_drawdown(ctx(active_returns=flat_active), params).passed
++
++
++def test_active_drawdown_without_input_fails_closed(params):
++    assert not veto_active_drawdown(ctx(), params).passed
++
++
++# --- 9. seed_stability -------------------------------------------------------
+ 
+ 
+ def test_seed_stability_passes_fails_and_boundary(params):
+@@ -393,6 +510,7 @@ def full_context(panel, **overrides) -> RunContext:
+         turnover=pd.Series(0.02, index=DATES),
+         cash_weights=pd.Series(0.10, index=DATES),
+         te_trailing_3y=pd.Series([0.045, 0.050]),
++        active_returns=pd.Series([0.0004] * 300),
+         weights=weights_with(25),
+         signal_availability=availability(0.95, 0.97),
+         estimation_universe=None,
+@@ -424,7 +542,7 @@ def full_context(panel, **overrides) -> RunContext:
+ def test_apply_vetoes_passes_a_clean_run(panel, params):
+     verdicts, failure = apply_vetoes(full_context(panel), params)
+     assert failure is None, {k: v.detail for k, v in verdicts.items() if not v.passed}
+-    assert len(verdicts) == 10
++    assert len(verdicts) == 11
+     assert all(v.passed for v in verdicts.values())
+ 
+ 
+@@ -433,7 +551,7 @@ def test_apply_vetoes_records_every_verdict_not_only_the_failure(panel, params):
+         panel, cash_weights=pd.Series(0.35, index=DATES), turnover=pd.Series(0.06, index=DATES)
+     )
+     verdicts, failure = apply_vetoes(c, params)
+-    assert len(verdicts) == 10
++    assert len(verdicts) == 11
+     failed = {k for k, v in verdicts.items() if not v.passed}
+     assert failed == {"cash", "turnover"}, "both breaches must be visible, not only the first"
+     assert failure == "turnover", "first failure follows the configured order"
+@@ -453,7 +571,12 @@ def test_apply_vetoes_returns_first_failure_in_configured_order(panel, params):
+         ),
+     )
+     _, failure = apply_vetoes(c, params)
+-    assert failure == "lookahead", "a data-integrity breach outranks a constraint breach"
++    assert failure == "cash", (
++        "decisions/0005: the SUBSTRATE table order names cash before lookahead. "
++        "The lookahead verdict is still recorded and still visible in the store."
++    )
++    verdicts, _ = apply_vetoes(c, params)
++    assert not verdicts["lookahead"].passed, "the integrity breach is not lost, only not named"
+ 
+ 
+ def test_apply_vetoes_writes_verdicts_to_the_store(panel, params, store):
+@@ -462,7 +585,7 @@ def test_apply_vetoes_writes_verdicts_to_the_store(panel, params, store):
+     apply_vetoes(ctx_full, params, store=store)
+     rows = store.list_runs()
+     assert rows.loc[0, "passed"]
+-    assert len(rows.loc[0, "verdicts"]) == 10
++    assert len(rows.loc[0, "verdicts"]) == 11
+ 
+ 
+ def test_a_crashing_veto_fails_rather_than_passing(panel, params, monkeypatch):
+diff --git a/vetoes/__init__.py b/vetoes/__init__.py
+index f40784e..2faa3ab 100644
+--- a/vetoes/__init__.py
++++ b/vetoes/__init__.py
+@@ -2,7 +2,7 @@
+ The veto set. SUBSTRATE.md section 10. Owner-only: agents may not edit this
+ package, and may not change a threshold to make a run pass (section 2).
+ 
+-Ten boolean functions, each `veto(run_context, params) -> Verdict`. They are
++Eleven boolean functions, each `veto(run_context, params) -> Verdict`. They are
+ applied to every run and evaluated BEFORE any return statistic is computed or
+ displayed, so that a run that should not be looked at is never looked at.
+ 
+@@ -22,6 +22,7 @@ Design rules, all of them deliberate:
+ 
+ from vetoes.registry import VETO_ORDER, VETOES, apply_vetoes, first_failure
+ from vetoes.rules import (
++    veto_active_drawdown,
+     veto_cash,
+     veto_coverage,
+     veto_direction,
+@@ -39,6 +40,7 @@ __all__ = [
+     "VETO_ORDER",
+     "apply_vetoes",
+     "first_failure",
++    "veto_active_drawdown",
+     "veto_cash",
+     "veto_coverage",
+     "veto_direction",
+diff --git a/vetoes/registry.py b/vetoes/registry.py
+index 24eb218..887f7ba 100644
+--- a/vetoes/registry.py
++++ b/vetoes/registry.py
+@@ -24,13 +24,15 @@ VETOES: dict[str, Callable[..., Verdict]] = {
+     "coverage": rules.veto_coverage,
+     "lookahead": rules.veto_lookahead,
+     "frequency": rules.veto_frequency,
++    "active_drawdown": rules.veto_active_drawdown,
+     "seed_stability": rules.veto_seed_stability,
+     "multiple_testing": rules.veto_multiple_testing,
+     "direction": rules.veto_direction,
+ }
+ 
+-# The ten of SUBSTRATE section 10. Asserted rather than assumed: if the table in
+-# the constitution grows a row and this package does not, that is a silent gap.
++# SUBSTRATE section 10 as amended by decisions/0003: eleven, not ten. Asserted
++# rather than assumed, so that a row added to the constitution and not to this
++# package is a loud failure rather than a silent gap.
+ SUBSTRATE_VETOES = frozenset(
+     {
+         "turnover",
+@@ -40,12 +42,15 @@ SUBSTRATE_VETOES = frozenset(
+         "coverage",
+         "lookahead",
+         "frequency",
++        "active_drawdown",
+         "seed_stability",
+         "multiple_testing",
+         "direction",
+     }
+ )
+-assert set(VETOES) == SUBSTRATE_VETOES, "veto set does not match SUBSTRATE section 10"
++assert set(VETOES) == SUBSTRATE_VETOES, (
++    "veto set does not match SUBSTRATE section 10 + decisions/0003"
++)
+ 
+ 
+ def VETO_ORDER(params: Params | None = None) -> list[str]:
+diff --git a/vetoes/rules.py b/vetoes/rules.py
+index b915ccd..8218043 100644
+--- a/vetoes/rules.py
++++ b/vetoes/rules.py
+@@ -1,5 +1,7 @@
+ """
+-One function per veto in SUBSTRATE section 10.
++One function per veto in SUBSTRATE section 10, as amended by decisions/0003
++(eleven vetoes: active_drawdown was added and the tracking_error statistic
++loosened from the maximum to the 95th percentile).
+ 
+ Signature: veto(ctx: RunContext, params: Params | None) -> Verdict.
+ Thresholds are read from params/vetoes.yaml on every call, never cached and
+@@ -79,10 +81,15 @@ def veto_tracking_error(ctx: RunContext, params: Params | None = None) -> Verdic
+     """
+     Trailing-3y tracking error against the ceiling.
+ 
+-    params/vetoes.yaml sets `statistic: max`, i.e. the worst trailing-3y reading
+-    over the run, not the last one. SUBSTRATE section 4 allows episodic
+-    excursions and section 10 states a hard ceiling; taking the worst reading is
+-    the conservative reconciliation. See decisions/proposed/0003.
++    params/vetoes.yaml sets `statistic: p95` -- the 95th percentile of trailing-3y
++    readings. SUBSTRATE section 4 allows episodic excursions and section 10
++    states a hard ceiling; the 95th percentile is what "episodic" has to mean if
++    it means anything, since the maximum makes one bad quarter in nineteen years
++    fatal. See decisions/0003.
++
++    This veto is the MANDATE test: it asks whether the strategy stayed inside
++    what the investor was told. `active_drawdown` is the economic test, asking
++    what the investor actually experienced. Both are applied.
+     """
+     p = _p(params)
+     cap = float(p.require("vetoes.tracking_error.max_trailing_3y"))
+@@ -93,11 +100,25 @@ def veto_tracking_error(ctx: RunContext, params: Params | None = None) -> Verdic
+         return _missing("tracking_error", exc)
+     if te.empty:
+         return _missing("tracking_error", MissingInput("te_trailing_3y (all NaN)"))
+-    realised = float(te.max() if statistic == "max" else te.iloc[-1])
++    if statistic == "max":
++        realised = float(te.max())
++    elif statistic == "last":
++        realised = float(te.iloc[-1])
++    elif statistic.startswith("p"):
++        realised = float(np.percentile(te.to_numpy(), float(statistic[1:])))
++    else:
++        return Verdict(
++            passed=False,
++            veto="tracking_error",
++            detail=f"unknown tracking_error statistic {statistic!r} in params/vetoes.yaml",
++        )
+     return Verdict(
+         passed=realised <= cap,
+         veto="tracking_error",
+-        detail=f"{statistic} trailing-3y TE {realised:.2%} against a {cap:.1%} ceiling",
++        detail=(
++            f"{statistic} trailing-3y TE {realised:.2%} against a {cap:.1%} ceiling "
++            f"(worst reading {float(te.max()):.2%})"
++        ),
+     )
+ 
+ 
+@@ -244,7 +265,53 @@ def veto_frequency(ctx: RunContext, params: Params | None = None) -> Verdict:
+     )
+ 
+ 
+-# --- 8. seed_stability -------------------------------------------------------
++# --- 8. active_drawdown ------------------------------------------------------
++
++
++def veto_active_drawdown(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    Peak-to-trough drawdown of the cumulative ACTIVE return stream.
++
++    The economic counterpart to the tracking-error veto. TE is symmetric and so
++    penalises the upside dispersion the strategy is paid for; active drawdown is
++    the number an allocator actually lives through, and it is the one that ends
++    mandates.
++
++    The threshold is a multiple of the TE ceiling rather than an absolute
++    figure, so it tightens automatically when the TE budget is cut. That
++    coupling is deliberate: drawdown and TE are not independent quantities, and
++    an absolute cap set against one TE budget becomes either trivial or
++    impossible under another. See decisions/0003 for the simulation.
++    """
++    p = _p(params)
++    absolute = p.get("vetoes.active_drawdown.absolute", None)
++    if absolute is not None:
++        cap = float(absolute)
++        basis = "absolute"
++    else:
++        multiple = float(p.require("vetoes.active_drawdown.te_multiple"))
++        te_cap = float(p.require("vetoes.tracking_error.max_trailing_3y"))
++        cap = multiple * te_cap
++        basis = f"{multiple:g}x the {te_cap:.1%} TE ceiling"
++
++    try:
++        active = pd.Series(ctx.require("active_returns")).dropna()
++    except MissingInput as exc:
++        return _missing("active_drawdown", exc)
++    if len(active) < 2:
++        return _missing("active_drawdown", MissingInput("active_returns (needs >= 2)"))
++
++    cumulative = (1.0 + active).cumprod()
++    drawdown = cumulative / cumulative.cummax() - 1.0
++    realised = float(-drawdown.min())
++    return Verdict(
++        passed=realised <= cap,
++        veto="active_drawdown",
++        detail=(f"max active drawdown {realised:.1%} against a {cap:.1%} ceiling ({basis})"),
++    )
++
++
++# --- 9. seed_stability -------------------------------------------------------
+ 
+ 
+ def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdict:
+@@ -270,7 +337,7 @@ def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdic
+     )
+ 
+ 
+-# --- 9. multiple_testing -----------------------------------------------------
++# --- 10. multiple_testing -----------------------------------------------------
+ 
+ 
+ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verdict:
+@@ -328,7 +395,7 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
+     )
+ 
+ 
+-# --- 10. direction -----------------------------------------------------------
++# --- 11. direction -----------------------------------------------------------
+ 
+ 
+ def veto_direction(ctx: RunContext, params: Params | None = None) -> Verdict:

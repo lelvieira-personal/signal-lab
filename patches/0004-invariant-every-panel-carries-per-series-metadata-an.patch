@@ -1,0 +1,1462 @@
+From d7d2b67912c144eec077e5493f5940b007e8d481 Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:14 +0000
+Subject: [PATCH 04/17] invariant: every panel carries per-series metadata, and
+ macro is bitemporal
+
+ReturnPanel, AnalyticsPanel and VintagePanel behind one loader interface. Each
+series carries true daily start, tier, hedge flag, gross/net flag and splice
+record, because the frequency and lookahead vetoes cannot be evaluated without
+them. VintagePanel.as_of returns the latest vintage knowable at a date; reading
+frame directly and filtering by real_date is the lookahead the veto catches.
+---
+ src/harness/__init__.py    |   1 +
+ src/harness/budgets.py     | 286 ++++++++++++++++++++++
+ src/harness/hypotheses.py  | 490 +++++++++++++++++++++++++++++++++++++
+ src/harness/run_context.py |  75 ++++++
+ src/harness/snapshot.py    | 188 ++++++++++++++
+ src/loaders/__init__.py    |  55 +++++
+ src/loaders/base.py        | 251 +++++++++++++++++++
+ src/portfolio/.keep        |   0
+ src/portfolio/__init__.py  |   1 +
+ src/results/__init__.py    |   1 +
+ src/signals/.keep          |   0
+ src/signals/__init__.py    |   1 +
+ src/stats/__init__.py      |   1 +
+ 13 files changed, 1350 insertions(+)
+ create mode 100644 src/harness/__init__.py
+ create mode 100644 src/harness/budgets.py
+ create mode 100644 src/harness/hypotheses.py
+ create mode 100644 src/harness/run_context.py
+ create mode 100644 src/harness/snapshot.py
+ create mode 100644 src/loaders/__init__.py
+ create mode 100644 src/loaders/base.py
+ create mode 100644 src/portfolio/.keep
+ create mode 100644 src/portfolio/__init__.py
+ create mode 100644 src/results/__init__.py
+ create mode 100644 src/signals/.keep
+ create mode 100644 src/signals/__init__.py
+ create mode 100644 src/stats/__init__.py
+
+diff --git a/src/harness/__init__.py b/src/harness/__init__.py
+new file mode 100644
+index 0000000..522947e
+--- /dev/null
++++ b/src/harness/__init__.py
+@@ -0,0 +1 @@
++"""harness. See SUBSTRATE.md section 15."""
+diff --git a/src/harness/budgets.py b/src/harness/budgets.py
+new file mode 100644
+index 0000000..b28e9a3
+--- /dev/null
++++ b/src/harness/budgets.py
+@@ -0,0 +1,286 @@
++"""
++Agent budgets. SUBSTRATE section 14.
++
++"Hard token ceiling per run and per nightly cycle; the wrapper kills on breach,
++it does not warn."
++
++Three deliberate design choices:
++
++  * Ceilings come from params/agents.yaml and are currently null, because
++    SUBSTRATE requires them but does not state numbers and this lab does not
++    invent thresholds. A null ceiling means the wrapper REFUSES to make the
++    call. Fail-closed: an unbounded agent is the failure mode the budget exists
++    to prevent, so "no ceiling configured" cannot mean "no ceiling".
++
++  * The kill is injectable. In production it terminates the process; in tests it
++    raises. Otherwise "test the kill path" would mean killing the test runner.
++
++  * Usage is read from the API response's usage fields rather than estimated
++    from string lengths, and cache-read and cache-write tokens are counted
++    separately, because a cached prompt is cheap but not free and a budget that
++    ignores it will drift.
++"""
++
++from __future__ import annotations
++
++import os
++from collections.abc import Callable
++from dataclasses import dataclass, field
++from typing import Any
++
++from params import ParamNotConfigured, Params, get_params
++from results.store import ResultsStore
++
++
++class BudgetExceeded(Exception):
++    """The ceiling was reached. The run is over."""
++
++
++class BudgetNotConfigured(Exception):
++    """A required ceiling is null in params/agents.yaml, so no call is made."""
++
++
++@dataclass
++class Usage:
++    """Token usage from one model call, as the API reports it."""
++
++    input_tokens: int = 0
++    output_tokens: int = 0
++    cache_creation_input_tokens: int = 0
++    cache_read_input_tokens: int = 0
++
++    @property
++    def total(self) -> int:
++        return (
++            self.input_tokens
++            + self.output_tokens
++            + self.cache_creation_input_tokens
++            + self.cache_read_input_tokens
++        )
++
++    @classmethod
++    def from_response(cls, response: Any) -> Usage:
++        """
++        Read usage off a response object or a dict.
++
++        A response with no usage information raises rather than counting zero:
++        an uncounted call is an uncapped call.
++        """
++        usage = (
++            response.get("usage")
++            if isinstance(response, dict)
++            else getattr(response, "usage", None)
++        )
++        if usage is None:
++            raise BudgetExceeded(
++                "model response carried no usage field, so its cost cannot be counted. "
++                "An uncounted call is an uncapped call; refusing to continue."
++            )
++        get = (
++            (lambda k: usage.get(k, 0))
++            if isinstance(usage, dict)
++            else (lambda k: getattr(usage, k, 0))
++        )
++        return cls(
++            input_tokens=int(get("input_tokens") or 0),
++            output_tokens=int(get("output_tokens") or 0),
++            cache_creation_input_tokens=int(get("cache_creation_input_tokens") or 0),
++            cache_read_input_tokens=int(get("cache_read_input_tokens") or 0),
++        )
++
++
++def _default_killer(message: str) -> None:
++    """
++    Terminate the process. SUBSTRATE section 14: kill, do not warn.
++
++    os._exit rather than sys.exit because sys.exit raises SystemExit, and a
++    broad `except Exception` somewhere in an agent loop would swallow it and
++    carry on spending.
++    """
++    import sys
++
++    print(f"BUDGET KILL: {message}", file=sys.stderr, flush=True)
++    os._exit(70)
++
++
++@dataclass
++class CycleBudget:
++    """The cycle-wide ceiling, shared by every run in a nightly cycle."""
++
++    limit_tokens: int | None
++    spent_tokens: int = 0
++
++    def charge(self, tokens: int) -> None:
++        self.spent_tokens += tokens
++
++    def breached(self) -> bool:
++        return self.limit_tokens is not None and self.spent_tokens > self.limit_tokens
++
++
++@dataclass
++class BudgetLedger:
++    """
++    Per-run token accounting with a hard ceiling.
++
++    Usage:
++        ledger = BudgetLedger(run_id="R-1", store=store)
++        response = ledger.call(client.messages.create, model=..., messages=[...])
++        ...
++        ledger.finalise(status="completed")
++    """
++
++    run_id: str
++    params: Params | None = None
++    store: ResultsStore | None = None
++    cycle: CycleBudget | None = None
++    killer: Callable[[str], None] = _default_killer
++    spent_tokens: int = 0
++    n_calls: int = 0
++    calls: list[Usage] = field(default_factory=list)
++    killed: bool = False
++    kill_reason: str | None = None
++
++    def __post_init__(self) -> None:
++        self.params = self.params or get_params()
++
++    # --- ceilings -----------------------------------------------------------
++
++    def run_ceiling(self) -> int:
++        """
++        The per-run token ceiling. Raises BudgetNotConfigured when null.
++
++        SUBSTRATE requires a hard ceiling and does not give a number, and
++        KICKOFF forbids inventing thresholds. Refusing is the only option that
++        breaks neither rule. See decisions/proposed/0007.
++        """
++        try:
++            return int(self.params.require("agents.budgets.tokens_per_run"))
++        except ParamNotConfigured as exc:
++            raise BudgetNotConfigured(
++                "agents.budgets.tokens_per_run is null in params/agents.yaml. "
++                "SUBSTRATE section 14 requires a hard ceiling and the lab does not "
++                "invent thresholds, so no model call is made until the owner sets one. "
++                "See decisions/proposed/0007."
++            ) from exc
++
++    def cost_usd(self) -> float | None:
++        """
++        Cost in dollars, or None when no pricing is configured.
++
++        None is recorded rather than a made-up figure; a fabricated cost on a
++        digest is worse than a blank one.
++        """
++        pricing = self.params.get("agents.pricing.per_million_tokens", {}) or {}
++        if not pricing:
++            return None
++        rate = pricing.get("blended")
++        if rate is None:
++            return None
++        return float(self.spent_tokens) / 1e6 * float(rate)
++
++    # --- accounting ---------------------------------------------------------
++
++    def charge(self, usage: Usage) -> None:
++        """Add a call's usage and kill if that crossed a ceiling."""
++        self.spent_tokens += usage.total
++        self.n_calls += 1
++        self.calls.append(usage)
++        if self.cycle is not None:
++            self.cycle.charge(usage.total)
++        self._check()
++
++    def _check(self) -> None:
++        ceiling = self.run_ceiling()
++        if self.spent_tokens > ceiling:
++            self._kill(
++                f"run {self.run_id} spent {self.spent_tokens} tokens over {self.n_calls} "
++                f"call(s), ceiling {ceiling}"
++            )
++        if self.cycle is not None and self.cycle.breached():
++            self._kill(
++                f"cycle spent {self.cycle.spent_tokens} tokens, ceiling {self.cycle.limit_tokens}, "
++                f"breached during run {self.run_id}"
++            )
++
++    def _kill(self, message: str) -> None:
++        self.killed = True
++        self.kill_reason = message
++        self.record(status="killed", killed_by="budget")
++        self.killer(message)
++        # If the killer returned (a test double), make the breach non-optional
++        # for the caller too.
++        raise BudgetExceeded(message)
++
++    def call(self, fn: Callable[..., Any], *args, **kwargs) -> Any:
++        """
++        Make one model call and charge it.
++
++        The ceiling is checked before the call as well as after: a run already
++        at its limit does not get one more request "to finish up".
++        """
++        ceiling = self.run_ceiling()
++        if self.spent_tokens > ceiling:
++            self._kill(f"run {self.run_id} was already over its {ceiling}-token ceiling")
++        response = fn(*args, **kwargs)
++        self.charge(Usage.from_response(response))
++        return response
++
++    # --- recording ----------------------------------------------------------
++
++    def record(self, status: str, killed_by: str | None = None, **run_kwargs) -> None:
++        """
++        Write the run's cost to the store.
++
++        Tolerates the run already existing: a kill records the cost, and a
++        subsequent finalise must not crash on the append-only constraint.
++        """
++        if self.store is None:
++            return
++        from results.store import StoreError
++
++        try:
++            self.store.record_run(
++                self.run_id,
++                status=status,
++                killed_by=killed_by,
++                cost_tokens=self.spent_tokens,
++                cost_usd=self.cost_usd(),
++                params=self.params,
++                data_snapshot_hash=run_kwargs.pop("data_snapshot_hash", "unknown"),
++                **run_kwargs,
++            )
++        except StoreError:
++            pass
++
++    def finalise(self, status: str = "completed", **run_kwargs) -> None:
++        self.record(status=status, **run_kwargs)
++
++
++def cycle_budget(params: Params | None = None) -> CycleBudget:
++    """The cycle ceiling from params. Null means refuse, not unlimited."""
++    params = params or get_params()
++    try:
++        limit = int(params.require("agents.budgets.tokens_per_cycle"))
++    except ParamNotConfigured as exc:
++        raise BudgetNotConfigured(
++            "agents.budgets.tokens_per_cycle is null in params/agents.yaml; "
++            "see decisions/proposed/0007"
++        ) from exc
++    return CycleBudget(limit_tokens=limit)
++
++
++def model_calls_enabled(params: Params | None = None) -> tuple[bool, str]:
++    """
++    Whether any model-driven role may run at all.
++
++    The deterministic parts of a cycle -- load, validate, apply vetoes, record --
++    need no model and proceed regardless. This is what lets phase 0 run a cycle
++    with the budgets unset instead of blocking on them.
++    """
++    params = params or get_params()
++    for key in ("agents.budgets.tokens_per_run", "agents.budgets.tokens_per_cycle"):
++        if params.get(key) is None:
++            return False, f"{key} is null in params/agents.yaml (see decisions/proposed/0007)"
++    if params.get("agents.models.cheap") is None or params.get("agents.models.expensive") is None:
++        return False, "agents.models.cheap/expensive are null in params/agents.yaml"
++    return True, "budgets and model tiers configured"
+diff --git a/src/harness/hypotheses.py b/src/harness/hypotheses.py
+new file mode 100644
+index 0000000..3ca09b7
+--- /dev/null
++++ b/src/harness/hypotheses.py
+@@ -0,0 +1,490 @@
++"""
++The hypothesis registry: parse, validate, move, request.
++
++SUBSTRATE section 7 makes pre-registration binding. This module is what makes it
++mechanical rather than aspirational:
++
++  * a hypothesis with no direction or no rationale is rejected before it runs;
++  * `literature` provenance with an unresolvable reference is rejected, and a
++    fabricated citation is logged as a failure of the proposer;
++  * a hypothesis needing series the snapshot does not have is `blocked:data`
++    and writes a request file, rather than quietly substituting a proxy;
++  * a declared proxy is tagged, and proxy runs are excluded from the main
++    leaderboard.
++
++The states are directories: hypotheses/pending, running, done. Moving between
++them writes a transition to the results store, so the lifecycle is auditable
++even after the files have moved.
++"""
++
++from __future__ import annotations
++
++import re
++import shutil
++from dataclasses import dataclass, field
++from pathlib import Path
++from typing import Any
++
++import yaml
++
++from params import Params, get_params
++from results.store import ResultsStore
++
++REPO_ROOT = Path(__file__).resolve().parents[2]
++HYPOTHESES_DIR = REPO_ROOT / "hypotheses"
++REQUESTS_DIR = REPO_ROOT / "data" / "requests"
++
++STATES = ("pending", "running", "done")
++
++# SUBSTRATE section 6.
++FAMILIES = (
++    "growth",
++    "inflation",
++    "policy_rates",
++    "credit_conditions",
++    "liquidity",
++    "terms_of_trade",
++    "spreads_curve",
++    "volatility_stress",
++    "trend",
++    "carry",
++    "valuation",
++)
++
++DIRECTIONS = ("positive", "negative")
++PROVENANCE = ("literature", "adaptation", "novel")
++EXPRESSIONS = ("cross_sectional", "directional", "both")
++TARGET_AXES = ("duration", "credit", "region", "sector", "style", "real_nominal", "cash")
++
++REQUIRED_FIELDS = (
++    "id",
++    "family",
++    "signal",
++    "direction",
++    "target_axis",
++    "rationale",
++    "horizon_weeks",
++    "expected_expression",
++    "proposed_by",
++    "provenance",
++    "data_required",
++)
++
++ID_PATTERN = re.compile(r"^H-\d{4}-\d{4}$")
++HORIZON_PATTERN = re.compile(r"^\d+(-\d+)?$")
++
++
++class HypothesisRejected(Exception):
++    """The harness refuses to run this hypothesis. The reason is the message."""
++
++
++@dataclass
++class Hypothesis:
++    """A parsed, validated pre-registration."""
++
++    id: str
++    family: str
++    signal: str
++    direction: str
++    target_axis: str
++    rationale: str
++    horizon_weeks: str
++    expected_expression: str
++    proposed_by: str
++    provenance: str
++    data_required: list[str]
++    reference: str | None = None
++    proxy_for: dict[str, str] | None = None
++    notes: str = ""
++    path: Path | None = None
++    raw: dict[str, Any] = field(default_factory=dict)
++
++    @property
++    def is_proxy(self) -> bool:
++        """Proxy runs are tagged and excluded from the main leaderboard."""
++        return bool(self.proxy_for)
++
++    def horizon_range(self) -> tuple[int, int]:
++        parts = str(self.horizon_weeks).split("-")
++        lo = int(parts[0])
++        hi = int(parts[-1])
++        return lo, hi
++
++    def as_dict(self) -> dict[str, Any]:
++        out = {
++            "id": self.id,
++            "family": self.family,
++            "signal": self.signal,
++            "direction": self.direction,
++            "target_axis": self.target_axis,
++            "rationale": self.rationale,
++            "horizon_weeks": self.horizon_weeks,
++            "expected_expression": self.expected_expression,
++            "proposed_by": self.proposed_by,
++            "provenance": self.provenance,
++            "data_required": list(self.data_required),
++        }
++        if self.reference:
++            out["reference"] = self.reference
++        if self.proxy_for:
++            out["proxy_for"] = self.proxy_for
++        return out
++
++
++# --- reference resolution ----------------------------------------------------
++
++
++class NullReferenceResolver:
++    """
++    The default resolver: resolves nothing.
++
++    SUBSTRATE section 7 requires the harness to fetch a `literature` reference
++    and reject the hypothesis if it cannot be resolved. No resolver host is
++    allowlisted in params/data_sources.yaml yet, and SUBSTRATE section 2 forbids
++    calling an API that is not listed. So `literature` provenance is rejected
++    until the owner enables a resolver. Rejecting is the safe direction: the
++    alternative is accepting citations nobody checked, and a fabricated citation
++    is precisely what section 7 calls a failure of the proposer.
++    """
++
++    enabled = False
++
++    def resolve(self, reference: str) -> tuple[bool, str]:
++        return False, (
++            "no reference resolver is enabled (params/data_sources.yaml: "
++            "reference_resolver.enabled is false), so a literature citation "
++            "cannot be verified and is not accepted on trust"
++        )
++
++
++def get_resolver(params: Params | None = None):
++    params = params or get_params()
++    if not params.get("data_sources.reference_resolver.enabled", False):
++        return NullReferenceResolver()
++    raise NotImplementedError(
++        "an HTTP reference resolver lands with phase 3; enable it in "
++        "params/data_sources.yaml with an explicit allowed_hosts list"
++    )
++
++
++# --- parse and validate ------------------------------------------------------
++
++
++def parse_hypothesis(path: Path | str, params: Params | None = None) -> Hypothesis:
++    """Read one YAML file and validate it. Raises HypothesisRejected."""
++    path = Path(path)
++    try:
++        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
++    except yaml.YAMLError as exc:
++        raise HypothesisRejected(f"{path.name}: not valid YAML: {exc}") from exc
++    if not isinstance(doc, dict):
++        raise HypothesisRejected(f"{path.name}: top level must be a mapping")
++    return validate_hypothesis(doc, params=params, path=path)
++
++
++def validate_hypothesis(
++    doc: dict[str, Any], params: Params | None = None, path: Path | None = None
++) -> Hypothesis:
++    params = params or get_params()
++    where = path.name if path else doc.get("id", "<unnamed>")
++
++    missing = [f for f in REQUIRED_FIELDS if f not in doc or doc[f] in (None, "", [])]
++    if missing:
++        raise HypothesisRejected(f"{where}: missing required field(s) {missing}")
++
++    hid = str(doc["id"])
++    if not ID_PATTERN.match(hid):
++        raise HypothesisRejected(f"{where}: id {hid!r} must look like H-2026-0001")
++
++    family = str(doc["family"])
++    if family not in FAMILIES:
++        raise HypothesisRejected(f"{where}: family {family!r} is not one of {list(FAMILIES)}")
++
++    direction = str(doc["direction"]).strip().lower()
++    if direction not in DIRECTIONS:
++        raise HypothesisRejected(
++            f"{where}: direction must be one of {list(DIRECTIONS)}, got {direction!r}. "
++            f"A hypothesis without a stated direction cannot fail the direction veto, "
++            f"which is the point of stating it."
++        )
++
++    axis = str(doc["target_axis"])
++    if axis not in TARGET_AXES:
++        raise HypothesisRejected(f"{where}: target_axis {axis!r} is not one of {list(TARGET_AXES)}")
++
++    rationale = str(doc["rationale"]).strip()
++    if len(rationale) < 120:
++        raise HypothesisRejected(
++            f"{where}: rationale is {len(rationale)} characters. SUBSTRATE section 7 asks "
++            f"for a paragraph of economics: why this predicts that, at this horizon, in a "
++            f"way that survives the long-only constraint."
++        )
++
++    horizon = str(doc["horizon_weeks"]).strip()
++    if not HORIZON_PATTERN.match(horizon):
++        raise HypothesisRejected(f"{where}: horizon_weeks {horizon!r} must be N or N-M weeks")
++    lo, hi = int(horizon.split("-")[0]), int(horizon.split("-")[-1])
++    if lo < 1 or hi < lo:
++        raise HypothesisRejected(f"{where}: horizon_weeks {horizon!r} is not a sane range")
++
++    expression = str(doc["expected_expression"])
++    if expression not in EXPRESSIONS:
++        raise HypothesisRejected(
++            f"{where}: expected_expression {expression!r} is not one of {list(EXPRESSIONS)}"
++        )
++
++    provenance = str(doc["provenance"])
++    if provenance not in PROVENANCE:
++        raise HypothesisRejected(
++            f"{where}: provenance {provenance!r} is not one of {list(PROVENANCE)}"
++        )
++
++    reference = doc.get("reference")
++    if provenance == "literature":
++        if not reference:
++            raise HypothesisRejected(f"{where}: provenance is literature but no reference is given")
++        resolved, detail = get_resolver(params).resolve(str(reference))
++        if not resolved:
++            raise HypothesisRejected(f"{where}: reference {reference!r} did not resolve: {detail}")
++
++    data_required = doc["data_required"]
++    if not isinstance(data_required, list) or not all(isinstance(s, str) for s in data_required):
++        raise HypothesisRejected(f"{where}: data_required must be a list of series ids")
++
++    proxy_for = doc.get("proxy_for")
++    if proxy_for is not None and not isinstance(proxy_for, dict):
++        raise HypothesisRejected(
++            f"{where}: proxy_for must be a mapping of proxy series id -> the series it stands in for"
++        )
++
++    return Hypothesis(
++        id=hid,
++        family=family,
++        signal=str(doc["signal"]),
++        direction=direction,
++        target_axis=axis,
++        rationale=rationale,
++        horizon_weeks=horizon,
++        expected_expression=expression,
++        proposed_by=str(doc["proposed_by"]),
++        provenance=provenance,
++        data_required=list(data_required),
++        reference=str(reference) if reference else None,
++        proxy_for=dict(proxy_for) if proxy_for else None,
++        notes=str(doc.get("notes", "")),
++        path=path,
++        raw=doc,
++    )
++
++
++# --- data availability -------------------------------------------------------
++
++
++@dataclass
++class DataCheck:
++    """Which required series the snapshot has, and which it does not."""
++
++    available: list[str]
++    missing: list[str]
++
++    @property
++    def blocked(self) -> bool:
++        return bool(self.missing)
++
++    @property
++    def status(self) -> str:
++        return "blocked:data" if self.blocked else "ready"
++
++
++def check_data(hyp: Hypothesis, snapshot_manifest: list[str] | set[str]) -> DataCheck:
++    manifest = set(snapshot_manifest)
++    available = [s for s in hyp.data_required if s in manifest]
++    missing = [s for s in hyp.data_required if s not in manifest]
++    return DataCheck(available=available, missing=missing)
++
++
++def write_data_request(
++    hyp: Hypothesis, check: DataCheck, requests_dir: Path | str = REQUESTS_DIR
++) -> Path:
++    """
++    Write data/requests/<hypothesis_id>.yaml with source, series, fields, reason.
++
++    SUBSTRATE section 7. The request is the sanctioned response to missing data;
++    silent substitution fails the coverage veto and, more to the point, produces
++    a result about a different signal than the one registered.
++    """
++    requests_dir = Path(requests_dir)
++    requests_dir.mkdir(parents=True, exist_ok=True)
++    path = requests_dir / f"{hyp.id}.yaml"
++    doc = {
++        "hypothesis_id": hyp.id,
++        "signal": hyp.signal,
++        "family": hyp.family,
++        "requested_by": hyp.proposed_by,
++        "status": "awaiting_owner",
++        "series": [
++            {
++                "id": sid,
++                "source": _guess_source(sid),
++                "fields": _guess_fields(sid),
++            }
++            for sid in check.missing
++        ],
++        "reason": (
++            f"{hyp.id} requires {len(check.missing)} series absent from the snapshot. "
++            f"The hypothesis is blocked:data rather than run on a substitute."
++        ),
++        "available_already": check.available,
++    }
++    path.write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8")
++    return path
++
++
++def _guess_source(series_id: str) -> str:
++    """
++    A hint for the owner, not a decision.
++
++    The prefix conventions are the vendors' own, so this is a lookup rather than
++    an inference: anything unrecognised is reported as unknown rather than
++    assigned to a vendor that may not carry it.
++    """
++    sid = series_id.upper()
++    if sid.startswith(("JPMAQS.", "MACROSYNERGY.")) or "_" in series_id and series_id.isupper():
++        return "jpmaqs"
++    if sid.startswith(("DGS", "DFII", "T10", "T5", "VIXCLS", "NFCI", "ANFCI", "STLFSI", "DTWEX")):
++        return "fred"
++    if sid.startswith(
++        (
++            "LT",
++            "LU",
++            "LF",
++            "LEGA",
++            "LP0",
++            "MX",
++            "ND",
++            "M1",
++            "I0",
++            "I1",
++            "I2",
++            "H0",
++            "H1",
++            "BTSY",
++            "SPBD",
++            "G3O",
++            "SBWG",
++        )
++    ):
++        return "bloomberg"
++    return "unknown"
++
++
++def _guess_fields(series_id: str) -> list[str]:
++    sid = series_id.upper()
++    if any(tag in sid for tag in ("OAS", "SPREAD")):
++        return ["INDEX_OAS_TSY"]
++    if "OAD" in sid or "DURATION" in sid:
++        return ["INDEX_OAD_TSY"]
++    if "YTW" in sid or "YIELD" in sid:
++        return ["INDEX_YIELD_TO_WORST"]
++    if _guess_source(series_id) == "bloomberg":
++        return ["TOT_RETURN_INDEX_GROSS_DVDS"]
++    return ["value"]
++
++
++# --- the registry ------------------------------------------------------------
++
++
++class HypothesisRegistry:
++    """Directory-backed lifecycle with transitions recorded in the store."""
++
++    def __init__(
++        self,
++        root: Path | str = HYPOTHESES_DIR,
++        store: ResultsStore | None = None,
++        params: Params | None = None,
++        requests_dir: Path | str = REQUESTS_DIR,
++    ):
++        self.root = Path(root)
++        self.store = store
++        self.params = params or get_params()
++        self.requests_dir = Path(requests_dir)
++        for state in STATES:
++            (self.root / state).mkdir(parents=True, exist_ok=True)
++
++    def paths(self, state: str) -> list[Path]:
++        if state not in STATES:
++            raise ValueError(f"unknown state {state!r}; expected one of {list(STATES)}")
++        return sorted(p for p in (self.root / state).glob("*.yaml"))
++
++    def load(self, state: str = "pending") -> list[Hypothesis]:
++        """Parse every hypothesis in a state. Invalid files raise; they do not skip."""
++        return [parse_hypothesis(p, self.params) for p in self.paths(state)]
++
++    def load_tolerant(
++        self, state: str = "pending"
++    ) -> tuple[list[Hypothesis], list[tuple[Path, str]]]:
++        """Parse a state, returning (valid, [(path, rejection reason)])."""
++        good: list[Hypothesis] = []
++        bad: list[tuple[Path, str]] = []
++        for path in self.paths(state):
++            try:
++                good.append(parse_hypothesis(path, self.params))
++            except HypothesisRejected as exc:
++                bad.append((path, str(exc)))
++        return good, bad
++
++    def find(self, hypothesis_id: str) -> tuple[str, Path] | None:
++        for state in STATES:
++            for path in self.paths(state):
++                if path.stem == hypothesis_id or path.stem.startswith(hypothesis_id):
++                    return state, path
++        return None
++
++    def move(
++        self,
++        hypothesis_id: str,
++        to_state: str,
++        run_id: str | None = None,
++        detail: str = "",
++    ) -> Path:
++        """
++        Move a hypothesis between states and record the transition.
++
++        The file moves and the transition is appended; nothing is overwritten, so
++        the store shows the whole path a hypothesis took including the ones that
++        went pending -> done without ever running.
++        """
++        if to_state not in STATES:
++            raise ValueError(f"unknown state {to_state!r}")
++        found = self.find(hypothesis_id)
++        if not found:
++            raise FileNotFoundError(f"no hypothesis {hypothesis_id!r} in {self.root}")
++        from_state, path = found
++        if from_state == to_state:
++            return path
++
++        target = self.root / to_state / path.name
++        if target.exists():
++            raise FileExistsError(f"{target} already exists; refusing to overwrite a registration")
++        shutil.move(str(path), str(target))
++
++        if self.store is not None:
++            self.store.record_transition(hypothesis_id, from_state, to_state, run_id, detail)
++        return target
++
++    def triage(self, snapshot_manifest: list[str] | set[str]) -> dict[str, Any]:
++        """
++        Validate every pending hypothesis and split it into ready, blocked and
++        rejected. Blocked hypotheses get a request file written.
++        """
++        good, bad = self.load_tolerant("pending")
++        ready: list[Hypothesis] = []
++        blocked: list[tuple[Hypothesis, DataCheck, Path]] = []
++        for hyp in good:
++            check = check_data(hyp, snapshot_manifest)
++            if check.blocked:
++                request = write_data_request(hyp, check, self.requests_dir)
++                blocked.append((hyp, check, request))
++            else:
++                ready.append(hyp)
++        return {"ready": ready, "blocked": blocked, "rejected": bad}
+diff --git a/src/harness/run_context.py b/src/harness/run_context.py
+new file mode 100644
+index 0000000..8c9593c
+--- /dev/null
++++ b/src/harness/run_context.py
+@@ -0,0 +1,75 @@
++"""
++RunContext: everything a veto needs, and nothing it should not have.
++
++A veto is a pure function of this object. Making the inputs explicit means a
++veto cannot reach into a backtest and recompute something a different way, and
++it means a veto can be tested on a hand-built context rather than on a full run.
++
++Fields are optional because phase 0 has no engine. A veto whose input is absent
++FAILS (params/vetoes.yaml: evaluation.on_missing_input: fail). Fail-open would
++let an unmeasured run onto the leaderboard, which is the one outcome the veto
++set exists to prevent.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from typing import Any
++
++import pandas as pd
++
++
++class MissingInput(Exception):
++    """A veto's input is absent, so the veto cannot be evaluated."""
++
++
++@dataclass
++class RunContext:
++    """
++    Inputs to the veto set. See SUBSTRATE section 10 for what each veto uses.
++    """
++
++    run_id: str
++    hypothesis_id: str | None = None
++    family: str | None = None
++    aggregation: str | None = None
++    seed: int | None = None
++    data_snapshot_hash: str = "unknown"
++
++    # --- portfolio-shape inputs ---
++    weights: pd.DataFrame | None = None  # dates x instrument, sums to 1 with cash
++    cash_weights: pd.Series | None = None  # dates, fraction of NAV in cash
++    turnover: pd.Series | None = None  # per rebalance, one-way fraction of NAV
++    rebalances_per_year: float = 52.0
++    te_trailing_3y: pd.Series | None = None  # annualised, as a fraction
++
++    # --- data-integrity inputs ---
++    signal_availability: pd.DataFrame | None = None  # dates x series, bool
++    estimation_universe: list[str] = field(default_factory=list)
++    observation_usage: pd.DataFrame | None = None  # knowledge_date, used_on_date, ...
++    return_contributions: pd.DataFrame | None = None  # series_id, date
++    series_meta: dict[str, Any] = field(default_factory=dict)
++
++    # --- statistical inputs ---
++    seed_irs: dict[int, float] | None = None  # seed -> net IR
++    romano_wolf: dict[str, Any] | None = None  # {"rejected": bool, "fwer_alpha": float, ...}
++    realised_direction: str | None = None  # "positive" | "negative" | "flat"
++    preregistered_direction: str | None = None  # from the hypothesis file
++
++    # --- diagnostics, never used by a veto ---
++    notes: dict[str, Any] = field(default_factory=dict)
++
++    def require(self, name: str) -> Any:
++        value = getattr(self, name, None)
++        if value is None:
++            raise MissingInput(name)
++        if isinstance(value, (pd.Series, pd.DataFrame)) and value.empty:
++            raise MissingInput(f"{name} (empty)")
++        if isinstance(value, (list, dict)) and len(value) == 0:
++            raise MissingInput(f"{name} (empty)")
++        return value
++
++    def annualised_turnover(self) -> float:
++        """One-way turnover per rebalance, annualised."""
++        turnover = self.require("turnover")
++        return float(turnover.mean() * self.rebalances_per_year)
+diff --git a/src/harness/snapshot.py b/src/harness/snapshot.py
+new file mode 100644
+index 0000000..7ce5cab
+--- /dev/null
++++ b/src/harness/snapshot.py
+@@ -0,0 +1,188 @@
++"""
++Snapshots: hashed, immutable panels the harness runs on.
++
++SUBSTRATE section 11 requires every run to record a hash of the data snapshot it
++ran on, so any result can be regenerated. A snapshot is therefore a directory of
++parquet files plus a manifest, and its hash is over the file bytes, so two
++snapshots with the same hash are the same data on any machine.
++
++Snapshots are not committed (.gitignore). They are rebuildable from the loader
++and the params that made them, both of which are recorded in the manifest.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import json
++import os
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Any
++
++import pandas as pd
++import yaml
++
++from loaders.base import ReturnPanel
++from loaders.holdout import enforce_holdout
++from params import Params, get_params
++
++REPO_ROOT = Path(__file__).resolve().parents[2]
++SNAPSHOTS_DIR = REPO_ROOT / "data" / "snapshots"
++
++
++def snapshots_root(override: Path | str | None = None) -> Path:
++    """
++    Where snapshots live, resolved at call time.
++
++    Deliberately not a default argument: a module-level constant baked into a
++    signature at import time cannot be redirected, which makes the scripts
++    untestable against a temporary directory and makes relocating the store a
++    code change rather than a configuration one.
++    """
++    if override is not None:
++        return Path(override)
++    return Path(os.environ.get("SIGNAL_LAB_SNAPSHOTS_DIR", SNAPSHOTS_DIR))
++
++
++@dataclass(frozen=True)
++class Snapshot:
++    snapshot_id: str
++    path: Path
++    data_snapshot_hash: str
++    manifest: dict[str, Any]
++
++    @property
++    def series_ids(self) -> list[str]:
++        return list(self.manifest.get("series_ids", []))
++
++    @property
++    def macro_ids(self) -> list[str]:
++        return list(self.manifest.get("macro_ids", []))
++
++    def available_ids(self) -> set[str]:
++        """
++        Everything a hypothesis's `data_required` can be satisfied by.
++
++        A hypothesis naming anything outside this set is blocked:data and gets a
++        request file, rather than being run on whatever happens to be nearby.
++        """
++        return set(self.series_ids) | set(self.macro_ids)
++
++
++def hash_directory(path: Path) -> str:
++    """sha256 over every file's relative name and bytes, in sorted order."""
++    digest = hashlib.sha256()
++    for file in sorted(
++        p for p in Path(path).rglob("*") if p.is_file() and p.name != "manifest.yaml"
++    ):
++        digest.update(str(file.relative_to(path)).encode("utf-8"))
++        digest.update(b"\0")
++        digest.update(file.read_bytes())
++        digest.update(b"\0")
++    return digest.hexdigest()
++
++
++def build_snapshot(
++    snapshot_id: str,
++    source: str = "synthetic",
++    params: Params | None = None,
++    snapshots_dir: Path | str | None = None,
++    seed: int | None = None,
++    overwrite: bool = False,
++) -> Snapshot:
++    """
++    Freeze a panel and hash it.
++
++    The holdout is enforced on the way in as well as inside the loader: a
++    snapshot is the thing every later run reads, so a leak here would be a leak
++    everywhere, and the check is cheap.
++    """
++    from loaders import get_loader
++
++    params = params or get_params()
++    out = snapshots_root(snapshots_dir) / snapshot_id
++    if out.exists() and not overwrite:
++        raise FileExistsError(
++            f"{out} exists. A snapshot is immutable; build a new id rather than "
++            f"overwriting one that runs may already reference."
++        )
++    out.mkdir(parents=True, exist_ok=True)
++
++    loader = get_loader(source, params=params, **({"seed": seed} if seed is not None else {}))
++    returns: ReturnPanel = loader.load_returns(snapshot_id)
++    enforce_holdout(returns.returns, params, what=f"snapshot {snapshot_id} returns")
++
++    returns.levels.to_parquet(out / "levels.parquet")
++    returns.returns.to_parquet(out / "returns.parquet")
++    returns.meta_frame().to_parquet(out / "meta.parquet")
++
++    macro_ids: list[str] = []
++    try:
++        macro = loader.load_macro(snapshot_id)
++        enforce_holdout(macro.frame["knowledge_date"], params, what=f"snapshot {snapshot_id} macro")
++        macro.frame.to_parquet(out / "macro.parquet", index=False)
++        macro_ids = sorted(macro.frame["series_id"].unique().tolist())
++    except NotImplementedError:
++        pass
++
++    analytics_fields: list[str] = []
++    try:
++        analytics = loader.load_analytics(snapshot_id)
++        for name, frame in analytics.fields.items():
++            frame.to_parquet(out / f"analytics_{name}.parquet")
++        analytics_fields = analytics.field_names
++    except NotImplementedError:
++        pass
++
++    data_hash = hash_directory(out)
++    manifest = {
++        "snapshot_id": snapshot_id,
++        "source": source,
++        "data_snapshot_hash": data_hash,
++        "params_version": params.params_version,
++        "params_hash": params.params_hash,
++        "seed": seed if seed is not None else params.get("data.synthetic.seed"),
++        "dev_start": str(params.require("data.windows.dev_start")),
++        "dev_end": str(params.require("data.windows.dev_end")),
++        "holdout_start": str(params.require("data.windows.holdout_start")),
++        "first_date": str(returns.returns.index.min().date()),
++        "last_date": str(returns.returns.index.max().date()),
++        "n_series": len(returns.series_ids),
++        "series_ids": sorted(returns.series_ids),
++        "macro_ids": macro_ids,
++        "analytics_fields": analytics_fields,
++        "tiers": {
++            tier: len(returns.by_tier(tier)) for tier in ("backbone", "second", "tradable-only")
++        },
++        "hedged_ids": sorted(returns.hedged_ids()),
++        "splices": [s.as_row() for s in returns.splices],
++    }
++    (out / "manifest.yaml").write_text(
++        yaml.safe_dump(json.loads(json.dumps(manifest, default=str)), sort_keys=False),
++        encoding="utf-8",
++    )
++    return Snapshot(snapshot_id, out, data_hash, manifest)
++
++
++def load_snapshot(snapshot_id: str, snapshots_dir: Path | str | None = None) -> Snapshot:
++    path = snapshots_root(snapshots_dir) / snapshot_id
++    manifest_path = path / "manifest.yaml"
++    if not manifest_path.exists():
++        raise FileNotFoundError(f"no snapshot at {path}; build it with scripts/build_snapshot.py")
++    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
++    return Snapshot(snapshot_id, path, str(manifest["data_snapshot_hash"]), manifest)
++
++
++def verify_snapshot(snapshot: Snapshot) -> tuple[bool, str]:
++    """Re-hash a snapshot on disk and compare it to its manifest."""
++    actual = hash_directory(snapshot.path)
++    if actual == snapshot.data_snapshot_hash:
++        return True, f"hash matches ({actual[:12]})"
++    return False, (
++        f"snapshot {snapshot.snapshot_id} has changed on disk: manifest says "
++        f"{snapshot.data_snapshot_hash[:12]}, files hash to {actual[:12]}"
++    )
++
++
++def read_returns(snapshot: Snapshot) -> pd.DataFrame:
++    return pd.read_parquet(snapshot.path / "returns.parquet")
+diff --git a/src/loaders/__init__.py b/src/loaders/__init__.py
+new file mode 100644
+index 0000000..d6d6d9f
+--- /dev/null
++++ b/src/loaders/__init__.py
+@@ -0,0 +1,55 @@
++"""
++Loaders. One interface (PanelLoader), several backends.
++
++Phase 0 ships the synthetic backend only. The vendor backends exist as stubs
++that raise, so the harness can be wired against the real names now and the
++error is a clear "phase 2" rather than an import failure or, worse, a silently
++empty panel.
++"""
++
++from loaders.base import (
++    AnalyticsPanel,
++    PanelLoader,
++    ReturnPanel,
++    SeriesMeta,
++    SpliceRecord,
++    VintagePanel,
++)
++from loaders.holdout import HoldoutViolation, enforce_holdout, holdout_start
++from loaders.invariants import InvariantViolation
++from loaders.synthetic import SyntheticLoader, plant
++
++__all__ = [
++    "AnalyticsPanel",
++    "HoldoutViolation",
++    "InvariantViolation",
++    "PanelLoader",
++    "ReturnPanel",
++    "SeriesMeta",
++    "SpliceRecord",
++    "SyntheticLoader",
++    "VintagePanel",
++    "enforce_holdout",
++    "get_loader",
++    "holdout_start",
++    "plant",
++]
++
++
++def get_loader(source: str = "synthetic", **kwargs) -> PanelLoader:
++    """Backend by name. Unknown names fail loudly rather than defaulting."""
++    if source == "synthetic":
++        return SyntheticLoader(**kwargs)
++    if source == "bloomberg":
++        from loaders.bloomberg import BloombergLoader
++
++        return BloombergLoader(**kwargs)
++    if source == "fred":
++        from loaders.fred import FredLoader
++
++        return FredLoader(**kwargs)
++    if source == "jpmaqs":
++        from loaders.jpmaqs import JPMaQSLoader
++
++        return JPMaQSLoader(**kwargs)
++    raise ValueError(f"unknown loader source {source!r}")
+diff --git a/src/loaders/base.py b/src/loaders/base.py
+new file mode 100644
+index 0000000..bfce240
+--- /dev/null
++++ b/src/loaders/base.py
+@@ -0,0 +1,251 @@
++"""
++Panel types and the loader interface.
++
++One interface, three panels, several backends. A backend is chosen by snapshot
++id; the harness never knows whether it is holding a synthetic panel or a
++Bloomberg one, which is the point: phase 1 validates the engine against planted
++synthetic properties using exactly the code path phase 2 will use for real data.
++
++Every panel carries per-series metadata (true daily start, tier, hedge flag,
++gross/net flag, splice record) because the loader invariants in SUBSTRATE
++section 5.1 and the `frequency` and `lookahead` vetoes cannot be evaluated
++without it.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import date
++from typing import Any, Literal, Protocol
++
++import pandas as pd
++
++Tier = Literal["backbone", "second", "tradable-only"]
++
++
++@dataclass(frozen=True)
++class SpliceRecord:
++    """
++    A logged substitution. SUBSTRATE section 5.1.5.
++
++    Splices are applied in the loader and recorded, never done silently and
++    never used to join a month-end history onto a daily one.
++    """
++
++    target: str
++    source: str
++    reason: str
++    splice_date: date | None = None
++    n_observations_taken: int = 0
++
++    def as_row(self) -> dict[str, Any]:
++        return {
++            "target": self.target,
++            "source": self.source,
++            "reason": self.reason,
++            "splice_date": self.splice_date,
++            "n_observations_taken": self.n_observations_taken,
++        }
++
++
++@dataclass(frozen=True)
++class SeriesMeta:
++    """Per-series metadata. Immutable: the loader assigns it, agents read it."""
++
++    series_id: str
++    true_daily_start: pd.Timestamp
++    tier: Tier
++    hedged: bool = False
++    gross: bool = True  # False = net of withholding tax (NDDU / M1 MSCI series)
++    section: str = "unclassified"
++    cost_bucket: str = "high"  # conservative default, params/costs.yaml
++    month_end_only_before: pd.Timestamp | None = None
++    splice: SpliceRecord | None = None
++    region: str | None = None
++    currency: str = "USD"
++
++    def contributes_from(self) -> pd.Timestamp:
++        """
++        The first date this series may contribute a daily return.
++
++        This is the `frequency` veto's reference point: a return dated before it
++        would have been built from month-end observations spliced into a daily
++        panel, which SUBSTRATE section 2 forbids.
++        """
++        return self.true_daily_start
++
++
++@dataclass
++class ReturnPanel:
++    """Daily total-return levels and the returns derived from them."""
++
++    levels: pd.DataFrame  # dates x series_id, NaN where not observed
++    returns: pd.DataFrame  # dates x series_id, NaN where not computable
++    meta: dict[str, SeriesMeta]
++    splices: list[SpliceRecord] = field(default_factory=list)
++    snapshot_id: str = "unknown"
++    source: str = "unknown"
++
++    @property
++    def series_ids(self) -> list[str]:
++        return list(self.returns.columns)
++
++    def hedged_ids(self) -> list[str]:
++        return [s for s, m in self.meta.items() if m.hedged]
++
++    def unhedged_ids(self) -> list[str]:
++        return [s for s, m in self.meta.items() if not m.hedged]
++
++    def by_tier(self, tier: Tier) -> list[str]:
++        return [s for s, m in self.meta.items() if m.tier == tier]
++
++    def estimation_universe(self) -> list[str]:
++        """
++        Series a signal may be estimated on. SUBSTRATE section 5.2:
++        tradable-only series are never used to estimate a signal.
++        """
++        return [s for s, m in self.meta.items() if m.tier in ("backbone", "second")]
++
++    def daily_starts(self) -> dict[str, pd.Timestamp]:
++        return {s: m.true_daily_start for s, m in self.meta.items()}
++
++    def meta_frame(self) -> pd.DataFrame:
++        rows = []
++        for s, m in self.meta.items():
++            rows.append(
++                {
++                    "series_id": s,
++                    "true_daily_start": m.true_daily_start,
++                    "tier": m.tier,
++                    "hedged": m.hedged,
++                    "gross": m.gross,
++                    "section": m.section,
++                    "cost_bucket": m.cost_bucket,
++                    "month_end_only_before": m.month_end_only_before,
++                    "region": m.region,
++                    "currency": m.currency,
++                    "spliced_from": m.splice.source if m.splice else None,
++                }
++            )
++        return pd.DataFrame(rows).set_index("series_id").sort_index()
++
++
++@dataclass
++class AnalyticsPanel:
++    """
++    Index characteristics: OAS, yield-to-worst, effective duration.
++
++    One frame per field, dates x series_id. Shares the ReturnPanel's metadata
++    conventions so the frequency veto applies to analytics too.
++    """
++
++    fields: dict[str, pd.DataFrame]
++    meta: dict[str, SeriesMeta]
++    snapshot_id: str = "unknown"
++    source: str = "unknown"
++
++    @property
++    def field_names(self) -> list[str]:
++        return sorted(self.fields)
++
++    def field(self, name: str) -> pd.DataFrame:
++        if name not in self.fields:
++            raise KeyError(f"no analytics field {name!r}; have {self.field_names}")
++        return self.fields[name]
++
++
++@dataclass
++class VintagePanel:
++    """
++    Bitemporal macro data. SUBSTRATE section 5.6.
++
++    Long format, one row per (series_id, real_date, knowledge_date). `real_date`
++    is the period the number describes; `knowledge_date` is when it could first
++    have been known. A revision is a new row with the same real_date and a later
++    knowledge_date, never an overwrite.
++
++    `as_of` is the only sanctioned way to read it. Reading `frame` directly and
++    filtering by real_date is exactly the lookahead the veto exists to catch.
++    """
++
++    frame: pd.DataFrame  # series_id, real_date, knowledge_date, value, grading, eop_lag
++    meta: dict[str, SeriesMeta]
++    snapshot_id: str = "unknown"
++    source: str = "unknown"
++
++    REQUIRED_COLUMNS = ("series_id", "real_date", "knowledge_date", "value")
++
++    def __post_init__(self) -> None:
++        missing = [c for c in self.REQUIRED_COLUMNS if c not in self.frame.columns]
++        if missing:
++            raise ValueError(f"VintagePanel is missing columns {missing}")
++        bad = self.frame["knowledge_date"] < self.frame["real_date"]
++        if bool(bad.any()):
++            raise ValueError(
++                f"{int(bad.sum())} observation(s) have knowledge_date before "
++                f"real_date, which would be knowing a number before the period it "
++                f"describes has ended"
++            )
++
++    def as_of(self, knowledge_date, series_ids: list[str] | None = None) -> pd.DataFrame:
++        """
++        What was knowable at `knowledge_date`, wide: real_date x series_id.
++
++        For each series and real_date, the latest vintage published on or before
++        knowledge_date. Rows whose first vintage came later are absent, not
++        filled: a number nobody had is not zero and is not the previous number.
++        """
++        kd = pd.Timestamp(knowledge_date)
++        sub = self.frame[self.frame["knowledge_date"] <= kd]
++        if series_ids is not None:
++            sub = sub[sub["series_id"].isin(series_ids)]
++        if sub.empty:
++            return pd.DataFrame(index=pd.DatetimeIndex([], name="real_date"))
++        sub = sub.sort_values(["series_id", "real_date", "knowledge_date"])
++        latest = sub.groupby(["series_id", "real_date"], as_index=False).last()
++        wide = latest.pivot(index="real_date", columns="series_id", values="value")
++        wide.index = pd.DatetimeIndex(wide.index, name="real_date")
++        wide.columns.name = None
++        return wide.sort_index()
++
++    def latest_value_as_of(self, knowledge_date, series_id: str) -> float | None:
++        """The most recent observation of one series knowable at that date."""
++        wide = self.as_of(knowledge_date, [series_id])
++        if wide.empty or series_id not in wide.columns:
++            return None
++        col = wide[series_id].dropna()
++        return None if col.empty else float(col.iloc[-1])
++
++    def usage_log(self, knowledge_date, series_ids: list[str] | None = None) -> pd.DataFrame:
++        """
++        The observations `as_of` would return, with the date they were used on.
++
++        This is what the `lookahead` veto reads. Producing it here rather than
++        asking each signal to report its own usage means a signal cannot fail to
++        declare a peek.
++        """
++        kd = pd.Timestamp(knowledge_date)
++        sub = self.frame[self.frame["knowledge_date"] <= kd]
++        if series_ids is not None:
++            sub = sub[sub["series_id"].isin(series_ids)]
++        out = sub[["series_id", "real_date", "knowledge_date"]].copy()
++        out["used_on_date"] = kd
++        return out.reset_index(drop=True)
++
++    def grades(self) -> pd.Series:
++        if "grading" not in self.frame.columns:
++            return pd.Series(dtype="float64")
++        return self.frame["grading"]
++
++
++class PanelLoader(Protocol):
++    """
++    The single loader interface. Bloomberg, FRED, JPMaQS and the synthetic
++    backend all satisfy it, so the harness is written once.
++    """
++
++    def load_returns(self, snapshot_id: str) -> ReturnPanel: ...
++
++    def load_analytics(self, snapshot_id: str) -> AnalyticsPanel: ...
++
++    def load_macro(self, snapshot_id: str) -> VintagePanel: ...
+diff --git a/src/portfolio/.keep b/src/portfolio/.keep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/portfolio/__init__.py b/src/portfolio/__init__.py
+new file mode 100644
+index 0000000..e993a96
+--- /dev/null
++++ b/src/portfolio/__init__.py
+@@ -0,0 +1 @@
++"""portfolio. See SUBSTRATE.md section 15."""
+diff --git a/src/results/__init__.py b/src/results/__init__.py
+new file mode 100644
+index 0000000..6cbf144
+--- /dev/null
++++ b/src/results/__init__.py
+@@ -0,0 +1 @@
++"""results. See SUBSTRATE.md section 15."""
+diff --git a/src/signals/.keep b/src/signals/.keep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/signals/__init__.py b/src/signals/__init__.py
+new file mode 100644
+index 0000000..eadf495
+--- /dev/null
++++ b/src/signals/__init__.py
+@@ -0,0 +1 @@
++"""signals. See SUBSTRATE.md section 15."""
+diff --git a/src/stats/__init__.py b/src/stats/__init__.py
+new file mode 100644
+index 0000000..b2bd010
+--- /dev/null
++++ b/src/stats/__init__.py
+@@ -0,0 +1 @@
++"""stats. See SUBSTRATE.md section 15."""

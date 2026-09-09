@@ -1,0 +1,65 @@
+# Veto thresholds. SUBSTRATE.md section 10, as amended by decisions/0003
+# (eleven vetoes, not ten). Owner-only.
+# Agents may not change a threshold to make a run pass (SUBSTRATE section 2).
+params_version: "0.4.0"
+
+turnover:
+  max_annualised: 1.50
+cash:
+  max_weight: 0.20
+tracking_error:
+  max_trailing_3y: 0.060
+  # decisions/0003: the 95th percentile of trailing-3y readings, not the worst.
+  # "Episodic excursions allowed" (section 4) has to mean something, and the max
+  # makes a single bad quarter fatal. TE is retained as the MANDATE test; active
+  # drawdown below is the economic one.
+  statistic: p95
+positions:
+  max_nonzero: 30
+coverage:
+  min_universe_fraction: 0.80    # signal available for >= 80% of the estimation universe
+  min_date_fraction: 0.90        # on >= 90% of dates
+lookahead:
+  strict: true                   # no observation used before its knowledge_date
+frequency:
+  strict: true                   # no series contributes a return before its true daily start
+active_drawdown:
+  # decisions/0003. Eleventh veto, amending SUBSTRATE section 10.
+  # Expressed as a multiple of the TE ceiling rather than as an absolute number,
+  # so it tightens automatically if the TE budget is cut. At the 6.0% ceiling
+  # this is 18.0%. The owner's stated preference was an absolute 10%; see the
+  # simulation in decisions/0003 for why that number and a 6% TE budget cannot
+  # both hold. Set `absolute` instead of `te_multiple` to override.
+  te_multiple: 3.0
+  absolute: null
+seed_stability:
+  max_ir_range: 0.15
+multiple_testing:
+  procedure: romano_wolf
+  fwer_alpha: 0.05
+  level: family_then_within
+direction:
+  strict: true                   # realised sign must match the pre-registered direction
+
+evaluation:
+  # Data-integrity vetoes run first: a lookahead or frequency breach makes every
+  # downstream number meaningless, so it should be the reason logged, not a
+  # turnover breach that happens to be listed earlier. See decisions/proposed/0005.
+  # decisions/0005: SUBSTRATE section 10's table order is authoritative.
+  # Every verdict is still recorded, so a data-integrity breach remains visible
+  # in the store even when a constraint breach is named as cause of death.
+  order:
+    - turnover
+    - cash
+    - tracking_error
+    - positions
+    - coverage
+    - lookahead
+    - frequency
+    - active_drawdown
+    - seed_stability
+    - multiple_testing
+    - direction
+  # A veto that cannot be evaluated because its input is absent FAILS.
+  # Fail-open would let an unmeasured run onto the leaderboard.
+  on_missing_input: fail

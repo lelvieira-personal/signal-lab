@@ -1,0 +1,100 @@
+From c7ff28264b36ee67638342d6f81c644dc99dca5d Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:14 +0000
+Subject: [PATCH 01/17] invariant: every threshold lives in params/, nothing
+ key-shaped is tracked
+
+pyproject pins Python 3.12 and the dependency set. .gitignore excludes vendor
+pulls, snapshots, artifacts and anything matching *key* or *.secret; secrets
+come from environment variables only.
+---
+ .gitignore     | 15 +++++++++++++++
+ pyproject.toml | 49 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 64 insertions(+)
+ create mode 100644 pyproject.toml
+
+diff --git a/.gitignore b/.gitignore
+index 1aac100..819840e 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,10 +1,25 @@
++# Vendor pulls and derived panels are never committed. They are regenerable
++# or re-pullable; committing them would put licensed data in git history.
+ data/raw/
+ data/snapshots/
+ results/artifacts/
+ results/*.db
++results/*.db-journal
++
++# Secrets come from environment variables only. Nothing key-shaped is tracked.
+ *key*
+ *.secret
+ .env
++.env.*
++
++# Build and tooling
+ __pycache__/
+ *.pyc
+ .venv/
++.pytest_cache/
++.ruff_cache/
++*.egg-info/
++
++# Rendered reports are build output
++render/*.html
++leaderboard*.html
+diff --git a/pyproject.toml b/pyproject.toml
+new file mode 100644
+index 0000000..f95e2ef
+--- /dev/null
++++ b/pyproject.toml
+@@ -0,0 +1,49 @@
++[project]
++name = "signal-lab"
++version = "0.1.0"
++description = "Signal Lab harness. See SUBSTRATE.md; it is the constitution."
++requires-python = ">=3.12,<3.13"
++dependencies = [
++    "pandas>=2.2",
++    "numpy>=1.26",
++    "scipy>=1.13",
++    "statsmodels>=0.14",
++    "cvxpy>=1.5",
++    "clarabel>=0.9",          # open-source conic solver, the default
++    "osqp>=0.6",              # open-source QP fallback
++    "ecos>=2.0",              # open-source conic fallback
++    "pyarrow>=16.0",
++    "plotly>=5.22",
++    "pyyaml>=6.0",
++]
++
++[project.optional-dependencies]
++# MOSEK is commercial and behind a flag. See params/constraints.yaml:solver.
++mosek = ["mosek>=10.2"]
++# The Streamlit renderer is not required to build the static report.
++app = ["streamlit>=1.36"]
++
++[dependency-groups]
++dev = [
++    "pytest>=8.2",
++    "hypothesis>=6.100",
++    "ruff>=0.5",
++]
++
++[tool.uv]
++package = false   # a lab, not a library; src/ is put on sys.path, nothing is installed
++
++[tool.pytest.ini_options]
++pythonpath = ["src", "."]
++testpaths = ["tests"]
++filterwarnings = ["error::FutureWarning"]
++markers = ["holdout: the holdout lock tests, run explicitly by `make check`"]
++
++[tool.ruff]
++line-length = 100
++target-version = "py312"
++extend-exclude = ["patches"]
++
++[tool.ruff.lint]
++select = ["E", "F", "W", "I", "B", "UP"]
++ignore = ["E501"]

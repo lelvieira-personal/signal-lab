@@ -1,0 +1,32 @@
+# Cost model. SUBSTRATE.md section 8. v0.1 placeholders, to be revised
+# against live ETF data. Owner-only.
+params_version: "0.4.0"
+
+# net = gross - turnover * half_spread - annual_fee_tracking / weeks_per_year
+application:
+  weeks_per_year: 52
+  report: net_only
+  store_gross_for_diagnostics: true
+  # decisions/0004: gross IR is neither plotted nor displayed. The cost drag
+  # (gross minus net) is reported instead, which carries the diagnostic value
+  # without inviting the reader to rank on gross.
+  report_cost_drag: true
+
+buckets:
+  low:
+    label: "Treasuries, T-bills, US large-cap equity"
+    half_spread_bps: 5
+    annual_fee_tracking_bps: 5
+  mid:
+    label: "IG credit, sectors, DM regions, styles"
+    half_spread_bps: 10
+    annual_fee_tracking_bps: 15
+  high:
+    label: "HY, EM equity and debt, loans, real assets"
+    half_spread_bps: 20
+    annual_fee_tracking_bps: 35
+
+# An instrument with no bucket in the universe map is charged the most
+# expensive bucket. Costing an unmapped instrument cheaply would flatter it.
+# See decisions/proposed/0002.
+default_bucket: high

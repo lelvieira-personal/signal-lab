@@ -1,0 +1,43 @@
+id: H-2026-0001
+family: growth
+signal: growth_surprise_vs_trend_3m
+direction: positive
+target_axis: region
+rationale: >
+  Equity markets are claims on local cash flows, and the cross-section of
+  regional equity returns responds to the second derivative of activity rather
+  than its level: what is already trending is in the price, what surprises
+  relative to that trend is not. A vintage-dated composite of intuitive GDP
+  growth, manufacturing confidence and the unemployment gap, differenced
+  against its own three-month trend and ranked across countries, should
+  therefore tilt regional equity weight toward economies whose activity is
+  improving faster than their own recent pace. The relationship is positive:
+  a higher growth surprise implies a higher regional equity weight. The
+  horizon is set by the release cycle, not by market microstructure. Growth
+  data arrives monthly with a lag, revisions land over the following quarter,
+  and analyst and index-level earnings expectations reprice over roughly one
+  to two quarters, so anything shorter than a month is sampling noise in a
+  slow signal and anything beyond two quarters has been absorbed. This
+  survives the long-only constraint because it is expressed as a relative
+  tilt within an equity budget that is always positive: the signal decides
+  which regions are overweight and which underweight against benchmark, and
+  never asks for a short. Its weakness, stated in advance, is that regional
+  growth surprises are strongly correlated in a global downturn, so the
+  cross-sectional dispersion the signal needs collapses exactly when a
+  directional call would have paid.
+horizon_weeks: 4-13
+expected_expression: cross_sectional
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - JPMAQS.USD_INTRGDP_NSA_P1M1ML12_D1M1ML3
+  - JPMAQS.EUR_INTRGDP_NSA_P1M1ML12_D1M1ML3
+  - JPMAQS.JPY_INTRGDP_NSA_P1M1ML12_D1M1ML3
+  - JPMAQS.GBP_INTRGDP_NSA_P1M1ML12_D1M1ML3
+  - JPMAQS.USD_MBCSCORE_SA
+  - JPMAQS.EUR_MBCSCORE_SA
+  - JPMAQS.USD_UNEMPLRATE_SA_D1Q1QL4
+notes: >
+  Slow block. Held constant between releases at its vintage value; weekly
+  rebalancing does not resample it (SUBSTRATE section 6).

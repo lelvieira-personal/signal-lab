@@ -1,0 +1,41 @@
+id: H-2026-0004
+family: credit_conditions
+signal: bank_lending_standards_change_2q
+direction: negative
+target_axis: credit
+rationale: >
+  Bank lending surveys ask loan officers whether they have tightened credit
+  standards, and the answer leads realised default rates by roughly three to
+  four quarters because a firm refused refinancing today defaults when its
+  existing paper matures, not immediately. Credit spreads price default
+  expectations, so the survey leads the spread and not the other way round.
+  A tightening in standards should therefore predict widening spreads and
+  negative excess returns on credit relative to duration-matched governments:
+  the relationship is negative, tighter standards imply less credit exposure.
+  The expression is a reduction in the credit sleeve, moving weight down the
+  quality ladder in reverse, from high yield and loans toward investment grade
+  and governments, which is entirely achievable long-only because the
+  benchmark already holds the whole ladder. The horizon is one to two quarters
+  rather than the full lead of the underlying default relationship, because
+  spreads begin repricing as soon as the survey is published rather than
+  waiting for defaults to arrive. The declared weakness is that the survey is
+  quarterly, so the effective sample is very small, and the harness must count
+  macro cycles rather than weekly observations when reporting it. A second
+  weakness is asymmetry: the signal has historically been more informative
+  about tightening than about loosening, and testing it as a symmetric linear
+  score may understate it.
+horizon_weeks: 4-26
+expected_expression: directional
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - JPMAQS.USD_BLSDCLN_SA_D1Q1QL1
+  - JPMAQS.EUR_BLSDCLN_SA_D1Q1QL1
+  - DRTSCILM
+  - LF98TRUU
+  - LUACTRUU
+  - LUALTRUU
+notes: >
+  Slow block, quarterly release. Effective sample size in macro cycles must be
+  reported alongside any result (SUBSTRATE section 9).

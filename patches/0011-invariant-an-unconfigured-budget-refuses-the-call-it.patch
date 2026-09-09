@@ -1,0 +1,226 @@
+From 4b087a1eeef9bfca8b1ecfd07d2e7f27ce09682c Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:15 +0000
+Subject: [PATCH 11/17] invariant: an unconfigured budget refuses the call, it
+ does not allow it
+
+Usage read from the API's own fields including cache reads; a response with no
+usage field is refused because an uncounted call is an uncapped call. Ceilings
+are null in params, so the wrapper raises rather than making a call. The killer
+is injected so the kill path is tested without killing the test runner.
+---
+ tests/test_budgets.py | 205 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 205 insertions(+)
+ create mode 100644 tests/test_budgets.py
+
+diff --git a/tests/test_budgets.py b/tests/test_budgets.py
+new file mode 100644
+index 0000000..e9da4d6
+--- /dev/null
++++ b/tests/test_budgets.py
+@@ -0,0 +1,205 @@
++"""
++Agent budgets. SUBSTRATE section 14: the wrapper kills on breach, it does not warn.
++
++The killer is injected so the kill path can be tested without killing pytest.
++"""
++
++from __future__ import annotations
++
++import shutil
++from pathlib import Path
++
++import pytest
++
++from harness.budgets import (
++    BudgetExceeded,
++    BudgetLedger,
++    BudgetNotConfigured,
++    CycleBudget,
++    Usage,
++    cycle_budget,
++    model_calls_enabled,
++)
++from params import PARAM_FILES, load_params
++
++
++@pytest.fixture
++def configured_params(tmp_path, params):
++    """
++    params/ with explicit ceilings, for tests only.
++
++    The real params/agents.yaml leaves them null on purpose. Setting them here
++    tests the enforcement mechanism without putting an invented threshold into
++    the repository's configuration.
++    """
++    src = Path(params.params_dir)
++    for name in PARAM_FILES:
++        shutil.copy(src / name, tmp_path / name)
++    agents = tmp_path / "agents.yaml"
++    agents.write_text(
++        agents.read_text()
++        .replace("tokens_per_run: null", "tokens_per_run: 1000")
++        .replace("tokens_per_cycle: null", "tokens_per_cycle: 2500")
++        .replace("per_million_tokens: {}", "per_million_tokens: {blended: 10.0}")
++    )
++    return load_params(tmp_path)
++
++
++class Killed(Exception):
++    """Stands in for process termination."""
++
++
++def raising_killer(message: str) -> None:
++    raise Killed(message)
++
++
++def response_with(input_tokens=0, output_tokens=0, cache_read=0, cache_write=0):
++    return {
++        "usage": {
++            "input_tokens": input_tokens,
++            "output_tokens": output_tokens,
++            "cache_read_input_tokens": cache_read,
++            "cache_creation_input_tokens": cache_write,
++        }
++    }
++
++
++# --- usage accounting --------------------------------------------------------
++
++
++def test_usage_counts_every_token_class():
++    u = Usage.from_response(response_with(100, 50, cache_read=400, cache_write=20))
++    assert u.total == 570, "cached tokens are cheap but not free and are counted"
++
++
++def test_a_response_without_usage_is_refused():
++    with pytest.raises(BudgetExceeded, match="no usage field"):
++        Usage.from_response({"content": "hi"})
++
++
++def test_usage_reads_an_object_as_well_as_a_dict():
++    class R:
++        class usage:
++            input_tokens = 10
++            output_tokens = 5
++            cache_read_input_tokens = 0
++            cache_creation_input_tokens = 0
++
++    assert Usage.from_response(R()).total == 15
++
++
++# --- the unset ceiling refuses ----------------------------------------------
++
++
++def test_a_null_ceiling_refuses_the_call_rather_than_allowing_it(params, store):
++    """
++    Fail-closed. SUBSTRATE requires a ceiling; the lab does not invent one; so
++    with none configured no model call is made.
++    """
++    ledger = BudgetLedger(run_id="R-unset", params=params, store=store, killer=raising_killer)
++    with pytest.raises(BudgetNotConfigured, match="tokens_per_run"):
++        ledger.call(lambda: response_with(1, 1))
++
++
++def test_cycle_budget_refuses_when_unset(params):
++    with pytest.raises(BudgetNotConfigured, match="tokens_per_cycle"):
++        cycle_budget(params)
++
++
++def test_model_calls_are_disabled_while_budgets_are_unset(params):
++    enabled, reason = model_calls_enabled(params)
++    assert not enabled and "null" in reason
++
++
++def test_model_calls_still_need_a_model_tier(configured_params):
++    enabled, reason = model_calls_enabled(configured_params)
++    assert not enabled and "models" in reason
++
++
++# --- the kill path -----------------------------------------------------------
++
++
++def test_calls_under_the_ceiling_are_charged_and_survive(configured_params, store):
++    ledger = BudgetLedger(
++        run_id="R-ok", params=configured_params, store=store, killer=raising_killer
++    )
++    ledger.call(lambda: response_with(200, 100))
++    ledger.call(lambda: response_with(200, 100))
++    assert ledger.spent_tokens == 600
++    assert ledger.n_calls == 2
++    assert not ledger.killed
++
++
++def test_the_kill_path_fires_at_the_run_ceiling(configured_params, store):
++    ledger = BudgetLedger(
++        run_id="R-kill", params=configured_params, store=store, killer=raising_killer
++    )
++    ledger.call(lambda: response_with(600, 300))  # 900, under 1000
++    with pytest.raises(Killed, match="ceiling 1000"):
++        ledger.call(lambda: response_with(200, 0))  # 1100, over
++    assert ledger.killed
++
++
++def test_the_boundary_is_the_ceiling_itself(configured_params, store):
++    """Exactly at the ceiling survives; one token past it does not."""
++    ledger = BudgetLedger(
++        run_id="R-edge", params=configured_params, store=store, killer=raising_killer
++    )
++    ledger.call(lambda: response_with(1000, 0))
++    assert not ledger.killed
++    with pytest.raises(Killed):
++        ledger.call(lambda: response_with(1, 0))
++
++
++def test_a_kill_records_the_cost_in_the_store(configured_params, store):
++    ledger = BudgetLedger(
++        run_id="R-cost", params=configured_params, store=store, killer=raising_killer
++    )
++    with pytest.raises(Killed):
++        ledger.call(lambda: response_with(2000, 0))
++    runs = store.list_runs()
++    assert list(runs["run_id"]) == ["R-cost"]
++    assert runs.loc[0, "status"] == "killed"
++    assert runs.loc[0, "killed_by"] == "budget"
++    assert runs.loc[0, "cost_tokens"] == 2000
++    assert runs.loc[0, "cost_usd"] == pytest.approx(0.02)
++
++
++def test_the_cycle_ceiling_kills_even_when_each_run_is_within_its_own(configured_params, store):
++    cycle = CycleBudget(limit_tokens=2500)
++    for i in range(2):
++        led = BudgetLedger(
++            run_id=f"R-c{i}",
++            params=configured_params,
++            store=store,
++            cycle=cycle,
++            killer=raising_killer,
++        )
++        led.call(lambda: response_with(900, 0))
++        led.finalise(status="completed")
++    assert cycle.spent_tokens == 1800
++
++    led = BudgetLedger(
++        run_id="R-c2", params=configured_params, store=store, cycle=cycle, killer=raising_killer
++    )
++    with pytest.raises(Killed, match="cycle spent"):
++        led.call(lambda: response_with(900, 0))
++
++
++def test_a_run_already_over_budget_gets_no_further_call(configured_params, store):
++    ledger = BudgetLedger(
++        run_id="R-over", params=configured_params, store=store, killer=raising_killer
++    )
++    ledger.spent_tokens = 5000
++    calls = []
++    with pytest.raises(Killed, match="already over"):
++        ledger.call(lambda: calls.append(1) or response_with(1, 1))
++    assert calls == [], "no request is sent once the ceiling is already breached"
++
++
++def test_cost_is_null_rather_than_invented_when_pricing_is_unset(params, store):
++    ledger = BudgetLedger(run_id="R-nocost", params=params, store=store, killer=raising_killer)
++    ledger.spent_tokens = 1234
++    assert ledger.cost_usd() is None
++    ledger.finalise(status="completed")
++    assert store.list_runs().loc[0, "cost_usd"] is None

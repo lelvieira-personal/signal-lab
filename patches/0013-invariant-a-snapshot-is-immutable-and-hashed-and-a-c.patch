@@ -1,0 +1,701 @@
+From c127161ce6b8325a0701bfb4563876995bd48b46 Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:16 +0000
+Subject: [PATCH 13/17] invariant: a snapshot is immutable and hashed, and a
+ cycle invents nothing
+
+build_snapshot freezes a panel and hashes its bytes; the cycle refuses a
+snapshot that no longer matches its manifest. With no engine, run_experiment
+raises and the hypothesis is recorded blocked:no_engine rather than killed by a
+veto it was never measured against. make check runs lint, tests and the holdout
+lock explicitly.
+---
+ Makefile                  |  54 ++++++++++++
+ scripts/_bootstrap.py     |  18 ++++
+ scripts/build_snapshot.py |  75 +++++++++++++++++
+ scripts/digest.py         | 162 ++++++++++++++++++++++++++++++++++++
+ scripts/nightly_cycle.py  | 169 ++++++++++++++++++++++++++++++++++++++
+ tests/test_scripts.py     | 161 ++++++++++++++++++++++++++++++++++++
+ 6 files changed, 639 insertions(+)
+ create mode 100644 Makefile
+ create mode 100644 scripts/_bootstrap.py
+ create mode 100755 scripts/build_snapshot.py
+ create mode 100755 scripts/digest.py
+ create mode 100755 scripts/nightly_cycle.py
+ create mode 100644 tests/test_scripts.py
+
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..c843f11
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,54 @@
++# Signal Lab. Run from the repo root.
++#
++#   make check      everything CI runs: lint, tests, and the holdout lock by name
++#   make report     render the synthetic report
++#   make cycle      build a synthetic snapshot and run one cycle
++#
++# uv manages Python 3.12 and the locked dependency set; nothing is installed
++# into the system interpreter. `make check` is the definition of done.
++
++PY := uv run --python 3.12
++PYTEST := $(PY) --group dev pytest
++
++.DEFAULT_GOAL := check
++.PHONY: check lint test holdout report cycle digest snapshot clean lock install help
++
++help:
++	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
++
++install: ## sync the locked environment
++	uv sync --group dev
++
++lock: ## refresh uv.lock
++	uv lock
++
++lint: ## ruff check and format check
++	$(PY) --group dev ruff check src vetoes render scripts tests
++	$(PY) --group dev ruff format --check src vetoes render scripts tests
++
++test: ## the full suite
++	$(PYTEST) -q
++
++holdout: ## the holdout lock, run explicitly and by name
++	@echo "--- holdout lock (SUBSTRATE sections 2 and 3) ---"
++	$(PYTEST) -m holdout -v
++
++check: lint test holdout ## lint, tests, and the holdout lock
++	@echo
++	@echo "make check: OK"
++
++report: ## render the synthetic report to leaderboard.html
++	$(PY) --group dev python render/static_report.py --synthetic -o leaderboard.html
++
++snapshot: ## build the synthetic snapshot
++	$(PY) --group dev python scripts/build_snapshot.py --id synthetic-v1 --overwrite
++
++cycle: snapshot ## one nightly cycle against the synthetic snapshot
++	$(PY) --group dev python scripts/nightly_cycle.py --snapshot synthetic-v1
++
++digest: ## write results/digest.md from the last cycle
++	$(PY) --group dev python scripts/digest.py -o results/digest.md
++
++clean: ## remove build output, keep the store and snapshots
++	rm -rf .pytest_cache .ruff_cache leaderboard.html
++	find . -name __pycache__ -type d -prune -exec rm -rf {} +
+diff --git a/scripts/_bootstrap.py b/scripts/_bootstrap.py
+new file mode 100644
+index 0000000..2779842
+--- /dev/null
++++ b/scripts/_bootstrap.py
+@@ -0,0 +1,18 @@
++"""
++Put src/ and the repo root on sys.path.
++
++The repository is a lab, not an installable package (pyproject sets
++`[tool.uv] package = false`), so scripts bootstrap explicitly rather than
++depending on an editable install that may or may not be present.
++"""
++
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++
++for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "render"):
++    if str(entry) not in sys.path:
++        sys.path.insert(0, str(entry))
+diff --git a/scripts/build_snapshot.py b/scripts/build_snapshot.py
+new file mode 100755
+index 0000000..c51fbfd
+--- /dev/null
++++ b/scripts/build_snapshot.py
+@@ -0,0 +1,75 @@
++#!/usr/bin/env python3
++"""
++Hash and freeze a panel.
++
++    python scripts/build_snapshot.py --id synthetic-v1
++    python scripts/build_snapshot.py --id synthetic-v1 --verify
++
++Phase 0 builds from the synthetic backend only. The real backends raise a clear
++"lands in phase 2" rather than producing an empty panel.
++"""
++
++from __future__ import annotations
++
++import argparse
++import sys
++
++import _bootstrap  # noqa: F401
++
++
++def main(argv=None) -> int:
++    from harness.snapshot import build_snapshot, load_snapshot, verify_snapshot
++    from params import get_params
++
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--id", default="synthetic-v1", help="snapshot id")
++    parser.add_argument("--source", default="synthetic", choices=["synthetic", "bloomberg", "fred"])
++    parser.add_argument("--seed", type=int, default=None)
++    parser.add_argument("--snapshots-dir", default=None, help="override data/snapshots/")
++    parser.add_argument("--overwrite", action="store_true", help="rebuild an existing snapshot id")
++    parser.add_argument(
++        "--verify", action="store_true", help="re-hash an existing snapshot instead"
++    )
++    args = parser.parse_args(argv)
++
++    params = get_params()
++
++    if args.verify:
++        snap = load_snapshot(args.id, args.snapshots_dir)
++        ok, detail = verify_snapshot(snap)
++        print(f"{'OK  ' if ok else 'FAIL'} {detail}")
++        return 0 if ok else 1
++
++    try:
++        snap = build_snapshot(
++            args.id,
++            args.source,
++            params,
++            snapshots_dir=args.snapshots_dir,
++            seed=args.seed,
++            overwrite=args.overwrite,
++        )
++    except NotImplementedError as exc:
++        print(f"cannot build: {exc}", file=sys.stderr)
++        return 2
++    except FileExistsError as exc:
++        print(f"refusing: {exc}", file=sys.stderr)
++        return 3
++
++    m = snap.manifest
++    print(f"snapshot          {snap.snapshot_id}")
++    print(f"source            {m['source']}")
++    print(f"data_snapshot_hash {snap.data_snapshot_hash}")
++    print(f"params            {m['params_version']} · {m['params_hash'][:12]}")
++    print(f"dates             {m['first_date']} to {m['last_date']}")
++    print(f"series            {m['n_series']}  tiers {m['tiers']}")
++    print(f"macro series      {len(m['macro_ids'])}")
++    print(f"analytics fields  {m['analytics_fields']}")
++    print(f"hedged            {len(m['hedged_ids'])}")
++    print(f"splices applied   {len(m['splices'])}")
++    print(f"path              {snap.path}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/scripts/digest.py b/scripts/digest.py
+new file mode 100755
+index 0000000..0c1840f
+--- /dev/null
++++ b/scripts/digest.py
+@@ -0,0 +1,162 @@
++#!/usr/bin/env python3
++"""
++Write the morning digest. SUBSTRATE sections 13 and 14.
++
++    python scripts/digest.py -o results/digest.md
++
++A short markdown summary of the last cycle: what ran, what died and why, what is
++blocked on data, and what it cost. The owner touchpoints in SUBSTRATE section 13
++are the digest, decisions/proposed/, data/requests/ and the leaderboard, so the
++digest points at the other three rather than duplicating them.
++
++Gross IR does not appear here, for the same reason it is never plotted.
++"""
++
++from __future__ import annotations
++
++import argparse
++from datetime import UTC, datetime
++from pathlib import Path
++
++import _bootstrap  # noqa: F401
++
++
++def build_digest(store, params, registry, requests_dir: Path) -> str:
++    runs = store.list_runs()
++    summary = store.summary()
++    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
++
++    lines = [
++        "# Signal Lab — digest",
++        "",
++        f"Generated {now} · params {params.params_version} · `{params.params_hash[:12]}`",
++        "",
++    ]
++
++    if runs.empty:
++        lines += [
++            "## No runs recorded",
++            "",
++            "The results store is empty. Expected until the walk-forward engine lands in phase 1.",
++            "",
++        ]
++    else:
++        last_ts = runs["ts"].max()
++        cycle = runs[runs["ts"] >= last_ts[:10]]
++        by_status = cycle["status"].value_counts().to_dict()
++        lines += [
++            "## Last cycle",
++            "",
++            f"- Runs recorded: **{len(cycle)}** (store total {summary['n_runs']})",
++            f"- By status: {', '.join(f'{k} {v}' for k, v in sorted(by_status.items()))}",
++            f"- Killed: **{int(cycle['killed_by'].notna().sum())}**",
++            f"- Tokens: {summary['cost_tokens'] or 0:,}"
++            + (
++                f" · cost ${summary['cost_usd']:.2f}"
++                if summary["cost_usd"]
++                else " · cost not priced"
++            ),
++            "",
++        ]
++
++        killed = cycle[cycle["killed_by"].notna()]
++        if not killed.empty:
++            lines += [
++                "### What died and why",
++                "",
++                "| Run | Hypothesis | Family | Stopped by |",
++                "|---|---|---|---|",
++            ]
++            for _, r in killed.iterrows():
++                lines.append(
++                    f"| `{r['run_id']}` | {r['hypothesis_id'] or ''} | {r['family'] or ''} "
++                    f"| {r['killed_by']} |"
++                )
++            lines.append("")
++
++        survivors = cycle[cycle["passed"]] if "passed" in cycle else cycle.head(0)
++        if survivors.empty:
++            lines += ["### Survivors", "", "None this cycle.", ""]
++        else:
++            lines += [
++                "### Survivors, by the pre-registered objective",
++                "",
++                "| Run | Family | Net IR |",
++                "|---|---|---|",
++            ]
++            ordered = (
++                survivors.sort_values("net_ir", ascending=False)
++                if "net_ir" in survivors
++                else survivors
++            )
++            for _, r in ordered.iterrows():
++                ir = r.get("net_ir")
++                lines.append(
++                    f"| `{r['run_id']}` | {r['family'] or ''} | {'—' if ir is None else f'{ir:.2f}'} |"
++                )
++            lines.append("")
++
++    # --- the other owner touchpoints ---
++    pending, rejected = registry.load_tolerant("pending")
++    lines += [
++        "## Hypothesis registry",
++        "",
++        f"- pending: **{len(pending)}** valid"
++        + (f", {len(rejected)} rejected by the validator" if rejected else ""),
++        f"- running: {len(registry.paths('running'))} · done: {len(registry.paths('done'))}",
++        "",
++    ]
++    if rejected:
++        for path, reason in rejected:
++            lines.append(f"  - `{path.name}` — {reason}")
++        lines.append("")
++
++    requests = sorted(p.name for p in Path(requests_dir).glob("*.yaml"))
++    lines += ["## Waiting on the owner", ""]
++    lines.append(
++        f"- `data/requests/`: **{len(requests)}** open data request(s)"
++        + (f" — {', '.join(requests[:8])}" if requests else "")
++    )
++    proposed = sorted(
++        p.name for p in (Path(params.params_dir).parent / "decisions" / "proposed").glob("*.md")
++    )
++    lines.append(f"- `decisions/proposed/`: **{len(proposed)}** open question(s)")
++    if proposed:
++        for name in proposed:
++            lines.append(f"  - {name}")
++    lines += [
++        "",
++        "## Where to look",
++        "",
++        "- Leaderboard: `python render/static_report.py -o leaderboard.html`",
++        "- Constitution: `SUBSTRATE.md`",
++        "- Status: `STATUS.md`",
++        "",
++    ]
++    return "\n".join(lines)
++
++
++def main(argv=None) -> int:
++    from harness.hypotheses import REQUESTS_DIR, HypothesisRegistry
++    from params import get_params
++    from results.store import ResultsStore
++
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("-o", "--out", default="results/digest.md")
++    parser.add_argument("--db", default=None)
++    args = parser.parse_args(argv)
++
++    params = get_params()
++    store = ResultsStore(args.db) if args.db else ResultsStore()
++    registry = HypothesisRegistry(store=store, params=params)
++
++    text = build_digest(store, params, registry, REQUESTS_DIR)
++    out = Path(args.out)
++    out.parent.mkdir(parents=True, exist_ok=True)
++    out.write_text(text, encoding="utf-8")
++    print(out)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/scripts/nightly_cycle.py b/scripts/nightly_cycle.py
+new file mode 100755
+index 0000000..aafa00d
+--- /dev/null
++++ b/scripts/nightly_cycle.py
+@@ -0,0 +1,169 @@
++#!/usr/bin/env python3
++"""
++The nightly cycle. SUBSTRATE section 13.
++
++    python scripts/nightly_cycle.py --snapshot synthetic-v1
++
++Deterministic script, not a model. It loads the snapshot, validates each pending
++hypothesis, runs it, applies the vetoes, and records everything.
++
++PHASE 0 STATUS: there is no engine. `run_experiment()` is the only sanctioned
++way to run anything (SUBSTRATE section 2) and it lands in phase 1, so this
++script wires the whole pipeline and stops at the engine boundary. Each ready
++hypothesis is recorded with status `blocked:no_engine`. That is deliberate:
++
++  * the cycle is exercised end to end now, so phase 1 changes one call rather
++    than writing an orchestrator;
++  * nothing is fabricated. No IR is computed, no veto is evaluated against
++    invented inputs, and no row appears on the leaderboard that did not come
++    from a real run.
++
++The gate in SUBSTRATE section 5.6 is also live here: the search does not open
++until the macro block is in, so even with an engine this script would refuse to
++search on price-only signals.
++"""
++
++from __future__ import annotations
++
++import argparse
++from datetime import UTC
++
++import _bootstrap  # noqa: F401
++
++
++class EngineNotImplemented(NotImplementedError):
++    """run_experiment() lands in phase 1."""
++
++
++def run_experiment(hypothesis, snapshot, params, seed):
++    """
++    The only sanctioned way to run an experiment (SUBSTRATE section 2).
++
++    Phase 1 fills this in: walk-forward engine, cost model, exposure mapping and
++    long-only solve, returning a populated RunContext. It raises now so that a
++    cycle cannot silently produce a run context full of defaults, which would
++    then be judged by vetoes that fail closed and recorded as a veto failure
++    rather than as a missing engine.
++    """
++    raise EngineNotImplemented(
++        "the walk-forward engine lands in phase 1 (SUBSTRATE section 16); "
++        "no signal logic exists in phase 0"
++    )
++
++
++def main(argv=None) -> int:
++    from datetime import datetime
++
++    from harness.budgets import model_calls_enabled
++    from harness.hypotheses import HypothesisRegistry
++    from harness.snapshot import load_snapshot, verify_snapshot
++    from loaders.jpmaqs import search_is_open
++    from params import get_params
++    from results.store import ResultsStore, new_run_id
++    from vetoes import apply_vetoes
++
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--snapshot", default="synthetic-v1")
++    parser.add_argument("--seed", type=int, default=0)
++    parser.add_argument("--snapshots-dir", default=None, help="override data/snapshots/")
++    parser.add_argument("--db", default=None)
++    parser.add_argument("--dry-run", action="store_true", help="triage only, record nothing")
++    args = parser.parse_args(argv)
++
++    params = get_params()
++    store = ResultsStore(args.db) if args.db else ResultsStore()
++    cycle_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
++
++    print(f"cycle {cycle_id}")
++    print(f"params {params.params_version} · {params.params_hash[:12]}")
++
++    # --- load ---------------------------------------------------------------
++    snapshot = load_snapshot(args.snapshot, args.snapshots_dir)
++    ok, detail = verify_snapshot(snapshot)
++    print(f"snapshot {snapshot.snapshot_id}: {detail}")
++    if not ok:
++        print("refusing to run on a snapshot that does not match its manifest")
++        return 1
++
++    # --- gates --------------------------------------------------------------
++    search_open, search_detail = search_is_open(params)
++    print(f"search gate: {'open' if search_open else 'CLOSED'} — {search_detail}")
++    models_ok, models_detail = model_calls_enabled(params)
++    print(f"model roles: {'enabled' if models_ok else 'disabled'} — {models_detail}")
++    print("  deterministic steps (load, validate, veto, record) proceed regardless")
++
++    # --- triage -------------------------------------------------------------
++    registry = HypothesisRegistry(store=store, params=params)
++    triage = registry.triage(snapshot.available_ids())
++    print(
++        f"pending: {len(triage['ready'])} ready, {len(triage['blocked'])} blocked:data, "
++        f"{len(triage['rejected'])} rejected"
++    )
++    for path, reason in triage["rejected"]:
++        print(f"  REJECTED {path.name}: {reason}")
++    for hyp, check, request in triage["blocked"]:
++        print(f"  BLOCKED  {hyp.id}: {len(check.missing)} series missing → {request.name}")
++
++    if args.dry_run:
++        print("dry run: nothing recorded")
++        return 0
++
++    # --- run ----------------------------------------------------------------
++    recorded = 0
++    for hyp in triage["ready"]:
++        run_id = new_run_id(suffix=hyp.id)
++        try:
++            ctx = run_experiment(hyp, snapshot, params, args.seed)
++        except EngineNotImplemented as exc:
++            store.record_run(
++                run_id,
++                status="blocked:no_engine",
++                killed_by="engine_missing",
++                hypothesis_id=hyp.id,
++                family=hyp.family,
++                data_snapshot_hash=snapshot.data_snapshot_hash,
++                seed=args.seed,
++                params=params,
++            )
++            store.record_transition(hyp.id, "pending", "pending", run_id, str(exc)[:200])
++            print(f"  {hyp.id}: blocked:no_engine")
++            recorded += 1
++            continue
++
++        # Phase 1 onward reaches here. Vetoes are applied before any return
++        # statistic is computed or displayed (SUBSTRATE section 10).
++        store.record_run(
++            run_id,
++            status="completed",
++            hypothesis_id=hyp.id,
++            family=hyp.family,
++            data_snapshot_hash=snapshot.data_snapshot_hash,
++            seed=args.seed,
++            params=params,
++        )
++        verdicts, failure = apply_vetoes(ctx, params, store=store)
++        if failure:
++            print(f"  {hyp.id}: killed by {failure} — {verdicts[failure].detail}")
++        recorded += 1
++
++    # --- blocked hypotheses are recorded too, so the digest can show them ----
++    for hyp, _check, _request in triage["blocked"]:
++        run_id = new_run_id(suffix=hyp.id)
++        store.record_run(
++            run_id,
++            status="blocked:data",
++            killed_by="coverage",
++            hypothesis_id=hyp.id,
++            family=hyp.family,
++            data_snapshot_hash=snapshot.data_snapshot_hash,
++            seed=args.seed,
++            params=params,
++        )
++        recorded += 1
++
++    print(f"recorded {recorded} run(s) into {store.db_path}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tests/test_scripts.py b/tests/test_scripts.py
+new file mode 100644
+index 0000000..c8ac8dc
+--- /dev/null
++++ b/tests/test_scripts.py
+@@ -0,0 +1,161 @@
++"""
++Snapshots and the scripts. The cycle is exercised end to end with no engine.
++"""
++
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++
++import pytest
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(REPO_ROOT / "scripts")]
++
++from harness.snapshot import (  # noqa: E402
++    build_snapshot,
++    hash_directory,
++    load_snapshot,
++    verify_snapshot,
++)
++
++
++@pytest.fixture(scope="module")
++def snapshot(tmp_path_factory):
++    from params import get_params
++
++    out = tmp_path_factory.mktemp("snapshots")
++    return build_snapshot("test-v1", "synthetic", get_params(), snapshots_dir=out)
++
++
++def test_snapshot_hashes_its_contents(snapshot):
++    assert len(snapshot.data_snapshot_hash) == 64
++    assert hash_directory(snapshot.path) == snapshot.data_snapshot_hash
++
++
++def test_snapshot_manifest_carries_full_provenance(snapshot, params):
++    m = snapshot.manifest
++    assert m["params_version"] == params.params_version
++    assert m["params_hash"] == params.params_hash
++    assert m["holdout_start"] == "2020-01-01"
++    assert m["n_series"] == 100
++    assert len(m["hedged_ids"]) == 6
++    assert m["last_date"] < m["holdout_start"], "a snapshot never contains holdout dates"
++
++
++def test_snapshot_verification_catches_a_changed_file(snapshot):
++    ok, detail = verify_snapshot(snapshot)
++    assert ok, detail
++    (snapshot.path / "returns.parquet").write_bytes(b"tampered")
++    ok, detail = verify_snapshot(snapshot)
++    assert not ok and "changed on disk" in detail
++
++
++def test_a_snapshot_is_immutable(tmp_path, params):
++    build_snapshot("imm", "synthetic", params, snapshots_dir=tmp_path)
++    with pytest.raises(FileExistsError, match="immutable"):
++        build_snapshot("imm", "synthetic", params, snapshots_dir=tmp_path)
++
++
++def test_available_ids_covers_returns_and_macro(snapshot):
++    ids = snapshot.available_ids()
++    assert len(ids) >= 100
++    assert any(i.startswith("SYN") for i in ids)
++    assert any("." in i for i in ids), "macro series are addressable too"
++
++
++def test_missing_snapshot_says_how_to_build_it(tmp_path):
++    with pytest.raises(FileNotFoundError, match="build_snapshot"):
++        load_snapshot("nope", snapshots_dir=tmp_path)
++
++
++# --- scripts -----------------------------------------------------------------
++
++
++def test_build_snapshot_script_runs(tmp_path, capsys):
++    import build_snapshot as script
++
++    rc = script.main(["--id", "cli-v1", "--overwrite", "--snapshots-dir", str(tmp_path)])
++    out = capsys.readouterr().out
++    assert rc == 0
++    assert "data_snapshot_hash" in out and "tiers" in out
++
++
++def test_nightly_cycle_records_blocked_not_a_fake_veto_failure(tmp_path, capsys):
++    """
++    The important behaviour of the phase 0 cycle: with no engine, a hypothesis
++    is recorded as blocked, never as killed by a veto it was never measured
++    against. See decisions/proposed/0011.
++    """
++    import nightly_cycle as cycle
++
++    from params import get_params
++    from results.store import ResultsStore
++
++    params = get_params()
++    build_snapshot("cyc-v1", "synthetic", params, snapshots_dir=tmp_path)
++    db = tmp_path / "runs.db"
++    rc = cycle.main(["--snapshot", "cyc-v1", "--db", str(db), "--snapshots-dir", str(tmp_path)])
++    assert rc == 0
++    out = capsys.readouterr().out
++    assert "search gate: CLOSED" in out, "the section 5.6 gate must be visible"
++    assert "model roles: disabled" in out
++
++    runs = ResultsStore(db).list_runs()
++    assert len(runs) == 11
++    assert set(runs["status"]) <= {"blocked:data", "blocked:no_engine"}
++    assert not runs["passed"].any()
++    for _, r in runs.iterrows():
++        assert r["verdicts"] == {}, "no veto was evaluated, so none is recorded"
++
++
++def test_nightly_cycle_refuses_a_tampered_snapshot(tmp_path, capsys):
++    import nightly_cycle as cycle
++
++    from params import get_params
++
++    build_snapshot("tamp-v1", "synthetic", get_params(), snapshots_dir=tmp_path)
++    (tmp_path / "tamp-v1" / "returns.parquet").write_bytes(b"tampered")
++    rc = cycle.main(
++        ["--snapshot", "tamp-v1", "--db", str(tmp_path / "r.db"), "--snapshots-dir", str(tmp_path)]
++    )
++    assert rc == 1
++    assert "does not match its manifest" in capsys.readouterr().out
++
++
++def test_run_experiment_is_the_only_entry_point_and_it_raises():
++    """SUBSTRATE section 2: experiments run through run_experiment() and only it."""
++    import nightly_cycle as cycle
++
++    with pytest.raises(cycle.EngineNotImplemented, match="phase 1"):
++        cycle.run_experiment(None, None, None, 0)
++
++
++def test_digest_writes_a_markdown_summary(tmp_path, params, store):
++    import digest as digest_script
++
++    from harness.hypotheses import HypothesisRegistry
++    from results.store import Verdict
++
++    store.record_run(
++        "R-a", status="completed", data_snapshot_hash="h", family="trend", params=params
++    )
++    store.record_metrics("R-a", {"net_ir": 0.33})
++    store.record_verdicts("R-a", {"turnover": Verdict(True, "ok")})
++    store.record_run(
++        "R-b",
++        status="killed",
++        killed_by="turnover",
++        data_snapshot_hash="h",
++        family="carry",
++        params=params,
++    )
++
++    registry = HypothesisRegistry(store=store, params=params)
++    text = digest_script.build_digest(store, params, registry, tmp_path)
++    assert "# Signal Lab — digest" in text
++    assert params.params_hash[:12] in text
++    assert "What died and why" in text and "turnover" in text
++    body = text.split("## Waiting on the owner")[0]
++    assert "gross" not in body.lower(), "gross IR does not appear among the digest's metrics"
++    assert "decisions/proposed" in text

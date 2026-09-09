@@ -1,0 +1,40 @@
+id: H-2026-0005
+family: liquidity
+signal: real_broad_money_growth_12m
+direction: positive
+target_axis: credit
+rationale: >
+  Real broad money growth measures the purchasing power available to the
+  private sector after inflation. When it accelerates, the marginal holder of
+  cash is looking for yield and buys the assets closest to cash first, which
+  is short-dated credit, before moving out along the risk and maturity
+  spectrum. The mechanism is a portfolio-balance one rather than a growth
+  forecast: it is about who has to hold what, and it operates on a slower
+  clock than sentiment. Accelerating real money should therefore compress
+  credit spreads and support excess returns on credit over governments, so the
+  relationship is positive: faster real money growth implies more credit
+  exposure. The horizon is one to two quarters, reflecting the time it takes
+  balance-sheet reallocation to work through primary issuance and secondary
+  demand. Long-only expression is straightforward because it moves weight
+  between sleeves the benchmark already contains. Two risks are stated in
+  advance. First, this signal is close to a slower version of the financial
+  conditions family, so its incremental information over an FCI must be
+  established rather than assumed, and family-level aggregation will partly
+  absorb it. Second, money aggregates were structurally distorted by
+  quantitative easing, so the relationship estimated across a sample spanning
+  2008 may not be one relationship at all.
+horizon_weeks: 4-26
+expected_expression: directional
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - JPMAQS.USD_MBASEGDP_SA_D1M1ML12
+  - JPMAQS.USD_RM1GDP_SA_D1M1ML12
+  - JPMAQS.EUR_RM3GDP_SA_D1M1ML12
+  - NFCI
+  - LUACTRUU
+  - LF98TRUU
+notes: >
+  Slow block. Overlap with the volatility and stress family is expected;
+  incremental information over an FCI is part of what is being tested.

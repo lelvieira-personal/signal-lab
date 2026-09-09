@@ -1,0 +1,52 @@
+[project]
+name = "signal-lab"
+version = "0.1.0"
+description = "Signal Lab harness. See SUBSTRATE.md; it is the constitution."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scipy>=1.13",
+    "statsmodels>=0.14",
+    "cvxpy>=1.5",
+    "clarabel>=0.9",          # open-source conic solver, the default
+    "osqp>=0.6",              # open-source QP fallback
+    "ecos>=2.0",              # open-source conic fallback
+    "pyarrow>=16.0",
+    "plotly>=5.22",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# MOSEK is commercial and behind a flag. See params/constraints.yaml:solver.
+mosek = ["mosek>=10.2"]
+# The Streamlit renderer is not required to build the static report.
+app = ["streamlit>=1.36"]
+# JPMaQS / Macrosynergy. An extra rather than a core dependency: phases 0-2 do
+# not need it, and it pulls a large tree.
+jpmaqs = ["macrosynergy>=0.1"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "hypothesis>=6.100",
+    "ruff>=0.5",
+]
+
+[tool.uv]
+package = false   # a lab, not a library; src/ is put on sys.path, nothing is installed
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+filterwarnings = ["error::FutureWarning"]
+markers = ["holdout: the holdout lock tests, run explicitly by `make check`"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["patches"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]

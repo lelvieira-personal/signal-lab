@@ -1,0 +1,41 @@
+hypothesis_id: H-2026-0006
+signal: commodity_terms_of_trade_change_6m
+family: terms_of_trade
+requested_by: agent
+status: awaiting_owner
+series:
+- id: JPMAQS.AUD_CTOT_NSA_P1M1ML12
+  source: jpmaqs
+  fields:
+  - value
+- id: JPMAQS.BRL_CTOT_NSA_P1M1ML12
+  source: jpmaqs
+  fields:
+  - value
+- id: JPMAQS.CAD_CTOT_NSA_P1M1ML12
+  source: jpmaqs
+  fields:
+  - value
+- id: JPMAQS.ZAR_CTOT_NSA_P1M1ML12
+  source: jpmaqs
+  fields:
+  - value
+- id: DCOILWTICO
+  source: unknown
+  fields:
+  - value
+- id: DCOILBRENTEU
+  source: unknown
+  fields:
+  - value
+- id: MXEF
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: MXCA
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+reason: H-2026-0006 requires 8 series absent from the snapshot. The hypothesis is
+  blocked:data rather than run on a substitute.
+available_already: []

@@ -1,0 +1,42 @@
+id: H-2026-0011
+family: valuation
+signal: equity_bond_yield_gap_vs_own_history
+direction: positive
+target_axis: region
+rationale: >
+  The yield gap compares the earnings yield of an equity index with the real
+  yield of its own government bond market, and it is a statement about the
+  relative price of two claims on the same economy. Compared against its own
+  ten-year history rather than across countries, it controls for the
+  structural differences in sector composition, accounting convention and
+  payout policy that make a raw cross-country price-to-book comparison close
+  to meaningless. A gap that is wide against its own history is an equity
+  market cheap relative to its own bond market, and should predict higher
+  relative equity returns: the relationship is positive. Valuation is the
+  slowest signal in this set and its horizon is correspondingly the longest,
+  two to four quarters, which sits awkwardly against a weekly rebalance and is
+  part of what is being tested. Long-only expression is a regional equity tilt
+  inside a positive budget. The risks are large and stated up front. Valuation
+  has the smallest effective sample of any family here, perhaps five or six
+  independent observations per market over the development window, so the
+  harness must report effective sample size in macro cycles and the
+  Romano-Wolf stepdown will rightly be demanding. Valuation signals are also
+  reliably early, meaning the active drawdown before the payoff can exceed the
+  tracking error budget, in which case the correct conclusion is that the
+  signal does not fit this mandate rather than that the mandate is wrong.
+horizon_weeks: 13-52
+expected_expression: cross_sectional
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - JPMAQS.USD_EQCRR_NSA
+  - JPMAQS.EUR_EQCRR_NSA
+  - JPMAQS.JPY_EQCRR_NSA
+  - DFII10
+  - MXUS
+  - MXEU
+  - MXJP
+notes: >
+  Slow block, longest horizon in the registry. Effective sample size in macro
+  cycles is the number to read first on any result here.

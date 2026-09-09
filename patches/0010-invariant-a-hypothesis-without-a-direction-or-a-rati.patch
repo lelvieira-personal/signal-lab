@@ -1,0 +1,801 @@
+From c58491e6acdd8a710a3634b54de01a506a6d9ce4 Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:15 +0000
+Subject: [PATCH 10/17] invariant: a hypothesis without a direction or a
+ rationale never runs
+
+Parser and validator for the SUBSTRATE 7 template. literature provenance is
+rejected while no reference resolver is enabled, because a citation nobody
+checked is worse than none. Missing series produce blocked:data and a request
+file rather than a silent substitution. Eleven hypotheses registered, one per
+family; all adaptation, none claiming a citation.
+---
+ hypotheses/hypotheses/done/.keep              |   0
+ hypotheses/hypotheses/pending/.keep           |   0
+ .../hypotheses/pending/H-2026-0001.yaml       |  43 ++++
+ .../hypotheses/pending/H-2026-0002.yaml       |  42 ++++
+ .../hypotheses/pending/H-2026-0003.yaml       |  40 ++++
+ .../hypotheses/pending/H-2026-0004.yaml       |  41 ++++
+ .../hypotheses/pending/H-2026-0005.yaml       |  40 ++++
+ .../hypotheses/pending/H-2026-0006.yaml       |  42 ++++
+ .../hypotheses/pending/H-2026-0007.yaml       |  41 ++++
+ .../hypotheses/pending/H-2026-0008.yaml       |  39 +++
+ .../hypotheses/pending/H-2026-0009.yaml       |  42 ++++
+ .../hypotheses/pending/H-2026-0010.yaml       |  41 ++++
+ .../hypotheses/pending/H-2026-0011.yaml       |  42 ++++
+ hypotheses/hypotheses/running/.keep           |   0
+ tests/test_hypotheses.py                      | 223 ++++++++++++++++++
+ 15 files changed, 676 insertions(+)
+ create mode 100644 hypotheses/hypotheses/done/.keep
+ create mode 100644 hypotheses/hypotheses/pending/.keep
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0001.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0002.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0003.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0004.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0005.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0006.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0007.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0008.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0009.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0010.yaml
+ create mode 100644 hypotheses/hypotheses/pending/H-2026-0011.yaml
+ create mode 100644 hypotheses/hypotheses/running/.keep
+ create mode 100644 tests/test_hypotheses.py
+
+diff --git a/hypotheses/hypotheses/done/.keep b/hypotheses/hypotheses/done/.keep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/hypotheses/hypotheses/pending/.keep b/hypotheses/hypotheses/pending/.keep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/hypotheses/hypotheses/pending/H-2026-0001.yaml b/hypotheses/hypotheses/pending/H-2026-0001.yaml
+new file mode 100644
+index 0000000..687f3c8
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0001.yaml
+@@ -0,0 +1,43 @@
++id: H-2026-0001
++family: growth
++signal: growth_surprise_vs_trend_3m
++direction: positive
++target_axis: region
++rationale: >
++  Equity markets are claims on local cash flows, and the cross-section of
++  regional equity returns responds to the second derivative of activity rather
++  than its level: what is already trending is in the price, what surprises
++  relative to that trend is not. A vintage-dated composite of intuitive GDP
++  growth, manufacturing confidence and the unemployment gap, differenced
++  against its own three-month trend and ranked across countries, should
++  therefore tilt regional equity weight toward economies whose activity is
++  improving faster than their own recent pace. The relationship is positive:
++  a higher growth surprise implies a higher regional equity weight. The
++  horizon is set by the release cycle, not by market microstructure. Growth
++  data arrives monthly with a lag, revisions land over the following quarter,
++  and analyst and index-level earnings expectations reprice over roughly one
++  to two quarters, so anything shorter than a month is sampling noise in a
++  slow signal and anything beyond two quarters has been absorbed. This
++  survives the long-only constraint because it is expressed as a relative
++  tilt within an equity budget that is always positive: the signal decides
++  which regions are overweight and which underweight against benchmark, and
++  never asks for a short. Its weakness, stated in advance, is that regional
++  growth surprises are strongly correlated in a global downturn, so the
++  cross-sectional dispersion the signal needs collapses exactly when a
++  directional call would have paid.
++horizon_weeks: 4-13
++expected_expression: cross_sectional
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - JPMAQS.USD_INTRGDP_NSA_P1M1ML12_D1M1ML3
++  - JPMAQS.EUR_INTRGDP_NSA_P1M1ML12_D1M1ML3
++  - JPMAQS.JPY_INTRGDP_NSA_P1M1ML12_D1M1ML3
++  - JPMAQS.GBP_INTRGDP_NSA_P1M1ML12_D1M1ML3
++  - JPMAQS.USD_MBCSCORE_SA
++  - JPMAQS.EUR_MBCSCORE_SA
++  - JPMAQS.USD_UNEMPLRATE_SA_D1Q1QL4
++notes: >
++  Slow block. Held constant between releases at its vintage value; weekly
++  rebalancing does not resample it (SUBSTRATE section 6).
+diff --git a/hypotheses/hypotheses/pending/H-2026-0002.yaml b/hypotheses/hypotheses/pending/H-2026-0002.yaml
+new file mode 100644
+index 0000000..e0823fa
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0002.yaml
+@@ -0,0 +1,42 @@
++id: H-2026-0002
++family: inflation
++signal: inflation_surprise_vs_expectation_6m
++direction: positive
++target_axis: real_nominal
++rationale: >
++  The breakeven inflation rate is the market's forecast, so a linker earns its
++  nominal counterpart's return plus realised inflation minus that forecast.
++  The forecast is sticky: survey and market-implied expectations adjust to
++  incoming core inflation with a lag of one to two quarters, because the
++  monthly print is noisy and market participants sensibly wait for
++  confirmation. A signal that compares realised core inflation momentum
++  against the currently priced breakeven should therefore predict the excess
++  return of inflation-linked over duration-matched nominal bonds, positively:
++  inflation running above what is priced favours the linker. Six months of
++  momentum, rather than one print, is deliberate; single monthly prints are
++  dominated by energy and seasonal-adjustment noise, and the persistent
++  component is what the breakeven misprices. The horizon is one to two
++  quarters, matching the adjustment lag rather than the data frequency. This
++  survives long-only because both legs of the trade are held long in the
++  benchmark: the expression is an overweight of the inflation-linked sleeve
++  funded by an underweight of nominal governments of similar duration, never
++  a short. The declared risk is that the duration-matching is imperfect at the
++  index level, so a real-rate move can dominate the inflation view. The
++  effective sample is small, roughly one inflation cycle per five years, and
++  the harness must report cycles rather than observations.
++horizon_weeks: 8-26
++expected_expression: both
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - JPMAQS.USD_CPIC_SJA_P6M6ML6AR
++  - JPMAQS.EUR_CPIC_SJA_P6M6ML6AR
++  - T10YIE
++  - T5YIE
++  - DFII10
++  - LT01TRUU
++  - LBUTTRUU
++notes: >
++  Slow block. The nominal leg must be duration-matched at the index level
++  before the spread is formed; the mismatch is a stated model risk.
+diff --git a/hypotheses/hypotheses/pending/H-2026-0003.yaml b/hypotheses/hypotheses/pending/H-2026-0003.yaml
+new file mode 100644
+index 0000000..f338559
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0003.yaml
+@@ -0,0 +1,40 @@
++id: H-2026-0003
++family: policy_rates
++signal: real_policy_rate_change_3m
++direction: negative
++target_axis: duration
++rationale: >
++  A rising real policy rate is a central bank tightening faster than inflation
++  is falling, and it does two things to the bond return: it raises the
++  discount rate on every future coupon immediately, and it raises the
++  probability of further tightening being priced into the curve over the
++  following months. Policy is persistent by design, because central banks move
++  in sequences of same-signed steps rather than randomly, so the change in the
++  real policy rate over the past quarter carries information about the next
++  one or two quarters. The relationship is negative: a rising real policy rate
++  implies lower duration exposure. Expressed cross-sectionally across
++  government bond markets it is a tilt toward duration in economies where real
++  policy rates are falling and away from those where they are rising, which is
++  a relative-value expression that a long-only book can hold in full. The
++  directional expression, timing the aggregate duration of the portfolio, is
++  weaker and needs the cash bucket to fund it, so it is expected to be the
++  poorer of the two and both are reported. The stated risk is that in a
++  flight-to-quality episode duration rallies while real policy rates are still
++  rising, which is the correlation breakdown that makes this signal expensive
++  precisely when the portfolio most needs it to work.
++horizon_weeks: 4-13
++expected_expression: both
++proposed_by: owner
++provenance: adaptation
++reference: null
++data_required:
++  - JPMAQS.USD_RIR_NSA
++  - JPMAQS.EUR_RIR_NSA
++  - JPMAQS.JPY_RIR_NSA
++  - JPMAQS.GBP_RIR_NSA
++  - DFF
++  - DGS2
++  - DGS10
++notes: >
++  Slow block. This is the worked example in SUBSTRATE section 7 and is
++  registered as written there.
+diff --git a/hypotheses/hypotheses/pending/H-2026-0004.yaml b/hypotheses/hypotheses/pending/H-2026-0004.yaml
+new file mode 100644
+index 0000000..a92e595
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0004.yaml
+@@ -0,0 +1,41 @@
++id: H-2026-0004
++family: credit_conditions
++signal: bank_lending_standards_change_2q
++direction: negative
++target_axis: credit
++rationale: >
++  Bank lending surveys ask loan officers whether they have tightened credit
++  standards, and the answer leads realised default rates by roughly three to
++  four quarters because a firm refused refinancing today defaults when its
++  existing paper matures, not immediately. Credit spreads price default
++  expectations, so the survey leads the spread and not the other way round.
++  A tightening in standards should therefore predict widening spreads and
++  negative excess returns on credit relative to duration-matched governments:
++  the relationship is negative, tighter standards imply less credit exposure.
++  The expression is a reduction in the credit sleeve, moving weight down the
++  quality ladder in reverse, from high yield and loans toward investment grade
++  and governments, which is entirely achievable long-only because the
++  benchmark already holds the whole ladder. The horizon is one to two quarters
++  rather than the full lead of the underlying default relationship, because
++  spreads begin repricing as soon as the survey is published rather than
++  waiting for defaults to arrive. The declared weakness is that the survey is
++  quarterly, so the effective sample is very small, and the harness must count
++  macro cycles rather than weekly observations when reporting it. A second
++  weakness is asymmetry: the signal has historically been more informative
++  about tightening than about loosening, and testing it as a symmetric linear
++  score may understate it.
++horizon_weeks: 4-26
++expected_expression: directional
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - JPMAQS.USD_BLSDCLN_SA_D1Q1QL1
++  - JPMAQS.EUR_BLSDCLN_SA_D1Q1QL1
++  - DRTSCILM
++  - LF98TRUU
++  - LUACTRUU
++  - LUALTRUU
++notes: >
++  Slow block, quarterly release. Effective sample size in macro cycles must be
++  reported alongside any result (SUBSTRATE section 9).
+diff --git a/hypotheses/hypotheses/pending/H-2026-0005.yaml b/hypotheses/hypotheses/pending/H-2026-0005.yaml
+new file mode 100644
+index 0000000..6d17d94
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0005.yaml
+@@ -0,0 +1,40 @@
++id: H-2026-0005
++family: liquidity
++signal: real_broad_money_growth_12m
++direction: positive
++target_axis: credit
++rationale: >
++  Real broad money growth measures the purchasing power available to the
++  private sector after inflation. When it accelerates, the marginal holder of
++  cash is looking for yield and buys the assets closest to cash first, which
++  is short-dated credit, before moving out along the risk and maturity
++  spectrum. The mechanism is a portfolio-balance one rather than a growth
++  forecast: it is about who has to hold what, and it operates on a slower
++  clock than sentiment. Accelerating real money should therefore compress
++  credit spreads and support excess returns on credit over governments, so the
++  relationship is positive: faster real money growth implies more credit
++  exposure. The horizon is one to two quarters, reflecting the time it takes
++  balance-sheet reallocation to work through primary issuance and secondary
++  demand. Long-only expression is straightforward because it moves weight
++  between sleeves the benchmark already contains. Two risks are stated in
++  advance. First, this signal is close to a slower version of the financial
++  conditions family, so its incremental information over an FCI must be
++  established rather than assumed, and family-level aggregation will partly
++  absorb it. Second, money aggregates were structurally distorted by
++  quantitative easing, so the relationship estimated across a sample spanning
++  2008 may not be one relationship at all.
++horizon_weeks: 4-26
++expected_expression: directional
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - JPMAQS.USD_MBASEGDP_SA_D1M1ML12
++  - JPMAQS.USD_RM1GDP_SA_D1M1ML12
++  - JPMAQS.EUR_RM3GDP_SA_D1M1ML12
++  - NFCI
++  - LUACTRUU
++  - LF98TRUU
++notes: >
++  Slow block. Overlap with the volatility and stress family is expected;
++  incremental information over an FCI is part of what is being tested.
+diff --git a/hypotheses/hypotheses/pending/H-2026-0006.yaml b/hypotheses/hypotheses/pending/H-2026-0006.yaml
+new file mode 100644
+index 0000000..1c6209a
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0006.yaml
+@@ -0,0 +1,42 @@
++id: H-2026-0006
++family: terms_of_trade
++signal: commodity_terms_of_trade_change_6m
++direction: positive
++target_axis: region
++rationale: >
++  A country's commodity terms of trade is the price of what it exports against
++  the price of what it imports, weighted by trade shares. When it improves, the
++  national income of the exporting economy rises without any change in
++  volumes, which flows to corporate margins in the export sector, to the fiscal
++  balance through royalties and taxes, and to the currency through the trade
++  account. Equity markets in commodity-exporting economies are unusually
++  concentrated in the exporting sector, so the index-level effect is larger
++  than the aggregate income effect. This should tilt regional equity weight
++  toward economies with improving terms of trade: the relationship is positive.
++  Six-month change rather than level is deliberate, because the level is
++  largely a structural fact about a country's endowment and is already
++  reflected in long-run valuation, while the change is news. The horizon is one
++  to two quarters, the time it takes for realised commodity prices to reach
++  reported earnings. This is expressible long-only as a relative regional tilt
++  within an always-positive equity budget. The declared risk is that the
++  benchmark is unhedged, so a terms-of-trade improvement that shows up mostly
++  in the currency will be captured through the FX return of the unhedged index
++  rather than the local equity return, and the signal may be measuring an FX
++  effect while claiming an equity one.
++horizon_weeks: 8-26
++expected_expression: cross_sectional
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - JPMAQS.AUD_CTOT_NSA_P1M1ML12
++  - JPMAQS.BRL_CTOT_NSA_P1M1ML12
++  - JPMAQS.CAD_CTOT_NSA_P1M1ML12
++  - JPMAQS.ZAR_CTOT_NSA_P1M1ML12
++  - DCOILWTICO
++  - DCOILBRENTEU
++  - MXEF
++  - MXCA
++notes: >
++  Slow block. The FX-versus-equity attribution must be decomposed before this
++  is claimed as a regional equity signal.
+diff --git a/hypotheses/hypotheses/pending/H-2026-0007.yaml b/hypotheses/hypotheses/pending/H-2026-0007.yaml
+new file mode 100644
+index 0000000..da0152f
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0007.yaml
+@@ -0,0 +1,41 @@
++id: H-2026-0007
++family: spreads_curve
++signal: oas_zscore_vs_own_5y_history
++direction: positive
++target_axis: credit
++rationale: >
++  Credit spreads compensate for expected default, for the illiquidity of the
++  instrument, and for a risk premium that varies with the marginal investor's
++  appetite. Only the first is a forecast; the other two mean-revert. A spread
++  that is wide against its own five-year history is therefore, on average, a
++  spread that will tighten, and the expected excess return over duration
++  matched governments is positive. The relationship is positive: wider spreads
++  relative to own history imply more credit exposure. This is scored per
++  segment, so the comparison is investment grade against its own history and
++  high yield against its own, never one against the other, because their
++  unconditional levels differ by a multiple and a pooled z-score would simply
++  be a permanent high-yield overweight wearing a signal's clothing. Expressed
++  cross-sectionally across credit segments it is fully long-only. The horizon
++  is one quarter, the observed half-life of spread deviations outside crisis
++  periods. The risk stated in advance is that this signal is short volatility:
++  it buys widening spreads, so it adds exposure into precisely the episodes
++  that produce the largest drawdowns, and its unconditional Sharpe ratio will
++  look better than its behaviour in the left tail. The tracking error veto and
++  the active drawdown diagnostic are the intended checks on that, not the
++  information ratio.
++horizon_weeks: 4-13
++expected_expression: cross_sectional
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - LUACTRUU Index|INDEX_OAS_TSY
++  - LF98TRUU Index|INDEX_OAS_TSY
++  - LUALTRUU Index|INDEX_OAS_TSY
++  - EMUSTRUU Index|INDEX_OAS_TSY
++  - LUACTRUU
++  - LF98TRUU
++notes: >
++  Fast block, daily. Turnover is expected to concentrate here and is charged
++  accordingly (SUBSTRATE section 6). Spreads come from Bloomberg, not FRED
++  (SUBSTRATE section 5.4).
+diff --git a/hypotheses/hypotheses/pending/H-2026-0008.yaml b/hypotheses/hypotheses/pending/H-2026-0008.yaml
+new file mode 100644
+index 0000000..df6974a
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0008.yaml
+@@ -0,0 +1,39 @@
++id: H-2026-0008
++family: volatility_stress
++signal: move_vix_composite_change_1m
++direction: negative
++target_axis: cash
++rationale: >
++  Implied volatility in rates and equities is a price for insurance, and it
++  rises when dealers' capacity to warehouse risk falls. Because that capacity
++  recovers slowly, volatility clusters: a rise this month predicts elevated
++  volatility next month, which predicts wider realised dispersion and lower
++  risk-adjusted returns on every risk asset simultaneously. The practical
++  consequence for a long-only multi-asset book is not that a particular sleeve
++  becomes unattractive but that the whole opportunity set does, and the only
++  instrument that expresses that is cash. The relationship is negative: rising
++  volatility implies less risk exposure, which mechanically means more cash.
++  The horizon is short, four to eight weeks, matching the persistence of
++  volatility itself, which decays far faster than any macro signal in this set.
++  This is honestly a weak expression: the cash bucket is capped at twenty per
++  cent of NAV, so the maximum defensive move available is small, and the
++  signal will be right about risk far more often than it can profit from being
++  right. It is registered anyway because its interaction with the other
++  families matters: if volatility scaling adds nothing on its own but improves
++  the seed stability and drawdown profile of a combination, that is a result
++  worth having, and it cannot be found without testing the standalone case
++  first.
++horizon_weeks: 4-8
++expected_expression: directional
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - MOVE
++  - VIXCLS
++  - NFCI
++  - ANFCI
++  - STLFSI4
++notes: >
++  Fast block. Constrained by the 20% cash ceiling in params/constraints.yaml;
++  the modest ceiling is part of the hypothesis, not an obstacle to it.
+diff --git a/hypotheses/hypotheses/pending/H-2026-0009.yaml b/hypotheses/hypotheses/pending/H-2026-0009.yaml
+new file mode 100644
+index 0000000..695d554
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0009.yaml
+@@ -0,0 +1,42 @@
++id: H-2026-0009
++family: trend
++signal: multi_horizon_price_trend_1_3_12m
++direction: positive
++target_axis: region
++rationale: >
++  Prices trend because information is absorbed gradually and because
++  institutional flows are themselves autocorrelated: investors rebalance on a
++  calendar, mandates are funded in stages, and risk limits force selling into
++  weakness and buying into strength. Averaging trend over one, three and
++  twelve months rather than picking a horizon is deliberate, since the
++  best-performing single lookback is unstable across samples and selecting it
++  is precisely the multiplicity problem this lab exists to control; averaging
++  gives up the peak and keeps most of the effect. The relationship is
++  positive: a stronger relative trend implies a higher weight. Expressed
++  cross-sectionally across equity regions it is a relative tilt inside a
++  positive budget and therefore fully long-only. The horizon is one quarter,
++  matching the medium-term band where trend has been most reliable and
++  avoiding the one-month reversal band. The risks are stated plainly. Trend at
++  weekly rebalance is the most turnover-hungry family in this set, so it is
++  the one most likely to survive gross and die net, which is exactly why the
++  objective is net of the cost model. And trend is prone to sharp reversals at
++  turning points, so its active drawdown profile matters more than its mean.
++  Registering it early is also a control: if the harness cannot recover a
++  trend effect that is well documented across asset classes and decades, the
++  harness is broken rather than the market efficient.
++horizon_weeks: 4-13
++expected_expression: cross_sectional
++proposed_by: owner
++provenance: adaptation
++reference: null
++data_required:
++  - MXUS
++  - MXEU
++  - MXJP
++  - MXEF
++  - MXWO
++  - LEGATRUU
++  - LUACTRUU
++notes: >
++  Fast block. Doubles as a harness control: a null result here is evidence
++  about the engine before it is evidence about markets.
+diff --git a/hypotheses/hypotheses/pending/H-2026-0010.yaml b/hypotheses/hypotheses/pending/H-2026-0010.yaml
+new file mode 100644
+index 0000000..3a142d6
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0010.yaml
+@@ -0,0 +1,41 @@
++id: H-2026-0010
++family: carry
++signal: duration_carry_term_spread
++direction: positive
++target_axis: duration
++rationale: >
++  Carry is the return an asset delivers if prices do not move, and for a bond
++  it is the yield plus the roll-down along the curve. When the curve is steep,
++  a long-maturity bond earns more than the funding rate and also rolls into a
++  lower yield as it ages, so both components are positive and known in advance.
++  Realised bond returns are the sum of that known carry and an unknown yield
++  change; the unknown part is close to unforecastable at a quarterly horizon,
++  so the known part dominates the expectation even though it does not dominate
++  the variance. The relationship is positive: steeper curves imply more
++  duration exposure. Ranked across government bond markets this is a
++  cross-sectional tilt toward the steepest curves, fully expressible long-only
++  within a bond sleeve the benchmark already holds. The horizon is one quarter,
++  which is long enough for carry to accumulate against the noise of daily yield
++  moves and short enough that the curve shape used is still current. Two
++  declared risks. Carry is negatively skewed: it pays a small amount most of
++  the time and loses a large amount in a rapid bear steepening, so the mean is
++  not the whole distribution. And carry across markets is highly correlated
++  with the level of global term premia, so a cross-sectional carry signal may
++  turn out to be a single directional bet on term premium wearing the clothes
++  of a diversified tilt, which the risk decomposition is meant to expose.
++horizon_weeks: 4-13
++expected_expression: cross_sectional
++proposed_by: agent
++provenance: adaptation
++reference: null
++data_required:
++  - DGS2
++  - DGS10
++  - DGS30
++  - JPMAQS.USD_GB10YXGB_NSA
++  - JPMAQS.EUR_GB10YXGB_NSA
++  - LT01TRUU Index|INDEX_YIELD_TO_WORST
++  - LT08TRUU Index|INDEX_YIELD_TO_WORST
++notes: >
++  Fast block, though the underlying curve shape moves slowly. Risk
++  decomposition must show whether this is a tilt or a single factor bet.
+diff --git a/hypotheses/hypotheses/pending/H-2026-0011.yaml b/hypotheses/hypotheses/pending/H-2026-0011.yaml
+new file mode 100644
+index 0000000..e59c72d
+--- /dev/null
++++ b/hypotheses/hypotheses/pending/H-2026-0011.yaml
+@@ -0,0 +1,42 @@
++id: H-2026-0011
++family: valuation
++signal: equity_bond_yield_gap_vs_own_history
++direction: positive
++target_axis: region
++rationale: >
++  The yield gap compares the earnings yield of an equity index with the real
++  yield of its own government bond market, and it is a statement about the
++  relative price of two claims on the same economy. Compared against its own
++  ten-year history rather than across countries, it controls for the
++  structural differences in sector composition, accounting convention and
++  payout policy that make a raw cross-country price-to-book comparison close
++  to meaningless. A gap that is wide against its own history is an equity
++  market cheap relative to its own bond market, and should predict higher
++  relative equity returns: the relationship is positive. Valuation is the
++  slowest signal in this set and its horizon is correspondingly the longest,
++  two to four quarters, which sits awkwardly against a weekly rebalance and is
++  part of what is being tested. Long-only expression is a regional equity tilt
++  inside a positive budget. The risks are large and stated up front. Valuation
++  has the smallest effective sample of any family here, perhaps five or six
++  independent observations per market over the development window, so the
++  harness must report effective sample size in macro cycles and the
++  Romano-Wolf stepdown will rightly be demanding. Valuation signals are also
++  reliably early, meaning the active drawdown before the payoff can exceed the
++  tracking error budget, in which case the correct conclusion is that the
++  signal does not fit this mandate rather than that the mandate is wrong.
++horizon_weeks: 13-52
++expected_expression: cross_sectional
++proposed_by: owner
++provenance: adaptation
++reference: null
++data_required:
++  - JPMAQS.USD_EQCRR_NSA
++  - JPMAQS.EUR_EQCRR_NSA
++  - JPMAQS.JPY_EQCRR_NSA
++  - DFII10
++  - MXUS
++  - MXEU
++  - MXJP
++notes: >
++  Slow block, longest horizon in the registry. Effective sample size in macro
++  cycles is the number to read first on any result here.
+diff --git a/hypotheses/hypotheses/running/.keep b/hypotheses/hypotheses/running/.keep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/tests/test_hypotheses.py b/tests/test_hypotheses.py
+new file mode 100644
+index 0000000..803d711
+--- /dev/null
++++ b/tests/test_hypotheses.py
+@@ -0,0 +1,223 @@
++"""
++The hypothesis registry. SUBSTRATE section 7.
++
++The registered set is validated as data: if a hypothesis file drifts out of
++spec, the suite says so, which is what makes pre-registration binding rather
++than decorative.
++"""
++
++from __future__ import annotations
++
++import pytest
++import yaml
++
++from harness.hypotheses import (
++    FAMILIES,
++    HypothesisRegistry,
++    HypothesisRejected,
++    check_data,
++    validate_hypothesis,
++    write_data_request,
++)
++
++
++def good_doc(**over):
++    doc = {
++        "id": "H-2026-9001",
++        "family": "policy_rates",
++        "signal": "real_policy_rate_change_3m",
++        "direction": "negative",
++        "target_axis": "duration",
++        "rationale": "A rising real policy rate raises the discount rate on every future coupon "
++        "and raises the probability of further tightening being priced into the curve, and "
++        "policy moves in persistent same-signed sequences, so the past quarter informs the next.",
++        "horizon_weeks": "4-13",
++        "expected_expression": "both",
++        "proposed_by": "agent",
++        "provenance": "adaptation",
++        "data_required": ["DGS2", "DGS10"],
++    }
++    doc.update(over)
++    return doc
++
++
++# --- validation --------------------------------------------------------------
++
++
++def test_a_well_formed_hypothesis_validates(params):
++    h = validate_hypothesis(good_doc(), params)
++    assert h.id == "H-2026-9001"
++    assert h.horizon_range() == (4, 13)
++    assert not h.is_proxy
++
++
++@pytest.mark.parametrize("field", ["direction", "rationale", "family", "signal", "data_required"])
++def test_missing_required_field_is_rejected(params, field):
++    doc = good_doc()
++    doc.pop(field)
++    with pytest.raises(HypothesisRejected, match="missing required field"):
++        validate_hypothesis(doc, params)
++
++
++def test_direction_must_be_positive_or_negative(params):
++    with pytest.raises(HypothesisRejected, match="direction"):
++        validate_hypothesis(good_doc(direction="maybe"), params)
++
++
++def test_a_thin_rationale_is_rejected(params):
++    """SUBSTRATE section 7 asks for a paragraph of economics, not a sentence."""
++    with pytest.raises(HypothesisRejected, match="rationale"):
++        validate_hypothesis(good_doc(rationale="Rates go up, bonds go down."), params)
++
++
++def test_unknown_family_is_rejected(params):
++    with pytest.raises(HypothesisRejected, match="family"):
++        validate_hypothesis(good_doc(family="vibes"), params)
++
++
++def test_unknown_target_axis_is_rejected(params):
++    with pytest.raises(HypothesisRejected, match="target_axis"):
++        validate_hypothesis(good_doc(target_axis="alpha"), params)
++
++
++def test_malformed_id_is_rejected(params):
++    with pytest.raises(HypothesisRejected, match="id"):
++        validate_hypothesis(good_doc(id="my-idea"), params)
++
++
++def test_malformed_horizon_is_rejected(params):
++    with pytest.raises(HypothesisRejected, match="horizon_weeks"):
++        validate_hypothesis(good_doc(horizon_weeks="a few months"), params)
++    with pytest.raises(HypothesisRejected, match="sane range"):
++        validate_hypothesis(good_doc(horizon_weeks="13-4"), params)
++
++
++def test_literature_without_a_reference_is_rejected(params):
++    with pytest.raises(HypothesisRejected, match="no reference"):
++        validate_hypothesis(good_doc(provenance="literature"), params)
++
++
++def test_literature_with_an_unresolvable_reference_is_rejected(params):
++    """
++    No resolver is enabled, so no citation can be verified, so none is accepted.
++    SUBSTRATE section 7 treats a fabricated citation as a failure of the
++    proposer; accepting unverified ones on trust is how that happens.
++    """
++    doc = good_doc(provenance="literature", reference="10.1000/does-not-exist")
++    with pytest.raises(HypothesisRejected, match="did not resolve"):
++        validate_hypothesis(doc, params)
++
++
++def test_proxy_must_be_declared_as_a_mapping(params):
++    with pytest.raises(HypothesisRejected, match="proxy_for"):
++        validate_hypothesis(good_doc(proxy_for="DGS10"), params)
++    h = validate_hypothesis(good_doc(proxy_for={"DGS10": "JPMAQS.USD_GB10YXGB_NSA"}), params)
++    assert h.is_proxy
++
++
++# --- data availability -------------------------------------------------------
++
++
++def test_missing_series_blocks_and_writes_a_request(params, tmp_path):
++    h = validate_hypothesis(good_doc(data_required=["DGS2", "JPMAQS.USD_RIR_NSA"]), params)
++    check = check_data(h, {"DGS2"})
++    assert check.blocked and check.status == "blocked:data"
++    assert check.missing == ["JPMAQS.USD_RIR_NSA"]
++
++    path = write_data_request(h, check, tmp_path)
++    doc = yaml.safe_load(path.read_text())
++    assert doc["hypothesis_id"] == h.id
++    assert doc["series"][0]["id"] == "JPMAQS.USD_RIR_NSA"
++    assert doc["series"][0]["source"] == "jpmaqs"
++    assert doc["series"][0]["fields"]
++    assert doc["status"] == "awaiting_owner"
++
++
++def test_a_fully_covered_hypothesis_is_ready(params):
++    h = validate_hypothesis(good_doc(), params)
++    assert not check_data(h, {"DGS2", "DGS10", "SPX"}).blocked
++
++
++# --- the lifecycle -----------------------------------------------------------
++
++
++def test_move_records_a_transition(params, store, tmp_path):
++    root = tmp_path / "hypotheses"
++    (root / "pending").mkdir(parents=True)
++    (root / "pending" / "H-2026-9001.yaml").write_text(yaml.safe_dump(good_doc()), encoding="utf-8")
++
++    reg = HypothesisRegistry(root, store=store, params=params, requests_dir=tmp_path / "requests")
++    assert len(reg.load("pending")) == 1
++
++    reg.move("H-2026-9001", "running", run_id="R-1", detail="cycle 1")
++    reg.move("H-2026-9001", "done", run_id="R-1", detail="blocked:data")
++
++    assert reg.paths("pending") == []
++    assert len(reg.paths("done")) == 1
++    trans = store.transitions("H-2026-9001")
++    assert list(trans["from_state"]) == ["pending", "running"]
++    assert list(trans["to_state"]) == ["running", "done"]
++
++
++def test_move_refuses_to_overwrite_an_existing_registration(params, store, tmp_path):
++    root = tmp_path / "hypotheses"
++    for state in ("pending", "done"):
++        (root / state).mkdir(parents=True)
++        (root / state / "H-2026-9001.yaml").write_text(yaml.safe_dump(good_doc()), encoding="utf-8")
++    reg = HypothesisRegistry(root, store=store, params=params)
++    with pytest.raises(FileExistsError):
++        reg.move("H-2026-9001", "done")
++
++
++def test_triage_splits_ready_blocked_and_rejected(params, store, tmp_path):
++    root = tmp_path / "hypotheses"
++    (root / "pending").mkdir(parents=True)
++    (root / "pending" / "H-2026-9001.yaml").write_text(yaml.safe_dump(good_doc()), encoding="utf-8")
++    (root / "pending" / "H-2026-9002.yaml").write_text(
++        yaml.safe_dump(good_doc(id="H-2026-9002", data_required=["NOT_IN_SNAPSHOT"])),
++        encoding="utf-8",
++    )
++    (root / "pending" / "H-2026-9003.yaml").write_text(
++        yaml.safe_dump(good_doc(id="H-2026-9003", rationale="too short")), encoding="utf-8"
++    )
++    reg = HypothesisRegistry(root, store=store, params=params, requests_dir=tmp_path / "requests")
++    out = reg.triage({"DGS2", "DGS10"})
++    assert [h.id for h in out["ready"]] == ["H-2026-9001"]
++    assert [h.id for h, _, _ in out["blocked"]] == ["H-2026-9002"]
++    assert len(out["rejected"]) == 1
++    assert (tmp_path / "requests" / "H-2026-9002.yaml").exists()
++
++
++# --- the registered set ------------------------------------------------------
++
++
++def test_every_registered_hypothesis_parses(params):
++    reg = HypothesisRegistry(params=params)
++    hyps = reg.load("pending")
++    assert len(hyps) >= 10, "SUBSTRATE section 6 lists 11 families; see decisions/proposed/0009"
++
++
++def test_registered_set_covers_every_substrate_family(params):
++    """
++    KICKOFF item 5: at least one per family listed in SUBSTRATE section 6.
++    """
++    reg = HypothesisRegistry(params=params)
++    covered = {h.family for h in reg.load("pending")}
++    assert covered == set(FAMILIES), f"families with no hypothesis: {set(FAMILIES) - covered}"
++
++
++def test_no_registered_hypothesis_claims_an_unverified_citation(params):
++    """
++    Every registered hypothesis is `adaptation` or `novel`, because no reference
++    resolver is enabled and a citation nobody checked is worse than none.
++    """
++    reg = HypothesisRegistry(params=params)
++    for h in reg.load("pending"):
++        assert h.provenance in ("adaptation", "novel")
++        assert h.reference is None
++
++
++def test_registered_ids_are_unique(params):
++    reg = HypothesisRegistry(params=params)
++    ids = [h.id for h in reg.load("pending")]
++    assert len(ids) == len(set(ids))

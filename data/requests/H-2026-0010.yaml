@@ -1,0 +1,37 @@
+hypothesis_id: H-2026-0010
+signal: duration_carry_term_spread
+family: carry
+requested_by: agent
+status: awaiting_owner
+series:
+- id: DGS2
+  source: fred
+  fields:
+  - value
+- id: DGS10
+  source: fred
+  fields:
+  - value
+- id: DGS30
+  source: fred
+  fields:
+  - value
+- id: JPMAQS.USD_GB10YXGB_NSA
+  source: jpmaqs
+  fields:
+  - value
+- id: JPMAQS.EUR_GB10YXGB_NSA
+  source: jpmaqs
+  fields:
+  - value
+- id: LT01TRUU Index|INDEX_YIELD_TO_WORST
+  source: bloomberg
+  fields:
+  - INDEX_YIELD_TO_WORST
+- id: LT08TRUU Index|INDEX_YIELD_TO_WORST
+  source: bloomberg
+  fields:
+  - INDEX_YIELD_TO_WORST
+reason: H-2026-0010 requires 7 series absent from the snapshot. The hypothesis is
+  blocked:data rather than run on a substitute.
+available_already: []

@@ -1,0 +1,42 @@
+id: H-2026-0009
+family: trend
+signal: multi_horizon_price_trend_1_3_12m
+direction: positive
+target_axis: region
+rationale: >
+  Prices trend because information is absorbed gradually and because
+  institutional flows are themselves autocorrelated: investors rebalance on a
+  calendar, mandates are funded in stages, and risk limits force selling into
+  weakness and buying into strength. Averaging trend over one, three and
+  twelve months rather than picking a horizon is deliberate, since the
+  best-performing single lookback is unstable across samples and selecting it
+  is precisely the multiplicity problem this lab exists to control; averaging
+  gives up the peak and keeps most of the effect. The relationship is
+  positive: a stronger relative trend implies a higher weight. Expressed
+  cross-sectionally across equity regions it is a relative tilt inside a
+  positive budget and therefore fully long-only. The horizon is one quarter,
+  matching the medium-term band where trend has been most reliable and
+  avoiding the one-month reversal band. The risks are stated plainly. Trend at
+  weekly rebalance is the most turnover-hungry family in this set, so it is
+  the one most likely to survive gross and die net, which is exactly why the
+  objective is net of the cost model. And trend is prone to sharp reversals at
+  turning points, so its active drawdown profile matters more than its mean.
+  Registering it early is also a control: if the harness cannot recover a
+  trend effect that is well documented across asset classes and decades, the
+  harness is broken rather than the market efficient.
+horizon_weeks: 4-13
+expected_expression: cross_sectional
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - MXUS
+  - MXEU
+  - MXJP
+  - MXEF
+  - MXWO
+  - LEGATRUU
+  - LUACTRUU
+notes: >
+  Fast block. Doubles as a harness control: a null result here is evidence
+  about the engine before it is evidence about markets.

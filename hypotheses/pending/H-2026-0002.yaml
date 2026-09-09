@@ -1,0 +1,42 @@
+id: H-2026-0002
+family: inflation
+signal: inflation_surprise_vs_expectation_6m
+direction: positive
+target_axis: real_nominal
+rationale: >
+  The breakeven inflation rate is the market's forecast, so a linker earns its
+  nominal counterpart's return plus realised inflation minus that forecast.
+  The forecast is sticky: survey and market-implied expectations adjust to
+  incoming core inflation with a lag of one to two quarters, because the
+  monthly print is noisy and market participants sensibly wait for
+  confirmation. A signal that compares realised core inflation momentum
+  against the currently priced breakeven should therefore predict the excess
+  return of inflation-linked over duration-matched nominal bonds, positively:
+  inflation running above what is priced favours the linker. Six months of
+  momentum, rather than one print, is deliberate; single monthly prints are
+  dominated by energy and seasonal-adjustment noise, and the persistent
+  component is what the breakeven misprices. The horizon is one to two
+  quarters, matching the adjustment lag rather than the data frequency. This
+  survives long-only because both legs of the trade are held long in the
+  benchmark: the expression is an overweight of the inflation-linked sleeve
+  funded by an underweight of nominal governments of similar duration, never
+  a short. The declared risk is that the duration-matching is imperfect at the
+  index level, so a real-rate move can dominate the inflation view. The
+  effective sample is small, roughly one inflation cycle per five years, and
+  the harness must report cycles rather than observations.
+horizon_weeks: 8-26
+expected_expression: both
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - JPMAQS.USD_CPIC_SJA_P6M6ML6AR
+  - JPMAQS.EUR_CPIC_SJA_P6M6ML6AR
+  - T10YIE
+  - T5YIE
+  - DFII10
+  - LT01TRUU
+  - LBUTTRUU
+notes: >
+  Slow block. The nominal leg must be duration-matched at the index level
+  before the spread is formed; the mismatch is a stated model risk.

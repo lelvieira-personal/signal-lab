@@ -1,0 +1,41 @@
+id: H-2026-0007
+family: spreads_curve
+signal: oas_zscore_vs_own_5y_history
+direction: positive
+target_axis: credit
+rationale: >
+  Credit spreads compensate for expected default, for the illiquidity of the
+  instrument, and for a risk premium that varies with the marginal investor's
+  appetite. Only the first is a forecast; the other two mean-revert. A spread
+  that is wide against its own five-year history is therefore, on average, a
+  spread that will tighten, and the expected excess return over duration
+  matched governments is positive. The relationship is positive: wider spreads
+  relative to own history imply more credit exposure. This is scored per
+  segment, so the comparison is investment grade against its own history and
+  high yield against its own, never one against the other, because their
+  unconditional levels differ by a multiple and a pooled z-score would simply
+  be a permanent high-yield overweight wearing a signal's clothing. Expressed
+  cross-sectionally across credit segments it is fully long-only. The horizon
+  is one quarter, the observed half-life of spread deviations outside crisis
+  periods. The risk stated in advance is that this signal is short volatility:
+  it buys widening spreads, so it adds exposure into precisely the episodes
+  that produce the largest drawdowns, and its unconditional Sharpe ratio will
+  look better than its behaviour in the left tail. The tracking error veto and
+  the active drawdown diagnostic are the intended checks on that, not the
+  information ratio.
+horizon_weeks: 4-13
+expected_expression: cross_sectional
+proposed_by: agent
+provenance: adaptation
+reference: null
+data_required:
+  - LUACTRUU Index|INDEX_OAS_TSY
+  - LF98TRUU Index|INDEX_OAS_TSY
+  - LUALTRUU Index|INDEX_OAS_TSY
+  - EMUSTRUU Index|INDEX_OAS_TSY
+  - LUACTRUU
+  - LF98TRUU
+notes: >
+  Fast block, daily. Turnover is expected to concentrate here and is charged
+  accordingly (SUBSTRATE section 6). Spreads come from Bloomberg, not FRED
+  (SUBSTRATE section 5.4).

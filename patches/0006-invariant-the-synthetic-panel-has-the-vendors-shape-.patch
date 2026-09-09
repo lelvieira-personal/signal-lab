@@ -1,0 +1,804 @@
+From d9d51d920983725cfd9161b339518803320bb38c Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:14 +0000
+Subject: [PATCH 06/17] invariant: the synthetic panel has the vendors' shape
+ and a known plant
+
+100 series 1989-2019 with ragged starts drawn from the real coverage
+distribution, a month-end-only stretch before a break date, unaligned gaps, six
+hedged flags and five latent factors. plant() injects a predictive relationship
+of stated strength so phase 1 has ground truth. Vendor backends raise rather
+than returning an empty panel, which would be misread as a coverage failure.
+---
+ src/loaders/bloomberg.py |  46 +++
+ src/loaders/fred.py      |  52 ++++
+ src/loaders/jpmaqs.py    |  51 ++++
+ src/loaders/synthetic.py | 609 +++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 758 insertions(+)
+ create mode 100644 src/loaders/bloomberg.py
+ create mode 100644 src/loaders/fred.py
+ create mode 100644 src/loaders/jpmaqs.py
+ create mode 100644 src/loaders/synthetic.py
+
+diff --git a/src/loaders/bloomberg.py b/src/loaders/bloomberg.py
+new file mode 100644
+index 0000000..48e9e3e
+--- /dev/null
++++ b/src/loaders/bloomberg.py
+@@ -0,0 +1,46 @@
++"""
++Bloomberg backend. Phase 2 (SUBSTRATE section 16). Not implemented.
++
++The shape is fixed here so phase 2 is a filling-in rather than a design: the
++workbook layout is described in data/universe/raw_manifest.csv, the invariants
++it must satisfy are in loaders/invariants.py, and the panel types it must return
++are in loaders/base.py.
++
++Deliberately raises rather than returning an empty panel. An empty panel would
++propagate as "no coverage" and be reported as a coverage veto failure, which
++would be a wrong diagnosis of a missing implementation.
++"""
++
++from __future__ import annotations
++
++from loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
++from params import Params, get_params
++
++
++class LoaderNotImplemented(NotImplementedError):
++    """A real-data backend that phase 0 does not ship."""
++
++
++class BloombergLoader:
++    source = "bloomberg"
++    phase = 2
++
++    # What phase 2 must build, kept next to the stub so it is not re-derived.
++    TODO = (
++        "read the sheets in data/universe/raw_manifest.csv (TR Levels, TR Levels "
++        "Hedged, TR Levels Candidates, TR Benchmarks, TR Analytics); apply "
++        "invariants 1-7; assign tiers from bbg_index_coverage.csv; carry the "
++        "hedged ids from params/data.yaml; log every splice",
++    )
++
++    def __init__(self, params: Params | None = None):
++        self.params = params or get_params()
++
++    def load_returns(self, snapshot_id: str) -> ReturnPanel:
++        raise LoaderNotImplemented("Bloomberg returns loader lands in phase 2")
++
++    def load_analytics(self, snapshot_id: str) -> AnalyticsPanel:
++        raise LoaderNotImplemented("Bloomberg analytics loader lands in phase 2")
++
++    def load_macro(self, snapshot_id: str) -> VintagePanel:
++        raise LoaderNotImplemented("Bloomberg is not a macro vintage source; see jpmaqs")
+diff --git a/src/loaders/fred.py b/src/loaders/fred.py
+new file mode 100644
+index 0000000..9e4db55
+--- /dev/null
++++ b/src/loaders/fred.py
+@@ -0,0 +1,52 @@
++"""
++FRED backend. Phase 2 (SUBSTRATE section 16). Not implemented.
++
++Two rules already fixed and encoded in params/data.yaml, so phase 2 inherits
++them rather than rediscovering them:
++
++  * FRED's ICE BofA spread series start 2023-09 and are not used. Spreads come
++    from Bloomberg (SUBSTRATE section 5.4).
++  * FRED is not point-in-time. Its series are revised in place, so anything
++    loaded from here is knowable only at its release, and the loader must
++    construct knowledge dates rather than assume real_date == knowledge_date.
++
++The API key comes from the FRED_API_KEY environment variable. No key is ever
++written to params/ or committed.
++"""
++
++from __future__ import annotations
++
++import os
++
++from loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
++from loaders.bloomberg import LoaderNotImplemented
++from params import Params, get_params
++
++
++class FredLoader:
++    source = "fred"
++    phase = 2
++
++    def __init__(self, params: Params | None = None):
++        self.params = params or get_params()
++
++    def api_key(self) -> str:
++        key = os.environ.get("FRED_API_KEY")
++        if not key:
++            raise RuntimeError(
++                "FRED_API_KEY is not set. Secrets come from environment variables "
++                "only; nothing key-shaped is committed."
++            )
++        return key
++
++    def excluded_prefixes(self) -> list[str]:
++        return list(self.params.get("data.fred.exclude_series_prefixes", []))
++
++    def load_returns(self, snapshot_id: str) -> ReturnPanel:
++        raise LoaderNotImplemented("FRED provides levels and yields, not index total returns")
++
++    def load_analytics(self, snapshot_id: str) -> AnalyticsPanel:
++        raise LoaderNotImplemented("FRED analytics loader lands in phase 2")
++
++    def load_macro(self, snapshot_id: str) -> VintagePanel:
++        raise LoaderNotImplemented("FRED vintage loader lands in phase 2")
+diff --git a/src/loaders/jpmaqs.py b/src/loaders/jpmaqs.py
+new file mode 100644
+index 0000000..e855562
+--- /dev/null
++++ b/src/loaders/jpmaqs.py
+@@ -0,0 +1,51 @@
++"""
++JPMaQS / Macrosynergy backend. Phase 3 (SUBSTRATE sections 5.6 and 16).
++Not implemented.
++
++SUBSTRATE section 5.6 is explicit that until JPMaQS lands, no signal search
++runs, and that price-only families are not tested in isolation first. This stub
++is therefore also the gate: `search_is_open()` reads that rule from params so a
++cycle cannot quietly open the search while the macro block is missing.
++"""
++
++from __future__ import annotations
++
++from loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
++from loaders.bloomberg import LoaderNotImplemented
++from params import Params, get_params
++
++
++class JPMaQSLoader:
++    source = "jpmaqs"
++    phase = 3
++
++    def __init__(self, params: Params | None = None):
++        self.params = params or get_params()
++
++    def load_returns(self, snapshot_id: str) -> ReturnPanel:
++        raise LoaderNotImplemented("JPMaQS is a macro source, not a return source")
++
++    def load_analytics(self, snapshot_id: str) -> AnalyticsPanel:
++        raise LoaderNotImplemented("JPMaQS is a macro source, not an analytics source")
++
++    def load_macro(self, snapshot_id: str) -> VintagePanel:
++        raise LoaderNotImplemented("JPMaQS loader lands in phase 3")
++
++
++def search_is_open(params: Params | None = None) -> tuple[bool, str]:
++    """
++    Whether the signal search may run at all.
++
++    SUBSTRATE section 5.6: the search opens only when the full signal set is in.
++    A leaderboard built on price signals alone would tacitly decide what works
++    before the macro block is tested, so this is a gate rather than a warning.
++    """
++    params = params or get_params()
++    status = params.get("data.jpmaqs.status", "pending")
++    gated = bool(params.get("data.jpmaqs.search_opens_only_when_loaded", True))
++    if gated and status != "loaded":
++        return False, (
++            f"JPMaQS status is {status!r}. SUBSTRATE section 5.6: no signal search "
++            f"runs until the macro block is in."
++        )
++    return True, "macro block present"
+diff --git a/src/loaders/synthetic.py b/src/loaders/synthetic.py
+new file mode 100644
+index 0000000..72938b0
+--- /dev/null
++++ b/src/loaders/synthetic.py
+@@ -0,0 +1,609 @@
++"""
++The synthetic backend.
++
++Generates panels shaped like the vendor pulls -- ragged starts, weekend and
++holiday gaps, a frequency break, hedged flags, a factor structure -- from a
++seed, with no vendor values anywhere. Two reasons this exists rather than a
++small toy panel:
++
++  * The harness's failure modes are shape failures. A splice applied to the
++    wrong rows, a return computed off the previous row instead of the previous
++    observation, a signal reading a vintage before its release: all of these
++    need ragged starts and gaps to show up at all.
++  * Planted properties give phase 1 a ground truth. `plant()` injects a
++    predictive relationship of known strength, so "the engine recovered 0.48
++    against a planted 0.50" is a statement about the engine rather than about
++    the market.
++
++Ragged starts are drawn from the empirical distribution of first daily dates in
++data/universe/bbg_index_coverage.csv. That file is coverage metadata -- ticker,
++section, first date, tier -- and holds no prices, levels or returns.
++"""
++
++from __future__ import annotations
++
++import csv
++from dataclasses import dataclass
++from pathlib import Path
++
++import numpy as np
++import pandas as pd
++
++from loaders.base import AnalyticsPanel, ReturnPanel, SeriesMeta, VintagePanel
++from loaders.holdout import enforce_holdout
++from loaders.invariants import (
++    apply_splices,
++    filter_business_days,
++    propagate_hedge_flags,
++    returns_from_prior_observation,
++    truncate_at_daily_start,
++)
++from params import Params, get_params
++
++REPO_ROOT = Path(__file__).resolve().parents[2]
++
++# Region labels drive the 2-day overlapping covariance rule, so the synthetic
++# universe carries them. Weights are roughly the shape of the real universe:
++# mostly US and global, a long tail elsewhere.
++REGIONS = ["US", "EUR", "JPN", "APAC_EX_JP", "EM", "GLOBAL"]
++REGION_WEIGHTS = [0.34, 0.20, 0.10, 0.08, 0.14, 0.14]
++
++SECTIONS = [
++    "1. Risk-Free / Cash",
++    "2. US Treasury Maturity Buckets",
++    "3. International Government Bonds",
++    "4. Inflation-Linked",
++    "5. Credit",
++    "6. Equity Regions - US",
++    "7. Equity Regions - Developed ex-US",
++    "8. Equity Regions - Emerging Markets",
++    "9. US Sectors (MSCI USA)",
++    "10. European Sectors (MSCI Europe)",
++    "11. Factor / Style - US",
++    "15. Real Assets",
++]
++
++# Which cost bucket a section falls in. params/costs.yaml holds the numbers;
++# this is only the mapping, and anything unmapped is charged the dear bucket.
++SECTION_COST_BUCKET = {
++    "1. Risk-Free / Cash": "low",
++    "2. US Treasury Maturity Buckets": "low",
++    "6. Equity Regions - US": "low",
++    "3. International Government Bonds": "mid",
++    "4. Inflation-Linked": "mid",
++    "5. Credit": "mid",
++    "7. Equity Regions - Developed ex-US": "mid",
++    "9. US Sectors (MSCI USA)": "mid",
++    "10. European Sectors (MSCI Europe)": "mid",
++    "11. Factor / Style - US": "mid",
++    "8. Equity Regions - Emerging Markets": "high",
++    "15. Real Assets": "high",
++}
++
++MACRO_FAMILIES = {
++    "growth": ["gdp_intuitive", "mfg_confidence", "unemployment_gap"],
++    "inflation": ["core_cpi_trend", "inflation_expectations"],
++    "policy_rates": ["real_policy_rate", "real_5y_irs", "term_premium"],
++    "credit_conditions": ["private_credit_growth", "bank_lending_survey"],
++    "liquidity": ["real_broad_money", "financial_conditions"],
++    "terms_of_trade": ["commodity_tot", "fiscal_trajectory"],
++    "valuation": ["index_pb", "index_pe", "yield_gap"],
++}
++
++
++@dataclass(frozen=True)
++class PlantRecord:
++    """
++    Ground truth for a planted relationship.
++
++    Phase 1 checks recovery against this. It states what was injected and how,
++    so a recovery test compares like with like rather than against a number
++    someone remembered.
++    """
++
++    family: str
++    target: str  # "cross_sectional" or "directional"
++    horizon_days: int
++    strength_ic: float
++    series_ids: tuple[str, ...]
++    signal_name: str
++    seed: int
++    note: str = ""
++
++
++def _empirical_daily_starts(
++    coverage_csv: Path, rng: np.random.Generator, n: int, floor: pd.Timestamp
++) -> list[pd.Timestamp]:
++    """
++    Draw n first-daily dates from the real coverage table's distribution.
++
++    Sampled with replacement from the observed dates, then jittered by a few
++    business days so the synthetic panel does not reproduce the real universe's
++    exact start dates. Falls back to a documented parametric mix if the coverage
++    file is absent, so the generator never silently depends on a file.
++    """
++    observed: list[pd.Timestamp] = []
++    if coverage_csv.exists():
++        with coverage_csv.open(newline="", encoding="utf-8-sig") as fh:
++            for row in csv.DictReader(fh):
++                raw = (row.get("first_daily") or "").strip()
++                if not raw:
++                    continue
++                try:
++                    observed.append(pd.Timestamp(raw))
++                except ValueError:
++                    continue
++
++    if len(observed) < 10:
++        # Documented fallback: the real table is roughly half pre-1996, a
++        # cluster at 1999-2001, and a thin tail to 2018.
++        years = rng.choice(
++            [1989, 1993, 1995, 1998, 1999, 2001, 2003, 2007, 2010, 2015, 2018],
++            size=n,
++            p=[0.06, 0.05, 0.26, 0.05, 0.17, 0.13, 0.05, 0.05, 0.06, 0.06, 0.06],
++        )
++        drawn = [pd.Timestamp(year=int(y), month=1, day=2) for y in years]
++    else:
++        picks = rng.choice(len(observed), size=n, replace=True)
++        drawn = [observed[i] for i in picks]
++
++    out = []
++    for d in drawn:
++        jittered = d + pd.tseries.offsets.BDay(int(rng.integers(0, 15)))
++        out.append(max(pd.Timestamp(jittered), floor))
++    return out
++
++
++def _tier_for(start: pd.Timestamp, params: Params) -> str:
++    backbone_to = pd.Timestamp(params.get("data.tiers.backbone.daily_start_on_or_before"))
++    second_to = pd.Timestamp(params.get("data.tiers.second.daily_start_to"))
++    if start <= backbone_to:
++        return "backbone"
++    if start <= second_to:
++        return "second"
++    return "tradable-only"
++
++
++def _trading_calendar(start: pd.Timestamp, end: pd.Timestamp, rng: np.random.Generator):
++    """
++    Business days minus a plausible holiday set.
++
++    Roughly nine fixed-ish US holidays a year plus a handful of random regional
++    closures, so the panel has gaps that are not all on the same dates for all
++    series -- which is what makes prior-observation returns behave differently
++    from row-differencing.
++    """
++    days = pd.bdate_range(start, end)
++    holidays = set()
++    for year in range(start.year, end.year + 1):
++        for month, day in ((1, 1), (7, 4), (12, 25), (12, 26), (11, 28), (5, 30), (9, 6)):
++            holidays.add(pd.Timestamp(year=year, month=month, day=day))
++    extra = rng.choice(len(days), size=int(len(days) * 0.004), replace=False)
++    holidays.update(pd.Timestamp(days[i]) for i in extra)
++    calendar = pd.DatetimeIndex([d for d in days if d not in holidays])
++    return calendar, sorted(h for h in holidays if start <= h <= end)
++
++
++def make_return_panel(
++    params: Params | None = None,
++    seed: int | None = None,
++    snapshot_id: str = "synthetic-v1",
++) -> ReturnPanel:
++    """
++    Build the synthetic return panel.
++
++    Structure: 5 latent factors with persistent volatility, plus idiosyncratic
++    noise. Series load on the factors by section, so a cross-sectional signal
++    has genuine structure to find and a risk decomposition has something to
++    decompose. Levels are cumulated to total-return index levels because that
++    is what the vendor gives, and the loader's job is to turn levels into
++    returns correctly.
++    """
++    params = params or get_params()
++    cfg = params.get("data.synthetic")
++    seed = int(cfg["seed"] if seed is None else seed)
++    rng = np.random.default_rng(seed)
++
++    start = pd.Timestamp(cfg["start"])
++    end = pd.Timestamp(cfg["end"])
++    n_series = int(cfg["n_series"])
++    n_factors = int(cfg["n_factors"])
++    n_hedged = int(cfg["n_hedged"])
++    n_break = int(cfg["n_month_end_before_break"])
++
++    calendar, holidays = _trading_calendar(start, end, rng)
++    n_days = len(calendar)
++
++    # --- factor structure ---------------------------------------------------
++    # Persistent factor volatility (a crude GARCH-ish envelope) so that regime
++    # models have regimes and the panel is not homoscedastic.
++    vol_state = np.zeros((n_days, n_factors))
++    vol_state[0] = 1.0
++    shocks = rng.normal(0.0, 1.0, size=(n_days, n_factors))
++    for t in range(1, n_days):
++        vol_state[t] = 0.94 * vol_state[t - 1] + 0.06 * (1.0 + 0.9 * np.abs(shocks[t - 1]))
++    factors = shocks * vol_state * 0.0055
++
++    loadings = rng.normal(0.0, 1.0, size=(n_series, n_factors))
++    # First factor is a broad "risk" factor everything loads on positively.
++    loadings[:, 0] = np.abs(loadings[:, 0]) * 0.9 + 0.35
++
++    idio_vol = rng.uniform(0.0025, 0.011, size=n_series)
++    idio = rng.standard_t(df=6, size=(n_days, n_series)) / np.sqrt(6 / 4) * idio_vol
++    drift = rng.uniform(0.00005, 0.00030, size=n_series)
++
++    returns_full = factors @ loadings.T + idio + drift
++
++    # --- per-series metadata ------------------------------------------------
++    coverage_csv = REPO_ROOT / str(
++        cfg.get("coverage_reference", "data/universe/bbg_index_coverage.csv")
++    )
++    starts = _empirical_daily_starts(coverage_csv, rng, n_series, floor=start)
++
++    series_ids = [f"SYN{idx:03d}" for idx in range(n_series)]
++    sections = list(rng.choice(SECTIONS, size=n_series))
++    regions = list(rng.choice(REGIONS, size=n_series, p=REGION_WEIGHTS))
++
++    hedged_ids = list(rng.choice(series_ids, size=n_hedged, replace=False))
++    # Frequency break: these were month-end only before their break date, which
++    # is why their true daily start is later than their first observation.
++    break_ids = [
++        s for s in rng.choice(series_ids, size=n_break, replace=False) if s not in hedged_ids
++    ]
++
++    meta: dict[str, SeriesMeta] = {}
++    month_end_starts: dict[str, pd.Timestamp] = {}
++    for i, sid in enumerate(series_ids):
++        daily_start = pd.Timestamp(starts[i])
++        month_end_only_before = None
++        if sid in break_ids:
++            # The daily history begins at `daily_start`; before that there is a
++            # month-end-only stretch reaching further back.
++            month_end_only_before = daily_start
++            back = daily_start - pd.DateOffset(years=int(rng.integers(3, 9)))
++            month_end_starts[sid] = max(pd.Timestamp(back), start)
++        section = str(sections[i])
++        meta[sid] = SeriesMeta(
++            series_id=sid,
++            true_daily_start=daily_start,
++            tier=_tier_for(daily_start, params),
++            hedged=sid in hedged_ids,
++            gross=True,
++            section=section,
++            cost_bucket=SECTION_COST_BUCKET.get(
++                section, params.get("costs.default_bucket", "high")
++            ),
++            month_end_only_before=month_end_only_before,
++            region=str(regions[i]),
++        )
++
++    # --- levels -------------------------------------------------------------
++    levels = pd.DataFrame(
++        100.0 * np.cumprod(1.0 + returns_full, axis=0), index=calendar, columns=series_ids
++    )
++
++    # Ragged starts: nothing before a series' first observation.
++    for sid in series_ids:
++        first_obs = month_end_starts.get(sid, meta[sid].true_daily_start)
++        levels.loc[levels.index < first_obs, sid] = np.nan
++
++    # Month-end-only stretch: between the month-end start and the daily start,
++    # only month-end observations exist. This is the frequency break the
++    # `frequency` veto and the truncation invariant are tested against.
++    month_ends = set(
++        pd.Series(calendar, index=calendar).groupby([calendar.year, calendar.month]).last()
++    )
++    for sid, me_start in month_end_starts.items():
++        daily_start = meta[sid].true_daily_start
++        window = (levels.index >= me_start) & (levels.index < daily_start)
++        not_month_end = np.array([d not in month_ends for d in levels.index])
++        levels.loc[window & not_month_end, sid] = np.nan
++
++    # Idiosyncratic single-day gaps: a regional closure the global calendar has
++    # no view on. 0.15% of live observations, so returns must span them.
++    live = levels.notna()
++    gap_draw = rng.random(levels.shape) < 0.0015
++    levels = levels.mask(live & gap_draw)
++
++    enforce_holdout(levels, params, what="synthetic return panel")
++    return ReturnPanel(
++        levels=levels,
++        returns=returns_from_prior_observation(levels),
++        meta=meta,
++        splices=[],
++        snapshot_id=snapshot_id,
++        source="synthetic",
++    )
++
++
++def make_analytics_panel(
++    panel: ReturnPanel, params: Params | None = None, seed: int | None = None
++) -> AnalyticsPanel:
++    """
++    OAS, yield-to-worst and effective duration on the fixed income slice.
++
++    Field start dates follow SUBSTRATE section 5.3: spreads from 2003, yields
++    from the early nineties, durations from 1997. OAS on Treasury buckets is
++    dropped, as it is zero by construction; OAD on them is kept.
++    """
++    params = params or get_params()
++    seed = int(params.get("data.synthetic.seed") if seed is None else seed)
++    rng = np.random.default_rng(seed + 7)
++
++    fi_sections = {
++        "1. Risk-Free / Cash",
++        "2. US Treasury Maturity Buckets",
++        "3. International Government Bonds",
++        "4. Inflation-Linked",
++        "5. Credit",
++    }
++    treasury_sections = {"2. US Treasury Maturity Buckets", "1. Risk-Free / Cash"}
++    fi_ids = [s for s, m in panel.meta.items() if m.section in fi_sections]
++    index = panel.levels.index
++
++    field_starts = {
++        "INDEX_OAS_TSY": pd.Timestamp("2003-01-01"),
++        "INDEX_YIELD_TO_WORST": pd.Timestamp("1992-01-01"),
++        "INDEX_OAD_TSY": pd.Timestamp("1997-07-01"),
++    }
++    drop_oas_on_treasuries = bool(params.get("data.analytics.drop_oas_on_treasury_buckets", True))
++
++    fields: dict[str, pd.DataFrame] = {}
++    for field_name, field_start in field_starts.items():
++        cols = list(fi_ids)
++        if field_name == "INDEX_OAS_TSY" and drop_oas_on_treasuries:
++            cols = [s for s in cols if panel.meta[s].section not in treasury_sections]
++        frame = pd.DataFrame(index=index, columns=cols, dtype="float64")
++        for sid in cols:
++            level = {"INDEX_OAS_TSY": 1.4, "INDEX_YIELD_TO_WORST": 4.0, "INDEX_OAD_TSY": 5.5}[
++                field_name
++            ]
++            walk = np.cumsum(rng.normal(0.0, 0.02, size=len(index)))
++            values = np.clip(level + walk * 0.35, 0.05, None)
++            frame[sid] = values
++            begin = max(field_start, pd.Timestamp(panel.meta[sid].true_daily_start))
++            frame.loc[frame.index < begin, sid] = np.nan
++            frame.loc[panel.levels[sid].isna(), sid] = np.nan
++        fields[field_name] = frame
++
++    enforce_holdout(next(iter(fields.values())), params, what="synthetic analytics panel")
++    return AnalyticsPanel(
++        fields=fields,
++        meta={s: panel.meta[s] for s in fi_ids},
++        snapshot_id=panel.snapshot_id,
++        source="synthetic",
++    )
++
++
++def make_vintage_panel(
++    params: Params | None = None, seed: int | None = None, snapshot_id: str = "synthetic-v1"
++) -> VintagePanel:
++    """
++    Bitemporal macro, monthly periods with publication lags and revisions.
++
++    Each period is published once with a release lag, then revised once or twice
++    at later knowledge dates. That is what makes `as_of` worth having: the value
++    for March 2005 was one number in April 2005 and a different one in July.
++    """
++    params = params or get_params()
++    cfg = params.get("data.synthetic")
++    seed = int(cfg["seed"] if seed is None else seed)
++    rng = np.random.default_rng(seed + 13)
++
++    start = pd.Timestamp(cfg["start"])
++    end = pd.Timestamp(cfg["end"])
++    periods = pd.date_range(start, end, freq="ME")
++
++    rows = []
++    for family, names in MACRO_FAMILIES.items():
++        for name in names:
++            series_id = f"{family}.{name}"
++            level = rng.normal(0.0, 1.0)
++            eop_lag = int(rng.integers(10, 46))  # days from period end to first release
++            for period in periods:
++                level = 0.93 * level + rng.normal(0.0, 0.35)
++                first_release = period + pd.Timedelta(days=eop_lag)
++                if first_release > end:
++                    continue
++                # Vintage 1: the number as first published.
++                rows.append(
++                    {
++                        "series_id": series_id,
++                        "real_date": period,
++                        "knowledge_date": first_release,
++                        "value": level + rng.normal(0.0, 0.12),
++                        "grading": float(rng.choice([1.0, 2.0, 3.0], p=[0.70, 0.22, 0.08])),
++                        "eop_lag": eop_lag,
++                        "family": family,
++                    }
++                )
++                # Vintage 2: a revision a quarter or two later, for ~40% of periods.
++                if rng.random() < 0.40:
++                    revision = period + pd.Timedelta(days=eop_lag + int(rng.integers(60, 190)))
++                    if revision <= end:
++                        rows.append(
++                            {
++                                "series_id": series_id,
++                                "real_date": period,
++                                "knowledge_date": revision,
++                                "value": level + rng.normal(0.0, 0.05),
++                                "grading": 1.0,
++                                "eop_lag": eop_lag,
++                                "family": family,
++                            }
++                        )
++
++    frame = pd.DataFrame(rows).sort_values(["series_id", "real_date", "knowledge_date"])
++    frame = frame.reset_index(drop=True)
++
++    meta = {
++        sid: SeriesMeta(
++            series_id=sid,
++            true_daily_start=pd.Timestamp(
++                frame.loc[frame["series_id"] == sid, "knowledge_date"].min()
++            ),
++            tier="backbone",
++            section=sid.split(".")[0],
++        )
++        for sid in frame["series_id"].unique()
++    }
++
++    enforce_holdout(
++        frame["knowledge_date"], params, what="synthetic vintage panel (knowledge dates)"
++    )
++    enforce_holdout(frame["real_date"], params, what="synthetic vintage panel (real dates)")
++    return VintagePanel(frame=frame, meta=meta, snapshot_id=snapshot_id, source="synthetic")
++
++
++def plant(
++    panel: ReturnPanel,
++    family: str,
++    strength_ic: float = 0.05,
++    horizon_days: int = 20,
++    target: str = "cross_sectional",
++    series_ids: list[str] | None = None,
++    seed: int = 4242,
++) -> tuple[ReturnPanel, pd.DataFrame, PlantRecord]:
++    """
++    Inject a known predictive relationship and return the signal that drives it.
++
++    The construction, so phase 1 can check recovery against arithmetic rather
++    than against a claim:
++
++        signal_t     = a persistent AR(1) process per series, cross-sectionally
++                       demeaned and standardised each date
++        returns'     = returns + k * signal_{t} * sigma_series, applied to the
++                       `horizon_days` returns that follow date t
++
++    with k chosen so the cross-sectional rank correlation between signal_t and
++    the forward `horizon_days` return is approximately `strength_ic`.
++
++    Only series live on a date participate, so the plant respects ragged starts
++    and does not resurrect a series before its daily start. Returns the modified
++    panel, the signal frame, and the PlantRecord stating what was done.
++
++    This function plants; it does not measure. No information ratio is computed
++    here or anywhere else in phase 0.
++    """
++    if target not in ("cross_sectional", "directional"):
++        raise ValueError("target must be cross_sectional or directional")
++
++    rng = np.random.default_rng(seed)
++    ids = series_ids or panel.estimation_universe()
++    ids = [s for s in ids if s in panel.returns.columns]
++    if len(ids) < 5:
++        raise ValueError("planting needs at least 5 series")
++
++    index = panel.returns.index
++    raw = np.zeros((len(index), len(ids)))
++    innov = rng.normal(0.0, 1.0, size=(len(index), len(ids)))
++    phi = 0.97  # slow, so the signal is a view rather than noise
++    for t in range(1, len(index)):
++        raw[t] = phi * raw[t - 1] + np.sqrt(1 - phi**2) * innov[t]
++
++    signal = pd.DataFrame(raw, index=index, columns=ids)
++    live = panel.returns[ids].notna()
++    signal = signal.where(live)
++
++    if target == "cross_sectional":
++        centred = signal.sub(signal.mean(axis=1), axis=0)
++        scale = centred.std(axis=1).replace(0.0, np.nan)
++        z = centred.div(scale, axis=0)
++    else:
++        # Directional: one common view applied to every series, which is a
++        # timing call on the axis rather than a tilt within it.
++        common = signal.mean(axis=1)
++        z = pd.DataFrame(
++            np.repeat(common.to_numpy()[:, None], len(ids), axis=1),
++            index=index,
++            columns=ids,
++        ).where(live)
++
++    sigma = panel.returns[ids].std()
++
++    # Spread the injected drift over the forward horizon. The factor
++    # sqrt(horizon_days) converts a per-period IC target into a per-day
++    # increment: the forward horizon return accumulates horizon_days
++    # increments whose noise grows as sqrt(horizon_days).
++    k = float(strength_ic) / np.sqrt(float(horizon_days))
++
++    injected = (z * sigma).shift(1).rolling(horizon_days, min_periods=1).mean() * k
++    modified = panel.returns.copy()
++    modified.loc[:, ids] = modified[ids].add(injected[ids], fill_value=0.0)
++    modified = modified.where(panel.returns.notna())
++
++    rebuilt_levels = panel.levels.copy()
++    for sid in ids:
++        obs = panel.levels[sid].dropna()
++        if len(obs) < 2:
++            continue
++        rets = modified[sid].reindex(obs.index).fillna(0.0)
++        rebuilt = float(obs.iloc[0]) * (1.0 + rets).cumprod()
++        rebuilt_levels.loc[obs.index, sid] = rebuilt.to_numpy()
++
++    planted_panel = ReturnPanel(
++        levels=rebuilt_levels,
++        returns=modified,
++        meta=panel.meta,
++        splices=list(panel.splices),
++        snapshot_id=f"{panel.snapshot_id}+plant:{family}",
++        source=f"{panel.source}+plant",
++    )
++    record = PlantRecord(
++        family=family,
++        target=target,
++        horizon_days=horizon_days,
++        strength_ic=float(strength_ic),
++        series_ids=tuple(ids),
++        signal_name=f"planted_{family}",
++        seed=seed,
++        note=(
++            f"injected k={k:.6f} per day over a {horizon_days}-day forward window, "
++            f"scaled by each series' own return standard deviation"
++        ),
++    )
++    return planted_panel, signal, record
++
++
++class SyntheticLoader:
++    """
++    The synthetic backend behind the standard loader interface.
++
++    Deterministic: the same snapshot_id and params give the same panel on any
++    machine, which is what lets data_snapshot_hash mean something.
++    """
++
++    source = "synthetic"
++
++    def __init__(self, params: Params | None = None, seed: int | None = None):
++        self.params = params or get_params()
++        self.seed = seed
++        self._returns: ReturnPanel | None = None
++
++    def _base(self, snapshot_id: str) -> ReturnPanel:
++        if self._returns is None or self._returns.snapshot_id != snapshot_id:
++            self._returns = make_return_panel(self.params, self.seed, snapshot_id)
++        return self._returns
++
++    def load_returns(self, snapshot_id: str = "synthetic-v1") -> ReturnPanel:
++        panel = self._base(snapshot_id)
++        splice_specs = self.params.get("data.splices", [])
++        levels, meta, records = apply_splices(panel.levels, splice_specs, panel.meta)
++        meta = propagate_hedge_flags(meta, [s for s, m in meta.items() if m.hedged])
++        levels = truncate_at_daily_start(filter_business_days(levels), meta)
++        out = ReturnPanel(
++            levels=levels,
++            returns=returns_from_prior_observation(levels),
++            meta=meta,
++            splices=panel.splices + records,
++            snapshot_id=snapshot_id,
++            source=self.source,
++        )
++        enforce_holdout(out.returns, self.params, what="load_returns")
++        return out
++
++    def load_analytics(self, snapshot_id: str = "synthetic-v1") -> AnalyticsPanel:
++        return make_analytics_panel(self._base(snapshot_id), self.params, self.seed)
++
++    def load_macro(self, snapshot_id: str = "synthetic-v1") -> VintagePanel:
++        return make_vintage_panel(self.params, self.seed, snapshot_id)

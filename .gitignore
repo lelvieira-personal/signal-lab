@@ -1,10 +1,25 @@
+# Vendor pulls and derived panels are never committed. They are regenerable
+# or re-pullable; committing them would put licensed data in git history.
 data/raw/
 data/snapshots/
 results/artifacts/
 results/*.db
+results/*.db-journal
+
+# Secrets come from environment variables only. Nothing key-shaped is tracked.
 *key*
 *.secret
 .env
+.env.*
+
+# Build and tooling
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Rendered reports are build output
+render/*.html
+leaderboard*.html

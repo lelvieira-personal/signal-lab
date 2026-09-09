@@ -1,0 +1,33 @@
+hypothesis_id: H-2026-0005
+signal: real_broad_money_growth_12m
+family: liquidity
+requested_by: agent
+status: awaiting_owner
+series:
+- id: JPMAQS.USD_MBASEGDP_SA_D1M1ML12
+  source: jpmaqs
+  fields:
+  - value
+- id: JPMAQS.USD_RM1GDP_SA_D1M1ML12
+  source: jpmaqs
+  fields:
+  - value
+- id: JPMAQS.EUR_RM3GDP_SA_D1M1ML12
+  source: jpmaqs
+  fields:
+  - value
+- id: NFCI
+  source: fred
+  fields:
+  - value
+- id: LUACTRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: LF98TRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+reason: H-2026-0005 requires 6 series absent from the snapshot. The hypothesis is
+  blocked:data rather than run on a substitute.
+available_already: []

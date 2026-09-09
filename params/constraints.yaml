@@ -1,0 +1,63 @@
+# Portfolio constraints. SUBSTRATE.md section 4.
+# Owner-only. Agents may not edit this file (SUBSTRATE section 2).
+params_version: "0.4.0"
+
+direction: long_only
+leverage_allowed: false
+
+cash:
+  min_weight: 0.00
+  max_weight: 0.20            # 0-20% of NAV
+
+positions:
+  max_nonzero: 30
+
+turnover:
+  max_annualised: 1.50        # 150%
+  target_annualised: 1.00     # section 4 "target reduction to 100% later"; a target, not enforced
+
+tracking_error:
+  # Section 4 describes an asymmetric penalty, not a hard band; section 10 makes
+  # trailing-3y TE a hard veto. Both are implemented: the veto is the gate, the
+  # penalty is an objective term. See decisions/proposed/0003.
+  max_trailing_3y: 0.060
+  window_years: 3
+  penalty:
+    shape: asymmetric
+    # No coefficient is set here. SUBSTRATE does not give one and thresholds
+    # are not invented. The objective refuses to build until the owner sets it.
+    coefficient: null
+    owner_to_confirm: true
+
+rebalance:
+  frequency: weekly
+  day: FRI
+  # Section 4 and section 9: alternates are averaged over, never selected.
+  alternates: [TUE, WED, FRI]
+  alternates_are_averaged: true
+
+benchmark:
+  equity: NDUEACWF            # MSCI ACWI net TR
+  bond: LEGATRUU              # Bloomberg Global Aggregate, unhedged USD
+  weights: [0.50, 0.50]
+  currency: USD
+  bond_leg_hedged: false
+  rebalanced_with_strategy: true
+  pre_1999_extension:
+    equity: MXWO              # developed only, gross dividends
+    bond: SBWGU               # sovereign only, no credit
+    splice_date: "1999-01-01"
+    results_depending_on_it_must_say_so: true
+  alternative_bond_leg: LEGATRUH   # section 5.5, owner to confirm for production
+  owner_to_confirm: [bond_leg_hedged]
+
+fx:
+  benchmark_unhedged: true
+  # Section 4: hedged series are the counterfactual, not a separate live axis in v0.3.
+  hedged_series_are_live_axis: false
+
+solver:
+  # cvxpy with an open-source solver by default.
+  default: CLARABEL
+  fallbacks: [OSQP, ECOS]
+  mosek_enabled: false        # commercial; enable only with the `mosek` extra installed

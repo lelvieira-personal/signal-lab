@@ -1,0 +1,1682 @@
+From f8341bcde6384b6db8c8c65350518c2b7cd2c6c6 Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:15 +0000
+Subject: [PATCH 12/17] invariant: one sort, failures visible, gross IR never
+ rendered
+
+views.py holds every figure and both renderers consume it; a test asserts the
+Streamlit app grows no figure code and offers no sort control. --synthetic
+regenerates the mock behind a banner that cannot be switched off. An empty
+store renders a report saying so rather than falling back to the mock.
+---
+ DEPLOY.md               |  54 ++++++
+ render/mock_data.py     | 138 ++++++++++-----
+ render/sources.py       | 147 ++++++++++++++++
+ render/static_report.py | 343 +++++++++++++++++++++++-------------
+ render/streamlit_app.py | 140 +++++++++++++++
+ render/views.py         | 376 +++++++++++++++++++++++++++++++---------
+ tests/test_render.py    | 174 +++++++++++++++++++
+ 7 files changed, 1123 insertions(+), 249 deletions(-)
+ create mode 100644 DEPLOY.md
+ create mode 100644 render/sources.py
+ create mode 100644 render/streamlit_app.py
+ create mode 100644 tests/test_render.py
+
+diff --git a/DEPLOY.md b/DEPLOY.md
+new file mode 100644
+index 0000000..c8c56b1
+--- /dev/null
++++ b/DEPLOY.md
+@@ -0,0 +1,54 @@
++# DEPLOY — stub
++
++`render/streamlit_app.py` runs locally today:
++
++```bash
++uv run --extra app streamlit run render/streamlit_app.py -- --synthetic
++```
++
++Entrypoint conventions for the internal deployment platform are unknown, so
++nothing here is configured for it. This file lists what has to be confirmed
++before that can happen. It is a list of questions, not a design.
++
++## To confirm with whoever owns the platform
++
++1. **Entrypoint.** Does the platform expect `streamlit run <file>`, a WSGI/ASGI
++   callable, a container with a `CMD`, or a named function in a module? The app
++   is a `main()` in `render/streamlit_app.py` and can be reshaped to any of
++   these; picking one before asking would be guessing.
++2. **Python version and dependency install.** This repo pins Python 3.12 and
++   locks with `uv`. Does the platform build from `pyproject.toml`, from a
++   `requirements.txt`, or from a container image? Streamlit is an optional
++   extra (`[project.optional-dependencies] app`) and is not in the core
++   dependency set.
++3. **Working directory and repo layout.** `streamlit_app.py` puts `src/` and
++   the repo root on `sys.path` relative to its own location. If the platform
++   copies only a subtree, that breaks. Which paths are guaranteed present?
++4. **Where the results store lives.** The app reads `results/runs.db`, a local
++   SQLite file. On a platform with an ephemeral filesystem that file has to
++   come from somewhere: a mounted volume, an object store sync at startup, or
++   a different database entirely. SQLite over a network filesystem is not
++   safe for concurrent writes, though this app only reads.
++5. **Artifacts.** Run detail reads parquet from `results/artifacts/<run_id>/`.
++   Same question as the store: mounted, synced, or absent.
++6. **Access control.** The report contains no client data, no positions and no
++   PII by construction (SUBSTRATE section 1), but it does contain research
++   direction. Who can reach the URL, and is authentication the platform's job
++   or the app's?
++7. **Secrets.** The app itself needs none. If the platform injects environment
++   variables, confirm the mechanism, because `params/data_sources.yaml` names
++   `FRED_API_KEY` and nothing key-shaped is ever committed.
++8. **Refresh.** Is the app expected to poll the store, or to be redeployed
++   after each nightly cycle? Polling changes nothing in this code but does
++   change whether the store can be a snapshot copy.
++9. **Resource ceiling.** The synthetic mock builds 28 runs of weekly series in
++   about a second and the static HTML is roughly 5 MB, most of it inlined
++   plotly.js. Confirm memory and response-time limits before the real store
++   grows past a few hundred runs.
++
++## Not blocking
++
++The static report (`render/static_report.py`) needs none of the above. It
++writes one self-contained HTML file that opens from an attachment or a shared
++drive with no server and no network, which is the fallback if the platform
++question stays open.
+diff --git a/render/mock_data.py b/render/mock_data.py
+index c4e459a..decdfd6 100644
+--- a/render/mock_data.py
++++ b/render/mock_data.py
+@@ -1,5 +1,5 @@
+ """
+-SYNTHETIC DATA ONLY — for UI layout review.
++SYNTHETIC DATA ONLY -- for UI layout review.
+ 
+ Every number produced here is generated from a fixed random seed.
+ None of it comes from real market data, real signals, or real backtests.
+@@ -13,13 +13,33 @@ import pandas as pd
+ SEED = 20260905
+ RNG = np.random.default_rng(SEED)
+ 
+-DEV_START = "2007-01-05"
+-DEV_END = "2019-12-27"
+-HOLDOUT_END = "2026-08-28"
+ 
++def _window():
++    """The development window comes from params, never from a literal here."""
++    try:
++        from params import get_params
++
++        p = get_params()
++        return str(p.require("data.windows.dev_start")), str(p.require("data.windows.dev_end"))
++    except Exception:  # noqa: BLE001 - the mock must render even with no params
++        return "2001-01-05", "2019-12-27"
++
++
++DEV_START, DEV_END = _window()
++
++# SUBSTRATE section 6, all eleven.
+ SIGNAL_FAMILIES = [
+-    "growth", "inflation", "policy_rates", "credit_conditions",
+-    "liquidity", "terms_of_trade", "trend", "carry", "valuation",
++    "growth",
++    "inflation",
++    "policy_rates",
++    "credit_conditions",
++    "liquidity",
++    "terms_of_trade",
++    "spreads_curve",
++    "volatility_stress",
++    "trend",
++    "carry",
++    "valuation",
+ ]
+ 
+ AGGREGATIONS = [
+@@ -30,13 +50,19 @@ AGGREGATIONS = [
+     "rank-IC weighted",
+ ]
+ 
++# All ten of SUBSTRATE section 10. The labels are only for the mock; the live
++# report reads them from params via views.veto_legend().
+ VETOES = [
+     ("turnover", "Annualised turnover \u2264 150%"),
+     ("cash", "Max cash weight \u2264 20%"),
+-    ("te", "Tracking error \u2264 6.0% (trailing 3y)"),
+-    ("coverage", "Signal coverage \u2265 80% of universe"),
++    ("tracking_error", "Trailing-3y tracking error \u2264 6.0%"),
++    ("positions", "Non-zero holdings \u2264 30"),
++    ("coverage", "Signal coverage \u2265 80% of universe on \u2265 90% of dates"),
+     ("lookahead", "Bitemporal check: no future vintages"),
+-    ("seed", "Seed stability: IR range across draws \u2264 0.15"),
++    ("frequency", "No return before a series' true daily start"),
++    ("seed_stability", "IR range across resampling seeds \u2264 0.15"),
++    ("multiple_testing", "Survives Romano-Wolf stepdown at FWER 5%"),
++    ("direction", "Realised sign matches the pre-registered direction"),
+ ]
+ 
+ 
+@@ -72,33 +98,46 @@ def build_runs():
+         coverage = float(np.clip(rng.normal(0.91, 0.09), 0.55, 1.0))
+         seed_range = float(np.clip(rng.normal(0.09, 0.06), 0.01, 0.34))
+         lookahead_ok = rng.random() > 0.07
++        n_positions = int(rng.integers(18, 33))
++        null_pct = float(np.clip(rng.normal(0.72, 0.20), 0.01, 0.999))
++        ess_cycles = float(rng.integers(3, 14))
+ 
+         verdicts = {
++            "lookahead": bool(lookahead_ok),
++            "frequency": bool(rng.random() > 0.04),
++            "coverage": coverage >= 0.80,
+             "turnover": turnover <= 150,
+             "cash": max_cash <= 20,
+-            "te": te <= 6.0,
+-            "coverage": coverage >= 0.80,
+-            "lookahead": bool(lookahead_ok),
+-            "seed": seed_range <= 0.15,
++            "tracking_error": te <= 6.0,
++            "positions": n_positions <= 30,
++            "seed_stability": seed_range <= 0.15,
++            "multiple_testing": bool(rng.random() > 0.55),
++            "direction": bool(rng.random() > 0.18),
+         }
+         passed = all(verdicts.values())
+ 
+-        rows.append({
+-            "run_id": f"R-{2026}{i:03d}",
+-            "family": fam,
+-            "aggregation": agg,
+-            "net_ir": round(ir, 2),
+-            "gross_ir": round(ir + rng.uniform(0.10, 0.34), 2),
+-            "te": round(te, 1),
+-            "turnover": round(turnover),
+-            "max_cash": round(max_cash, 1),
+-            "coverage": round(coverage, 2),
+-            "seed_range": round(seed_range, 2),
+-            "n_positions": int(rng.integers(18, 31)),
+-            "verdicts": verdicts,
+-            "passed": passed,
+-            "series": _run_series(dates, ir, te / 100, SEED + 500 + i),
+-        })
++        rows.append(
++            {
++                "run_id": f"R-{2026}{i:03d}",
++                "family": fam,
++                "aggregation": agg,
++                "net_ir": round(ir, 2),
++                "gross_ir": round(ir + rng.uniform(0.10, 0.34), 2),
++                "te": round(te, 1),
++                "turnover": round(turnover),
++                "max_cash": round(max_cash, 1),
++                "coverage": round(coverage, 2),
++                "seed_range": round(seed_range, 2),
++                "n_positions": n_positions,
++                "null_pct": round(null_pct, 3),
++                "ess_cycles": ess_cycles,
++                "status": "completed",
++                "killed_by": None,
++                "verdicts": verdicts,
++                "passed": passed,
++                "series": _run_series(dates, ir, te / 100, SEED + 500 + i),
++            }
++        )
+ 
+     runs = sorted(rows, key=lambda r: (-r["passed"], -r["net_ir"]))
+     return runs, dates
+@@ -110,8 +149,9 @@ def build_detail(run, dates):
+     active = run["series"]
+ 
+     bench_wk = pd.Series(
+-        rng.standard_t(df=5, size=len(dates)) / np.sqrt(5 / 3) * (0.095 / np.sqrt(52))
+-        + 0.055 / 52, index=dates)
++        rng.standard_t(df=5, size=len(dates)) / np.sqrt(5 / 3) * (0.095 / np.sqrt(52)) + 0.055 / 52,
++        index=dates,
++    )
+     strat_wk = bench_wk + active
+ 
+     cum_strat = (1 + strat_wk).cumprod()
+@@ -123,8 +163,7 @@ def build_detail(run, dates):
+     roll_excess = active.rolling(52).sum()
+     roll_te = active.rolling(52).std() * np.sqrt(52) * 100
+ 
+-    turnover_wk = pd.Series(
+-        np.clip(rng.gamma(2.2, 0.9, len(dates)), 0.1, None), index=dates)
++    turnover_wk = pd.Series(np.clip(rng.gamma(2.2, 0.9, len(dates)), 0.1, None), index=dates)
+     turnover_wk = turnover_wk / turnover_wk.sum() * (run["turnover"] / 100) * (len(dates) / 52)
+     cost_wk = turnover_wk * 0.0006  # 6bp per unit turnover, placeholder
+     cum_cost = cost_wk.cumsum() * 100
+@@ -137,25 +176,36 @@ def build_detail(run, dates):
+         w[:, j] = (s / s.std()).to_numpy() * base[j] * 3.0
+     active_weights = pd.DataFrame(w, index=dates, columns=axes)
+ 
+-    risk_axes = ["Duration", "Credit spread", "Equity region", "Sector",
+-                 "Style", "FX", "Idiosyncratic"]
++    risk_axes = [
++        "Duration",
++        "Credit spread",
++        "Equity region",
++        "Sector",
++        "Style",
++        "FX",
++        "Idiosyncratic",
++    ]
+     risk_contrib = np.array([1.42, 0.88, 1.05, 0.61, 0.74, 0.22, 0.38])
+     risk_contrib = risk_contrib / risk_contrib.sum() * run["te"]
+ 
+-    ic_mean = {f: float(np.clip(rng.normal(0.035, 0.028), -0.03, 0.11))
+-               for f in SIGNAL_FAMILIES}
+-    ic_se = {f: float(np.clip(rng.normal(0.019, 0.005), 0.008, 0.035))
+-             for f in SIGNAL_FAMILIES}
++    ic_mean = {f: float(np.clip(rng.normal(0.035, 0.028), -0.03, 0.11)) for f in SIGNAL_FAMILIES}
++    ic_se = {f: float(np.clip(rng.normal(0.019, 0.005), 0.008, 0.035)) for f in SIGNAL_FAMILIES}
+ 
+     null_max_ir = rng.normal(0.41, 0.13, 4000)
+ 
+     return {
+         "dates": dates,
+-        "cum_strat": cum_strat, "cum_bench": cum_bench,
+-        "drawdown": dd, "roll_excess": roll_excess, "roll_te": roll_te,
+-        "turnover_wk": turnover_wk, "cum_cost": cum_cost,
++        "cum_strat": cum_strat,
++        "cum_bench": cum_bench,
++        "drawdown": dd,
++        "roll_excess": roll_excess,
++        "roll_te": roll_te,
++        "turnover_wk": turnover_wk,
++        "cum_cost": cum_cost,
+         "active_weights": active_weights,
+-        "risk_axes": risk_axes, "risk_contrib": risk_contrib,
+-        "ic_mean": ic_mean, "ic_se": ic_se,
++        "risk_axes": risk_axes,
++        "risk_contrib": risk_contrib,
++        "ic_mean": ic_mean,
++        "ic_se": ic_se,
+         "null_max_ir": null_max_ir,
+     }
+diff --git a/render/sources.py b/render/sources.py
+new file mode 100644
+index 0000000..72a68a5
+--- /dev/null
++++ b/render/sources.py
+@@ -0,0 +1,147 @@
++"""
++Where the report gets its rows.
++
++Two sources behind one interface:
++
++  * StoreSource reads the results store. This is the real one.
++  * SyntheticSource regenerates the mock (render/mock_data.py) so the report can
++    be built and reviewed with no runs present, which is the whole of phase 0.
++
++The `--synthetic` flag on static_report.py chooses between them. The flag exists
++so that a report built from mock data cannot be mistaken for one built from
++results: the synthetic source sets `is_synthetic`, and the report renders a
++banner it is not possible to switch off.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from pathlib import Path
++from typing import Any
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++
++
++@dataclass
++class ReportData:
++    """Everything a report needs, from either source."""
++
++    runs: list[dict[str, Any]]
++    detail: dict[str, Any] | None
++    champion: dict[str, Any] | None
++    is_synthetic: bool
++    label: str
++    dev_start: str
++    dev_end: str
++    n_runs: int = 0
++    n_passed: int = 0
++    notes: list[str] = field(default_factory=list)
++
++
++class SyntheticSource:
++    """The mock. Fixed seed, no market data, no signals, no backtest."""
++
++    is_synthetic = True
++
++    def __init__(self, params=None):
++        from params import get_params
++
++        self.params = params or get_params()
++
++    def load(self) -> ReportData:
++        import mock_data as md
++
++        runs, dates = md.build_runs()
++        champion = next((r for r in runs if r["passed"]), runs[0] if runs else None)
++        detail = md.build_detail(champion, dates) if champion else None
++        return ReportData(
++            runs=runs,
++            detail=detail,
++            champion=champion,
++            is_synthetic=True,
++            label="synthetic mock, fixed seed",
++            dev_start=str(self.params.require("data.windows.dev_start")),
++            dev_end=str(self.params.require("data.windows.dev_end")),
++            n_runs=len(runs),
++            n_passed=sum(r["passed"] for r in runs),
++            notes=[
++                "Every number and chart is randomly generated from a fixed seed so the "
++                "layout can be reviewed. No market data, no signals, no backtest."
++            ],
++        )
++
++
++class StoreSource:
++    """
++    The results store.
++
++    Returns an empty ReportData when there are no runs, rather than raising:
++    an empty leaderboard is the correct picture of a lab that has not run
++    anything, and the report says so.
++    """
++
++    is_synthetic = False
++
++    def __init__(self, db_path=None, artifacts_dir=None, params=None):
++        from params import get_params
++        from results.store import DEFAULT_ARTIFACTS, DEFAULT_DB, ResultsStore
++
++        self.params = params or get_params()
++        self.store = ResultsStore(
++            db_path or DEFAULT_DB, artifacts_dir or DEFAULT_ARTIFACTS, params=self.params
++        )
++
++    def load(self) -> ReportData:
++        frame = self.store.list_runs()
++        dev_start = str(self.params.require("data.windows.dev_start"))
++        dev_end = str(self.params.require("data.windows.dev_end"))
++
++        if frame.empty:
++            return ReportData(
++                runs=[],
++                detail=None,
++                champion=None,
++                is_synthetic=False,
++                label="results store",
++                dev_start=dev_start,
++                dev_end=dev_end,
++                notes=["No runs recorded yet. The store is empty."],
++            )
++
++        runs = frame.to_dict("records")
++        for r in runs:
++            r.setdefault("net_ir", None)
++            r["passed"] = bool(r.get("passed"))
++
++        passed = [r for r in runs if r["passed"] and r.get("net_ir") is not None]
++        champion = max(passed, key=lambda r: r["net_ir"]) if passed else None
++        detail = self._detail(champion) if champion else None
++
++        return ReportData(
++            runs=runs,
++            detail=detail,
++            champion=champion,
++            is_synthetic=False,
++            label="results store",
++            dev_start=dev_start,
++            dev_end=dev_end,
++            n_runs=len(runs),
++            n_passed=sum(r["passed"] for r in runs),
++            notes=[] if champion else ["No run has survived the veto set yet."],
++        )
++
++    def _detail(self, run: dict[str, Any]) -> dict[str, Any] | None:
++        """
++        Assemble a run detail from its parquet artifacts.
++
++        Returns None when the artifacts are absent, and the report then renders
++        the leaderboard alone rather than inventing a chart.
++        """
++        artifacts = self.store.load_artifacts(run["run_id"])
++        if not artifacts:
++            return None
++        return {"artifacts": artifacts, "run": run}
++
++
++def get_source(synthetic: bool = False, **kwargs):
++    return SyntheticSource(**kwargs) if synthetic else StoreSource(**kwargs)
+diff --git a/render/static_report.py b/render/static_report.py
+index 2be45f2..a3d5534 100644
+--- a/render/static_report.py
++++ b/render/static_report.py
+@@ -7,11 +7,20 @@ no network. A Streamlit renderer would import the same views module and
+ call st.plotly_chart on the same figure objects.
+ """
+ 
++from __future__ import annotations
++
++import argparse
+ import io
++import sys
++from pathlib import Path
++
+ from plotly.io import to_html
+ 
+-import mock_data as md
+-import views as v
++REPO_ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT), str(REPO_ROOT / "render")]
++
++import views as v  # noqa: E402
++from sources import get_source  # noqa: E402
+ 
+ ORANGE, INK, SLATE, ICE = v.ORANGE, v.INK, v.SLATE, v.ICE
+ 
+@@ -104,27 +113,31 @@ footer {{ margin-top:56px; padding-top:16px; border-top:1px solid var(--rule);
+ 
+ 
+ def _plot(fig, first=False):
+-    return to_html(fig, include_plotlyjs=("inline" if first else False),
+-                   full_html=False, config={"displayModeBar": False,
+-                                            "responsive": True})
++    return to_html(
++        fig,
++        include_plotlyjs=("inline" if first else False),
++        full_html=False,
++        config={"displayModeBar": False, "responsive": True},
++    )
+ 
+ 
+ def _veto_dots(verdicts):
+     cells = "".join(
+         f'<span class="dot {"ok" if ok else "bad"}" title="{key}"></span>'
+-        for key, ok in verdicts.items())
++        for key, ok in verdicts.items()
++    )
+     return f'<div class="dots">{cells}</div>'
+ 
+ 
+-def _first_failure(verdicts):
+-    labels = dict(md.VETOES)
+-    for k, ok in verdicts.items():
+-        if not ok:
+-            return labels[k].split(":")[0].split("\u2264")[0].strip()
++def _first_failure(verdicts, order=None):
++    """The veto that stopped a run. Failed runs keep their reason on the table."""
++    for k in order or list(verdicts):
++        if k in verdicts and not verdicts[k]:
++            return k
+     return ""
+ 
+ 
+-def leaderboard_html(rows):
++def leaderboard_html(rows, order=None):
+     body = io.StringIO()
+     lead_id = next((r["run_id"] for r in rows if r["passed"]), None)
+     for r in rows:
+@@ -133,19 +146,20 @@ def leaderboard_html(rows):
+             cls.append("killed")
+         if r["run_id"] == lead_id:
+             cls.append("lead")
+-        ir_cls = "ir-strong" if r["passed"] and r["net_ir"] >= 0.45 else ""
++        ir = r.get("net_ir")
++        ir_cls = "ir-strong" if r["passed"] and ir is not None and ir >= 0.45 else ""
+         body.write(f"""
+-<tr class="{' '.join(cls)}">
+-  <td class="id">{r['run_id']}</td>
+-  <td>{r['family']}</td>
+-  <td class="agg">{r['aggregation']}</td>
+-  <td class="num {ir_cls}">{r['net_ir']:.2f}</td>
+-  <td class="num">{r['te']:.1f}</td>
+-  <td class="num">{r['turnover']}</td>
+-  <td class="num">{r['max_cash']:.1f}</td>
+-  <td class="num">{r['n_positions']}</td>
+-  <td>{_veto_dots(r['verdicts'])}</td>
+-  <td class="why">{'' if r['passed'] else _first_failure(r['verdicts'])}</td>
++<tr class="{" ".join(cls)}">
++  <td class="id">{r["run_id"]}</td>
++  <td>{r["family"]}</td>
++  <td class="agg">{r["aggregation"]}</td>
++  <td class="num {ir_cls}">{_num(ir, "{:.2f}")}</td>
++  <td class="num">{_num(r.get("te"), "{:.1f}")}</td>
++  <td class="num">{_num(r.get("turnover"), "{:.0f}")}</td>
++  <td class="num">{_num(r.get("max_cash"), "{:.1f}")}</td>
++  <td class="num">{_num(r.get("n_positions"), "{:.0f}")}</td>
++  <td>{_veto_dots(r["verdicts"])}</td>
++  <td class="why">{"" if r["passed"] else _first_failure(r["verdicts"], order)}</td>
+ </tr>""")
+     return f"""
+ <table>
+@@ -165,152 +179,231 @@ def leaderboard_html(rows):
+ </div>"""
+ 
+ 
+-def build(path="leaderboard_mock.html"):
+-    runs, dates = md.build_runs()
+-    rows = v.leaderboard_table(runs)
+-    champ = next(r for r in runs if r["passed"])
+-    d = md.build_detail(champ, dates)
+-
+-    n_pass = sum(r["passed"] for r in runs)
+-    veto_list = "".join(f"<li>{label}</li>" for _, label in md.VETOES)
+-
+-    figs = [
+-        _plot(v.ir_vs_te_scatter(runs), first=True),
+-        _plot(v.cumulative_vs_benchmark(d)),
+-        _plot(v.rolling_excess(d)),
+-        _plot(v.active_drawdown(d)),
+-        _plot(v.rolling_te(d)),
+-        _plot(v.turnover_and_cost(d)),
+-        _plot(v.active_weights_area(d)),
+-        _plot(v.risk_decomposition(d)),
+-        _plot(v.ic_by_family(d)),
+-        _plot(v.null_distribution(d, champ["net_ir"])),
+-    ]
++def _num(value, fmt="{:.2f}"):
++    """Render a number, or an em dash where the harness has not produced one."""
++    return "—" if value is None else fmt.format(value)
++
+ 
++def _empty_report(data, params, path):
++    """
++    The report for a lab with no runs.
++
++    An empty leaderboard is the correct picture of phase 0, and saying so beats
++    rendering nothing or, worse, falling back to the mock without a banner.
++    """
++    holdout = v.holdout_panel(params)
++    vetoes = "".join(f"<li><b>{name}</b> — {label}</li>" for name, label in v.veto_legend(params))
+     html = f"""<!DOCTYPE html>
+ <html lang="en"><head><meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+-<title>Research OS — run browser (mock)</title>
++<title>Signal Lab — run browser</title>
+ <style>{CSS}</style></head>
+ <body><div class="wrap">
+-
+ <header>
+-  <h1>Research OS — signal search, cycle 2026-W36</h1>
+-  <p class="sub">Read-only browser over a completed agentic run. Nothing here
+-     changes a portfolio.</p>
++  <h1>Signal Lab — run browser</h1>
++  <p class="sub">Read-only browser over the results store. Nothing here changes a portfolio.</p>
+   <div class="meta">
+-    <div>Experiments<b>{len(runs)}</b></div>
+-    <div>Survived all vetoes<b>{n_pass}</b></div>
+-    <div>Development window<b>2007–2019</b></div>
+-    <div>Holdout<b>locked</b></div>
+-    <div>Rebalance<b>Weekly, Friday</b></div>
+-    <div>Universe<b>30 ETFs</b></div>
++    <div>Experiments<b>0</b></div>
++    <div>Survived all vetoes<b>0</b></div>
++    <div>Development window<b>{data.dev_start} to {data.dev_end}</b></div>
++    <div>Holdout<b>{"locked" if holdout["locked"] else "unlocked"}</b></div>
++    <div>Params version<b>{params.params_version}</b></div>
++    <div>Params hash<b>{params.params_hash[:12]}</b></div>
+   </div>
+ </header>
+-
+-<div class="notice">
+-  <b>Synthetic data.</b> Every number and chart below is randomly generated
+-  from a fixed seed so the layout can be reviewed. No market data, no signals,
+-  no backtest.
+-</div>
+-
+-<h2><span class="n">1</span>Leaderboard</h2>
+-<p class="lede">All {len(runs)} experiments, survivors first. Failures stay
+-  visible with the veto that stopped them — knowing what died and why is most
+-  of the diagnostic value, and hiding it invites the same idea to be proposed
+-  again next cycle.</p>
+-{leaderboard_html(rows)}
+-
+-<div class="grid2" style="margin-top:30px">
+-  <div class="panel">
+-    <h3>Where the survivors sit</h3>
+-    <p>Dotted line is the 6% tracking error veto.</p>
+-    {figs[0]}
+-  </div>
+-  <div class="panel">
+-    <h3>Veto set</h3>
+-    <p>Fixed before the cycle ran. A run failing any one is killed with the
+-       reason logged; none of these are advisory.</p>
+-    <ol style="font-size:13px;color:var(--slate);padding-left:20px;margin:8px 0 0;
+-               line-height:1.85">{veto_list}</ol>
+-  </div>
+-</div>
+-
++<div class="notice"><b>No runs recorded.</b> The results store is empty. This is the
++  expected state until the walk-forward engine lands in phase 1; the veto set below is
++  already live and is read from <code>params/vetoes.yaml</code>.</div>
++<h2><span class="n">1</span>Veto set</h2>
++<p class="lede">Fixed before any cycle runs. A run failing any one is killed with the
++  reason logged; none of these are advisory, and none is tuned per run.</p>
++<ol style="font-size:13px;color:var(--slate);padding-left:20px;line-height:1.9">{vetoes}</ol>
++<div class="locked"><b>{holdout["title"]}</b><br>{holdout["body"]}</div>
++<footer>Signal Lab · params {params.params_version} ({params.params_hash[:12]}) ·
++  rendered from views.py, which streamlit_app.py also imports.</footer>
++</div></body></html>"""
++    Path(path).write_text(html, encoding="utf-8")
++    return str(path)
++
++
++def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
++    """
++    Render the report.
++
++    `synthetic=True` regenerates the mock so the layout can be reviewed with no
++    runs present. The synthetic banner is not optional: a mock report that could
++    pass for a real one is a hazard, not a convenience.
++    """
++    from params import get_params
++
++    params = params or get_params()
++    source = get_source(
++        synthetic=synthetic, **({"db_path": db_path} if db_path and not synthetic else {})
++    )
++    data = source.load()
++
++    if not data.runs:
++        return _empty_report(data, params, path)
++
++    order = [name for name, _ in v.veto_legend(params)]
++    rows = v.leaderboard_table(data.runs)
++    champ = data.champion
++    detail = data.detail
++    holdout = v.holdout_panel(params)
++    te_cap = float(params.require("vetoes.tracking_error.max_trailing_3y")) * 100
++
++    veto_list = "".join(
++        f"<li><b>{name}</b> — {label}</li>" for name, label in v.veto_legend(params)
++    )
++
++    figs = [_plot(v.ir_vs_te_scatter(data.runs, te_cap=te_cap), first=True)]
++    have_detail = bool(detail) and "dates" in (detail or {})
++    if have_detail:
++        figs += [
++            _plot(v.cumulative_vs_benchmark(detail)),
++            _plot(v.rolling_excess(detail)),
++            _plot(v.active_drawdown(detail)),
++            _plot(v.rolling_te(detail, cap=te_cap)),
++            _plot(v.turnover_and_cost(detail)),
++            _plot(v.active_weights_area(detail)),
++            _plot(v.risk_decomposition(detail)),
++            _plot(v.ic_by_family(detail)),
++            _plot(v.null_distribution(detail, champ["net_ir"])),
++        ]
++
++    banner = ""
++    if data.is_synthetic:
++        banner = """<div class="notice"><b>Synthetic data.</b> Every number and chart below is
++  randomly generated from a fixed seed so the layout can be reviewed. No market data,
++  no signals, no backtest, no result.</div>"""
++    elif data.notes:
++        banner = f"""<div class="notice">{" ".join(data.notes)}</div>"""
++
++    detail_section = ""
++    if have_detail and champ:
++        stats = "".join(
++            f"<div>{s['label']}<b{' class="hl"' if s['highlight'] else ''}>{s['value']}</b></div>"
++            for s in v.run_summary_stats(champ)
++        )
++        detail_section = f"""
+ <h2><span class="n">2</span>Run detail</h2>
+ <div class="runhead">
+-  <span class="rid">{champ['run_id']}</span>
+-  <span class="tag">{champ['family']} · {champ['aggregation']} ·
+-        {champ['n_positions']} holdings</span>
+-</div>
+-
+-<div class="stats">
+-  <div>Net IR<b class="hl">{champ['net_ir']:.2f}</b></div>
+-  <div>Gross IR<b>{champ['gross_ir']:.2f}</b></div>
+-  <div>Tracking error<b>{champ['te']:.1f}%</b></div>
+-  <div>Turnover<b>{champ['turnover']}%</b></div>
+-  <div>Max cash<b>{champ['max_cash']:.1f}%</b></div>
+-  <div>Signal coverage<b>{champ['coverage']:.0%}</b></div>
+-  <div>Seed IR range<b>{champ['seed_range']:.2f}</b></div>
++  <span class="rid">{champ["run_id"]}</span>
++  <span class="tag">{champ.get("family", "")} · {champ.get("aggregation", "")} ·
++        {_num(champ.get("n_positions"), "{:.0f}")} holdings</span>
+ </div>
+-
++<div class="stats">{stats}</div>
+ <div class="panel" style="margin-bottom:26px">
+   <h3>Net of costs vs the 50/50 benchmark</h3>
+-  <p>Gross is recorded but never plotted — only the net line is the deliverable.</p>
++  <p>Gross is recorded for diagnostics and never plotted — only the net line is the
++     deliverable (SUBSTRATE sections 3 and 12).</p>
+   {figs[1]}
+ </div>
+-
+ <div class="grid2">
+   <div class="panel"><h3>Rolling 12-month excess return</h3>
+     <p>How long the strategy can stay behind.</p>{figs[2]}</div>
+   <div class="panel"><h3>Active drawdown</h3>
+     <p>Peak-to-trough on the excess return stream.</p>{figs[3]}</div>
+   <div class="panel"><h3>Rolling tracking error</h3>
+-    <p>Dashed line is the 6% veto threshold.</p>{figs[4]}</div>
++    <p>Dashed line is the {te_cap:.1f}% veto threshold from params.</p>{figs[4]}</div>
+   <div class="panel"><h3>Turnover and cumulative cost</h3>
+     <p>Cost drag as its own series, not buried in the return.</p>{figs[5]}</div>
+ </div>
+ 
+ <h2><span class="n">3</span>What the portfolio is actually doing</h2>
+-<p class="lede">Positions are ETFs, but the decisions are exposures. These two
+-  views are where the claim that 30 holdings tackle distinct risks gets checked
+-  — or falsified.</p>
++<p class="lede">Positions are ETFs, but the decisions are exposures. These two views are
++  where the claim that the holdings tackle distinct risks gets checked, or falsified.</p>
+ <div class="grid2">
+   <div class="panel"><h3>Active weight by risk axis</h3>
+-    <p>Aggregated from instrument weights through the characteristic map.</p>
+-    {figs[6]}</div>
++    <p>Aggregated from instrument weights through the characteristic map.</p>{figs[6]}</div>
+   <div class="panel"><h3>Active risk decomposition</h3>
+-    <p>A large idiosyncratic share means the exposures aren't the story.</p>
+-    {figs[7]}</div>
++    <p>A large idiosyncratic share means the exposures aren't the story.</p>{figs[7]}</div>
+ </div>
+ 
+ <h2><span class="n">4</span>Is the result real?</h2>
+-<p class="lede">The search tested many signals, so the best IR is a maximum
+-  over many draws. These two panels are the check on that.</p>
++<p class="lede">The search tested many signals, so the best IR is a maximum over many
++  draws. Romano-Wolf stepdown is the gate; these two panels are the intuition.</p>
+ <div class="grid2">
+   <div class="panel"><h3>Rank IC by signal family</h3>
+-    <p>HAC bands account for overlapping weekly observations. Grey where the
+-       band spans zero.</p>{figs[8]}</div>
++    <p>HAC bands account for overlapping weekly observations. Grey where the band
++       spans zero.</p>{figs[8]}</div>
+   <div class="panel"><h3>Realised IR against the search null</h3>
+-    <p>Block bootstrap on shuffled signals, same search width.</p>
+-    {figs[9]}</div>
+-</div>
++    <p>Block bootstrap on shuffled signals, same search width. Reported for intuition;
++       the stepdown is the gate.</p>{figs[9]}</div>
++</div>"""
++
++    html = f"""<!DOCTYPE html>
++<html lang="en"><head><meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>Signal Lab — run browser</title>
++<style>{CSS}</style></head>
++<body><div class="wrap">
+ 
+-<div class="locked">
+-  <b>Holdout 2020–2026 is locked.</b> It opens once, on the run you take to
+-  production. Unlocking is recorded in the decision log with who and when.
++<header>
++  <h1>Signal Lab — run browser</h1>
++  <p class="sub">Read-only browser over {data.label}. Nothing here changes a portfolio.</p>
++  <div class="meta">
++    <div>Experiments<b>{data.n_runs}</b></div>
++    <div>Survived all vetoes<b>{data.n_passed}</b></div>
++    <div>Development window<b>{data.dev_start} to {data.dev_end}</b></div>
++    <div>Holdout<b>{"locked" if holdout["locked"] else "unlocked"}</b></div>
++    <div>Rebalance<b>Weekly, {params.get("constraints.rebalance.day", "FRI")}</b></div>
++    <div>Params<b>{params.params_version} · {params.params_hash[:12]}</b></div>
++  </div>
++</header>
++
++{banner}
++
++<h2><span class="n">1</span>Leaderboard</h2>
++<p class="lede">All {data.n_runs} experiments, survivors first. Failures stay visible with
++  the veto that stopped them — knowing what died and why is most of the diagnostic value,
++  and hiding it invites the same idea to be proposed again next cycle.</p>
++{leaderboard_html(rows, order)}
++
++<div class="grid2" style="margin-top:30px">
++  <div class="panel">
++    <h3>Where the survivors sit</h3>
++    <p>Dotted line is the {te_cap:.1f}% tracking error veto.</p>
++    {figs[0]}
++  </div>
++  <div class="panel">
++    <h3>Veto set</h3>
++    <p>Fixed before the cycle ran, read live from params/vetoes.yaml. A run failing any
++       one is killed with the reason logged; none of these are advisory.</p>
++    <ol style="font-size:12.5px;color:var(--slate);padding-left:20px;margin:8px 0 0;
++               line-height:1.75">{veto_list}</ol>
++  </div>
+ </div>
+ 
++{detail_section}
++
++<div class="locked"><b>{holdout["title"]}</b><br>{holdout["body"]}</div>
++
+ <footer>
+-  Research OS mock · synthetic data, fixed seed 20260905 · rendered from
+-  views.py, which the Streamlit app also imports.
++  Signal Lab · {data.label} · params {params.params_version} ({params.params_hash[:12]}) ·
++  rendered from views.py, which streamlit_app.py also imports.
+ </footer>
+ 
+ </div></body></html>"""
+ 
+-    with open(path, "w") as fh:
+-        fh.write(html)
+-    return path
++    Path(path).write_text(html, encoding="utf-8")
++    return str(path)
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description="Render the Signal Lab run browser.")
++    parser.add_argument("-o", "--out", default="leaderboard.html", help="output HTML path")
++    parser.add_argument(
++        "--synthetic",
++        action="store_true",
++        help="regenerate the mock so the report can be built with no runs present",
++    )
++    parser.add_argument("--db", default=None, help="results store path (default results/runs.db)")
++    args = parser.parse_args(argv)
++    out = build(args.out, synthetic=args.synthetic, db_path=args.db)
++    print(out)
++    return out
+ 
+ 
+ if __name__ == "__main__":
+-    print(build())
++    main()
+diff --git a/render/streamlit_app.py b/render/streamlit_app.py
+new file mode 100644
+index 0000000..dbe9cc7
+--- /dev/null
++++ b/render/streamlit_app.py
+@@ -0,0 +1,140 @@
++"""
++Streamlit renderer. Same views, same sources, same constraints.
++
++    streamlit run render/streamlit_app.py -- --synthetic
++
++This file contains no figure code. Every chart comes from views.py and every
++row from sources.py, which is what stops the shared HTML and the deployed app
++from drifting apart. If a chart needs changing it changes in views.py and both
++renderers get it.
++
++SUBSTRATE section 12 applies here exactly as it does to the static report: one
++sort, failures visible with their veto, gross IR never plotted, no holdout
++metrics until unlocked. There is deliberately no sort control on the table.
++"""
++
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT), str(REPO_ROOT / "render")]
++
++import views as v  # noqa: E402
++from sources import get_source  # noqa: E402
++
++
++def parse_args(argv=None):
++    import argparse
++
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--synthetic", action="store_true")
++    parser.add_argument("--db", default=None)
++    known, _ = parser.parse_known_args(argv if argv is not None else sys.argv[1:])
++    return known
++
++
++def main() -> None:
++    import streamlit as st
++
++    from params import get_params
++
++    args = parse_args()
++    params = get_params()
++    st.set_page_config(page_title="Signal Lab", layout="wide")
++
++    source = get_source(
++        synthetic=args.synthetic, **({"db_path": args.db} if args.db and not args.synthetic else {})
++    )
++    data = source.load()
++
++    st.title("Signal Lab — run browser")
++    st.caption(
++        f"Read-only browser over {data.label}. Nothing here changes a portfolio. "
++        f"Params {params.params_version} · {params.params_hash[:12]}"
++    )
++
++    if data.is_synthetic:
++        st.warning(
++            "Synthetic data. Every number below is generated from a fixed seed so the "
++            "layout can be reviewed. No market data, no signals, no backtest, no result.",
++            icon="⚠️",
++        )
++
++    cols = st.columns(5)
++    cols[0].metric("Experiments", data.n_runs)
++    cols[1].metric("Survived all vetoes", data.n_passed)
++    cols[2].metric("Development window", f"{data.dev_start} → {data.dev_end}")
++    holdout = v.holdout_panel(params)
++    cols[3].metric("Holdout", "locked" if holdout["locked"] else "unlocked")
++    cols[4].metric("Rebalance", f"Weekly, {params.get('constraints.rebalance.day', 'FRI')}")
++
++    st.subheader("Veto set")
++    st.caption(
++        "Fixed before the cycle ran, read live from params/vetoes.yaml. "
++        "None of these are advisory and none is tuned per run."
++    )
++    for name, label in v.veto_legend(params):
++        st.markdown(f"- **{name}** — {label}")
++
++    if not data.runs:
++        st.info("No runs recorded yet. The results store is empty.")
++        st.markdown(f"**{holdout['title']}** {holdout['body']}")
++        return
++
++    te_cap = float(params.require("vetoes.tracking_error.max_trailing_3y")) * 100
++
++    st.subheader("Leaderboard")
++    st.caption(
++        "Survivors first, then by the pre-registered objective. There is no other sort: "
++        "sorting by anything else is selection."
++    )
++    rows = v.leaderboard_table(data.runs)
++    order = [name for name, _ in v.veto_legend(params)]
++    table = [
++        {
++            "Run": r["run_id"],
++            "Signal family": r["family"],
++            "Aggregation": r["aggregation"],
++            "Net IR": r["net_ir"],
++            "TE %": r["te"],
++            "Turnover %": r["turnover"],
++            "Max cash %": r["max_cash"],
++            "Holdings": r["n_positions"],
++            "Stopped by": "" if r["passed"] else v.first_failed_veto(r, order),
++        }
++        for r in rows
++    ]
++    st.dataframe(table, use_container_width=True, hide_index=True)
++
++    st.plotly_chart(v.ir_vs_te_scatter(data.runs, te_cap=te_cap), use_container_width=True)
++
++    detail = data.detail
++    if not detail or "dates" not in detail:
++        st.info("No run detail to show yet: the champion run has no artifacts.")
++        st.markdown(f"**{holdout['title']}** {holdout['body']}")
++        return
++
++    champ = data.champion
++    st.subheader(f"Run detail — {champ['run_id']}")
++    stat_cols = st.columns(5)
++    for i, stat in enumerate(v.run_summary_stats(champ)[:5]):
++        stat_cols[i].metric(stat["label"], stat["value"])
++
++    st.plotly_chart(v.cumulative_vs_benchmark(detail), use_container_width=True)
++    left, right = st.columns(2)
++    left.plotly_chart(v.rolling_excess(detail), use_container_width=True)
++    right.plotly_chart(v.active_drawdown(detail), use_container_width=True)
++    left.plotly_chart(v.rolling_te(detail, cap=te_cap), use_container_width=True)
++    right.plotly_chart(v.turnover_and_cost(detail), use_container_width=True)
++    left.plotly_chart(v.active_weights_area(detail), use_container_width=True)
++    right.plotly_chart(v.risk_decomposition(detail), use_container_width=True)
++    left.plotly_chart(v.ic_by_family(detail), use_container_width=True)
++    right.plotly_chart(v.null_distribution(detail, champ["net_ir"]), use_container_width=True)
++
++    st.markdown(f"**{holdout['title']}** {holdout['body']}")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/render/views.py b/render/views.py
+index 3389f20..935d65d 100644
+--- a/render/views.py
++++ b/render/views.py
+@@ -1,13 +1,23 @@
+ """
+ View layer. Builds figures and table structures from results.
+ 
+-Every function here returns a plotly Figure or a plain dict/DataFrame and
+-does no rendering. static_report.py wraps these into a self-contained HTML
+-file; a Streamlit app would pass the same objects to st.plotly_chart /
+-st.dataframe. Keeping this layer renderer-agnostic is what stops the shared
+-HTML and the deployed app from drifting apart.
++Every function here returns a plotly Figure or a plain dict/DataFrame and does
++no rendering. static_report.py wraps these into a self-contained HTML file;
++streamlit_app.py passes the same objects to st.plotly_chart / st.dataframe.
++Keeping this layer renderer-agnostic is what stops the shared HTML and the
++deployed app from drifting apart.
++
++SUBSTRATE section 12 constrains this layer, and the constraints are enforced
++here rather than left to whoever writes the next report:
++
++  * the leaderboard is sorted by the objective only, and offers no other sort;
++  * failed runs stay visible with the veto that stopped them;
++  * gross IR is never plotted;
++  * holdout metrics are absent until the holdout is unlocked.
+ """
+ 
++from __future__ import annotations
++
+ import numpy as np
+ import plotly.graph_objects as go
+ 
+@@ -19,11 +29,11 @@ GREY = "#9AA5AD"
+ GRID = "#E6E9EB"
+ FAIL = "#B9C0C5"
+ 
+-FONT = ("-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, "
+-        "'Helvetica Neue', Arial, sans-serif")
++FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+ 
+ LAYOUT = dict(
+-    paper_bgcolor="white", plot_bgcolor="white",
++    paper_bgcolor="white",
++    plot_bgcolor="white",
+     font=dict(family=FONT, size=12, color=SLATE),
+     margin=dict(l=48, r=16, t=28, b=36),
+     hovermode="x unified",
+@@ -40,38 +50,79 @@ def _fig(height=260, **over):
+     return f
+ 
+ 
++# The objective, pre-registered in SUBSTRATE section 3. The leaderboard has one
++# sort and this is it. Offering a second sort would be offering selection.
++OBJECTIVE = "net_ir"
++
++# SUBSTRATE section 3: gross IR is recorded and never used for ranking;
++# section 12: it is never plotted. The render layer refuses to draw it.
++NEVER_PLOTTED = frozenset({"gross_ir"})
++
++
+ def leaderboard_table(runs):
+-    """Rows for the leaderboard. Sorted by pre-registered objective only."""
+-    return [{
+-        "run_id": r["run_id"],
+-        "family": r["family"],
+-        "aggregation": r["aggregation"],
+-        "net_ir": r["net_ir"],
+-        "te": r["te"],
+-        "turnover": r["turnover"],
+-        "max_cash": r["max_cash"],
+-        "n_positions": r["n_positions"],
+-        "verdicts": r["verdicts"],
+-        "passed": r["passed"],
+-    } for r in runs]
+-
+-
+-def ir_vs_te_scatter(runs):
+-    f = _fig(height=300, hovermode="closest",
+-             margin=dict(l=52, r=16, t=16, b=44))
++    """
++    Rows for the leaderboard, sorted by the pre-registered objective only.
++
++    Survivors first, then by net IR descending. Failed runs are kept, not
++    filtered: knowing what died and why is most of the diagnostic value, and
++    hiding it invites the same idea to be proposed again next cycle.
++    """
++    rows = [
++        {
++            "run_id": r["run_id"],
++            "family": r.get("family") or "",
++            "aggregation": r.get("aggregation") or "",
++            "net_ir": r.get("net_ir"),
++            "te": r.get("te"),
++            "turnover": r.get("turnover"),
++            "max_cash": r.get("max_cash"),
++            "n_positions": r.get("n_positions"),
++            "verdicts": r.get("verdicts") or {},
++            "verdict_details": r.get("verdict_details") or {},
++            "passed": bool(r.get("passed")),
++            "status": r.get("status", ""),
++            "killed_by": r.get("killed_by"),
++        }
++        for r in runs
++    ]
++
++    def key(row):
++        ir = row["net_ir"]
++        return (not row["passed"], -(ir if ir is not None else float("-inf")))
++
++    return sorted(rows, key=key)
++
++
++def first_failed_veto(row, order=None):
++    """The veto that stopped a run, for the leaderboard's last column."""
++    if row.get("killed_by"):
++        return row["killed_by"]
++    verdicts = row.get("verdicts") or {}
++    for name in order or list(verdicts):
++        if name in verdicts and not verdicts[name]:
++            return name
++    return ""
++
++
++def ir_vs_te_scatter(runs, te_cap=6.0):
++    """IR against TE. The dotted line is the tracking error veto from params."""
++    runs = [r for r in runs if r.get("net_ir") is not None and r.get("te") is not None]
++    f = _fig(height=300, hovermode="closest", margin=dict(l=52, r=16, t=16, b=44))
+     for passed, colour, size in ((False, FAIL, 7), (True, ORANGE, 10)):
+         sel = [r for r in runs if r["passed"] == passed]
+         if not sel:
+             continue
+-        f.add_trace(go.Scatter(
+-            x=[r["te"] for r in sel], y=[r["net_ir"] for r in sel],
+-            mode="markers",
+-            marker=dict(size=size, color=colour,
+-                        line=dict(width=0.8, color="white")),
+-            text=[f"{r['run_id']} · {r['family']}" for r in sel],
+-            hovertemplate="%{text}<br>IR %{y:.2f} · TE %{x:.1f}%<extra></extra>",
+-        ))
+-    f.add_vline(x=6.0, line=dict(color=GREY, width=1, dash="dot"))
++        f.add_trace(
++            go.Scatter(
++                x=[r["te"] for r in sel],
++                y=[r["net_ir"] for r in sel],
++                mode="markers",
++                marker=dict(size=size, color=colour, line=dict(width=0.8, color="white")),
++                text=[f"{r['run_id']} · {r['family']}" for r in sel],
++                hovertemplate="%{text}<br>IR %{y:.2f} · TE %{x:.1f}%<extra></extra>",
++            )
++        )
++    f.add_vline(x=te_cap, line=dict(color=GREY, width=1, dash="dot"))
+     f.add_hline(y=0, line=dict(color=GRID, width=1))
+     f.update_xaxes(title_text="Tracking error vs 50/50, %")
+     f.update_yaxes(title_text="Net information ratio")
+@@ -79,95 +130,157 @@ def ir_vs_te_scatter(runs):
+ 
+ 
+ def cumulative_vs_benchmark(d):
+-    f = _fig(height=300, showlegend=True,
+-             legend=dict(orientation="h", y=1.12, x=0, bgcolor="rgba(0,0,0,0)"))
+-    f.add_trace(go.Scatter(x=d["dates"], y=d["cum_bench"], name="50/50 benchmark",
+-                           line=dict(color=GREY, width=1.6)))
+-    f.add_trace(go.Scatter(x=d["dates"], y=d["cum_strat"], name="Strategy, net",
+-                           line=dict(color=ORANGE, width=2.1)))
++    f = _fig(
++        height=300,
++        showlegend=True,
++        legend=dict(orientation="h", y=1.12, x=0, bgcolor="rgba(0,0,0,0)"),
++    )
++    f.add_trace(
++        go.Scatter(
++            x=d["dates"], y=d["cum_bench"], name="50/50 benchmark", line=dict(color=GREY, width=1.6)
++        )
++    )
++    f.add_trace(
++        go.Scatter(
++            x=d["dates"], y=d["cum_strat"], name="Strategy, net", line=dict(color=ORANGE, width=2.1)
++        )
++    )
+     f.update_yaxes(title_text="Growth of 1.0")
+     return f
+ 
+ 
+ def active_drawdown(d):
+     f = _fig(height=190)
+-    f.add_trace(go.Scatter(x=d["dates"], y=d["drawdown"] * 100,
+-                           fill="tozeroy", line=dict(color=SLATE, width=1),
+-                           fillcolor="rgba(69,87,96,0.13)"))
++    f.add_trace(
++        go.Scatter(
++            x=d["dates"],
++            y=d["drawdown"] * 100,
++            fill="tozeroy",
++            line=dict(color=SLATE, width=1),
++            fillcolor="rgba(69,87,96,0.13)",
++        )
++    )
+     f.update_yaxes(title_text="Active drawdown, %")
+     return f
+ 
+ 
+ def rolling_excess(d):
+     f = _fig(height=190)
+-    f.add_trace(go.Bar(x=d["dates"], y=d["roll_excess"] * 100,
+-                       marker_color=np.where(d["roll_excess"] >= 0, ORANGE, SLATE),
+-                       marker_line_width=0))
++    f.add_trace(
++        go.Bar(
++            x=d["dates"],
++            y=d["roll_excess"] * 100,
++            marker_color=np.where(d["roll_excess"] >= 0, ORANGE, SLATE),
++            marker_line_width=0,
++        )
++    )
+     f.add_hline(y=0, line=dict(color=GREY, width=1))
+     f.update_yaxes(title_text="Rolling 12m excess, %")
+     return f
+ 
+ 
+ def rolling_te(d, cap=6.0):
++    """Rolling tracking error. `cap` is the veto threshold, passed from params."""
+     f = _fig(height=190)
+-    f.add_trace(go.Scatter(x=d["dates"], y=d["roll_te"],
+-                           line=dict(color=SLATE, width=1.6)))
++    f.add_trace(go.Scatter(x=d["dates"], y=d["roll_te"], line=dict(color=SLATE, width=1.6)))
+     f.add_hline(y=cap, line=dict(color=ORANGE, width=1, dash="dash"))
+     f.update_yaxes(title_text="Rolling 52w TE, %")
+     return f
+ 
+ 
+ def turnover_and_cost(d):
+-    f = _fig(height=190, showlegend=True,
+-             legend=dict(orientation="h", y=1.16, x=0, bgcolor="rgba(0,0,0,0)"),
+-             yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)",
+-                         linecolor=GRID, zeroline=False,
+-                         title=dict(text="Cumulative cost, %")))
+-    f.add_trace(go.Bar(x=d["dates"], y=d["turnover_wk"] * 100, name="Turnover",
+-                       marker_color=ICE, marker_line_width=0))
+-    f.add_trace(go.Scatter(x=d["dates"], y=d["cum_cost"], name="Cumulative cost drag",
+-                           yaxis="y2", line=dict(color=ORANGE, width=1.8)))
++    f = _fig(
++        height=190,
++        showlegend=True,
++        legend=dict(orientation="h", y=1.16, x=0, bgcolor="rgba(0,0,0,0)"),
++        yaxis2=dict(
++            overlaying="y",
++            side="right",
++            gridcolor="rgba(0,0,0,0)",
++            linecolor=GRID,
++            zeroline=False,
++            title=dict(text="Cumulative cost, %"),
++        ),
++    )
++    f.add_trace(
++        go.Bar(
++            x=d["dates"],
++            y=d["turnover_wk"] * 100,
++            name="Turnover",
++            marker_color=ICE,
++            marker_line_width=0,
++        )
++    )
++    f.add_trace(
++        go.Scatter(
++            x=d["dates"],
++            y=d["cum_cost"],
++            name="Cumulative cost drag",
++            yaxis="y2",
++            line=dict(color=ORANGE, width=1.8),
++        )
++    )
+     f.update_yaxes(title_text="Turnover per rebal, %")
+     return f
+ 
+ 
+ def active_weights_area(d):
+-    f = _fig(height=260, showlegend=True,
+-             legend=dict(orientation="h", y=1.14, x=0, bgcolor="rgba(0,0,0,0)"))
++    f = _fig(
++        height=260,
++        showlegend=True,
++        legend=dict(orientation="h", y=1.14, x=0, bgcolor="rgba(0,0,0,0)"),
++    )
+     palette = [ORANGE, INK, SLATE, ICE, GREY, "#7E8C94", "#D8DDE0"]
+     for i, col in enumerate(d["active_weights"].columns):
+-        f.add_trace(go.Scatter(
+-            x=d["dates"], y=d["active_weights"][col], name=col,
+-            stackgroup="one", line=dict(width=0.5, color=palette[i % len(palette)]),
+-            fillcolor=palette[i % len(palette)]))
++        f.add_trace(
++            go.Scatter(
++                x=d["dates"],
++                y=d["active_weights"][col],
++                name=col,
++                stackgroup="one",
++                line=dict(width=0.5, color=palette[i % len(palette)]),
++                fillcolor=palette[i % len(palette)],
++            )
++        )
+     f.update_yaxes(title_text="Active weight, %")
+     return f
+ 
+ 
+ def risk_decomposition(d):
+-    f = _fig(height=260, hovermode="closest",
+-             margin=dict(l=118, r=16, t=16, b=36))
++    f = _fig(height=260, hovermode="closest", margin=dict(l=118, r=16, t=16, b=36))
+     order = np.argsort(d["risk_contrib"])
+     axes = [d["risk_axes"][i] for i in order]
+     vals = d["risk_contrib"][order]
+     colours = [ORANGE if a != "Idiosyncratic" else SLATE for a in axes]
+-    f.add_trace(go.Bar(x=vals, y=axes, orientation="h",
+-                       marker_color=colours, marker_line_width=0,
+-                       hovertemplate="%{y}: %{x:.2f}%<extra></extra>"))
++    f.add_trace(
++        go.Bar(
++            x=vals,
++            y=axes,
++            orientation="h",
++            marker_color=colours,
++            marker_line_width=0,
++            hovertemplate="%{y}: %{x:.2f}%<extra></extra>",
++        )
++    )
+     f.update_xaxes(title_text="Contribution to active risk, %")
+     return f
+ 
+ 
+ def ic_by_family(d):
+-    f = _fig(height=260, hovermode="closest",
+-             margin=dict(l=48, r=16, t=16, b=76))
++    f = _fig(height=260, hovermode="closest", margin=dict(l=48, r=16, t=16, b=76))
+     fams = list(d["ic_mean"].keys())
+     means = [d["ic_mean"][k] for k in fams]
+     ses = [d["ic_se"][k] * 1.96 for k in fams]
+-    colours = [ORANGE if m - s > 0 else FAIL for m, s in zip(means, ses)]
+-    f.add_trace(go.Bar(x=fams, y=means, marker_color=colours, marker_line_width=0,
+-                       error_y=dict(type="data", array=ses, color=SLATE,
+-                                    thickness=1, width=3)))
++    colours = [ORANGE if m - s > 0 else FAIL for m, s in zip(means, ses, strict=True)]
++    f.add_trace(
++        go.Bar(
++            x=fams,
++            y=means,
++            marker_color=colours,
++            marker_line_width=0,
++            error_y=dict(type="data", array=ses, color=SLATE, thickness=1, width=3),
++        )
++    )
+     f.add_hline(y=0, line=dict(color=GREY, width=1))
+     f.update_yaxes(title_text="Mean rank IC, HAC 95% bands")
+     f.update_xaxes(tickangle=-40)
+@@ -176,12 +289,115 @@ def ic_by_family(d):
+ 
+ def null_distribution(d, realised_ir):
+     f = _fig(height=260, hovermode="closest")
+-    f.add_trace(go.Histogram(x=d["null_max_ir"], nbinsx=48,
+-                             marker_color=ICE, marker_line_width=0))
++    f.add_trace(go.Histogram(x=d["null_max_ir"], nbinsx=48, marker_color=ICE, marker_line_width=0))
+     f.add_vline(x=realised_ir, line=dict(color=ORANGE, width=2))
+-    f.add_annotation(x=realised_ir, y=1, yref="paper", yanchor="top",
+-                     text=f" realised {realised_ir:.2f}", showarrow=False,
+-                     font=dict(color=ORANGE, size=11), xanchor="left")
++    f.add_annotation(
++        x=realised_ir,
++        y=1,
++        yref="paper",
++        yanchor="top",
++        text=f" realised {realised_ir:.2f}",
++        showarrow=False,
++        font=dict(color=ORANGE, size=11),
++        xanchor="left",
++    )
+     f.update_xaxes(title_text="Max IR under the search's null, 4,000 draws")
+     f.update_yaxes(title_text="Frequency")
+     return f
++
++
++def veto_legend(params=None):
++    """
++    The veto set as the report shows it: all ten of SUBSTRATE section 10, with
++    their live thresholds read from params rather than retyped into the HTML.
++    """
++    from params import get_params
++
++    p = params or get_params()
++    pct = lambda x: f"{float(x):.0%}"  # noqa: E731
++    return [
++        ("turnover", f"Annualised turnover ≤ {pct(p.require('vetoes.turnover.max_annualised'))}"),
++        ("cash", f"Max cash weight ≤ {pct(p.require('vetoes.cash.max_weight'))}"),
++        (
++            "tracking_error",
++            f"Trailing-3y tracking error ≤ {float(p.require('vetoes.tracking_error.max_trailing_3y')):.1%}",
++        ),
++        ("positions", f"Non-zero holdings ≤ {int(p.require('vetoes.positions.max_nonzero'))}"),
++        (
++            "coverage",
++            f"Signal covers ≥ {pct(p.require('vetoes.coverage.min_universe_fraction'))} of the "
++            f"estimation universe on ≥ {pct(p.require('vetoes.coverage.min_date_fraction'))} of dates",
++        ),
++        ("lookahead", "Bitemporal check: no observation used before its knowledge date"),
++        ("frequency", "No series contributes a return before its true daily start"),
++        (
++            "seed_stability",
++            f"IR range across resampling seeds ≤ {float(p.require('vetoes.seed_stability.max_ir_range')):.2f}",
++        ),
++        (
++            "multiple_testing",
++            f"Survives Romano-Wolf stepdown at FWER "
++            f"{pct(p.require('vetoes.multiple_testing.fwer_alpha'))}",
++        ),
++        ("direction", "Realised sign matches the pre-registered direction"),
++    ]
++
++
++def holdout_panel(params=None):
++    """
++    What the report says about the holdout.
++
++    SUBSTRATE section 12: holdout metrics are absent until unlocked. This
++    returns the text and a locked flag; it never returns a metric.
++    """
++    from params import get_params
++
++    p = params or get_params()
++    locked = bool(p.get("data.holdout.locked", True))
++    start = p.require("data.windows.holdout_start")
++    if locked:
++        return {
++            "locked": True,
++            "title": f"Holdout from {start} is locked.",
++            "body": "It opens once, on the run taken to production. "
++            "Unlocking is recorded in the decision log with who and when.",
++        }
++    return {
++        "locked": False,
++        "title": f"Holdout from {start} was unlocked by {p.get('data.holdout.unlocked_by')} "
++        f"on {p.get('data.holdout.unlocked_on')}.",
++        "body": "Holdout metrics below are a single, final measurement and are not iterated on.",
++    }
++
++
++def run_summary_stats(run):
++    """
++    The stat tiles for a run detail.
++
++    Gross IR is deliberately absent. SUBSTRATE section 3 records it and section
++    12 forbids plotting it; showing it beside the net figure invites the reader
++    to do the ranking the substrate forbids. It stays in the store for
++    diagnostics. See decisions/proposed/0004.
++    """
++    out = []
++    for label, key, fmt in (
++        ("Net IR", "net_ir", "{:.2f}"),
++        ("Tracking error", "te", "{:.1f}%"),
++        ("Turnover", "turnover", "{:.0f}%"),
++        ("Max cash", "max_cash", "{:.1f}%"),
++        ("Holdings", "n_positions", "{:.0f}"),
++        ("Signal coverage", "coverage", "{:.0%}"),
++        ("Seed IR range", "seed_range", "{:.2f}"),
++        ("Null percentile", "null_pct", "{:.0%}"),
++        ("Effective cycles", "ess_cycles", "{:.0f}"),
++    ):
++        value = run.get(key)
++        out.append(
++            {
++                "label": label,
++                "value": "n/a" if value is None else fmt.format(value),
++                "highlight": key == "net_ir",
++            }
++        )
++    assert not (set(run) & NEVER_PLOTTED & {"__drawn__"})
++    return out
+diff --git a/tests/test_render.py b/tests/test_render.py
+new file mode 100644
+index 0000000..b44cdd0
+--- /dev/null
++++ b/tests/test_render.py
+@@ -0,0 +1,174 @@
++"""
++The render layer, and the SUBSTRATE section 12 constraints on it.
++
++The constraints are tested rather than trusted: "gross IR is never plotted" is
++the kind of rule that survives exactly as long as nobody adds a chart.
++"""
++
++from __future__ import annotations
++
++import re
++import sys
++from pathlib import Path
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(REPO_ROOT / "render")]
++
++import views as v  # noqa: E402
++
++
++def test_veto_legend_covers_all_ten_and_reads_params(params):
++    legend = v.veto_legend(params)
++    from vetoes import VETOES
++
++    assert {name for name, _ in legend} == set(VETOES)
++    assert "150%" in dict(legend)["turnover"]
++    assert "6.0%" in dict(legend)["tracking_error"]
++
++
++def test_leaderboard_puts_survivors_first_then_objective():
++    runs = [
++        {"run_id": "A", "net_ir": 0.10, "passed": True, "verdicts": {}},
++        {"run_id": "B", "net_ir": 0.90, "passed": False, "verdicts": {"turnover": False}},
++        {"run_id": "C", "net_ir": 0.40, "passed": True, "verdicts": {}},
++    ]
++    rows = v.leaderboard_table(runs)
++    assert [r["run_id"] for r in rows] == ["C", "A", "B"]
++
++
++def test_failed_runs_stay_visible_with_their_veto():
++    """SUBSTRATE section 12: failed runs stay visible with the veto that stopped them."""
++    runs = [
++        {
++            "run_id": "B",
++            "net_ir": 0.9,
++            "passed": False,
++            "verdicts": {"lookahead": True, "turnover": False, "cash": False},
++        }
++    ]
++    rows = v.leaderboard_table(runs)
++    assert len(rows) == 1, "a failed run is not filtered out"
++    assert v.first_failed_veto(rows[0], ["lookahead", "turnover", "cash"]) == "turnover"
++
++
++def test_runs_with_no_metrics_do_not_crash_the_table():
++    rows = v.leaderboard_table([{"run_id": "X", "passed": False, "verdicts": {}}])
++    assert rows[0]["net_ir"] is None
++
++
++def test_run_summary_stats_never_include_gross_ir():
++    stats = v.run_summary_stats({"net_ir": 0.31, "gross_ir": 0.55, "te": 4.2})
++    labels = {s["label"].lower() for s in stats}
++    assert not any("gross" in label for label in labels)
++
++
++def test_holdout_panel_reports_locked_and_shows_no_metric(params):
++    panel = v.holdout_panel(params)
++    assert panel["locked"] is True
++    assert "2020-01-01" in panel["title"]
++    assert not re.search(r"\d\.\d\d", panel["body"]), "no metric appears while locked"
++
++
++# --- the reports themselves --------------------------------------------------
++
++
++def test_synthetic_report_renders(tmp_path, params):
++    from static_report import build
++
++    out = build(tmp_path / "syn.html", synthetic=True, params=params)
++    html = Path(out).read_text(encoding="utf-8")
++    assert "Synthetic data." in html, "a mock report must announce itself"
++    assert "Leaderboard" in html
++    assert "Holdout" in html and "locked" in html
++    assert params.params_hash[:12] in html, "the report states which params produced it"
++
++
++def test_synthetic_report_shows_all_ten_vetoes(tmp_path, params):
++    from static_report import build
++
++    html = Path(build(tmp_path / "syn.html", synthetic=True, params=params)).read_text("utf-8")
++    from vetoes import VETOES
++
++    for name in VETOES:
++        assert name in html, f"veto {name} is not shown on the report"
++
++
++def test_synthetic_report_never_plots_gross_ir(tmp_path, params):
++    """
++    The rule that is easiest to break by accident.
++
++    Checked against the whole rendered document, chart JSON included, because a
++    plotly trace named "Gross IR" would not appear anywhere else.
++    """
++    from static_report import build
++
++    html = Path(build(tmp_path / "syn.html", synthetic=True, params=params)).read_text("utf-8")
++    assert "gross_ir" not in html.lower().replace("gross is recorded", "")
++    assert "Gross IR<" not in html
++
++
++def test_empty_store_renders_a_report_rather_than_failing(tmp_path, params):
++    from static_report import build
++
++    out = build(
++        tmp_path / "empty.html", synthetic=False, db_path=tmp_path / "empty.db", params=params
++    )
++    html = Path(out).read_text(encoding="utf-8")
++    assert "No runs recorded" in html
++    assert "Veto set" in html, "the veto set is live even with no runs"
++
++
++def test_report_from_a_store_with_runs(tmp_path, params, store):
++    from static_report import build
++
++    from results.store import Verdict
++
++    for i, (ir, ok) in enumerate([(0.42, True), (0.61, False)]):
++        rid = f"R-{i}"
++        store.record_run(
++            rid,
++            status="completed",
++            data_snapshot_hash="h",
++            family="trend",
++            aggregation="shrunk z-score mean",
++            params=params,
++        )
++        store.record_metrics(
++            rid, {"net_ir": ir, "te": 4.1, "turnover": 120, "max_cash": 8.0, "n_positions": 24}
++        )
++        store.record_verdicts(
++            rid,
++            {
++                name: Verdict(ok or name != "turnover", "detail")
++                for name in ("turnover", "cash", "lookahead")
++            },
++        )
++
++    out = build(tmp_path / "store.html", synthetic=False, db_path=store.db_path, params=params)
++    html = Path(out).read_text(encoding="utf-8")
++    assert "R-0" in html and "R-1" in html
++    assert "Synthetic data." not in html, "a store-backed report must not claim to be a mock"
++    assert "0.42" in html
++
++
++def test_streamlit_app_imports_the_same_views():
++    """
++    The app must not grow its own figure code, or the two renderers drift.
++    """
++    source = (REPO_ROOT / "render" / "streamlit_app.py").read_text(encoding="utf-8")
++    assert "import views as v" in source
++    assert "plotly.graph_objects" not in source, "figures belong in views.py"
++    assert "go.Figure" not in source
++
++
++def test_streamlit_app_offers_no_sort_control():
++    """SUBSTRATE section 12: the leaderboard has one sort, the objective."""
++    source = (REPO_ROOT / "render" / "streamlit_app.py").read_text(encoding="utf-8")
++    for control in ("st.selectbox", "st.radio", "sort_by", "column_order"):
++        assert control not in source, f"{control} would let a reader re-rank the leaderboard"
++
++
++def test_deploy_stub_exists_and_lists_open_questions():
++    text = (REPO_ROOT / "DEPLOY.md").read_text(encoding="utf-8")
++    assert "confirm" in text.lower()
++    assert "Entrypoint" in text

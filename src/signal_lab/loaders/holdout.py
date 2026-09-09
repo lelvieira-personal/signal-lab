@@ -1,0 +1,100 @@
+"""
+The holdout lock.
+
+SUBSTRATE section 2: agents may not read, load, or compute anything on dates
+after HOLDOUT_START, and may not work around the loader's refusal.
+SUBSTRATE section 3: the holdout opens once, by the owner, on the single
+candidate taken toward production.
+
+There is deliberately no bypass argument anywhere in this module. Unlocking is
+an edit to params/data.yaml by the owner plus a record in decisions/, not a
+keyword argument. Every loader entry point calls enforce_holdout before it
+returns anything.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+
+import pandas as pd
+
+from signal_lab.params import Params, get_params
+
+
+class HoldoutViolation(Exception):
+    """Raised when a caller asks for a date on or after HOLDOUT_START."""
+
+
+def holdout_start(params: Params | None = None) -> pd.Timestamp:
+    params = params or get_params()
+    return pd.Timestamp(params.require("data.windows.holdout_start"))
+
+
+def is_locked(params: Params | None = None) -> bool:
+    params = params or get_params()
+    return bool(params.get("data.holdout.locked", True))
+
+
+def enforce_holdout(
+    dates: Iterable | pd.Index | pd.Series | pd.DataFrame,
+    params: Params | None = None,
+    what: str = "data",
+) -> None:
+    """
+    Raise HoldoutViolation if any supplied date falls on or after HOLDOUT_START.
+
+    Accepts an index, a Series of dates, a DataFrame (its index is checked), or
+    any iterable of date-likes. Empty input passes: there is nothing to leak.
+    """
+    params = params or get_params()
+    if not is_locked(params):
+        # Unlocked is an owner action recorded in decisions/. Two more fields
+        # must be filled for the unlock to count.
+        if not params.get("data.holdout.unlocked_by") or not params.get("data.holdout.unlocked_on"):
+            raise HoldoutViolation(
+                "data.holdout.locked is false but unlocked_by/unlocked_on are not "
+                "set. An unlock must name who did it and when, and be recorded in "
+                "decisions/. Refusing to serve holdout dates."
+            )
+        return
+
+    start = holdout_start(params)
+
+    if isinstance(dates, pd.DataFrame):
+        index = pd.DatetimeIndex(dates.index)
+    elif isinstance(dates, pd.Series):
+        index = pd.DatetimeIndex(pd.to_datetime(dates.dropna()))
+    elif isinstance(dates, pd.Index):
+        index = pd.DatetimeIndex(dates)
+    else:
+        values = list(dates)
+        if not values:
+            return
+        index = pd.DatetimeIndex(pd.to_datetime(values))
+
+    if len(index) == 0:
+        return
+
+    offending = index[index >= start]
+    if len(offending) > 0:
+        raise HoldoutViolation(
+            f"{what}: {len(offending)} date(s) on or after HOLDOUT_START "
+            f"({start.date()}), first {offending.min().date()}, last "
+            f"{offending.max().date()}. The holdout is locked and there is no "
+            f"bypass. See SUBSTRATE sections 2 and 3."
+        )
+
+
+def clip_to_development(frame: pd.DataFrame, params: Params | None = None) -> pd.DataFrame:
+    """
+    Restrict a frame to the development window.
+
+    Use this when you legitimately hold a longer panel (the synthetic generator
+    runs from 1989) and want the part the lab is allowed to work on. It is not a
+    bypass: it removes holdout rows rather than serving them.
+    """
+    params = params or get_params()
+    start = pd.Timestamp(params.require("data.windows.dev_start"))
+    end = pd.Timestamp(params.require("data.windows.dev_end"))
+    index = pd.DatetimeIndex(frame.index)
+    return frame.loc[(index >= start) & (index <= end)]

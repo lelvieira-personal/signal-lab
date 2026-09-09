@@ -1,0 +1,29 @@
+hypothesis_id: H-2026-0008
+signal: move_vix_composite_change_1m
+family: volatility_stress
+requested_by: agent
+status: awaiting_owner
+series:
+- id: MOVE
+  source: unknown
+  fields:
+  - value
+- id: VIXCLS
+  source: fred
+  fields:
+  - value
+- id: NFCI
+  source: fred
+  fields:
+  - value
+- id: ANFCI
+  source: fred
+  fields:
+  - value
+- id: STLFSI4
+  source: fred
+  fields:
+  - value
+reason: H-2026-0008 requires 5 series absent from the snapshot. The hypothesis is
+  blocked:data rather than run on a substitute.
+available_already: []

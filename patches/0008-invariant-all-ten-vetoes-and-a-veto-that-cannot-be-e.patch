@@ -1,0 +1,568 @@
+From 423ce685cb06605d6d0bfada6527621de34c2bf4 Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:15 +0000
+Subject: [PATCH 08/17] invariant: all ten vetoes, and a veto that cannot be
+ evaluated fails
+
+One function per SUBSTRATE section 10 veto, thresholds from params/vetoes.yaml
+and no number in the package. apply_vetoes records every verdict and returns
+the first failure in the configured order; a veto that raises is recorded as a
+failure. Missing input fails closed: fail-open would put an unmeasured run on
+the leaderboard.
+---
+ vetoes/__init__.py |  52 +++++++
+ vetoes/registry.py | 112 ++++++++++++++
+ vetoes/rules.py    | 366 +++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 530 insertions(+)
+ create mode 100644 vetoes/__init__.py
+ create mode 100644 vetoes/registry.py
+ create mode 100644 vetoes/rules.py
+
+diff --git a/vetoes/__init__.py b/vetoes/__init__.py
+new file mode 100644
+index 0000000..f40784e
+--- /dev/null
++++ b/vetoes/__init__.py
+@@ -0,0 +1,52 @@
++"""
++The veto set. SUBSTRATE.md section 10. Owner-only: agents may not edit this
++package, and may not change a threshold to make a run pass (section 2).
++
++Ten boolean functions, each `veto(run_context, params) -> Verdict`. They are
++applied to every run and evaluated BEFORE any return statistic is computed or
++displayed, so that a run that should not be looked at is never looked at.
++
++Design rules, all of them deliberate:
++
++  * Thresholds come from params/vetoes.yaml. No number is written in this
++    package.
++  * A veto whose input is missing FAILS. Fail-open would put an unmeasured run
++    on the leaderboard; fail-closed only costs an engineer an error message.
++  * Every verdict carries a detail string with the realised value against the
++    threshold, so a reader can see how close a run was rather than only whether
++    it passed.
++  * apply_vetoes records ALL verdicts and returns the first failure in the
++    order set by params. Recording only the first failure would hide that a run
++    breached five constraints, which is diagnostic information.
++"""
++
++from vetoes.registry import VETO_ORDER, VETOES, apply_vetoes, first_failure
++from vetoes.rules import (
++    veto_cash,
++    veto_coverage,
++    veto_direction,
++    veto_frequency,
++    veto_lookahead,
++    veto_multiple_testing,
++    veto_positions,
++    veto_seed_stability,
++    veto_tracking_error,
++    veto_turnover,
++)
++
++__all__ = [
++    "VETOES",
++    "VETO_ORDER",
++    "apply_vetoes",
++    "first_failure",
++    "veto_cash",
++    "veto_coverage",
++    "veto_direction",
++    "veto_frequency",
++    "veto_lookahead",
++    "veto_multiple_testing",
++    "veto_positions",
++    "veto_seed_stability",
++    "veto_tracking_error",
++    "veto_turnover",
++]
+diff --git a/vetoes/registry.py b/vetoes/registry.py
+new file mode 100644
+index 0000000..bbd059d
+--- /dev/null
++++ b/vetoes/registry.py
+@@ -0,0 +1,112 @@
++"""
++apply_vetoes: run the whole set, record every verdict, return the first failure.
++
++Ordering comes from params/vetoes.yaml. Data-integrity vetoes run first, because
++a lookahead or frequency breach makes every downstream number meaningless and
++should be the reason logged, rather than a turnover breach that happens to sit
++earlier in a table.
++"""
++
++from __future__ import annotations
++
++from collections.abc import Callable
++
++from harness.run_context import RunContext
++from params import Params, get_params
++from results.store import ResultsStore, Verdict
++from vetoes import rules
++
++VETOES: dict[str, Callable[..., Verdict]] = {
++    "turnover": rules.veto_turnover,
++    "cash": rules.veto_cash,
++    "tracking_error": rules.veto_tracking_error,
++    "positions": rules.veto_positions,
++    "coverage": rules.veto_coverage,
++    "lookahead": rules.veto_lookahead,
++    "frequency": rules.veto_frequency,
++    "seed_stability": rules.veto_seed_stability,
++    "multiple_testing": rules.veto_multiple_testing,
++    "direction": rules.veto_direction,
++}
++
++# The ten of SUBSTRATE section 10. Asserted rather than assumed: if the table in
++# the constitution grows a row and this package does not, that is a silent gap.
++SUBSTRATE_VETOES = frozenset(
++    {
++        "turnover",
++        "cash",
++        "tracking_error",
++        "positions",
++        "coverage",
++        "lookahead",
++        "frequency",
++        "seed_stability",
++        "multiple_testing",
++        "direction",
++    }
++)
++assert set(VETOES) == SUBSTRATE_VETOES, "veto set does not match SUBSTRATE section 10"
++
++
++def VETO_ORDER(params: Params | None = None) -> list[str]:
++    """Evaluation order from params, validated against the implemented set."""
++    params = params or get_params()
++    order = list(params.get("vetoes.evaluation.order", list(VETOES)))
++    unknown = [v for v in order if v not in VETOES]
++    if unknown:
++        raise ValueError(f"params/vetoes.yaml orders unknown vetoes: {unknown}")
++    missing = [v for v in VETOES if v not in order]
++    if missing:
++        raise ValueError(
++            f"params/vetoes.yaml omits {missing}; every veto is applied to every run "
++            f"(SUBSTRATE section 10), so an omission is not a configuration option"
++        )
++    return order
++
++
++def apply_vetoes(
++    ctx: RunContext,
++    params: Params | None = None,
++    store: ResultsStore | None = None,
++) -> tuple[dict[str, Verdict], str | None]:
++    """
++    Evaluate every veto, record all verdicts, and return (verdicts, first_failure).
++
++    Every veto runs even after one has failed. Stopping at the first failure
++    would save a few milliseconds and lose the diagnostic that a run breached
++    five constraints rather than one, which is the difference between "tune the
++    turnover penalty" and "this idea does not fit the mandate".
++
++    A veto that raises is caught and recorded as a failure with the exception
++    text. A crashing veto is an unenforced constraint, and unenforced is the one
++    thing a veto may not be.
++    """
++    params = params or get_params()
++    order = VETO_ORDER(params)
++
++    verdicts: dict[str, Verdict] = {}
++    for name in order:
++        try:
++            verdict = VETOES[name](ctx, params)
++        except Exception as exc:  # noqa: BLE001 - a crashing veto must not pass
++            verdict = Verdict(
++                passed=False,
++                veto=name,
++                detail=f"veto raised {type(exc).__name__}: {exc}",
++            )
++        verdicts[name] = verdict
++
++    failure = first_failure(verdicts, order)
++
++    if store is not None:
++        store.record_verdicts(ctx.run_id, verdicts)
++
++    return verdicts, failure
++
++
++def first_failure(verdicts: dict[str, Verdict], order: list[str] | None = None) -> str | None:
++    """The name of the first failing veto in evaluation order, or None."""
++    for name in order or list(verdicts):
++        if name in verdicts and not verdicts[name].passed:
++            return name
++    return None
+diff --git a/vetoes/rules.py b/vetoes/rules.py
+new file mode 100644
+index 0000000..b7e690b
+--- /dev/null
++++ b/vetoes/rules.py
+@@ -0,0 +1,366 @@
++"""
++One function per veto in SUBSTRATE section 10.
++
++Signature: veto(ctx: RunContext, params: Params | None) -> Verdict.
++Thresholds are read from params/vetoes.yaml on every call, never cached and
++never defaulted, so a run cannot be evaluated against a stale ceiling.
++"""
++
++from __future__ import annotations
++
++import numpy as np
++import pandas as pd
++
++from harness.run_context import MissingInput, RunContext
++from loaders.invariants import frequency_breaches
++from params import Params, get_params
++from results.store import Verdict
++
++
++def _p(params: Params | None) -> Params:
++    return params or get_params()
++
++
++def _missing(name: str, exc: MissingInput) -> Verdict:
++    """
++    The verdict for a veto that could not be evaluated.
++
++    params/vetoes.yaml sets evaluation.on_missing_input: fail. This is not a
++    technicality: an unevaluated constraint is an unenforced constraint, and a
++    run that reaches the leaderboard with one is exactly the failure mode the
++    veto set exists to prevent.
++    """
++    return Verdict(
++        passed=False,
++        veto=name,
++        detail=f"cannot evaluate: missing input {exc}. Fail-closed per params/vetoes.yaml.",
++    )
++
++
++# --- 1. turnover -------------------------------------------------------------
++
++
++def veto_turnover(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """Annualised one-way turnover against the ceiling in params."""
++    cap = float(_p(params).require("vetoes.turnover.max_annualised"))
++    try:
++        realised = ctx.annualised_turnover()
++    except MissingInput as exc:
++        return _missing("turnover", exc)
++    return Verdict(
++        passed=realised <= cap,
++        veto="turnover",
++        detail=f"annualised turnover {realised:.1%} against a {cap:.0%} ceiling",
++    )
++
++
++# --- 2. cash -----------------------------------------------------------------
++
++
++def veto_cash(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """Maximum cash weight over the run against the ceiling in params."""
++    cap = float(_p(params).require("vetoes.cash.max_weight"))
++    try:
++        cash = ctx.require("cash_weights")
++    except MissingInput as exc:
++        return _missing("cash", exc)
++    realised = float(pd.Series(cash).max())
++    return Verdict(
++        passed=realised <= cap,
++        veto="cash",
++        detail=f"max cash weight {realised:.1%} against a {cap:.0%} ceiling",
++    )
++
++
++# --- 3. tracking_error -------------------------------------------------------
++
++
++def veto_tracking_error(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    Trailing-3y tracking error against the ceiling.
++
++    params/vetoes.yaml sets `statistic: max`, i.e. the worst trailing-3y reading
++    over the run, not the last one. SUBSTRATE section 4 allows episodic
++    excursions and section 10 states a hard ceiling; taking the worst reading is
++    the conservative reconciliation. See decisions/proposed/0003.
++    """
++    p = _p(params)
++    cap = float(p.require("vetoes.tracking_error.max_trailing_3y"))
++    statistic = str(p.get("vetoes.tracking_error.statistic", "max"))
++    try:
++        te = pd.Series(ctx.require("te_trailing_3y")).dropna()
++    except MissingInput as exc:
++        return _missing("tracking_error", exc)
++    if te.empty:
++        return _missing("tracking_error", MissingInput("te_trailing_3y (all NaN)"))
++    realised = float(te.max() if statistic == "max" else te.iloc[-1])
++    return Verdict(
++        passed=realised <= cap,
++        veto="tracking_error",
++        detail=f"{statistic} trailing-3y TE {realised:.2%} against a {cap:.1%} ceiling",
++    )
++
++
++# --- 4. positions ------------------------------------------------------------
++
++
++def veto_positions(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """Maximum count of non-zero instrument weights on any rebalance date."""
++    cap = int(_p(params).require("vetoes.positions.max_nonzero"))
++    try:
++        weights = ctx.require("weights")
++    except MissingInput as exc:
++        return _missing("positions", exc)
++    counts = (weights.abs() > 0).sum(axis=1)
++    realised = int(counts.max())
++    return Verdict(
++        passed=realised <= cap,
++        veto="positions",
++        detail=f"max {realised} non-zero weights against a ceiling of {cap}",
++    )
++
++
++# --- 5. coverage -------------------------------------------------------------
++
++
++def veto_coverage(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    Signal available for >= 80% of the estimation universe on >= 90% of dates.
++
++    Coverage is measured on the estimation universe (SUBSTRATE section 5.2:
++    tradable-only series are never used to estimate a signal), so a signal is
++    not credited for covering instruments it may not learn from.
++    """
++    p = _p(params)
++    min_universe = float(p.require("vetoes.coverage.min_universe_fraction"))
++    min_dates = float(p.require("vetoes.coverage.min_date_fraction"))
++    try:
++        avail = ctx.require("signal_availability")
++    except MissingInput as exc:
++        return _missing("coverage", exc)
++
++    universe = ctx.estimation_universe or list(avail.columns)
++    cols = [c for c in universe if c in avail.columns]
++    if not cols:
++        return _missing("coverage", MissingInput("estimation_universe not present in availability"))
++
++    per_date = avail[cols].astype(bool).mean(axis=1)
++    date_fraction = float((per_date >= min_universe).mean())
++    return Verdict(
++        passed=date_fraction >= min_dates,
++        veto="coverage",
++        detail=(
++            f"signal covered >= {min_universe:.0%} of {len(cols)} estimation series on "
++            f"{date_fraction:.1%} of dates, needs {min_dates:.0%}"
++        ),
++    )
++
++
++# --- 6. lookahead ------------------------------------------------------------
++
++
++def veto_lookahead(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    Bitemporal check: no observation used before its knowledge date.
++
++    `observation_usage` carries knowledge_date and used_on_date for every macro
++    observation the run consumed. A single row with used_on_date earlier than
++    knowledge_date is a peek at a number nobody had, and invalidates everything
++    downstream, which is why this veto is evaluated first.
++    """
++    _p(params).require("vetoes.lookahead.strict")
++    try:
++        usage = ctx.require("observation_usage")
++    except MissingInput as exc:
++        return _missing("lookahead", exc)
++
++    for col in ("knowledge_date", "used_on_date"):
++        if col not in usage.columns:
++            return _missing("lookahead", MissingInput(f"observation_usage.{col}"))
++
++    known = pd.to_datetime(usage["knowledge_date"])
++    used = pd.to_datetime(usage["used_on_date"])
++    breaches = usage.loc[used < known]
++    n = len(breaches)
++    if n == 0:
++        return Verdict(
++            passed=True,
++            veto="lookahead",
++            detail=f"{len(usage)} observations, none used before its knowledge date",
++        )
++    worst = int((known - used).dt.days.max())
++    series = sorted(breaches["series_id"].unique().tolist())[:5] if "series_id" in breaches else []
++    return Verdict(
++        passed=False,
++        veto="lookahead",
++        detail=(
++            f"{n} observation(s) used before their knowledge date, worst by {worst} days"
++            + (f", e.g. {series}" if series else "")
++        ),
++    )
++
++
++# --- 7. frequency ------------------------------------------------------------
++
++
++def veto_frequency(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    No series contributes a return before its true daily start.
++
++    A return dated before that start was built from month-end observations
++    spliced into a daily panel, which SUBSTRATE section 2 forbids outright. The
++    breach is usually invisible in aggregate statistics and very visible here.
++    """
++    _p(params).require("vetoes.frequency.strict")
++    try:
++        contributions = ctx.require("return_contributions")
++        meta = ctx.require("series_meta")
++    except MissingInput as exc:
++        return _missing("frequency", exc)
++
++    for col in ("series_id", "date"):
++        if col not in contributions.columns:
++            return _missing("frequency", MissingInput(f"return_contributions.{col}"))
++
++    breaches = frequency_breaches(contributions, meta)
++    n = len(breaches)
++    if n == 0:
++        return Verdict(
++            passed=True,
++            veto="frequency",
++            detail=(
++                f"{len(contributions)} contributions across "
++                f"{contributions['series_id'].nunique()} series, none before its daily start"
++            ),
++        )
++    offenders = sorted(breaches["series_id"].unique().tolist())
++    return Verdict(
++        passed=False,
++        veto="frequency",
++        detail=(
++            f"{n} return(s) dated before the series' true daily start across "
++            f"{len(offenders)} series, e.g. {offenders[:5]}"
++        ),
++    )
++
++
++# --- 8. seed_stability -------------------------------------------------------
++
++
++def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    IR range across resampling seeds. SUBSTRATE section 9.
++
++    A result that moves materially when the resampling seed changes is a
++    property of the draw, not of the signal.
++    """
++    cap = float(_p(params).require("vetoes.seed_stability.max_ir_range"))
++    try:
++        seed_irs = ctx.require("seed_irs")
++    except MissingInput as exc:
++        return _missing("seed_stability", exc)
++    values = [float(v) for v in dict(seed_irs).values() if v is not None and not np.isnan(v)]
++    if len(values) < 2:
++        return _missing("seed_stability", MissingInput("seed_irs (needs >= 2 seeds)"))
++    spread = float(max(values) - min(values))
++    return Verdict(
++        passed=spread <= cap,
++        veto="seed_stability",
++        detail=f"IR range {spread:.3f} across {len(values)} seeds against a {cap:.2f} ceiling",
++    )
++
++
++# --- 9. multiple_testing -----------------------------------------------------
++
++
++def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    Survives Romano-Wolf stepdown at the family-wise error rate in params.
++
++    This veto reads a verdict; it does not run the procedure. The stepdown lives
++    in src/stats/ (phase 3) because it needs the joint distribution of every
++    test statistic in the search, which is a property of the cycle rather than
++    of one run. What the veto enforces here is that the verdict exists, was
++    produced at the configured alpha, and rejected the null.
++
++    The alpha is checked rather than trusted: a stepdown run at 10% and reported
++    against a 5% ceiling would otherwise pass silently.
++    """
++    p = _p(params)
++    alpha = float(p.require("vetoes.multiple_testing.fwer_alpha"))
++    procedure = str(p.require("vetoes.multiple_testing.procedure"))
++    try:
++        result = dict(ctx.require("romano_wolf"))
++    except MissingInput as exc:
++        return _missing("multiple_testing", exc)
++
++    if "rejected" not in result:
++        return _missing("multiple_testing", MissingInput("romano_wolf.rejected"))
++
++    reported_alpha = result.get("fwer_alpha")
++    if reported_alpha is None or not np.isclose(float(reported_alpha), alpha):
++        return Verdict(
++            passed=False,
++            veto="multiple_testing",
++            detail=(
++                f"stepdown reported at alpha {reported_alpha} but params require "
++                f"{alpha}; a verdict at another level is not this test"
++            ),
++        )
++    reported_procedure = str(result.get("procedure", procedure))
++    if reported_procedure != procedure:
++        return Verdict(
++            passed=False,
++            veto="multiple_testing",
++            detail=f"verdict came from {reported_procedure!r}, params require {procedure!r}",
++        )
++
++    rejected = bool(result["rejected"])
++    level = result.get("level", p.get("vetoes.multiple_testing.level", "family_then_within"))
++    n_tests = result.get("n_tests", "unknown")
++    return Verdict(
++        passed=rejected,
++        veto="multiple_testing",
++        detail=(
++            f"{procedure} at FWER {alpha:.0%} ({level}, {n_tests} tests): "
++            f"{'rejected the null' if rejected else 'did not reject the null'}"
++        ),
++    )
++
++
++# --- 10. direction -----------------------------------------------------------
++
++
++def veto_direction(ctx: RunContext, params: Params | None = None) -> Verdict:
++    """
++    Realised sign matches the pre-registered direction.
++
++    SUBSTRATE section 7: a hypothesis whose result contradicts its stated
++    direction is recorded as a failure, not flipped. This veto is what makes
++    that binding, and it is the reason pre-registration is worth the friction.
++    """
++    _p(params).require("vetoes.direction.strict")
++    try:
++        expected = str(ctx.require("preregistered_direction")).lower()
++        realised = str(ctx.require("realised_direction")).lower()
++    except MissingInput as exc:
++        return _missing("direction", exc)
++
++    valid = {"positive", "negative"}
++    if expected not in valid:
++        return Verdict(
++            passed=False,
++            veto="direction",
++            detail=f"pre-registered direction {expected!r} is not one of {sorted(valid)}",
++        )
++    if realised not in valid | {"flat"}:
++        return Verdict(
++            passed=False,
++            veto="direction",
++            detail=f"realised direction {realised!r} is not interpretable",
++        )
++    return Verdict(
++        passed=realised == expected,
++        veto="direction",
++        detail=f"pre-registered {expected}, realised {realised}",
++    )

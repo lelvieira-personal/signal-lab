@@ -1,0 +1,104 @@
+# Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
+# sections 3, 5 and 16. Owner-only.
+params_version: "0.4.0"
+
+windows:
+  dev_start: "2001-01-05"
+  dev_end: "2019-12-27"
+  holdout_start: "2020-01-01"    # SUBSTRATE section 3. Locked.
+
+holdout:
+  locked: true
+  # There is no bypass. The loader raises on any request for a date on or after
+  # holdout_start. Unlocking is an owner action recorded in decisions/.
+  bypass: none
+  unlocked_by: null
+  unlocked_on: null
+
+calendar:
+  business_days_only: true
+  missing_markers: ["#N/A", "#N/A N/A", "", "NA", "nan"]
+  forward_fill: false            # SUBSTRATE section 2: never
+  missing_is_zero: false         # SUBSTRATE section 5.1.1: never
+
+returns:
+  method: prior_observation      # level_t / level_prev_obs - 1, per series
+  truncate_at_true_daily_start: true
+  splice_month_end_into_daily: false   # SUBSTRATE section 2: forbidden
+
+tiers:
+  # SUBSTRATE section 5.2. Read from the coverage table; agents do not override.
+  backbone:      {daily_start_on_or_before: "2001-12-31"}
+  second:        {daily_start_from: "2002-01-01", daily_start_to: "2009-12-31"}
+  tradable_only: {daily_start_on_or_after: "2010-01-01"}
+
+splices:
+  # SUBSTRATE section 5.1.5. Every application is logged as a SpliceRecord.
+  - target: LT13TRUU
+    source: G3OC
+    reason: "3-7y Treasury, ICE BofA, daily from 1986-11"
+    active: true
+  - target: SPBDALB
+    source: null
+    reason: "price index; total-return loan index when available"
+    active: false
+    blocked: "no total-return loan index in the snapshot"
+  - target: MXUS0RE
+    source: MXUS0RL
+    reason: "MXUS0RE discontinued 2023-05"
+    active: true
+
+hedged_series:
+  # SUBSTRATE section 5.1.6. Carry a hedge flag; not mixed with unhedged peers
+  # in a region signal.
+  ids: [H09122US, H12823US, BTSYTRUH, H02549US, LP01TRUH, M0JPHUSD]
+  mix_with_unhedged_in_region_signal: false
+
+net_of_withholding:
+  # SUBSTRATE section 5.1.4: note the mismatch, do not correct it in v0.1.
+  prefixes: [NDDU, M1]
+  correct: false
+
+covariance:
+  cross_region_overlap_days: 2   # SUBSTRATE section 5.1.7
+  same_day_cross_region_correlation_allowed: false
+
+analytics:
+  drop_oas_on_treasury_buckets: true    # zero by construction, SUBSTRATE section 5.3
+  keep_oad_on_treasury_buckets: true
+
+fred:
+  # SUBSTRATE section 5.4: ICE BofA spread series on FRED start 2023-09.
+  exclude_series_prefixes: [BAMLH, BAMLC]
+  exclude_reason: "spreads come from Bloomberg, not FRED"
+
+jpmaqs:
+  status: credentials_supplied   # not yet loaded; the search gate stays closed
+  # SUBSTRATE section 5.6 permits "downweighted or excluded" and does not choose.
+  # Exclusion is the conservative reading. See decisions/proposed/0006.
+  grade_3: exclude
+  downweights: {}
+  legacy_euro_prefix_map:
+    "DEM_": DEU
+    "FRF_": FRA
+    "ITL_": ITA
+    "ESP_": ESP
+    "NLG_": NLD
+  search_opens_only_when_loaded: true    # SUBSTRATE section 5.6
+  # decisions/0006: the API is called to BUILD a snapshot, never during a run.
+  # Every run records a data_snapshot_hash so a result can be regenerated; data
+  # fetched live at run time makes that hash a lie. If rate limits bite, build
+  # the snapshot incrementally across sessions.
+  live_api_during_run: forbidden
+  incremental_snapshot_build: allowed
+
+synthetic:
+  # Phase 0 only. Shape-matched to the vendors, no vendor values.
+  n_series: 100
+  start: "1989-01-02"
+  end: "2019-12-27"
+  n_factors: 5
+  n_hedged: 6
+  n_month_end_before_break: 12
+  seed: 20260907
+  coverage_reference: "data/universe/bbg_index_coverage.csv"

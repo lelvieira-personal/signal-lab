@@ -1,0 +1,50 @@
+# The allowlist SUBSTRATE section 2 refers to: "Call any external API not
+# listed in params/data_sources.yaml" is forbidden. Owner-only.
+# Secrets are read from environment variables only; no key is ever written here.
+params_version: "0.4.0"
+
+sources:
+  bloomberg:
+    kind: file
+    enabled: true
+    path: data/raw/bloomberg/
+    manifest: data/universe/raw_manifest.csv
+    network: false
+    env_keys: []
+  fred:
+    kind: http
+    enabled: true
+    base_url: "https://api.stlouisfed.org/fred/"
+    env_keys: ["FRED_API_KEY"]
+    coverage: data/universe/fred_coverage.csv
+  eodhd:
+    kind: http
+    enabled: false          # not used by the lab; listed so its absence is explicit
+    base_url: "https://eodhd.com/api/"
+    env_keys: ["EODHD_API_KEY"]
+  jpmaqs:
+    kind: sdk
+    enabled: true           # credentials supplied 2026-09-09
+    # Accessed through the vendor's own client, not raw HTTP:
+    #   from macrosynergy.download import JPMaQSDownload
+    #   JPMaQSDownload(client_id=..., client_secret=..., proxy=...)
+    package: macrosynergy
+    client: JPMaQSDownload
+    env_keys: ["DQ_CLIENT_ID", "DQ_CLIENT_SECRET"]
+    proxy_env_prefix: PROXY   # the owner's get_proxies(prefix="PROXY") convention
+    start_date: "1990-01-01"
+    # SUBSTRATE section 5.6 requires value, grading AND eop_lag on every ticker.
+    # The owner's working snippet requests metrics=["value"] only; with just the
+    # value the grading filter cannot run and knowledge dates cannot be
+    # constructed, so the loader requests all three and refuses a pull missing
+    # any of them. See decisions/0006.
+    metrics: ["value", "grading", "eop_lag"]
+    required_metrics: ["value", "grading", "eop_lag"]
+
+reference_resolver:
+  # SUBSTRATE section 7: the harness fetches a `literature` reference and rejects
+  # the hypothesis if it cannot be resolved. No resolver host is allowlisted yet,
+  # so `literature` provenance is rejected until the owner enables one.
+  enabled: false
+  allowed_hosts: []           # e.g. ["doi.org"] once the owner approves
+  env_keys: []

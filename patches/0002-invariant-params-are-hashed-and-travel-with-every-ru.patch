@@ -1,0 +1,566 @@
+From 2776759697898314c009a339f322d8ae9550d14e Mon Sep 17 00:00:00 2001
+From: Claude Opus 5 <noreply@anthropic.com>
+Date: Mon, 7 Sep 2026 14:18:14 +0000
+Subject: [PATCH 02/17] invariant: params are hashed and travel with every run
+
+Six param files from the SUBSTRATE values, all carrying params_version, which
+must agree across the set. hash_params_dir is content-addressed so the same
+configuration hashes the same on any machine. require() refuses a null value
+rather than defaulting: SUBSTRATE forbids inventing thresholds, so an unset
+ceiling makes the caller stop.
+---
+ params/agents.yaml       |  42 +++++++++
+ params/constraints.yaml  |  63 ++++++++++++++
+ params/costs.yaml        |  28 ++++++
+ params/data.yaml         |  98 +++++++++++++++++++++
+ params/data_sources.yaml |  37 ++++++++
+ params/vetoes.yaml       |  47 ++++++++++
+ src/params.py            | 182 +++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 497 insertions(+)
+ create mode 100644 params/agents.yaml
+ create mode 100644 params/constraints.yaml
+ create mode 100644 params/costs.yaml
+ create mode 100644 params/data.yaml
+ create mode 100644 params/data_sources.yaml
+ create mode 100644 params/vetoes.yaml
+ create mode 100644 src/params.py
+
+diff --git a/params/agents.yaml b/params/agents.yaml
+new file mode 100644
+index 0000000..4f55568
+--- /dev/null
++++ b/params/agents.yaml
+@@ -0,0 +1,42 @@
++# Agent budgets and quotas. SUBSTRATE.md section 14. Owner-only.
++#
++# SUBSTRATE requires hard ceilings but does not state numbers, and inventing a
++# threshold is forbidden (KICKOFF "How to work"). Every unset ceiling below is
++# null, and the wrapper REFUSES to make a model call while its ceiling is null.
++# Fail-closed, not fail-open. See decisions/proposed/0007 for the numbers needed.
++params_version: "0.3.0"
++
++budgets:
++  tokens_per_run: null
++  tokens_per_cycle: null
++  on_breach: kill            # section 14: "kills on breach, it does not warn"
++  on_unset: refuse
++  owner_to_confirm: [tokens_per_run, tokens_per_cycle]
++
++quotas:
++  max_proposals_per_family_per_cycle: null
++  max_refinement_rounds_per_proposal: null
++  novel_provenance_per_cycle: null       # section 7: novel is quota-limited
++  owner_to_confirm:
++    - max_proposals_per_family_per_cycle
++    - max_refinement_rounds_per_proposal
++    - novel_provenance_per_cycle
++
++models:
++  # section 14 model tiering. No model id is guessed.
++  cheap: null                # config generation, result parsing, digest writing
++  expensive: null            # hypothesis generation, failure diagnosis
++  owner_to_confirm: [cheap, expensive]
++
++pricing:
++  # Needed for runs.cost_usd. Unset means cost_usd is recorded as NULL rather
++  # than as a made-up number.
++  currency: USD
++  per_million_tokens: {}
++  owner_to_confirm: [per_million_tokens]
++
++policy:
++  agents_read_summary_statistics_only: true   # section 14: never raw return panels
++  prompt_cache: [SUBSTRATE.md, params/, data/universe/]
++  log_cost_per_run: true
++  log_cost_per_accepted_idea: true
+diff --git a/params/constraints.yaml b/params/constraints.yaml
+new file mode 100644
+index 0000000..7673e30
+--- /dev/null
++++ b/params/constraints.yaml
+@@ -0,0 +1,63 @@
++# Portfolio constraints. SUBSTRATE.md section 4.
++# Owner-only. Agents may not edit this file (SUBSTRATE section 2).
++params_version: "0.3.0"
++
++direction: long_only
++leverage_allowed: false
++
++cash:
++  min_weight: 0.00
++  max_weight: 0.20            # 0-20% of NAV
++
++positions:
++  max_nonzero: 30
++
++turnover:
++  max_annualised: 1.50        # 150%
++  target_annualised: 1.00     # section 4 "target reduction to 100% later"; a target, not enforced
++
++tracking_error:
++  # Section 4 describes an asymmetric penalty, not a hard band; section 10 makes
++  # trailing-3y TE a hard veto. Both are implemented: the veto is the gate, the
++  # penalty is an objective term. See decisions/proposed/0003.
++  max_trailing_3y: 0.060
++  window_years: 3
++  penalty:
++    shape: asymmetric
++    # No coefficient is set here. SUBSTRATE does not give one and thresholds
++    # are not invented. The objective refuses to build until the owner sets it.
++    coefficient: null
++    owner_to_confirm: true
++
++rebalance:
++  frequency: weekly
++  day: FRI
++  # Section 4 and section 9: alternates are averaged over, never selected.
++  alternates: [TUE, WED, FRI]
++  alternates_are_averaged: true
++
++benchmark:
++  equity: NDUEACWF            # MSCI ACWI net TR
++  bond: LEGATRUU              # Bloomberg Global Aggregate, unhedged USD
++  weights: [0.50, 0.50]
++  currency: USD
++  bond_leg_hedged: false
++  rebalanced_with_strategy: true
++  pre_1999_extension:
++    equity: MXWO              # developed only, gross dividends
++    bond: SBWGU               # sovereign only, no credit
++    splice_date: "1999-01-01"
++    results_depending_on_it_must_say_so: true
++  alternative_bond_leg: LEGATRUH   # section 5.5, owner to confirm for production
++  owner_to_confirm: [bond_leg_hedged]
++
++fx:
++  benchmark_unhedged: true
++  # Section 4: hedged series are the counterfactual, not a separate live axis in v0.3.
++  hedged_series_are_live_axis: false
++
++solver:
++  # cvxpy with an open-source solver by default.
++  default: CLARABEL
++  fallbacks: [OSQP, ECOS]
++  mosek_enabled: false        # commercial; enable only with the `mosek` extra installed
+diff --git a/params/costs.yaml b/params/costs.yaml
+new file mode 100644
+index 0000000..c187d03
+--- /dev/null
++++ b/params/costs.yaml
+@@ -0,0 +1,28 @@
++# Cost model. SUBSTRATE.md section 8. v0.1 placeholders, to be revised
++# against live ETF data. Owner-only.
++params_version: "0.3.0"
++
++# net = gross - turnover * half_spread - annual_fee_tracking / weeks_per_year
++application:
++  weeks_per_year: 52
++  report: net_only
++  store_gross_for_diagnostics: true
++
++buckets:
++  low:
++    label: "Treasuries, T-bills, US large-cap equity"
++    half_spread_bps: 5
++    annual_fee_tracking_bps: 5
++  mid:
++    label: "IG credit, sectors, DM regions, styles"
++    half_spread_bps: 10
++    annual_fee_tracking_bps: 15
++  high:
++    label: "HY, EM equity and debt, loans, real assets"
++    half_spread_bps: 20
++    annual_fee_tracking_bps: 35
++
++# An instrument with no bucket in the universe map is charged the most
++# expensive bucket. Costing an unmapped instrument cheaply would flatter it.
++# See decisions/proposed/0002.
++default_bucket: high
+diff --git a/params/data.yaml b/params/data.yaml
+new file mode 100644
+index 0000000..1fc27cf
+--- /dev/null
++++ b/params/data.yaml
+@@ -0,0 +1,98 @@
++# Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
++# sections 3, 5 and 16. Owner-only.
++params_version: "0.3.0"
++
++windows:
++  dev_start: "2001-01-05"
++  dev_end: "2019-12-27"
++  holdout_start: "2020-01-01"    # SUBSTRATE section 3. Locked.
++
++holdout:
++  locked: true
++  # There is no bypass. The loader raises on any request for a date on or after
++  # holdout_start. Unlocking is an owner action recorded in decisions/.
++  bypass: none
++  unlocked_by: null
++  unlocked_on: null
++
++calendar:
++  business_days_only: true
++  missing_markers: ["#N/A", "#N/A N/A", "", "NA", "nan"]
++  forward_fill: false            # SUBSTRATE section 2: never
++  missing_is_zero: false         # SUBSTRATE section 5.1.1: never
++
++returns:
++  method: prior_observation      # level_t / level_prev_obs - 1, per series
++  truncate_at_true_daily_start: true
++  splice_month_end_into_daily: false   # SUBSTRATE section 2: forbidden
++
++tiers:
++  # SUBSTRATE section 5.2. Read from the coverage table; agents do not override.
++  backbone:      {daily_start_on_or_before: "2001-12-31"}
++  second:        {daily_start_from: "2002-01-01", daily_start_to: "2009-12-31"}
++  tradable_only: {daily_start_on_or_after: "2010-01-01"}
++
++splices:
++  # SUBSTRATE section 5.1.5. Every application is logged as a SpliceRecord.
++  - target: LT13TRUU
++    source: G3OC
++    reason: "3-7y Treasury, ICE BofA, daily from 1986-11"
++    active: true
++  - target: SPBDALB
++    source: null
++    reason: "price index; total-return loan index when available"
++    active: false
++    blocked: "no total-return loan index in the snapshot"
++  - target: MXUS0RE
++    source: MXUS0RL
++    reason: "MXUS0RE discontinued 2023-05"
++    active: true
++
++hedged_series:
++  # SUBSTRATE section 5.1.6. Carry a hedge flag; not mixed with unhedged peers
++  # in a region signal.
++  ids: [H09122US, H12823US, BTSYTRUH, H02549US, LP01TRUH, M0JPHUSD]
++  mix_with_unhedged_in_region_signal: false
++
++net_of_withholding:
++  # SUBSTRATE section 5.1.4: note the mismatch, do not correct it in v0.1.
++  prefixes: [NDDU, M1]
++  correct: false
++
++covariance:
++  cross_region_overlap_days: 2   # SUBSTRATE section 5.1.7
++  same_day_cross_region_correlation_allowed: false
++
++analytics:
++  drop_oas_on_treasury_buckets: true    # zero by construction, SUBSTRATE section 5.3
++  keep_oad_on_treasury_buckets: true
++
++fred:
++  # SUBSTRATE section 5.4: ICE BofA spread series on FRED start 2023-09.
++  exclude_series_prefixes: [BAMLH, BAMLC]
++  exclude_reason: "spreads come from Bloomberg, not FRED"
++
++jpmaqs:
++  status: pending
++  # SUBSTRATE section 5.6 permits "downweighted or excluded" and does not choose.
++  # Exclusion is the conservative reading. See decisions/proposed/0006.
++  grade_3: exclude
++  downweights: {}
++  legacy_euro_prefix_map:
++    "DEM_": DEU
++    "FRF_": FRA
++    "ITL_": ITA
++    "ESP_": ESP
++    "NLG_": NLD
++  search_opens_only_when_loaded: true    # SUBSTRATE section 5.6
++
++synthetic:
++  # Phase 0 only. Shape-matched to the vendors, no vendor values.
++  n_series: 100
++  start: "1989-01-02"
++  end: "2019-12-27"
++  n_factors: 5
++  n_hedged: 6
++  n_month_end_before_break: 12
++  seed: 20260907
++  coverage_reference: "data/universe/bbg_index_coverage.csv"
+diff --git a/params/data_sources.yaml b/params/data_sources.yaml
+new file mode 100644
+index 0000000..ce320f1
+--- /dev/null
++++ b/params/data_sources.yaml
+@@ -0,0 +1,37 @@
++# The allowlist SUBSTRATE section 2 refers to: "Call any external API not
++# listed in params/data_sources.yaml" is forbidden. Owner-only.
++# Secrets are read from environment variables only; no key is ever written here.
++params_version: "0.3.0"
++
++sources:
++  bloomberg:
++    kind: file
++    enabled: true
++    path: data/raw/bloomberg/
++    manifest: data/universe/raw_manifest.csv
++    network: false
++    env_keys: []
++  fred:
++    kind: http
++    enabled: true
++    base_url: "https://api.stlouisfed.org/fred/"
++    env_keys: ["FRED_API_KEY"]
++    coverage: data/universe/fred_coverage.csv
++  eodhd:
++    kind: http
++    enabled: false          # not used by the lab; listed so its absence is explicit
++    base_url: "https://eodhd.com/api/"
++    env_keys: ["EODHD_API_KEY"]
++  jpmaqs:
++    kind: http
++    enabled: false          # SUBSTRATE section 5.6, pending
++    base_url: null
++    env_keys: ["JPMAQS_CLIENT_ID", "JPMAQS_CLIENT_SECRET"]
++
++reference_resolver:
++  # SUBSTRATE section 7: the harness fetches a `literature` reference and rejects
++  # the hypothesis if it cannot be resolved. No resolver host is allowlisted yet,
++  # so `literature` provenance is rejected until the owner enables one.
++  enabled: false
++  allowed_hosts: []           # e.g. ["doi.org"] once the owner approves
++  env_keys: []
+diff --git a/params/vetoes.yaml b/params/vetoes.yaml
+new file mode 100644
+index 0000000..6e507c9
+--- /dev/null
++++ b/params/vetoes.yaml
+@@ -0,0 +1,47 @@
++# Veto thresholds. SUBSTRATE.md section 10. Owner-only.
++# Agents may not change a threshold to make a run pass (SUBSTRATE section 2).
++params_version: "0.3.0"
++
++turnover:
++  max_annualised: 1.50
++cash:
++  max_weight: 0.20
++tracking_error:
++  max_trailing_3y: 0.060
++  statistic: max        # the worst trailing-3y reading, not the last one. decisions/proposed/0003
++positions:
++  max_nonzero: 30
++coverage:
++  min_universe_fraction: 0.80    # signal available for >= 80% of the estimation universe
++  min_date_fraction: 0.90        # on >= 90% of dates
++lookahead:
++  strict: true                   # no observation used before its knowledge_date
++frequency:
++  strict: true                   # no series contributes a return before its true daily start
++seed_stability:
++  max_ir_range: 0.15
++multiple_testing:
++  procedure: romano_wolf
++  fwer_alpha: 0.05
++  level: family_then_within
++direction:
++  strict: true                   # realised sign must match the pre-registered direction
++
++evaluation:
++  # Data-integrity vetoes run first: a lookahead or frequency breach makes every
++  # downstream number meaningless, so it should be the reason logged, not a
++  # turnover breach that happens to be listed earlier. See decisions/proposed/0005.
++  order:
++    - lookahead
++    - frequency
++    - coverage
++    - turnover
++    - cash
++    - tracking_error
++    - positions
++    - seed_stability
++    - multiple_testing
++    - direction
++  # A veto that cannot be evaluated because its input is absent FAILS.
++  # Fail-open would let an unmeasured run onto the leaderboard.
++  on_missing_input: fail
+diff --git a/src/params.py b/src/params.py
+new file mode 100644
+index 0000000..5baade4
+--- /dev/null
++++ b/src/params.py
+@@ -0,0 +1,182 @@
++"""
++Parameter access. Every threshold and cost in the lab lives in params/*.yaml
++and nowhere else; this module is the only way code reads them.
++
++Invariant: the params directory is hashed, and that hash plus the declared
++params_version travel with every run in the results store, so any result can
++be traced to the exact configuration that produced it.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import os
++from dataclasses import dataclass
++from functools import lru_cache
++from pathlib import Path
++from typing import Any
++
++import yaml
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++PARAMS_DIR = REPO_ROOT / "params"
++
++# The files that make up the configuration. A file added to params/ but not
++# listed here is not read and not hashed, so the list is explicit.
++PARAM_FILES = (
++    "constraints.yaml",
++    "costs.yaml",
++    "vetoes.yaml",
++    "data.yaml",
++    "data_sources.yaml",
++    "agents.yaml",
++)
++
++
++# Sentinel for "no default supplied"; None is a legitimate parameter value.
++_REQUIRED = object()
++
++
++class ParamsError(Exception):
++    """Raised when the parameter set is missing, inconsistent or unset."""
++
++
++class ParamNotConfigured(ParamsError):
++    """
++    Raised when a required parameter is null.
++
++    SUBSTRATE forbids inventing thresholds. Where the constitution requires a
++    ceiling but does not state a number, the parameter is null and the code
++    that needs it refuses to run rather than substituting a guess.
++    """
++
++
++@dataclass(frozen=True)
++class Params:
++    """An immutable snapshot of params/, with its hash."""
++
++    constraints: dict[str, Any]
++    costs: dict[str, Any]
++    vetoes: dict[str, Any]
++    data: dict[str, Any]
++    data_sources: dict[str, Any]
++    agents: dict[str, Any]
++    params_version: str
++    params_hash: str
++    params_dir: str
++
++    def get(self, dotted: str, default: Any = _REQUIRED) -> Any:
++        """
++        Fetch by dotted path, e.g. params.get("vetoes.turnover.max_annualised").
++
++        Raises ParamsError on an unknown path unless a default is supplied.
++        A null value is returned as None; callers that must have a value use
++        `require` instead.
++        """
++        node: Any = self.as_dict()
++        for part in dotted.split("."):
++            if not isinstance(node, dict) or part not in node:
++                if default is _REQUIRED:
++                    raise ParamsError(f"no such parameter: {dotted}")
++                return default
++            node = node[part]
++        return node
++
++    def as_dict(self) -> dict[str, Any]:
++        """The whole configuration as one nested dict, keyed by file stem."""
++        return {
++            "constraints": self.constraints,
++            "costs": self.costs,
++            "vetoes": self.vetoes,
++            "data": self.data,
++            "data_sources": self.data_sources,
++            "agents": self.agents,
++        }
++
++    def require(self, dotted: str) -> Any:
++        """Fetch by dotted path and refuse a null value."""
++        value = self.get(dotted)
++        if value is None:
++            raise ParamNotConfigured(
++                f"{dotted} is null in params/. SUBSTRATE requires it and the lab does "
++                f"not invent thresholds; set it in params/ and record the decision."
++            )
++        return value
++
++
++def hash_params_dir(params_dir: Path | str = PARAMS_DIR) -> str:
++    """
++    sha256 over the params files, name and bytes, in a fixed order.
++
++    Content-addressed rather than mtime-based so the same configuration hashes
++    the same on any machine and after any checkout.
++    """
++    params_dir = Path(params_dir)
++    digest = hashlib.sha256()
++    for name in PARAM_FILES:
++        path = params_dir / name
++        if not path.exists():
++            raise ParamsError(f"missing parameter file: {path}")
++        digest.update(name.encode("utf-8"))
++        digest.update(b"\0")
++        digest.update(path.read_bytes())
++        digest.update(b"\0")
++    return digest.hexdigest()
++
++
++def load_params(params_dir: Path | str = PARAMS_DIR) -> Params:
++    """Read params/, check version agreement across files, and hash the set."""
++    params_dir = Path(params_dir)
++    loaded: dict[str, dict[str, Any]] = {}
++    versions: dict[str, str] = {}
++    for name in PARAM_FILES:
++        path = params_dir / name
++        if not path.exists():
++            raise ParamsError(f"missing parameter file: {path}")
++        with path.open("r", encoding="utf-8") as fh:
++            doc = yaml.safe_load(fh) or {}
++        if "params_version" not in doc:
++            raise ParamsError(f"{name} has no params_version")
++        key = name.removesuffix(".yaml")
++        loaded[key] = doc
++        versions[name] = str(doc["params_version"])
++
++    distinct = set(versions.values())
++    if len(distinct) != 1:
++        raise ParamsError(
++            "params_version disagrees across files, so no single version can be "
++            f"recorded with a run: {versions}"
++        )
++
++    return Params(
++        constraints=loaded["constraints"],
++        costs=loaded["costs"],
++        vetoes=loaded["vetoes"],
++        data=loaded["data"],
++        data_sources=loaded["data_sources"],
++        agents=loaded["agents"],
++        params_version=distinct.pop(),
++        params_hash=hash_params_dir(params_dir),
++        params_dir=str(params_dir),
++    )
++
++
++@lru_cache(maxsize=8)
++def _cached(params_dir: str) -> Params:
++    return load_params(params_dir)
++
++
++def get_params(params_dir: Path | str | None = None) -> Params:
++    """
++    Process-wide params, cached.
++
++    SIGNAL_LAB_PARAMS_DIR overrides the location, which is how tests point at a
++    fixture directory without touching the real one.
++    """
++    if params_dir is None:
++        params_dir = os.environ.get("SIGNAL_LAB_PARAMS_DIR", str(PARAMS_DIR))
++    return _cached(str(params_dir))
++
++
++def clear_cache() -> None:
++    _cached.cache_clear()

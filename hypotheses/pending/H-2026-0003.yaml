@@ -1,0 +1,40 @@
+id: H-2026-0003
+family: policy_rates
+signal: real_policy_rate_change_3m
+direction: negative
+target_axis: duration
+rationale: >
+  A rising real policy rate is a central bank tightening faster than inflation
+  is falling, and it does two things to the bond return: it raises the
+  discount rate on every future coupon immediately, and it raises the
+  probability of further tightening being priced into the curve over the
+  following months. Policy is persistent by design, because central banks move
+  in sequences of same-signed steps rather than randomly, so the change in the
+  real policy rate over the past quarter carries information about the next
+  one or two quarters. The relationship is negative: a rising real policy rate
+  implies lower duration exposure. Expressed cross-sectionally across
+  government bond markets it is a tilt toward duration in economies where real
+  policy rates are falling and away from those where they are rising, which is
+  a relative-value expression that a long-only book can hold in full. The
+  directional expression, timing the aggregate duration of the portfolio, is
+  weaker and needs the cash bucket to fund it, so it is expected to be the
+  poorer of the two and both are reported. The stated risk is that in a
+  flight-to-quality episode duration rallies while real policy rates are still
+  rising, which is the correlation breakdown that makes this signal expensive
+  precisely when the portfolio most needs it to work.
+horizon_weeks: 4-13
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - JPMAQS.USD_RIR_NSA
+  - JPMAQS.EUR_RIR_NSA
+  - JPMAQS.JPY_RIR_NSA
+  - JPMAQS.GBP_RIR_NSA
+  - DFF
+  - DGS2
+  - DGS10
+notes: >
+  Slow block. This is the worked example in SUBSTRATE section 7 and is
+  registered as written there.
