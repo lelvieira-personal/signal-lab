@@ -119,8 +119,8 @@ statistical estimate and stops being a lookup. This changes weights and should
 be decided rather than defaulted. The same question applies to credit exposure
 on high-yield-adjacent equity sectors.
 
-No conservative default is available here, so nothing is implemented until the
-owner answers.
+**Answered 2026-09-09: estimated, robustly.** See `decisions/0015`, which also
+records why the answer changes more than this one column.
 
 ---
 ## Reporting classes (2026-09-09, Leo)

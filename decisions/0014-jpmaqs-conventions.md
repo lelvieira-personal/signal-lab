@@ -65,12 +65,22 @@ from `.env`. Recorded in `params/data_sources.yaml` under
 corporate network and this lab runs on a personal machine, so the direct
 connection is the right default and the proxy is one flag away.
 
-## One thing for the owner to confirm
+## Entitlement: confirmed by the owner (2026-09-09)
 
-SUBSTRATE section 1 opens "This is a personal research lab." The JPMaQS
-credentials were described as shared with the owner, and the proxy helper is
-corporate infrastructure. Whether a vendor entitlement obtained through the
-employer may be used in a personal lab is a licensing question, not a technical
-one, and not one this file can settle. Worth confirming before the macro block
-is pulled, because the answer is cheaper to act on before the data lands than
-after.
+Personal use of the vendor entitlement is in order, on the same footing as
+Bloomberg: the data may be used on a personal machine, and the obligation is not
+to share it with anyone who does not hold access. That obligation has a concrete
+consequence for this repository, so it is recorded rather than assumed:
+
+- `.gitignore` already excludes `data/raw/`, `data/snapshots/` and
+  `results/artifacts/`, so no vendor values are committed. That is now a
+  licensing requirement and not only a hygiene one.
+- The results store holds statistics computed from the data, never the panel
+  itself. SUBSTRATE section 14's "agents read summary statistics, never raw
+  return panels" happens to enforce this too.
+- Anything published from this lab -- a leaderboard, a digest, a chart -- is
+  derived statistics. A raw panel is not a deliverable.
+
+The corporate concern the owner names is client PID, which SUBSTRATE section 1
+already excludes outright: index, macro and market data only, no client data, no
+positions, no PII, ever.

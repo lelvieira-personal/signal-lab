@@ -17,6 +17,9 @@ one place rather than scattered across decision records.
 | 15 | `src/` contains a single `signal_lab/` package; `loaders/`, `signals/`, `harness/`, `portfolio/`, `stats/` sit under it. `vetoes/` and `render/` unchanged. | 0010 |
 | 5.1 | `index_etf_map.csv` is replaced for v0.3 by `investable`, `cost_bucket` and `reporting_class` columns on the coverage table. ETF selection deferred to phase 4. | 0013 |
 | 13 | The cycle's proposer runs **weekly**, not nightly. The deterministic steps may run nightly. | 0007 |
+| 5.6 | `VintagePanel`'s period field is `period_end`, not `real_date`: JPMaQS uses `real_date` for the knowledge date and the two inverted. | 0014 |
+| 6 | The characteristic map carries per-cell provenance (measured vs estimated) and is **time-varying**; estimated loadings are fitted walk-forward. | 0015 |
+| 10 | The `lookahead` veto extends to estimated parameters, not only observed vintages — an exposure matrix fitted on the full sample leaks without misdating anything. | 0015 |
 
 ## Not yet amendments, but open questions against the constitution
 
@@ -24,5 +27,10 @@ one place rather than scattered across decision records.
   build until one is set. (0003)
 - Section 4 says hedged series are not a live axis; whether they belong in the
   investable universe follows from that and is unanswered. (0013)
-- Section 6 does not say whether an equity index carries a duration exposure of
-  zero or an estimated rate beta. (0013)
+- ~~Section 6 does not say whether an equity index carries a duration exposure
+  of zero or an estimated rate beta.~~ Answered: estimated, robustly. (0015)
+- The robust estimator for factor loadings is unchosen — shrinkage, resampling,
+  robust regression or regime-conditional. It will live in
+  `params/characteristics.yaml`, which does not exist yet. (0015)
+- Whether the `turnover` veto and the section 8 cost model are in the right
+  units once exposure targets propagate to many accounts. (0015)
