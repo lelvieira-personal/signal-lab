@@ -92,11 +92,17 @@ class ExperimentResult:
 
 
 def resolve_signal_module(hypothesis: Hypothesis):
+    """
+    The module that implements this hypothesis: a signal, or for a measurement
+    hypothesis an estimator. Named by kind so the digest reads correctly --
+    "no estimator implements conviction_..." rather than calling it a signal.
+    """
     module = SIGNAL_MODULES.get(hypothesis.signal)
     if module is None:
+        what = "estimator" if hypothesis.is_measurement else "signal module"
         raise SignalModuleMissing(
-            f"no signal module implements {hypothesis.signal!r} "
-            f"(family {hypothesis.family}); the Implementer role writes it in phase 3"
+            f"no {what} implements {hypothesis.signal!r} (family {hypothesis.family}); "
+            f"the Implementer role writes it in phase 3"
         )
     return module
 

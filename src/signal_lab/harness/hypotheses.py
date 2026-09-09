@@ -68,6 +68,26 @@ PROVENANCE = ("literature", "adaptation", "novel")
 EXPRESSIONS = ("cross_sectional", "directional", "both")
 TARGET_AXES = ("duration", "credit", "region", "sector", "style", "real_nominal", "cash")
 
+# decisions/0016 says a measurement hypothesis uses the same template with the
+# fields reinterpreted. That only works if the vocabularies are actually
+# different: a hypothesis about how conviction is measured has no `family` in
+# SUBSTRATE section 6's sense and no exposure axis it targets. Validating it
+# against the signal vocabulary would force a proposer to file it under
+# something false.
+MEASUREMENT_FAMILIES = (
+    "exposure_estimation",  # the characteristic map's loadings (decisions/0015)
+    "conviction",  # how conviction is measured and combined (decisions/0019)
+    "covariance",  # the risk model
+    "aggregation",  # how family scores are combined into one view
+)
+MEASUREMENT_TARGETS = (
+    "loadings",
+    "conviction",
+    "covariance",
+    "aggregation_weights",
+    *TARGET_AXES,  # a loadings hypothesis may target one exposure axis
+)
+
 REQUIRED_FIELDS = (
     "id",
     "family",
@@ -218,7 +238,19 @@ def validate_hypothesis(
     params = params or get_params()
     where = path.name if path else doc.get("id", "<unnamed>")
 
-    missing = [f for f in REQUIRED_FIELDS if f not in doc or doc[f] in (None, "", [])]
+    kind = str(doc.get("kind", "signal"))
+
+    # A measurement hypothesis may legitimately require no vendor series: its
+    # inputs are the harness's own outputs -- a regime model's state
+    # probabilities, an estimated loading, a covariance matrix. The field must
+    # still be PRESENT, so that "needs nothing from a vendor" is an explicit
+    # claim rather than an omission, but it may be empty.
+    empty_ok = {"data_required"} if kind == "measurement" else set()
+    missing = [
+        f
+        for f in REQUIRED_FIELDS
+        if f not in doc or (doc[f] in (None, "") or (doc[f] == [] and f not in empty_ok))
+    ]
     if missing:
         raise HypothesisRejected(f"{where}: missing required field(s) {missing}")
 
@@ -226,9 +258,15 @@ def validate_hypothesis(
     if not ID_PATTERN.match(hid):
         raise HypothesisRejected(f"{where}: id {hid!r} must look like H-2026-0001")
 
+    if kind not in KINDS:
+        raise HypothesisRejected(f"{where}: kind {kind!r} is not one of {list(KINDS)}")
+
+    families = MEASUREMENT_FAMILIES if kind == "measurement" else FAMILIES
     family = str(doc["family"])
-    if family not in FAMILIES:
-        raise HypothesisRejected(f"{where}: family {family!r} is not one of {list(FAMILIES)}")
+    if family not in families:
+        raise HypothesisRejected(
+            f"{where}: family {family!r} is not one of {list(families)} for a {kind} hypothesis"
+        )
 
     direction = str(doc["direction"]).strip().lower()
     if direction not in DIRECTIONS:
@@ -238,9 +276,12 @@ def validate_hypothesis(
             f"which is the point of stating it."
         )
 
+    targets = MEASUREMENT_TARGETS if kind == "measurement" else TARGET_AXES
     axis = str(doc["target_axis"])
-    if axis not in TARGET_AXES:
-        raise HypothesisRejected(f"{where}: target_axis {axis!r} is not one of {list(TARGET_AXES)}")
+    if axis not in targets:
+        raise HypothesisRejected(
+            f"{where}: target_axis {axis!r} is not one of {list(targets)} for a {kind} hypothesis"
+        )
 
     rationale = str(doc["rationale"]).strip()
     if len(rationale) < 120:
@@ -262,10 +303,6 @@ def validate_hypothesis(
         raise HypothesisRejected(
             f"{where}: expected_expression {expression!r} is not one of {list(EXPRESSIONS)}"
         )
-
-    kind = str(doc.get("kind", "signal"))
-    if kind not in KINDS:
-        raise HypothesisRejected(f"{where}: kind {kind!r} is not one of {list(KINDS)}")
 
     provenance = str(doc["provenance"])
     if provenance not in PROVENANCE:

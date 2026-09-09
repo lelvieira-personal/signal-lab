@@ -123,3 +123,97 @@ def conviction_comparison(vectors: dict[str, list[float]]) -> pd.DataFrame:
             "max_probability": {k: max_probability_conviction(v) for k, v in vectors.items()},
         }
     )
+
+
+# --- combining certainty and dispersion --------------------------------------
+#
+# SUBSTRATE section 4 says "conviction dispersion"; the owner's worked example
+# is about certainty. Rather than pick one, the combination is a registered
+# research question (H-2026-0012, decisions/0019). These are the candidate
+# forms a measurement hypothesis can name; none is a default.
+
+COMBINATION_FORMS = (
+    "product",
+    "geometric_mean",
+    "minimum",
+    "weighted_mean",
+    "certainty_only",
+    "dispersion_only",
+)
+
+
+def combine_conviction(
+    certainty: float, dispersion: float, form: str = "minimum", weight: float = 0.5
+) -> float:
+    """
+    One conviction number from the two measurements.
+
+    The economic question underneath the choice is whether the two **substitute**
+    or are **both required**:
+
+      * `weighted_mean` lets them substitute -- a very certain regime call with
+        no cross-sectional implication still earns a large tracking-error
+        budget. That is hard to defend: if the view implies no tilt, there is
+        nothing to spend the budget on.
+      * `product`, `geometric_mean` and `minimum` require both. You need a
+        confident view *and* something to bet on. `minimum` is the gentlest of
+        the three and reads plainly -- you are as convinced as your weakest
+        evidence.
+
+    Default `minimum`, which is the conservative choice among the "both
+    required" family and adds no free parameter. It is a placeholder for a
+    finding, not a finding; H-2026-0012 is registered to settle it.
+    """
+    c = float(np.clip(certainty, 0.0, 1.0))
+    d = float(np.clip(dispersion, 0.0, 1.0))
+    if form == "product":
+        return c * d
+    if form == "geometric_mean":
+        return float(np.sqrt(c * d))
+    if form == "minimum":
+        return min(c, d)
+    if form == "weighted_mean":
+        w = float(np.clip(weight, 0.0, 1.0))
+        return w * c + (1.0 - w) * d
+    if form == "certainty_only":
+        return c
+    if form == "dispersion_only":
+        return d
+    raise ValueError(f"unknown combination form {form!r}; expected one of {COMBINATION_FORMS}")
+
+
+def conviction_collinearity(certainty: pd.Series, dispersion: pd.Series) -> dict[str, float]:
+    """
+    Are the two measurements actually distinct?
+
+    The question to answer BEFORE how to combine them, and the one most likely
+    to be skipped. Dispersion of views is downstream of certainty: if views are
+    built as `certainty x raw_signal`, then
+
+        dispersion(views) = certainty x dispersion(raw_signal)
+
+    and the two are collinear by construction. Combining them would then square
+    the certainty term while adding a free parameter and no information.
+
+    Returns the correlations and the share of dispersion's variance that
+    certainty explains. A high figure means the combination question is moot and
+    the honest answer is to use one of them.
+    """
+    frame = pd.concat(
+        [pd.Series(certainty, dtype="float64"), pd.Series(dispersion, dtype="float64")],
+        axis=1,
+        keys=["certainty", "dispersion"],
+    ).dropna()
+    if len(frame) < 3:
+        return {"pearson": float("nan"), "spearman": float("nan"), "r_squared": float("nan")}
+
+    pearson = float(frame["certainty"].corr(frame["dispersion"]))
+    # Rank-then-Pearson rather than method="spearman": identical result, and it
+    # does not pull scipy in for a one-line diagnostic.
+    spearman = float(frame["certainty"].rank().corr(frame["dispersion"].rank()))
+    return {
+        "pearson": pearson,
+        "spearman": spearman,
+        "r_squared": pearson**2,
+        "n": float(len(frame)),
+    }

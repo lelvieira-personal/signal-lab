@@ -38,10 +38,11 @@ one place rather than scattered across decision records.
   excess turnover, linear, one-sided above the 100% target. 5bp/yr at the 150%
   ceiling, a third of the real spread. (0018)
 - The tracking-error penalty's FORM is settled: conviction-scaled, linear
-  between two endpoints, floored (0019). The two coefficients are still null and
-  the objective refuses to build. (0003, 0019)
-- Whether the penalty reads conviction as certainty (the owner's HMM example) or
-  as cross-sectional dispersion (section 4's wording). Both implemented; the
-  default is certainty. (0019)
+  between two endpoints, floored (0019). The two coefficients stay null until a
+  candidate model exists (owner, 2026-09-09) and the objective refuses until
+  then, which is the correct state rather than a gap. (0003, 0019)
+- ~~Whether the penalty reads certainty or dispersion.~~ Registered as
+  H-2026-0012, a measurement hypothesis: the combination is a finding, not a
+  setting. Placeholder default is `minimum`. (0019)
 - Conviction scaling is a falsifiable claim and should be registered as a
   measurement hypothesis rather than tuned against net IR. (0016, 0019)

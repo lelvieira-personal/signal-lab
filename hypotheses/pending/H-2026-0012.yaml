@@ -1,0 +1,46 @@
+id: H-2026-0012
+kind: measurement
+family: conviction
+signal: conviction_certainty_and_dispersion_combination
+direction: positive
+target_axis: conviction
+rationale: >
+  SUBSTRATE section 4 scales the tracking-error penalty by "conviction
+  dispersion"; the worked example that motivated it is about the certainty of a
+  regime model's state probabilities. These are different measurements. A model
+  can be certain about a regime that implies almost no cross-sectional tilt, and
+  an unsure model can still produce widely dispersed views. Both are implemented
+  in harness/conviction.py and neither is obviously the right one, so the
+  combination is registered as a finding rather than configured as a default.
+  The claim under test is positive: a combined measure predicts the quality of
+  subsequent active returns better than either component alone. The first
+  question is not how to combine them but whether they are distinct at all.
+  Dispersion of views is downstream of certainty, because a model that is unsure
+  produces shrunken views and therefore narrower dispersion mechanically; if
+  views are formed as certainty times a raw signal then dispersion equals
+  certainty times the raw dispersion and the two are collinear by construction.
+  Combining collinear inputs would square the certainty term while adding a free
+  parameter and no information, so conviction_collinearity is computed first and
+  a high r-squared settles the question by making it moot. If they are distinct,
+  the economic question is whether they substitute or are both required. A
+  weighted mean lets a very certain regime call with no cross-sectional
+  implication earn a large tracking-error budget, which is hard to defend since
+  a view implying no tilt gives nothing to spend the budget on. The product, the
+  geometric mean and the minimum all require both a confident view and something
+  to bet on, and the minimum is the gentlest of those and adds no free
+  parameter. The horizon is the rebalance horizon of the strategies the measure
+  will scale, one to two quarters, because the claim is about the quality of
+  active returns over the period a conviction reading is held.
+horizon_weeks: 4-13
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required: []
+notes: >
+  Judged on out-of-sample predictive quality of the conviction reading, not on
+  net IR (decisions/0016). Tuning the combination against the strategy's own
+  objective would select the machinery on the outcome and add a dimension
+  Romano-Wolf never sees. Needs a regime model to produce state probabilities,
+  so it cannot run before phase 3; registered now so the question is not
+  rediscovered as a configuration choice.

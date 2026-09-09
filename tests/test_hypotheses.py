@@ -236,9 +236,10 @@ def test_every_registered_hypothesis_parses(params):
 def test_registered_set_covers_every_substrate_family(params):
     """
     KICKOFF item 5: at least one per family listed in SUBSTRATE section 6.
+    Measurement hypotheses are excluded: they have no section 6 family.
     """
     reg = HypothesisRegistry(params=params)
-    covered = {h.family for h in reg.load("pending")}
+    covered = {h.family for h in reg.load("pending") if not h.is_measurement}
     assert covered == set(FAMILIES), f"families with no hypothesis: {set(FAMILIES) - covered}"
 
 
@@ -260,14 +261,60 @@ def test_kind_defaults_to_signal_so_the_existing_eleven_are_unambiguous(params):
     assert h.objective == "net_ir"
 
 
+def measurement_doc(**over):
+    doc = good_doc(
+        kind="measurement",
+        family="exposure_estimation",
+        target_axis="loadings",
+        signal="shrunk_to_peer_mean",
+        data_required=[],
+    )
+    doc.update(over)
+    return doc
+
+
 def test_a_measurement_hypothesis_is_ranked_on_a_different_objective(params):
     """
     decisions/0016: choosing a loading estimator on the strategy's own objective
     would select the mapping on the outcome. The two classes are ranked apart.
     """
-    h = validate_hypothesis(good_doc(kind="measurement", signal="shrunk_to_peer_mean"), params)
+    h = validate_hypothesis(measurement_doc(), params)
     assert h.is_measurement
     assert h.objective == "loading_fidelity"
+
+
+def test_the_two_kinds_have_separate_vocabularies(params):
+    """
+    A conviction hypothesis has no SUBSTRATE section 6 family and targets no
+    exposure axis. Validating it against the signal vocabulary would force a
+    proposer to file it under something false.
+    """
+    validate_hypothesis(measurement_doc(family="conviction", target_axis="conviction"), params)
+
+    with pytest.raises(HypothesisRejected, match="signal hypothesis"):
+        validate_hypothesis(good_doc(family="conviction"), params)
+    with pytest.raises(HypothesisRejected, match="measurement hypothesis"):
+        validate_hypothesis(measurement_doc(family="policy_rates"), params)
+    with pytest.raises(HypothesisRejected, match="measurement hypothesis"):
+        validate_hypothesis(measurement_doc(target_axis="duration_typo"), params)
+
+
+def test_a_measurement_hypothesis_may_need_nothing_from_a_vendor(params):
+    """
+    Its inputs are the harness's own outputs. The field must still be present,
+    so "needs nothing" is an explicit claim rather than an omission.
+    """
+    h = validate_hypothesis(measurement_doc(data_required=[]), params)
+    assert h.data_required == []
+    assert not check_data(h, set()).blocked
+
+    doc = measurement_doc()
+    doc.pop("data_required")
+    with pytest.raises(HypothesisRejected, match="data_required"):
+        validate_hypothesis(doc, params)
+
+    with pytest.raises(HypothesisRejected, match="data_required"):
+        validate_hypothesis(good_doc(data_required=[]), params)
 
 
 def test_portfolio_vetoes_do_not_apply_to_a_measurement_run(params):
@@ -278,7 +325,7 @@ def test_portfolio_vetoes_do_not_apply_to_a_measurement_run(params):
     from vetoes import VETOES
 
     signal = validate_hypothesis(good_doc(), params)
-    measurement = validate_hypothesis(good_doc(kind="measurement"), params)
+    measurement = validate_hypothesis(measurement_doc(), params)
 
     assert set(signal.applicable_vetoes(list(VETOES))) == set(VETOES)
     applicable = set(measurement.applicable_vetoes(list(VETOES)))
@@ -295,6 +342,16 @@ def test_portfolio_vetoes_do_not_apply_to_a_measurement_run(params):
 def test_an_unknown_kind_is_rejected(params):
     with pytest.raises(HypothesisRejected, match="kind"):
         validate_hypothesis(good_doc(kind="vibes"), params)
+
+
+def test_the_registry_holds_both_kinds(params):
+    reg = HypothesisRegistry(params=params)
+    hyps = reg.load("pending")
+    kinds = {h.kind for h in hyps}
+    assert kinds == {"signal", "measurement"}
+    measurement = [h for h in hyps if h.is_measurement]
+    assert len(measurement) >= 1
+    assert all(h.objective == "loading_fidelity" for h in measurement)
 
 
 def test_registered_ids_are_unique(params):

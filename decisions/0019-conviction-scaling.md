@@ -105,7 +105,10 @@ must cover estimated state probabilities too.
 
 1. `lambda_low` — the TE coefficient at zero conviction.
 2. `lambda_high` — the TE coefficient at full conviction. Not zero.
-3. A decision on certainty versus dispersion, or how to combine them.
+3. ~~A decision on certainty versus dispersion.~~ Registered as H-2026-0012 and
+   answered by research, not by configuration.
 
-None can be sensibly chosen before there is a candidate model to look at, so
-this is expected to close in phase 2 rather than now.
+The owner has deferred the two coefficients until a candidate model exists:
+"when the model candidate arrives we can better assess the actual lambda
+values." They stay null and the objective refuses until then, which is the
+correct state rather than a gap.

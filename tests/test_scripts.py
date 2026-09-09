@@ -105,8 +105,11 @@ def test_nightly_cycle_records_blocked_not_a_fake_veto_failure(tmp_path, capsys)
     )
 
     runs = ResultsStore(db).list_runs()
-    assert len(runs) == 11
-    assert set(runs["status"]) <= {"blocked:data", "blocked:no_engine"}
+    from signal_lab.harness.hypotheses import HypothesisRegistry
+
+    registry_size = len(HypothesisRegistry(params=params).paths("pending"))
+    assert len(runs) == registry_size
+    assert set(runs["status"]) <= {"blocked:data", "blocked:no_signal_module"}
     assert not runs["passed"].any()
     for _, r in runs.iterrows():
         assert r["verdicts"] == {}, "no veto was evaluated, so none is recorded"

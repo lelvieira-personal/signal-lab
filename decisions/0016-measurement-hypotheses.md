@@ -81,6 +81,28 @@ not selecting the mapping on the outcome, and the alternative is a result nobody
 can defend to a room of investment professionals — which is the standard the
 owner has set for this project.
 
+## The template needs its own vocabulary
+
+Reusing the section 7 template only works if the *values* differ by kind. A
+hypothesis about how conviction is measured has no section 6 signal family and
+targets no exposure axis; validating it against the signal vocabulary would
+force a proposer to file it under something false, and a registry full of
+mis-filed hypotheses is worse than one that rejected them.
+
+So `MEASUREMENT_FAMILIES` (`exposure_estimation`, `conviction`, `covariance`,
+`aggregation`) and `MEASUREMENT_TARGETS` (`loadings`, `conviction`,
+`covariance`, `aggregation_weights`, plus the exposure axes, since a loadings
+hypothesis may target one) are validated against instead when
+`kind: measurement`.
+
+A measurement hypothesis may also declare an empty `data_required` — its inputs
+are the harness's own outputs rather than a vendor's series, so it is never
+`blocked:data` for that reason. The field must still be present, so that
+"needs nothing from a vendor" is an explicit claim rather than an omission.
+
+First registered instance: **H-2026-0012**, on combining certainty and
+dispersion into one conviction measure (`decisions/0019`).
+
 ## Built now, in phase 0
 
 Only the schema: `kind: signal | measurement` on the hypothesis template,
