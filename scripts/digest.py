@@ -147,7 +147,11 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     params = get_params()
-    store = ResultsStore(args.db) if args.db else ResultsStore()
+    if args.db:
+        db_path = Path(args.db)
+        store = ResultsStore(db_path, db_path.parent / "artifacts")
+    else:
+        store = ResultsStore()
     registry = HypothesisRegistry(store=store, params=params)
 
     text = build_digest(store, params, registry, REQUESTS_DIR)

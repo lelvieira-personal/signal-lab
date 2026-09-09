@@ -126,12 +126,75 @@ def test_nightly_cycle_refuses_a_tampered_snapshot(tmp_path, capsys):
     assert "does not match its manifest" in capsys.readouterr().out
 
 
-def test_run_experiment_is_the_only_entry_point_and_it_raises():
-    """SUBSTRATE section 2: experiments run through run_experiment() and only it."""
+def test_the_cycle_does_not_define_its_own_run_experiment():
+    """
+    SUBSTRATE section 2: experiments run through `run_experiment()` and only
+    through it. The script must import the sanctioned one, not grow a local
+    copy that could drift from the vetoes and the store.
+    """
+    source = (REPO_ROOT / "scripts" / "nightly_cycle.py").read_text(encoding="utf-8")
+    assert "def run_experiment" not in source, "the entry point belongs in harness/experiment.py"
+    assert "from signal_lab.harness.experiment import" in source
+
+
+def test_the_cycle_records_the_specific_blocked_reason(tmp_path, capsys):
+    """
+    'blocked:no_signal_module' tells the owner what to build next;
+    'blocked:no_engine' told them nothing they did not already know.
+    """
     import nightly_cycle as cycle
 
-    with pytest.raises(cycle.EngineNotImplemented, match="phase 1"):
-        cycle.run_experiment(None, None, None, 0)
+    from signal_lab.params import get_params
+    from signal_lab.results.store import ResultsStore
+
+    params = get_params()
+    build_snapshot("blk-v1", "synthetic", params, snapshots_dir=tmp_path)
+    db = tmp_path / "runs.db"
+    rc = cycle.main(["--snapshot", "blk-v1", "--db", str(db), "--snapshots-dir", str(tmp_path)])
+    assert rc == 0
+    runs = ResultsStore(db).list_runs()
+    assert set(runs["status"]) <= {"blocked:data", "blocked:no_signal_module"}
+
+
+def test_the_validation_run_is_recorded_and_tagged(tmp_path, capsys):
+    """
+    The end-to-end proof: a planted path through engine, vetoes, metrics and
+    artifacts, tagged so it can never rank.
+    """
+    import nightly_cycle as cycle
+
+    from signal_lab.params import get_params
+    from signal_lab.results.store import ResultsStore
+
+    params = get_params()
+    build_snapshot("val-v1", "synthetic", params, snapshots_dir=tmp_path)
+    db = tmp_path / "runs.db"
+    rc = cycle.main(
+        [
+            "--snapshot",
+            "val-v1",
+            "--db",
+            str(db),
+            "--snapshots-dir",
+            str(tmp_path),
+            "--validate",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "excluded from the leaderboard" in out
+
+    store = ResultsStore(db, tmp_path / "artifacts")
+    runs = store.list_runs()
+    validation = runs[runs["status"] == "validation"]
+    assert len(validation) == 1
+
+    run_id = validation.iloc[0]["run_id"]
+    assert validation.iloc[0]["ir_recovery_error"] < 1e-9
+    import pandas as pd
+
+    assert pd.isna(validation.iloc[0]["hypothesis_id"]), "a validation run tests no hypothesis"
+    assert set(store.load_artifacts(run_id)) >= {"weights", "active_returns", "exposures"}
 
 
 def test_digest_writes_a_markdown_summary(tmp_path, params, store):

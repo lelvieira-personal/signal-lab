@@ -108,7 +108,13 @@ class StoreSource:
                 notes=["No runs recorded yet. The store is empty."],
             )
 
-        runs = frame.to_dict("records")
+        # Validation runs exercise the harness on a planted path. They are not
+        # results about markets and must never rank -- but they are reported in
+        # the header, because "the pipeline was last proven on <date>" is worth
+        # knowing and silently dropping rows is how a leaderboard starts lying.
+        all_runs = frame.to_dict("records")
+        validation = [r for r in all_runs if r.get("status") == "validation"]
+        runs = [r for r in all_runs if r.get("status") != "validation"]
         for r in runs:
             r.setdefault("net_ir", None)
             r["passed"] = bool(r.get("passed"))
@@ -127,7 +133,17 @@ class StoreSource:
             dev_end=dev_end,
             n_runs=len(runs),
             n_passed=sum(r["passed"] for r in runs),
-            notes=[] if champion else ["No run has survived the veto set yet."],
+            notes=([] if champion else ["No run has survived the veto set yet."])
+            + (
+                [
+                    f"Pipeline last validated {validation[-1]['ts'][:10]} on a planted "
+                    f"synthetic path (IR recovery error "
+                    f"{validation[-1].get('ir_recovery_error', float('nan')):.1e}). "
+                    f"Validation runs are excluded from the leaderboard."
+                ]
+                if validation
+                else []
+            ),
         )
 
     def _detail(self, run: dict[str, Any]) -> dict[str, Any] | None:
