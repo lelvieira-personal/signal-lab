@@ -23,3 +23,10 @@ __pycache__/
 # Rendered reports are build output
 render/*.html
 leaderboard*.html
+
+# Never committed: patch bundles used to ferry changes onto this machine, IDE
+# state, and the desktop app's scratch folder. Keeps `git status` honest.
+patches/
+.idea/
+Claude outputs/
+Makefile.bak

@@ -1,14 +1,15 @@
 # Signal Lab build rules.
 #
 # Shipped as build.mk because the file-transfer bridge refuses to write a file
-# named Makefile (make files can execute arbitrary commands). To get `make check`
-# working, one command from the repo root:
+# named Makefile (make files can execute arbitrary commands). Make Makefile a
+# one-line stub, once, and it never needs copying again:
 #
-#     cp build.mk Makefile
+#     printf 'include build.mk\n' > Makefile
+#
+# From bash, not PowerShell: PowerShell's `>` writes UTF-16 with CRLF, and make
+# rejects both ("NUL character seen", then "missing separator").
 #
 # Or run it in place without renaming:  make -f build.mk check
-#
-# Applying patches/*.patch with `git am` creates the real Makefile for you.
 #
 #   make report     render the synthetic report
 #   make cycle      build a synthetic snapshot and run one cycle
@@ -29,8 +30,13 @@ export UV_LINK_MODE ?= copy
 
 PY := uv run --python 3.12
 PYTEST := $(PY) --group dev pytest
-# Stdlib only, so it runs from the commit hook without the project venv.
-GOV := $(PY) python scripts/check_governance.py
+
+# The governance check is stdlib-only on purpose, so it runs from the commit
+# hook without the project virtualenv -- and, deliberately, without uv. A rule
+# about who may change the constitution should not be the first thing to fall
+# over on a shell that happens to have a thinner PATH.
+PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
 .PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help
