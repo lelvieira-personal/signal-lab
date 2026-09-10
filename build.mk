@@ -12,6 +12,7 @@
 #
 #   make report     render the synthetic report
 #   make cycle      build a synthetic snapshot and run one cycle
+#   make governance SUBSTRATE section 2, checked mechanically
 #
 # uv manages Python 3.12 and the locked dependency set; nothing is installed
 # into the system interpreter. `make check` is the definition of done.
@@ -28,15 +29,19 @@ export UV_LINK_MODE ?= copy
 
 PY := uv run --python 3.12
 PYTEST := $(PY) --group dev pytest
+# Stdlib only, so it runs from the commit hook without the project venv.
+GOV := $(PY) python scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout report cycle digest snapshot clean lock install help
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
 
-install: ## sync the locked environment
+install: ## sync the locked environment and install the commit hook
 	uv sync --group dev
+	git config core.hooksPath .githooks
+	@echo "commit hook installed: owner-only changes must cite a decision"
 
 lock: ## refresh uv.lock
 	uv lock
@@ -52,7 +57,14 @@ holdout: ## the holdout lock, run explicitly and by name
 	@echo "--- holdout lock (SUBSTRATE sections 2 and 3) ---"
 	$(PYTEST) -m holdout -v
 
-check: lint test holdout ## lint, tests, and the holdout lock
+governance: ## SUBSTRATE section 2: owner-only changes cite a decisions/ record
+	@echo "--- governance (SUBSTRATE section 2) ---"
+	@$(GOV) --history
+ifndef CI
+	@$(GOV) --hooks
+endif
+
+check: governance lint test holdout ## governance, lint, tests, and the holdout lock
 	@echo
 	@echo "make check: OK"
 

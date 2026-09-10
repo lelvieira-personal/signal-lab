@@ -1,0 +1,25 @@
+#!/bin/sh
+# SUBSTRATE section 2. A commit that changes SUBSTRATE.md, params/*.yaml or
+# anything under vetoes/ must cite the decisions/ record that authorised it.
+#
+# Installed by `make install`, or by hand:
+#     git config core.hooksPath .githooks
+#
+# Stdlib Python only, on purpose: a hook that needs the project virtualenv is a
+# hook that gets skipped.
+set -e
+
+for candidate in python3 python py; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        PY="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PY" ]; then
+    echo "governance: no python on PATH, cannot check SUBSTRATE section 2." >&2
+    echo "Refusing the commit rather than letting an unchecked one through." >&2
+    exit 1
+fi
+
+exec "$PY" scripts/check_governance.py --commit-msg "$1"
