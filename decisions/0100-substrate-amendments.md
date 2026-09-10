@@ -1,13 +1,18 @@
-# 0100 — Amendments to SUBSTRATE.md awaiting the owner's edit
+# 0100 — Amendments to SUBSTRATE.md
 
-Status: running list, opened 2026-09-09.
+Status: **all eleven applied in v0.4 on 2026-09-10** (`decisions/0020`).
+Running list; reopens whenever a decision changes what the constitution says.
 
-Agents may not edit `SUBSTRATE.md` (section 2). Where a decision changes what
-the constitution says, the change is recorded here for the owner to apply, and
-the code is written to the amended reading with the decision cited in place.
+An agent never originates a change to `SUBSTRATE.md`. Where a decision changes
+what the constitution says, the change is recorded here, the owner approves it,
+and an agent may then transcribe the approved wording citing the decision
+(§2, as amended in v0.4).
 
-This file exists so that the drift between code and constitution is visible in
-one place rather than scattered across decision records.
+This file exists so that drift between code and constitution is visible in one
+place rather than scattered across decision records. **An empty table here means
+the code and the constitution agree.**
+
+## Applied in v0.4 (2026-09-10)
 
 | Section | Amendment | Decision |
 |---|---|---|
@@ -23,12 +28,16 @@ one place rather than scattered across decision records.
 | 10 | The `lookahead` veto extends to estimated parameters, not only observed vintages — an exposure matrix or a set of regime probabilities fitted on the full sample leaks without misdating anything. | 0015, 0019 |
 | 4 | The tracking-error penalty coefficient is a function of conviction, not a number. | 0019 |
 
-## Not yet amendments, but open questions against the constitution
+## Open questions — NOT amendments, and deliberately not applied
 
-- Section 4's asymmetric TE penalty has no coefficient. The objective refuses to
-  build until one is set. (0003)
-- Section 4 says hedged series are not a live axis; whether they belong in the
-  investable universe follows from that and is unanswered. (0013)
+The constitution should not pretend to settle what the lab has not learned.
+These stay open in the code as nulls that refuse, or as registered hypotheses.
+
+- Section 4's asymmetric TE penalty has two coefficients and both are null. The
+  objective refuses to build until they are set, deferred by the owner until a
+  candidate model exists. (0003, 0019)
+- ~~Whether hedged series belong in the investable universe.~~ Answered: they do
+  not. `investable: false` on all six. (0013, closed 2026-09-10)
 - ~~Section 6 does not say whether an equity index carries a duration exposure
   of zero or an estimated rate beta.~~ Answered: estimated, robustly. (0015)
 - The robust estimator for factor loadings is unchosen — shrinkage, resampling,

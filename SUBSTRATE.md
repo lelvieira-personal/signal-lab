@@ -1,8 +1,15 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.3, 2026-09-07. Owner: Leo. This document is the constitution of
-the lab. Agents read it at the start of every task. Agents never edit it.
-Changes are made by the owner, versioned, and recorded in `decisions/`.
+Status: v0.4, 2026-09-10. Owner: Leo. This document is the constitution of
+the lab. Agents read it at the start of every task. Agents never *originate* a
+change to it. Every change begins as an owner decision recorded in
+`decisions/`; an agent may then transcribe the approved wording, cite the
+decision in the commit, and the owner reviews the diff. The agent may hold the
+pen, never the argument.
+
+v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
+owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
+history.
 
 ---
 
@@ -35,7 +42,11 @@ Agents MAY:
 Agents MAY NOT:
 - Read, load, or compute anything on dates after `HOLDOUT_START`.
   The loader refuses these dates; do not work around it.
-- Edit `SUBSTRATE.md`, `params/*.yaml`, or anything under `vetoes/`.
+- **Originate** a change to `SUBSTRATE.md`, `params/*.yaml`, or anything under
+  `vetoes/`. An agent may apply a change to these files only when the owner has
+  already decided it and the decision is recorded in `decisions/`, and must cite
+  that decision in the commit. Transcribing a decision is permitted; making one
+  is not.
 - Change a veto threshold, a cost assumption, or the objective to make a
   run pass. If a threshold looks wrong, write a note in `decisions/proposed/`
   and stop.
@@ -78,20 +89,41 @@ not distinguishable from that null is not a result.
 | Direction | Long-only, no leverage |
 | Cash | 0–20% of NAV |
 | Positions | ≤ 30 instruments with non-zero weight |
-| Turnover | ≤ 150% annualised (target reduction to 100% later) |
-| Tracking error | ≤ 6.0% trailing 3y; episodic excursions allowed, not rewarded on average |
+| Turnover | ≤ 150% annualised **traded notional** (buys plus sells); 100% is a soft target, not a second ceiling (§8, `decisions/0017`, `0018`) |
+| Tracking error | ≤ 6.0% trailing 3y at the 95th percentile of readings; episodic excursions allowed, not rewarded on average |
+| Active drawdown | ≤ 3× the tracking-error ceiling, i.e. 18.0% at 6.0% (`decisions/0003`) |
 | Rebalance | Weekly, Friday close; alternates tested by averaging over Tue/Wed/Fri |
 | Benchmark | 50/50 MSCI ACWI net TR (`NDUEACWF`) / Bloomberg Global Aggregate unhedged USD (`LEGATRUU`), rebalanced with the strategy; pre-1999 extended with `MXWO` and `SBWGU` (see §5.6) |
 | FX | Benchmark is unhedged. FX exposure is taken through unhedged international fixed income indices (Euro, UK, Japan, global ex-US, EM local); hedged series are the counterfactual, not a separate live axis in v0.3 |
 
-TE handling: an asymmetric penalty, not a hard band. TE is cheap when
-conviction dispersion is high and expensive when it is not.
+TE handling: an asymmetric penalty **as well as** the hard veto. The penalty
+coefficient is a *function of conviction*, not a number: it runs from a dear
+value at zero conviction to a cheap one at full conviction, and floors there
+rather than reaching zero, so an overconfident estimate cannot buy unlimited
+tracking error (`decisions/0019`). How conviction is measured — the certainty of
+a state estimate, the dispersion of the resulting views, or some combination of
+the two — is a registered research question, H-2026-0012, not a setting.
+
+Turnover handling: the 150% ceiling is the veto; the 100% figure is a soft
+target enforced by a one-sided linear penalty above it, priced as a shadow cost
+in basis points (`decisions/0018`). Shadow costs shape the weights and never
+enter the reported net return, or runs with different coefficients stop being
+comparable — which is the one thing the leaderboard exists to be.
 
 ---
 
 ## 5. Universe and data
 
 ### 5.1 Return series (Bloomberg, `TOT_RETURN_INDEX_GROSS_DVDS`)
+
+The investable universe, its cost buckets and its reporting classes are columns
+on `data/universe/investable_universe.csv`, built by `scripts/build_universe.py`
+(`decisions/0013`). ETF selection is deferred to phase 4: the universe is the
+set of indices that *could* be implemented, and which fund tracks which index is
+a question for one leading candidate rather than for the search. Hedged series
+carry `investable: false` — §4 makes them the counterfactual, and letting the
+optimiser choose between a hedged and an unhedged version of the same exposure
+would be an FX axis by the back door.
 
 107 index series across: cash, US Treasury maturity buckets, international
 government, inflation-linked, credit (IG, HY, rating buckets, Euro, MBS,
@@ -175,7 +207,20 @@ unhedged is to be confirmed by the owner; `LEGATRUH` is the alternative.
 ### 5.6 Macrosynergy / JPMaQS (pending)
 
 Point-in-time macro. Pull list in `data/jpmaqs/request.txt`. Every ticker
-carries `value`, `grading`, `eop_lag`. Grade-3 vintages are downweighted
+carries `value`, `grading`, `eop_lag`; a pull missing any of the three is
+refused, because without `grading` the grade filter cannot run and without
+`eop_lag` the period cannot be recovered from the knowledge date, leaving a
+panel that looks point-in-time and is not.
+
+A ticker is `{cid}_{xcat}`, and the download returns the cross product of the
+cids and xcats requested, so results must be filtered back to the tickers
+actually named. **JPMaQS `real_date` is the knowledge date** — "the date of the
+information state as observed by the markets" — which is the opposite of what
+`VintagePanel` originally called `real_date`. That field is therefore
+`period_end`, with `period_end = real_date - eop_lag` and
+`knowledge_date = real_date`. Two columns sharing a name with inverted meanings
+would be a lookahead bug on every row that no test would catch
+(`decisions/0014`). Grade-3 vintages are downweighted
 or excluded per `params/data.yaml`. Legacy euro-area prefixes (`DEM_`,
 `FRF_`, `ITL_`, `ESP_`, `NLG_`) are mapped to countries in the loader.
 
@@ -217,7 +262,18 @@ Rules:
 - Views are formed in **exposure space** (duration, credit, region,
   sector, style, real/nominal, cash) and mapped to ETF weights by solving
   for the long-only portfolio whose exposures best match the view, subject
-  to §4. The characteristic map is in `data/characteristics/`.
+  to §4. The characteristic map is in `data/characteristics/`. It is
+  **time-varying and per-cell provenanced**: a bond index's effective duration
+  is *measured* from the analytics panel, an equity index's rate sensitivity is
+  *estimated* from returns with a standard error, and the two are not the same
+  kind of number (`decisions/0015`). Estimated loadings are fitted walk-forward;
+  fitting them on the full sample is a lookahead that lives in the mapping
+  rather than in the returns, so §10's `lookahead` veto covers estimated
+  parameters as well as observed vintages. How to estimate them robustly is a
+  research question rather than a setting — see `decisions/0016` on measurement
+  hypotheses, ranked on out-of-sample loading fidelity rather than on net IR,
+  because choosing the mapping by whichever one flatters the signals would
+  select it on the outcome.
 - Aggregation rule for v0.1 is shrunk z-score averaging across families.
   Entropy-weighted and BL-view-vector aggregation are registered
   alternatives, tested against that baseline, not instead of it.
@@ -282,8 +338,15 @@ to be revised against live ETF data:
 | IG credit, sectors, DM regions, styles | 10 | 15 |
 | HY, EM equity and debt, loans, real assets | 20 | 35 |
 
-Net return = gross − turnover × half-spread − drag/52 per week. All
-reported performance is net. Gross is stored for diagnostics only.
+Net return = gross − turnover × half-spread − drag/52 per week, where turnover
+is **traded notional**, `Σ|Δw|`, buys plus sells — which is what makes this
+formula dimensionally correct as written, since a half-spread is paid on every
+unit traded in either direction (`decisions/0017`). Turnover is measured from the
+*drifted* book to the new target, never from the previous target.
+
+All reported performance is net. Gross is stored for diagnostics only and is
+neither plotted nor displayed; the **cost drag** (gross minus net) is reported in
+its place (`decisions/0004`).
 
 ---
 
@@ -327,18 +390,27 @@ statistic is shown. Failing any one kills the run with the reason logged.
 
 | Veto | v0.1 threshold |
 |---|---|
-| turnover | annualised ≤ 150% |
+| turnover | annualised traded notional ≤ 150% |
 | cash | max weight ≤ 20% |
-| tracking_error | trailing-3y TE ≤ 6.0% |
+| tracking_error | 95th percentile of trailing-3y TE readings ≤ 6.0% |
 | positions | ≤ 30 non-zero |
 | coverage | signal available for ≥ 80% of the estimation universe on ≥ 90% of dates |
-| lookahead | bitemporal check passes: no observation used before its knowledge date |
+| lookahead | bitemporal check passes: no observation used before its knowledge date, and no estimated parameter fitted on data unavailable when it is used |
 | frequency | no series contributes returns before its true daily start |
+| active_drawdown | max drawdown of the active return stream ≤ 3× the TE ceiling |
 | seed_stability | IR range across resampling seeds ≤ 0.15 |
 | multiple_testing | survives Romano-Wolf stepdown at FWER α (family level, then within family) |
 | direction | realised sign matches pre-registered direction |
 
-Vetoes are not advisory and are not tuned per run.
+Eleven vetoes. They are not advisory and are not tuned per run. A veto whose
+input is absent **fails**: an unevaluated constraint is an unenforced one, and
+fail-open would put an unmeasured run on the leaderboard. Every verdict is
+recorded, not only the first failure, so a run that breached five constraints is
+distinguishable from one that breached one.
+
+Portfolio vetoes do not apply to a measurement hypothesis, which produces no
+portfolio; they are recorded as `not_applicable` rather than passed
+(`decisions/0016`).
 
 ---
 
@@ -353,6 +425,8 @@ results/
                                             max_cash, n_positions, null_pct,
                                             deflated_ir, ess_cycles, ...
     verdicts(run_id, veto, passed, detail)
+    hypothesis_transitions(id, ts, hypothesis_id, from_state, to_state,
+                           run_id, detail)
   artifacts/<run_id>/     parquet: weights, active returns, IC series,
                           risk decomposition, exposure paths
   decisions/              append-only markdown; owner decisions and unlocks
@@ -381,6 +455,12 @@ The coordinator is `scripts/nightly_cycle.py`, a deterministic script, not
 a model. It loads the snapshot, validates and runs each pending
 hypothesis, applies vetoes, records results, writes the digest.
 
+The **proposer runs weekly, not nightly**; the deterministic steps may run
+nightly. Seven proposals × 30 nights is 210 correlated tests a month, and
+Romano-Wolf across that many draws sets a bar a real macro signal will not
+clear. The cadence is a statistical decision that happens also to be the cost
+lever (`decisions/0007`).
+
 Model-driven roles inside that loop, each bounded:
 - **Proposer** — writes hypotheses to `pending/`. Never sees results of
   the current cycle.
@@ -398,12 +478,15 @@ owner; blocked items wait, the rest proceeds.
 
 ## 14. Budgets (`params/agents.yaml`)
 
-- Hard token ceiling per run and per nightly cycle; the wrapper kills on
-  breach, it does not warn.
+- Hard token **and cost** ceilings per run and per cycle; the wrapper kills on
+  breach, it does not warn. A token cap alone is a poor proxy when model prices
+  span 10× (`decisions/0012`). An unset ceiling means the wrapper refuses the
+  call rather than proceeding unbounded.
 - Max proposals per family per cycle; max refinement rounds per proposal.
-- Model tiering: cheap model for mechanical steps (config generation,
-  result parsing, digest writing), expensive model for hypothesis
-  generation and failure diagnosis.
+- Model tiering: one model named per §13 role — proposer, implementer, critic,
+  diagnostician, evaluator, coordinator — in `params/agents.yaml`, rather than a
+  `cheap`/`expensive` pair. Ids are validated at cycle start; an unknown id
+  refuses rather than falling back.
 - Agents read summary statistics, never raw return panels.
 - Stable documents (this file, params, universe) are prompt-cached.
 - Cost per run and per accepted idea is logged and shown on the digest.
@@ -420,15 +503,20 @@ signal-lab/
   data/
     raw/             untouched vendor pulls (not committed)
     snapshots/       hashed, immutable panels the harness runs on
-    universe/        index-ETF map, tiers, characteristic map
+    universe/        investable universe, coverage, tiers
     requests/        agent data requests awaiting the owner
     jpmaqs/          request list, loader, grading rules
   src/
-    loaders/         bloomberg, fred, jpmaqs, synthetic
-    signals/         one module per family
-    harness/         walk-forward engine, cost model, run_experiment()
-    portfolio/       exposure mapping, long-only solver
-    stats/           HAC, block bootstrap, search null, deflated IR
+    signal_lab/      one package: `stats`, `results` and `signals` are all
+                     plausible third-party names, and a flat layout would let
+                     one shadow the lab silently (`decisions/0010`)
+      loaders/       bloomberg, fred, jpmaqs, synthetic
+      signals/       one module per family
+      harness/       walk-forward engine, cost model, objective, conviction,
+                     run_experiment()
+      portfolio/     exposure mapping, long-only solver
+      stats/         HAC, block bootstrap, search null, deflated IR
+      results/       append-only store
   hypotheses/        pending/ running/ done/
   results/           runs.db, artifacts/ (artifacts not committed)
   decisions/         append-only

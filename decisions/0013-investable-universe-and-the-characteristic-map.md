@@ -134,7 +134,7 @@ HY Corporates · EM Sovereign Bonds · EM Corporate Bonds · US Equities ·
 European Equities · Japanese Equities · APAC ex-Japan Equities · EM Equities ·
 Commodities · Gold
 
-### Two classes added to reach full coverage — confirm or change
+### Two classes added to reach full coverage — APPROVED by the owner 2026-09-10
 
 Seventeen classes leave **17 of 102 series** with no home. Rather than force
 them somewhere misleading, two classes were added:
@@ -149,8 +149,10 @@ them somewhere misleading, two classes were added:
   8% in "Commodities" when the holding is listed infrastructure would mislead
   an investor, which is the one thing a reporting class must not do.
 
-Change either by editing `REPORTING_CLASSES` and `REPORTING` in
-`scripts/build_universe.py` and re-running it.
+Approved as they stand. Change either by editing `REPORTING_CLASSES` and
+`REPORTING` in `scripts/build_universe.py` and re-running it.
+
+Status: **closed.** Nineteen reporting classes, 102 series, 96 investable.
 
 ### Three assignments that are approximations, flagged rather than hidden
 
