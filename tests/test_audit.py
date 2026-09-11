@@ -320,6 +320,35 @@ def test_the_spread_multiplier_charges_what_it_says(params):
 # --- the grid and the bar ----------------------------------------------------
 
 
+def test_the_base_cells_carry_no_hard_turnover_cap(params):
+    """
+    The owner reads 150% as an annual budget a high-conviction period may
+    exceed, not a per-period wall (decisions/proposed/0024). Hard-capping the
+    base cells measured the cap instead of the layer: it bound on half to nine
+    tenths of rebalances. Restraint comes from the section 4 shadow cost, and
+    hard caps stay where they belong -- in the turnover-shortfall experiment.
+    """
+    cells = grid_cells(params)
+    base = [c for c in cells if c.tag in ("base", "oracle", "cost")]
+    assert base and all(c.turnover_cap is None for c in base)
+    caps = {c.turnover_cap for c in cells if c.tag == "turnover"}
+    assert caps and None not in caps, "the uncapped case is the base cell, not run twice"
+    assert caps <= {float(x) for x in params.require("audit.turnover_caps") if x is not None}
+
+
+def test_rolling_one_year_turnover_is_reported_for_the_budget_question(small_universe):
+    """
+    A full-sample mean cannot say whether one conviction-rich year ran hot, so
+    the rolling one-year distribution is reported. Which statistic the VETO
+    reads is an owner decision (decisions/proposed/0024); this only measures it.
+    """
+    universe, params = small_universe
+    row, _ = run_cell(universe, AuditCell(0.20, 13, 0), params, solver="scipy")
+    assert row["turnover_cap"] is None
+    assert np.isfinite(row["turnover_p95_rolling_1y"])
+    assert row["turnover_max_rolling_1y"] >= row["turnover_p95_rolling_1y"] - 1e-12
+
+
 def test_the_grid_covers_the_declared_cells_and_tags_the_stress_ones(params):
     cells = grid_cells(params)
     base = [c for c in cells if c.tag == "base"]

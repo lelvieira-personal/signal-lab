@@ -192,7 +192,7 @@ class AuditCell:
     horizon: int
     seed: int
     cost_multiplier: float = 1.0
-    turnover_cap: float | None = 1.50  # annualised traded notional; None = uncapped
+    turnover_cap: float | None = None  # annualised traded notional; None = uncapped
     tag: str = "base"
 
     def key(self) -> str:
@@ -354,6 +354,8 @@ def run_cell(
         "te_max": float(te.max()) if len(te) else float("nan"),
         "te_ex_ante_mean": float(diag["te_ex_ante"].mean()),
         "turnover_annual": path.annualised_turnover(),
+        "turnover_p95_rolling_1y": rolling_annual_turnover_quantile(path, rule.ppy, 0.95),
+        "turnover_max_rolling_1y": rolling_annual_turnover_quantile(path, rule.ppy, 1.0),
         "cost_drag_annual": path.total_cost_drag(),
         "max_active_drawdown": path.max_active_drawdown(),
         "max_cash": float(path.cash_weights.max()),
@@ -377,6 +379,28 @@ def run_cell(
     }
     row.update(portfolio_veto_verdicts(row, params))
     return row, path
+
+
+def rolling_annual_turnover_quantile(
+    path: PortfolioPath, periods_per_year: float, q: float
+) -> float:
+    """
+    A quantile of ROLLING one-year traded notional.
+
+    The full-sample mean says what the strategy averaged; it cannot say whether
+    a single high-conviction year ran hot. Since the owner reads the 150% figure
+    as an annual budget that conviction may exceed (2026-09-11), the statistic
+    that matters is the distribution of one-year windows, exactly as
+    `decisions/0003` made the tracking-error veto a p95 of trailing readings
+    rather than a maximum. Reported so the question can be settled on evidence;
+    which statistic the veto READS is an owner decision, not this module's.
+    """
+    window = int(round(periods_per_year))
+    rolled = path.turnover.rolling(window, min_periods=window).sum()
+    rolled = rolled.dropna()
+    if rolled.empty:
+        return float("nan")
+    return float(rolled.max() if q >= 1.0 else rolled.quantile(q))
 
 
 def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, Any]:
@@ -435,12 +459,31 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
 
 
 def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCell]:
-    """The cells decisions/0023 asks for, in the order they run."""
+    """
+    The cells decisions/0023 asks for, in the order they run.
+
+    The BASE cells carry no hard turnover cap. The owner's reading of section 4
+    (2026-09-11) is that 150% is an annual budget rather than a per-period wall,
+    and that a high-conviction period may exceed it: "it is allowed to have a
+    larger turnover if conviction is higher, even if the annualized figure
+    surpass 150%". Hard-capping the base cells would have measured the cap
+    instead of the layer -- and it was binding on half to nine tenths of
+    rebalances, so the required-IC table was reporting a constrained answer as
+    if it were the layer's answer.
+
+    What still restrains the base cells is the section 4 shadow cost
+    (`decisions/0018`): 10bp per unit of annualised turnover above the 100%
+    target, one-sided. Turnover goes where the alpha justifies it, and the
+    realised figure is reported rather than assumed.
+
+    Hard caps remain an EXPERIMENT, in the `turnover` cells, which is what the
+    turnover-shortfall curve measures: what the layer gives up when the budget
+    really is a wall.
+    """
     params = params or get_params()
     ics = [float(x) for x in params.require("audit.ic_grid")]
     horizons = [int(x) for x in params.require("audit.horizon_weeks")]
     seeds = list(range(int(params.require("audit.seeds"))))
-    cap = float(params.require("constraints.turnover.max_annualised"))
     if lean:
         ics = [ic for ic in ics if ic in (0.05, 0.10)] or ics[:2]
         horizons = [h for h in horizons if h in (4, 26)] or horizons[:2]
@@ -450,13 +493,13 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
     for h in horizons:
         for ic in ics:
             for s in seeds:
-                cells.append(AuditCell(ic, h, s, 1.0, cap, "base"))
+                cells.append(AuditCell(ic, h, s, 1.0, None, "base"))
     if lean:
         return cells
 
     if bool(params.get("audit.include_oracle", True)):
         for h in horizons:
-            cells.append(AuditCell(1.0, h, 0, 1.0, cap, "oracle"))
+            cells.append(AuditCell(1.0, h, 0, 1.0, None, "oracle"))
 
     stress_h = int(params.get("audit.stress_horizon_weeks", horizons[len(horizons) // 2]))
     for mult in params.get("audit.cost_multipliers", [1.0]) or []:
@@ -464,14 +507,13 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
             continue
         for ic in ics:
             for s in seeds:
-                cells.append(AuditCell(ic, stress_h, s, float(mult), cap, "cost"))
-    for tcap in params.get("audit.turnover_caps", [cap]) or []:
-        value = None if tcap is None else float(tcap)
-        if value == cap:
-            continue
+                cells.append(AuditCell(ic, stress_h, s, float(mult), None, "cost"))
+    for tcap in params.get("audit.turnover_caps", []) or []:
+        if tcap is None:
+            continue  # the uncapped case is the base cell; it is not run twice
         for ic in ics:
             for s in seeds:
-                cells.append(AuditCell(ic, stress_h, s, 1.0, value, "turnover"))
+                cells.append(AuditCell(ic, stress_h, s, 1.0, float(tcap), "turnover"))
     return cells
 
 
