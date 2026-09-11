@@ -73,10 +73,20 @@ class CostModel:
         params: Params | None = None,
         buckets: dict[str, str] | None = None,
         universe_csv: Path | str | None = None,
+        spread_multiplier: float = 1.0,
     ):
+        """
+        `spread_multiplier` scales every bucket's half-spread and leaves the
+        fee-and-tracking drag alone. It exists for the ruler audit's cost
+        stress (`decisions/0023`), where the section 8 placeholders are run at
+        2x and 3x; a run in the results store is always at 1.0.
+        """
         self.params = params or get_params()
         self.weeks_per_year = float(self.params.require("costs.application.weeks_per_year"))
         self.default_bucket = str(self.params.require("costs.default_bucket"))
+        self.spread_multiplier = float(spread_multiplier)
+        if self.spread_multiplier <= 0:
+            raise ValueError("spread_multiplier must be positive")
         self._rates = self.params.require("costs.buckets")
         self.buckets = buckets if buckets is not None else self._load_buckets(universe_csv)
 
@@ -93,7 +103,11 @@ class CostModel:
         return self.buckets.get(instrument, self.default_bucket)
 
     def half_spread(self, instrument: str) -> float:
-        return float(self._rates[self.bucket(instrument)]["half_spread_bps"]) * BPS
+        return (
+            float(self._rates[self.bucket(instrument)]["half_spread_bps"])
+            * BPS
+            * self.spread_multiplier
+        )
 
     def annual_drag(self, instrument: str) -> float:
         return float(self._rates[self.bucket(instrument)]["annual_fee_tracking_bps"]) * BPS

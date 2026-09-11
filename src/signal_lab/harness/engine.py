@@ -31,6 +31,7 @@ The accounting is where a backtest quietly lies, so the invariants are explicit:
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -45,8 +46,10 @@ from signal_lab.loaders.holdout import enforce_holdout
 from signal_lab.params import Params, get_params
 
 # A weight rule: (date, panel) -> target weights. Phase 1 is handed a path; the
-# optimiser fills this in during phase 2.
-WeightRule = Callable[[pd.Timestamp, ReturnPanel], pd.Series]
+# optimiser fills this in during phase 2. A rule that also accepts `drifted=`
+# is handed the book as it stands at the close, which an optimiser needs to
+# price the trade; a rule that does not is called exactly as before.
+WeightRule = Callable[..., pd.Series]
 
 # The exposure matrix as of a date: instruments x factors. Constant in phase 1.
 ExposureRule = Callable[[pd.Timestamp], pd.DataFrame]
@@ -155,6 +158,44 @@ def rebalance_dates(
     return pd.DatetimeIndex(index[np.unique(positions)])
 
 
+def _rule_caller(
+    rule: WeightRule,
+) -> Callable[[pd.Timestamp, ReturnPanel, pd.Series | None], pd.Series]:
+    """Hand the drifted book to rules that take it; leave the others untouched."""
+    try:
+        wants_drifted = "drifted" in inspect.signature(rule).parameters
+    except (TypeError, ValueError):  # builtins and callables without a signature
+        wants_drifted = False
+    if wants_drifted:
+        return lambda date, panel, held: rule(date, panel, drifted=held)
+    return lambda date, panel, held: rule(date, panel)
+
+
+def compound_over_periods(returns: pd.Series, dates: pd.DatetimeIndex) -> pd.Series:
+    """
+    A return series compounded over each rebalance period `(previous, current]`.
+
+    The engine earns the strategy's return by compounding daily returns through
+    the period, so the benchmark it is measured against must be compounded the
+    same way. Reading the benchmark's single return ON the rebalance date instead
+    -- which is what a plain reindex does -- sets a week of strategy return
+    against a day of benchmark return, and the "active return" that results is
+    mostly the strategy's own gross return. The synthetic benchmark and the
+    nightly cycle both pass daily series, so this is not hypothetical.
+
+    A series that is already per-period (indexed on the rebalance dates, nothing
+    in between, as the planted path builds it) compounds to itself: each window
+    holds exactly one observation. Missing observations inside a window
+    contribute zero rather than dropping the period.
+    """
+    returns = returns.sort_index()
+    out = {}
+    for previous, current in zip(dates[:-1], dates[1:], strict=True):
+        window = returns.loc[(returns.index > previous) & (returns.index <= current)]
+        out[current] = float((1.0 + window.fillna(0.0)).prod() - 1.0)
+    return pd.Series(out, dtype="float64").reindex(dates[1:]).fillna(0.0)
+
+
 def constant_exposures(matrix: pd.DataFrame) -> ExposureRule:
     """
     Wrap a static matrix in the time-varying signature.
@@ -207,7 +248,8 @@ def run_walk_forward(
     daily = panel.returns
     periods_per_year = float(params.get("costs.application.weeks_per_year", 52))
 
-    book = weight_rule(dates[0], panel)
+    call = _rule_caller(weight_rule)
+    book = call(dates[0], panel, None)
     if book is None or book.empty:
         raise ValueError("the weight rule returned no weights on the first rebalance date")
 
@@ -227,7 +269,7 @@ def run_walk_forward(
         gross -= 1.0
 
         # 2-4. rebalance at the close, charged on the drifted book
-        target = weight_rule(current, panel)
+        target = call(current, panel, held)
         breakdown = cost_model.rebalance_cost(target, held)
         net = gross - breakdown.total
 
@@ -252,7 +294,7 @@ def run_walk_forward(
 
     frame = pd.DataFrame(rows).set_index("date")
     index = pd.DatetimeIndex(frame.index)
-    bench = benchmark_returns.reindex(index).fillna(0.0)
+    bench = compound_over_periods(benchmark_returns, dates)
 
     return PortfolioPath(
         dates=index,
