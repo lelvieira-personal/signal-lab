@@ -3,6 +3,7 @@
 data/raw/
 data/snapshots/
 results/artifacts/
+results/audit/          # regenerable: decisions/0023
 results/*.db
 results/*.db-journal
 
