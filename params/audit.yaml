@@ -1,0 +1,53 @@
+# The ruler audit. decisions/0023. Owner-only.
+#
+# Phase 2.5: what the weekly ETF layer can deliver at the section 4 budget,
+# measured before any hypothesis is generated. A computation on returns, the
+# covariance, the constraint set and the cost model; it contains no hypothesis,
+# consumes no trial and carries no multiple-testing charge.
+params_version: "0.5.0"
+
+# The bar. Net information ratio versus the 50/50 benchmark over the development
+# window, after the section 8 cost model, at the section 4 tracking-error budget.
+# Owner, 2026-09-11: "0.3 net IR is a good target."
+target_net_ir: 0.30
+
+# The simulated-IC ladder. A signal is the cross-sectionally standardised
+# forward active return over `horizon_weeks`, blended with noise of matching
+# persistence so its information coefficient is the grid value and its speed is
+# the horizon. Alpha follows Grinold: IC x sigma x score, per period.
+ic_grid: [0.02, 0.05, 0.10, 0.20]
+horizon_weeks: [4, 13, 26, 52]
+seeds: 3
+# The IC = 1 oracle is a ceiling, reported as such; it is not the ruler.
+include_oracle: true
+
+# Costs, net first. Half-spread stress on the section 8 placeholders; the
+# fee-and-tracking drag is not stressed. Reported net IR is always at 1.0.
+cost_multipliers: [1.0, 2.0, 3.0]
+
+# The turnover-shortfall curve: annualised traded-notional caps handed to the
+# solver. null is uncapped. The section 4 veto is still evaluated at 1.50.
+turnover_caps: [null, 1.50, 1.00, 0.50]
+# The per-rebalance allowance is the annual cap over the periods in a year;
+# unused allowance banks for at most this many periods, so a large move can be
+# made in one week without the annual average ever exceeding the cap.
+turnover_bank_periods: 13
+
+# The stress grids run at this horizon only; the base grid runs every horizon.
+stress_horizon_weeks: 13
+
+covariance:
+  estimator: ledoit_wolf         # closed-form shrinkage toward CONSTANT CORRELATION (2003)
+  window_periods: 156            # trailing 3 years of weekly returns
+  # A series without a full window at a date is unholdable at that date.
+
+# One rebalance day for the audit. Alternates are averaged in phase 3 (section 4
+# and section 9); the audit is a ruler, not a run, and one day is the ruler.
+rebalance_day: FRI
+
+# Solver: "auto" prefers cvxpy with the chain in constraints.yaml and falls back
+# to the scipy reference implementation, which is slow and exists so the two
+# can be tested against each other.
+solver: auto
+
+output_dir: results/audit

@@ -1,6 +1,6 @@
 # Agent budgets and quotas. SUBSTRATE.md section 14, as amended by
 # decisions/0007 and decisions/0012. Owner-only.
-params_version: "0.4.0"
+params_version: "0.5.0"
 
 runtime:
   # decisions/0007. The autonomous cycle runs as a headless process against the

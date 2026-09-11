@@ -1,6 +1,6 @@
 # Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
 # sections 3, 5 and 16. Owner-only.
-params_version: "0.4.0"
+params_version: "0.5.0"
 
 windows:
   dev_start: "2001-01-05"

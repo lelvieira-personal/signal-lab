@@ -1,7 +1,7 @@
 # The allowlist SUBSTRATE section 2 refers to: "Call any external API not
 # listed in params/data_sources.yaml" is forbidden. Owner-only.
 # Secrets are read from environment variables only; no key is ever written here.
-params_version: "0.4.0"
+params_version: "0.5.0"
 
 sources:
   bloomberg:

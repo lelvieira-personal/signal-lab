@@ -30,6 +30,7 @@ PARAM_FILES = (
     "data.yaml",
     "data_sources.yaml",
     "agents.yaml",
+    "audit.yaml",
 )
 
 
@@ -61,6 +62,7 @@ class Params:
     data: dict[str, Any]
     data_sources: dict[str, Any]
     agents: dict[str, Any]
+    audit: dict[str, Any]
     params_version: str
     params_hash: str
     params_dir: str
@@ -91,6 +93,7 @@ class Params:
             "data": self.data,
             "data_sources": self.data_sources,
             "agents": self.agents,
+            "audit": self.audit,
         }
 
     def require(self, dotted: str) -> Any:
@@ -155,6 +158,7 @@ def load_params(params_dir: Path | str = PARAMS_DIR) -> Params:
         data=loaded["data"],
         data_sources=loaded["data_sources"],
         agents=loaded["agents"],
+        audit=loaded["audit"],
         params_version=distinct.pop(),
         params_hash=hash_params_dir(params_dir),
         params_dir=str(params_dir),
