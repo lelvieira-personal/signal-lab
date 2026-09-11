@@ -16,6 +16,8 @@
 #   make universe   rebuild the investable universe from the coverage table
 #   make report     render the synthetic report
 #   make cycle      build a synthetic snapshot and run one cycle
+#   make audit      the ruler audit on real data (decisions/0023, phase 2.5)
+#   make audit-lean the same, two ICs and one seed -- shape and runtime only
 #   make governance SUBSTRATE section 2, checked mechanically
 #
 # uv manages Python 3.12 and the locked dependency set; nothing is installed
@@ -42,7 +44,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -79,6 +81,12 @@ check: governance lint test holdout ## governance, lint, tests, and the holdout 
 
 report: ## render the synthetic report to leaderboard.html
 	$(PY) --group dev python render/static_report.py --synthetic -o leaderboard.html
+
+audit-lean: ## the ruler audit on the SYNTHETIC panel, small grid (validation)
+	$(PY) --group dev python scripts/run_audit.py --source synthetic --lean
+
+audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not minutes
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg
 
 coverage: ## rebuild bbg_index_coverage.csv from the Index Map (decisions/0022)
 	$(PY) --group dev python scripts/build_coverage.py

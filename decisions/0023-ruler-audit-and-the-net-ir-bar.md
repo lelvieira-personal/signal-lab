@@ -165,6 +165,24 @@ forcing it would be a test of the fixture. Monotonicity is a property to read
 off the real table across three seeds, and a non-monotone real table is a
 finding, not a pass.
 
+## The bar is reported twice, and the second one is the bar
+
+A cell that clears net IR 0.30 while breaching the tracking-error or
+active-drawdown veto would be killed in phase 3, so counting it as clearing
+makes the bar optimistic. Every cell therefore carries a verdict on the five
+PORTFOLIO vetoes at their real thresholds -- tracking error p95 6%, active
+drawdown 18%, turnover 150%, cash 20%, positions 30 -- and the required-IC
+table is reported both on net IR alone and among surviving cells. Where they
+disagree, the surviving-cells reading is the bar.
+
+The other six vetoes need a signal, a hypothesis or a search (coverage,
+lookahead, frequency, seed_stability, multiple_testing, direction) and have no
+meaning for a planted signal. They are recorded as absent, not as passed.
+SUBSTRATE section 10's rule that a veto without an input FAILS is honoured: a
+window shorter than 156 rebalances has no trailing-3y tracking error, so every
+cell fails for want of data and the report says so rather than reporting an
+empty bar as a finding.
+
 ## Still open, deliberately
 
 - Whether the table becomes the per-cycle charge budget directly or through a
