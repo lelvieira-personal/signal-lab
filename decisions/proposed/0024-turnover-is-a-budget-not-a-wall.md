@@ -37,6 +37,66 @@ traded notional** rather than the full-sample mean. A strategy that spends one
 conviction-rich year at 190% and sits at 110% otherwise passes; one that runs at
 180% throughout does not.
 
+## What the owner then clarified (2026-09-11, second message)
+
+> "the idea is that the model doesn't generate too much trading in a single
+> session, unless the scenario really changes and there is high conviction about
+> it. If the model is addressing this without letting one single rebal session
+> take too much of the turnover budget it would be great. I want to avoid a
+> situation where we rebalanced too much on previous windows and then cannot do
+> more when we really need it due to TO budget constraints."
+
+That is two requirements, and they pull in opposite directions under any single
+annual number:
+
+1. **No single session takes too much of the budget.** A per-session limit.
+2. **Never blocked later because of earlier trading.** No annual wall.
+
+An annual cap satisfies neither cleanly. It permits one session to spend the
+whole year in a week, and then it forbids trading outright for the rest of the
+year -- precisely the failure named in (2).
+
+## The mechanism this implies, now built into the audit
+
+**A hard per-session cap on traded notional.** Generous against a ~2.9%/week
+average at a 150% annual budget, but far below the budget itself, so a regime
+shift can be acted on in one week and no week can consume the year.
+
+**A progressive shadow cost keyed to trailing one-year turnover, and no annual
+wall.** Zero at or below the 100% soft target; exactly the 10bp `decisions/0018`
+set when trailing turnover reaches the 150% budget; rising on the same slope
+beyond it rather than stopping:
+
+    shadow(T) = coefficient * max(0, T - target) / (budget - target)
+
+So 0bp at 100%, 10bp at 150%, 20bp at 200%, 40bp at 300%. Ordinary weeks
+restrain themselves because trading grows dearer as the year is consumed; a week
+with real alpha can always pay and trade. Dear is not the same as forbidden, and
+that distinction is the whole of requirement (2).
+
+**The bank is gone.** The previous version banked unused allowance and let the
+balance go negative. That is requirement (2)'s failure wearing a friendlier
+face: it made capacity a quantity to be spent, so an early over-trade genuinely
+blocked a later one.
+
+**Conviction is not wired in yet, deliberately.** "Unless there is high
+conviction" points at scaling the per-session cap by conviction, exactly as
+`decisions/0019` scales the tracking-error coefficient. Its two coefficients are
+still null and the measure itself is registered as H-2026-0012, so wiring
+conviction into turnover now would invent a second unmeasured knob. The
+per-session cap is a plain parameter; conviction-scaling it is the natural
+extension the moment 0019 lands.
+
+## The number has not been chosen, so the audit measures it
+
+`params/audit.yaml` sweeps `per_rebalance_caps: [0.10, 0.25, 0.50, null]` -- 3.5
+weeks, 8.7 weeks and 17 weeks of a 150%/yr average, plus no limit -- and reports
+net IR, realised annual turnover, the largest single session and the shadow cost
+actually paid for each. `per_rebalance_cap_default` is null, so the base ladder
+measures the layer rather than a candidate cap. Picking the production number
+belongs in `params/constraints.yaml` and is an owner decision; the evidence for
+it arrives with the first real audit table.
+
 ## Three coherent positions
 
 1. **Keep the wall.** `max_annualised: 1.50` on the full-sample mean. Simple,
@@ -71,11 +131,16 @@ layer's answer.
 
 ## What the owner needs to decide
 
-1. Which of the three positions above.
+1. Which of the three positions above, for what the VETO reads.
 2. If (2): the quantile, and whether an absolute excursion ceiling sits above it.
-3. Whether the 100% soft target and its 10bp shadow cost (`decisions/0018`)
-   survive unchanged in either case. They are a separate lever and nothing here
-   touches them.
+3. The per-session cap for production, from the swept evidence, into
+   `params/constraints.yaml` as `turnover.max_per_rebalance`.
+4. Whether the 100% soft target survives unchanged as the point at which the
+   progressive shadow cost starts. `decisions/0018` set the 10bp; this note
+   keeps that magnitude exactly at the 150% budget and changes only the shape
+   between and beyond, from a step to a ramp.
+5. Whether the per-session cap should later scale with conviction
+   (`decisions/0019`, H-2026-0012) once a conviction measure is settled.
 
 The audit's first real table will show what one-year turnover the layer actually
 wants at each IC and horizon, which is the evidence this decision should be

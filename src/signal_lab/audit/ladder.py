@@ -192,16 +192,49 @@ class AuditCell:
     horizon: int
     seed: int
     cost_multiplier: float = 1.0
-    turnover_cap: float | None = None  # annualised traded notional; None = uncapped
+    turnover_cap: float | None = None  # annualised traded notional; None = no annual wall
+    per_rebalance_cap: float | None = None  # traded notional in ONE session; None = uncapped
     tag: str = "base"
 
     def key(self) -> str:
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
-        return f"ic{self.ic:.2f}_h{self.horizon}_s{self.seed}_c{self.cost_multiplier:.1f}_t{cap}"
+        per = "none" if self.per_rebalance_cap is None else f"{self.per_rebalance_cap:.2f}"
+        return (
+            f"ic{self.ic:.2f}_h{self.horizon}_s{self.seed}"
+            f"_c{self.cost_multiplier:.1f}_t{cap}_r{per}"
+        )
 
 
 class _OptimiserRule:
-    """The weight rule for one cell: solve at every rebalance, bank turnover."""
+    """
+    The weight rule for one cell: solve at every rebalance under a per-session
+    cap and a progressive shadow cost.
+
+    Two mechanisms, answering the two halves of the owner's requirement
+    (2026-09-11): "the model doesn't generate too much trading in a single
+    session, unless the scenario really changes", and "avoid a situation where
+    we rebalanced too much on previous windows and then cannot do more when we
+    really need it".
+
+    **A hard per-session cap** on traded notional. This is the first half. It is
+    generous relative to the weekly average -- a regime shift can be acted on in
+    one week -- but far below the annual budget, so no single session can
+    consume it.
+
+    **A progressive shadow cost keyed to TRAILING one-year turnover**, and no
+    annual wall. This is the second half, and the wall is what would break it.
+    Trading gets steadily dearer as the year's turnover rises past the soft
+    target, so ordinary weeks restrain themselves and the budget is not frittered
+    away; but the cost stays finite, so a week with real alpha can always pay it
+    and trade. A hard annual cap does the opposite -- it is free to trade right
+    up to the limit and then forbids trading entirely, which is exactly the
+    failure the owner described.
+
+    The previous version banked unused allowance and let the bank go negative.
+    That is the same failure wearing a friendlier face: it made capacity a
+    quantity to be spent, so an early over-trade genuinely blocked a later one.
+    The bank is gone.
+    """
 
     def __init__(
         self,
@@ -220,19 +253,64 @@ class _OptimiserRule:
         self.costs = CostModel(params, spread_multiplier=cell.cost_multiplier)
         self.shadow_coeff = float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
         self.shadow_target = float(params.require("constraints.turnover.target_annualised"))
-        self.bank_periods = int(params.get("audit.turnover_bank_periods", 13))
-        self.allowance = None if cell.turnover_cap is None else cell.turnover_cap / self.ppy
-        self.bank = 0.0  # unused allowance accrues from the first rebalance, never before
+        self.shadow_budget = float(params.require("constraints.turnover.max_annualised"))
+        self.per_rebalance_cap = cell.per_rebalance_cap
         self.turnover_log: list[float] = []
+        self.repair_turnover = 0.0  # traded to restore mandate compliance, cap or no cap
         self.diagnostics: list[dict[str, Any]] = []
 
-    def _shadow(self) -> float:
-        """decisions/0018: a one-sided shadow cost above the turnover target."""
-        recent = self.turnover_log[-int(self.ppy) :]
+    def annual_wall_remaining(self) -> float | None:
+        """
+        Traded notional still permitted under a HARD annual cap, or None when
+        there is no wall.
+
+        Only the turnover-shortfall cells set one. Their purpose is to measure
+        what a wall costs, and this is what a wall does: once the trailing year
+        has spent the budget, nothing more may be traded until it rolls off.
+        That is the failure the owner described, priced rather than argued.
+        """
+        if self.cell.turnover_cap is None:
+            return None
+        spent = float(np.sum(self.turnover_log[-int(self.ppy) :]))
+        return max(0.0, self.cell.turnover_cap - spent)
+
+    def session_cap(self) -> float | None:
+        """The binding limit on this session: the per-session cap, the annual
+        wall's remaining budget, or whichever is tighter."""
+        caps = [c for c in (self.per_rebalance_cap, self.annual_wall_remaining()) if c is not None]
+        return min(caps) if caps else None
+
+    def trailing_annual_turnover(self) -> float:
+        """Traded notional over the trailing year, annualised to a full year."""
+        window = int(self.ppy)
+        recent = self.turnover_log[-window:]
         if not recent:
             return 0.0
-        annualised = float(np.mean(recent)) * self.ppy
-        return self.shadow_coeff * BPS if annualised > self.shadow_target else 0.0
+        # Annualise by the window actually observed, so an early rebalance is not
+        # judged as though the year were already complete.
+        return float(np.sum(recent)) * self.ppy / len(recent)
+
+    def _shadow(self) -> float:
+        """
+        A shadow cost per unit traded, rising with trailing one-year turnover.
+
+        Zero at or below the soft target; `coefficient` basis points when
+        trailing turnover has reached the budget, which preserves the
+        decisions/0018 calibration exactly at that point; and rising on the same
+        slope beyond it rather than stopping. Progressive and unbounded, never a
+        wall:
+
+            shadow(T) = coefficient * max(0, T - target) / (budget - target)
+
+        At the 100% target it costs nothing; at the 150% budget it costs the
+        10bp decisions/0018 set; at 250% it costs 30bp, which a week carrying
+        real alpha can still justify and a routine week cannot.
+        """
+        span = self.shadow_budget - self.shadow_target
+        if span <= 0 or self.shadow_coeff <= 0:
+            return 0.0
+        excess = max(0.0, self.trailing_annual_turnover() - self.shadow_target)
+        return self.shadow_coeff * BPS * excess / span
 
     def __call__(self, date: pd.Timestamp, _panel: ReturnPanel, drifted: pd.Series | None = None):
         date = pd.Timestamp(date)
@@ -257,7 +335,7 @@ class _OptimiserRule:
             cap = None
         else:
             cost = cost + self._shadow()
-            cap = None if self.allowance is None else max(self.allowance + self.bank, 0.0)
+            cap = self.session_cap()
 
         sol = solve(
             alpha,
@@ -271,19 +349,9 @@ class _OptimiserRule:
         )
 
         if not first:
-            used = sol.turnover
-            self.turnover_log.append(used)
-            if self.allowance is not None:
-                # The bank may go NEGATIVE: a mandate repair can spend more than
-                # the allowance allows (the solver relaxes the cap only for
-                # that), and the overspend is then repaid out of the following
-                # weeks' allowance rather than forgiven. Clamping it at zero
-                # forgave it, and the annual average came out half again above
-                # the cap the cell was labelled with. Bounded both ways so a
-                # long quiet spell cannot bank a year of trading and one repair
-                # cannot freeze the book forever.
-                room = self.allowance * self.bank_periods
-                self.bank = float(np.clip(self.bank + self.allowance - used, -room, room))
+            self.turnover_log.append(sol.turnover)
+            if sol.status.endswith("repair"):
+                self.repair_turnover += sol.turnover
         self.diagnostics.append(
             {
                 "date": date,
@@ -295,6 +363,9 @@ class _OptimiserRule:
                 "cash_binding": sol.cash_binding,
                 "positions_capped": sol.positions_capped,
                 "shrinkage": cov.shrinkage,
+                "shadow_bps": self._shadow() / BPS,
+                "trailing_turnover": self.trailing_annual_turnover(),
+                "session_cap": self.session_cap(),
                 "status": sol.status,
             }
         )
@@ -347,6 +418,12 @@ def run_cell(
         "seed": cell.seed,
         "cost_multiplier": cell.cost_multiplier,
         "turnover_cap": cell.turnover_cap,
+        "per_rebalance_cap": cell.per_rebalance_cap,
+        "turnover_per_rebalance_max": float(path.turnover.max()),
+        "turnover_per_rebalance_p95": float(path.turnover.quantile(0.95)),
+        "turnover_from_repairs_annual": rule.repair_turnover * rule.ppy / max(len(path.dates), 1),
+        "shadow_bps_mean": float(diag["shadow_bps"].mean()),
+        "shadow_bps_max": float(diag["shadow_bps"].max()),
         "net_ir": path.information_ratio(),
         "active_return_annual": float(path.active_returns.mean() * rule.ppy),
         "active_vol_annual": float(path.active_returns.std() * np.sqrt(rule.ppy)),
@@ -489,17 +566,20 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
         horizons = [h for h in horizons if h in (4, 26)] or horizons[:2]
         seeds = seeds[:1]
 
+    default_per = params.get("audit.per_rebalance_cap_default", None)
+    default_per = None if default_per is None else float(default_per)
+
     cells: list[AuditCell] = []
     for h in horizons:
         for ic in ics:
             for s in seeds:
-                cells.append(AuditCell(ic, h, s, 1.0, None, "base"))
+                cells.append(AuditCell(ic, h, s, 1.0, None, default_per, "base"))
     if lean:
         return cells
 
     if bool(params.get("audit.include_oracle", True)):
         for h in horizons:
-            cells.append(AuditCell(1.0, h, 0, 1.0, None, "oracle"))
+            cells.append(AuditCell(1.0, h, 0, 1.0, None, default_per, "oracle"))
 
     stress_h = int(params.get("audit.stress_horizon_weeks", horizons[len(horizons) // 2]))
     for mult in params.get("audit.cost_multipliers", [1.0]) or []:
@@ -507,13 +587,23 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
             continue
         for ic in ics:
             for s in seeds:
-                cells.append(AuditCell(ic, stress_h, s, float(mult), None, "cost"))
+                cells.append(AuditCell(ic, stress_h, s, float(mult), None, default_per, "cost"))
     for tcap in params.get("audit.turnover_caps", []) or []:
         if tcap is None:
             continue  # the uncapped case is the base cell; it is not run twice
         for ic in ics:
             for s in seeds:
-                cells.append(AuditCell(ic, stress_h, s, 1.0, float(tcap), "turnover"))
+                cells.append(AuditCell(ic, stress_h, s, 1.0, float(tcap), default_per, "turnover"))
+    # The per-session cap is the owner's first requirement and has no chosen
+    # value yet, so the audit SWEEPS it and reports what each costs. That is a
+    # measurement; picking the number is an owner decision (proposed/0024).
+    for per in params.get("audit.per_rebalance_caps", []) or []:
+        value = None if per is None else float(per)
+        if value == default_per:
+            continue
+        for ic in ics:
+            for s in seeds:
+                cells.append(AuditCell(ic, stress_h, s, 1.0, None, value, "per_rebalance"))
     return cells
 
 

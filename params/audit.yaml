@@ -25,13 +25,22 @@ include_oracle: true
 # fee-and-tracking drag is not stressed. Reported net IR is always at 1.0.
 cost_multipliers: [1.0, 2.0, 3.0]
 
-# The turnover-shortfall curve: annualised traded-notional caps handed to the
-# solver. null is uncapped. The section 4 veto is still evaluated at 1.50.
-turnover_caps: [null, 1.50, 1.00, 0.50]
-# The per-rebalance allowance is the annual cap over the periods in a year;
-# unused allowance banks for at most this many periods, so a large move can be
-# made in one week without the annual average ever exceeding the cap.
-turnover_bank_periods: 13
+# The turnover-shortfall curve: ANNUAL traded-notional caps handed to the solver
+# as a hard wall, to measure what a wall costs. null is no wall, which is what
+# the base cells run (decisions/proposed/0024). The section 4 veto is still
+# evaluated at 1.50 whatever these say.
+turnover_caps: [1.50, 1.00, 0.50]
+
+# The PER-SESSION cap: traded notional allowed in one rebalance. The owner's
+# first requirement (2026-09-11) is that no single session consumes the budget,
+# and no value has been chosen, so the audit sweeps candidates and reports what
+# each costs. 0.10 is roughly 3.5 weeks of a 150%/yr average, 0.25 is 8.7 weeks,
+# 0.50 is 17 weeks; null is no per-session limit at all.
+# Picking the production number is an owner decision: decisions/proposed/0024.
+per_rebalance_caps: [0.10, 0.25, 0.50, null]
+# What the base, oracle, cost and turnover cells use. null until the owner
+# chooses, so the base ladder measures the layer rather than a candidate cap.
+per_rebalance_cap_default: null
 
 # The stress grids run at this horizon only; the base grid runs every horizon.
 stress_horizon_weeks: 13
