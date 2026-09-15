@@ -11,6 +11,9 @@
 #
 # Or run it in place without renaming:  make -f build.mk check
 #
+#   make inspect-raw describe the shape of data/raw/, structure only
+#   make coverage   rebuild the coverage table from the workbook's Index Map
+#   make universe   rebuild the investable universe from the coverage table
 #   make report     render the synthetic report
 #   make cycle      build a synthetic snapshot and run one cycle
 #   make governance SUBSTRATE section 2, checked mechanically
@@ -39,7 +42,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -76,6 +79,15 @@ check: governance lint test holdout ## governance, lint, tests, and the holdout 
 
 report: ## render the synthetic report to leaderboard.html
 	$(PY) --group dev python render/static_report.py --synthetic -o leaderboard.html
+
+coverage: ## rebuild bbg_index_coverage.csv from the Index Map (decisions/0022)
+	$(PY) --group dev python scripts/build_coverage.py
+
+universe: ## rebuild investable_universe.csv from the coverage table
+	$(PY) --group dev python scripts/build_universe.py
+
+inspect-raw: ## describe data/raw/ -- sheet names, headers, dimensions, date ranges; no values
+	$(PY) --with openpyxl python scripts/inspect_raw.py
 
 snapshot: ## build the synthetic snapshot
 	$(PY) --group dev python scripts/build_snapshot.py --id synthetic-v1 --overwrite

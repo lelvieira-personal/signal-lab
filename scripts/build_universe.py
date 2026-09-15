@@ -37,6 +37,19 @@ OUT = REPO / "data" / "universe" / "investable_universe.csv"
 # version of the same exposure would be an FX axis by the back door.
 HEDGED = {"H09122US", "H12823US", "BTSYTRUH", "H02549US", "LP01TRUH", "M0JPHUSD"}
 
+# Excluded from `investable` for a reason that is not hedging. `SPBDALB`'s
+# Bloomberg LONG_COMP_NAME is "Morningstar LSTA US Leveraged Loan Index (Price)"
+# -- a PRICE index, pulled with TOT_RETURN_INDEX_GROSS_DVDS alongside 96
+# total-return series. Its measured return therefore excludes loan coupon
+# income, which for leveraged loans is the larger part of the total return. An
+# optimiser given that series would avoid loans for a measurement artefact
+# rather than for a signal, which is the failure mode decisions/0013 worried
+# about for the sector axis. It stays in the panel, flagged, so the defect is
+# visible and so it can be restored the moment a total-return loan index is
+# pulled -- params/data.yaml already carries that splice, blocked.
+# Owner decision 2026-09-11, recorded in decisions/0022.
+NOT_INVESTABLE_OTHER = {"SPBDALB": "price index, not total return (decisions/0022)"}
+
 # The owner's taxonomy, plus two classes added to reach full coverage; the two
 # additions are flagged in decisions/0013 for confirmation.
 REPORTING_CLASSES = [
@@ -176,6 +189,9 @@ def build() -> list[dict]:
             ticker, section = r["ticker"], r["Section"]
             klass = reporting_class(ticker, section)
             hedged = ticker in HEDGED
+            excluded_because = (
+                "hedged (decisions/0013)" if hedged else NOT_INVESTABLE_OTHER.get(ticker, "")
+            )
             rows.append(
                 {
                     "ticker": ticker,
@@ -184,9 +200,10 @@ def build() -> list[dict]:
                     "first_daily": r["first_daily"],
                     "tier": r["tier_by_daily_start"],
                     "hedged": hedged,
-                    "investable": not hedged,
+                    "investable": not excluded_because,
                     "cost_bucket": cost_bucket(ticker, klass),
                     "reporting_class": klass,
+                    "not_investable_because": excluded_because,
                     "source_file": "bbg_index_coverage.csv",
                 }
             )
@@ -206,6 +223,7 @@ def build() -> list[dict]:
                         "investable": True,
                         "cost_bucket": "mid",
                         "reporting_class": "Ex-USD Bonds",
+                        "not_investable_because": "",
                         "source_file": "bbg_exusd_bonds_coverage.csv",
                     }
                 )
@@ -230,7 +248,10 @@ def main(argv=None) -> int:
         w.writerows(rows)
 
     n_inv = sum(r["investable"] for r in rows)
-    print(f"{len(rows)} series, {n_inv} investable, {len(rows) - n_inv} excluded (hedged)")
+    print(f"{len(rows)} series, {n_inv} investable, {len(rows) - n_inv} excluded")
+    for r in rows:
+        if r["not_investable_because"]:
+            print(f"    excluded  {r['ticker']:<10} {r['not_investable_because']}")
     print(f"\n{'reporting_class':<24} {'n':>3}  {'investable':>10}  buckets")
     for klass in REPORTING_CLASSES:
         sub = [r for r in rows if r["reporting_class"] == klass]

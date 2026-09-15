@@ -183,6 +183,10 @@ def gross_net_mismatch(meta: dict[str, SeriesMeta]) -> list[str]:
 # --- 5. splices --------------------------------------------------------------
 
 
+class SpliceRefused(InvariantViolation):
+    """A splice was requested that cannot be performed without inventing data."""
+
+
 def apply_splices(
     levels: pd.DataFrame, splices: list[dict], meta: dict[str, SeriesMeta]
 ) -> tuple[pd.DataFrame, dict[str, SeriesMeta], list[SpliceRecord]]:
@@ -193,6 +197,29 @@ def apply_splices(
     there: where both are observed the target wins, so a splice can lengthen a
     series but never overwrite it. Inactive or unresolved splices are skipped
     and reported, not guessed at.
+
+    THE SOURCE IS RESCALED, DELIBERATELY. A splice joins two different index
+    families -- `LT13TRUU` is Bloomberg's 3-7y Treasury index and `G3OC` is ICE
+    BofA's -- and their level scales are unrelated, being each index's own base
+    value compounded forward from its own base date. Copying the source's levels
+    straight into the target's missing history therefore leaves a step at the
+    join, and `returns_from_prior_observation` reads that step as a one-day
+    return of whatever the ratio of the two base levels happens to be. The
+    workbook's own loader notes say it plainly: "they are different index
+    families and the level scales differ, so a raw join creates a false one-day
+    jump at the seam", and, for the benchmark blend, "chain RETURNS, never
+    levels".
+
+    So the source is multiplied by `target / source` at the seam -- the first
+    date on which both print -- before it is written into the gap. The joined
+    level series is then continuous, and the return on the seam date works out
+    to the source's own return on that date, which is the honest answer: on that
+    day the only information about the target's move comes from the source.
+
+    A splice with no overlapping observation is REFUSED rather than applied.
+    Without an overlap there is no way to put the two series on a common scale
+    that is not an invention, and inventing one is how a fabricated level enters
+    a panel that every downstream check will treat as measured.
     """
     from dataclasses import replace
 
@@ -212,18 +239,46 @@ def apply_splices(
         n = int(gap.sum())
         if n == 0:
             continue
+
+        both = out[target].notna() & out[source].notna()
+        if not bool(both.any()):
+            raise SpliceRefused(
+                f"splice {source} -> {target} has no date on which both series "
+                f"print, so the two level scales cannot be reconciled without "
+                f"inventing one. Refusing to splice."
+            )
+        seam = out.index[both][0]
+        source_at_seam = float(out.loc[seam, source])
+        if source_at_seam == 0.0:
+            raise SpliceRefused(
+                f"splice {source} -> {target}: {source} is zero at the seam "
+                f"{pd.Timestamp(seam).date()}, so no scale factor exists."
+            )
+        scale = float(out.loc[seam, target]) / source_at_seam
+
         first = out.index[gap][0]
-        out.loc[gap, target] = out.loc[gap, source]
+        out.loc[gap, target] = out.loc[gap, source] * scale
         record = SpliceRecord(
             target=target,
             source=source,
             reason=spec.get("reason", ""),
             splice_date=pd.Timestamp(first).date(),
             n_observations_taken=n,
+            scale_factor=scale,
+            seam_date=pd.Timestamp(seam).date(),
         )
         records.append(record)
         if target in new_meta:
-            new_meta[target] = replace(new_meta[target], splice=record)
+            # The target now carries daily history from the source's start, so
+            # its true daily start moves with it. Leaving it at the target's own
+            # start would make every spliced observation a `frequency` veto
+            # breach, which is the opposite of what a logged splice means.
+            spliced_start = min(
+                pd.Timestamp(first), pd.Timestamp(new_meta[target].true_daily_start)
+            )
+            new_meta[target] = replace(
+                new_meta[target], splice=record, true_daily_start=spliced_start
+            )
 
     return out, new_meta, records
 

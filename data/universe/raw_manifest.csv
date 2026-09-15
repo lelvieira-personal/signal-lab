@@ -1,7 +1,12 @@
-file,sheet,layout,field,currency,role
-research_data_values_only.xlsx,TR Levels,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,returns
-research_data_values_only.xlsx,TR Levels Hedged,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD_hedged,returns_hedged
-research_data_values_only.xlsx,TR Levels Candidates,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,returns_substitutes
-research_data_values_only.xlsx,TR Benchmarks,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,benchmark
-research_data_values_only.xlsx,TR Analytics,wide_ticker_field_header,various,n/a,analytics
-bbg_exUSD__bonds_values_only.xlsx,Daily TR,paired_date_value,PX_LAST,local_or_USD,returns_ex_usd
+file,sheet,layout,field,currency,role,header_rows,first_data_row
+bbg_data_values_only.xlsx,Index Map,table,n/a,n/a,index_map,1,2
+bbg_data_values_only.xlsx,TR Levels,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,returns,4,5
+bbg_data_values_only.xlsx,TR Levels Hedged,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD_hedged,returns_hedged,4,5
+bbg_data_values_only.xlsx,TR Levels Candidates,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,returns_substitutes,4,5
+bbg_data_values_only.xlsx,TR Benchmarks,wide_single_date,TOT_RETURN_INDEX_GROSS_DVDS,USD,benchmark,4,5
+bbg_data_values_only.xlsx,TR Analytics,wide_ticker_field_header,various,n/a,analytics,4,5
+bbg_data_values_only.xlsx,Loader Notes,table,n/a,n/a,loader_notes,1,2
+bbg_data_values_only.xlsx,Frequency Audit,wide_single_date,obs_per_year,n/a,frequency_audit,1,2
+bbg_data_values_only.xlsx,Freq Monthly,wide_single_date,obs_per_month,n/a,frequency_audit_monthly,1,2
+bbg_exusd_bonds_usd_unhedged.csv,,paired_date_value,PX_LAST,local_or_USD,returns_ex_usd,1,2
+fred_panel.csv,,wide_single_date,various,n/a,fred,1,2

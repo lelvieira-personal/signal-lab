@@ -1,10 +1,11 @@
 """
 Loaders. One interface (PanelLoader), several backends.
 
-Phase 0 ships the synthetic backend only. The vendor backends exist as stubs
-that raise, so the harness can be wired against the real names now and the
-error is a clear "phase 2" rather than an import failure or, worse, a silently
-empty panel.
+Phase 2 ships the Bloomberg backend alongside the synthetic one. FRED and JPMaQS
+are still stubs that raise, so the harness stays wired against the real names and
+an unbuilt backend fails with a clear "lands in phase N" rather than an import
+error or, worse, a silently empty panel that would be reported as a coverage
+veto failure.
 """
 
 from signal_lab.loaders.base import (
@@ -16,7 +17,7 @@ from signal_lab.loaders.base import (
     VintagePanel,
 )
 from signal_lab.loaders.holdout import HoldoutViolation, enforce_holdout, holdout_start
-from signal_lab.loaders.invariants import InvariantViolation
+from signal_lab.loaders.invariants import InvariantViolation, SpliceRefused
 from signal_lab.loaders.synthetic import SyntheticLoader, plant
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "ReturnPanel",
     "SeriesMeta",
     "SpliceRecord",
+    "SpliceRefused",
     "SyntheticLoader",
     "VintagePanel",
     "enforce_holdout",

@@ -30,6 +30,15 @@ class SpliceRecord:
 
     Splices are applied in the loader and recorded, never done silently and
     never used to join a month-end history onto a daily one.
+
+    `scale_factor` and `seam_date` exist because a splice joins two different
+    index families whose level scales are unrelated. Copying the source's levels
+    into the target's missing history puts a step at the join, and that step is
+    then read as a one-day return of several hundred percent. The source is
+    therefore rescaled by `target / source` at `seam_date`, the first date both
+    print, which leaves the joined level series continuous and makes the
+    seam-day return the source's own return. Recording both numbers is what
+    makes the join auditable rather than merely plausible.
     """
 
     target: str
@@ -37,6 +46,8 @@ class SpliceRecord:
     reason: str
     splice_date: date | None = None
     n_observations_taken: int = 0
+    scale_factor: float | None = None
+    seam_date: date | None = None
 
     def as_row(self) -> dict[str, Any]:
         return {
@@ -45,6 +56,8 @@ class SpliceRecord:
             "reason": self.reason,
             "splice_date": self.splice_date,
             "n_observations_taken": self.n_observations_taken,
+            "scale_factor": self.scale_factor,
+            "seam_date": self.seam_date,
         }
 
 

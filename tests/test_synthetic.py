@@ -245,13 +245,35 @@ def test_loader_satisfies_the_protocol(params):
         get_loader("bogus")
 
 
-def test_vendor_backends_raise_rather_than_returning_empty(params):
+def test_unimplemented_vendor_backends_raise_rather_than_returning_empty(params):
+    """
+    An unbuilt backend fails loudly. An empty panel would be reported as a
+    `coverage` veto failure, which is a wrong diagnosis of missing code.
+
+    Bloomberg is no longer in this list: it landed in phase 2. What is still
+    true of it is that it is not a point-in-time macro source, so `load_macro`
+    refuses by design rather than by omission.
+    """
     from signal_lab.loaders import get_loader
     from signal_lab.loaders.bloomberg import LoaderNotImplemented
 
-    for source in ("bloomberg", "fred", "jpmaqs"):
+    for source in ("fred", "jpmaqs"):
         with pytest.raises(LoaderNotImplemented):
             get_loader(source, params=params).load_returns("x")
+
+    with pytest.raises(LoaderNotImplemented, match="JPMaQS"):
+        get_loader("bloomberg", params=params).load_macro("x")
+
+
+def test_the_bloomberg_backend_is_reachable_through_get_loader(params):
+    """Phase 2 wires a real backend behind the same name the harness already uses."""
+    from signal_lab.loaders import get_loader
+
+    loader = get_loader("bloomberg", params=params)
+    assert loader.source == "bloomberg"
+    assert loader.phase == 2
+    for method in ("load_returns", "load_analytics", "load_macro"):
+        assert callable(getattr(loader, method))
 
 
 def test_the_search_gate_is_closed_while_jpmaqs_is_pending(params):

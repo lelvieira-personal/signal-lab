@@ -11,6 +11,7 @@ import pytest
 from signal_lab.loaders.base import SeriesMeta
 from signal_lab.loaders.invariants import (
     InvariantViolation,
+    SpliceRefused,
     apply_splices,
     assert_no_forward_fill,
     cross_region_covariance,
@@ -170,6 +171,19 @@ def test_net_of_withholding_is_flagged_not_corrected():
 
 
 def test_splice_fills_only_the_gap_and_is_logged():
+    """
+    The target still wins where both print, but the source is RESCALED first.
+
+    This test previously asserted that the source's levels were copied across
+    unchanged, which is what the loader used to do. That is wrong, and wrong in a
+    way nothing downstream would catch: `LT13TRUU` and `G3OC` are different index
+    families whose level scales are unrelated, so a raw copy leaves a step at the
+    seam and `returns_from_prior_observation` reads that step as a real one-day
+    return. Here it would be 50/11 - 1, a move of +354%, sitting inside an
+    otherwise well-formed panel. The workbook's own loader notes say to chain
+    returns rather than levels; rescaling the source at the seam is the same
+    thing expressed in levels.
+    """
     index = pd.date_range("2010-01-04", periods=4, freq="B")
     levels = pd.DataFrame(
         {"LT13TRUU": [np.nan, np.nan, 50.0, 51.0], "G3OC": [10.0, 11.0, 12.0, 13.0]}, index=index
@@ -178,11 +192,37 @@ def test_splice_fills_only_the_gap_and_is_logged():
     spec = [{"target": "LT13TRUU", "source": "G3OC", "reason": "ICE BofA", "active": True}]
     out, new_meta, records = apply_splices(levels, spec, meta)
 
-    assert out["LT13TRUU"].tolist() == [10.0, 11.0, 50.0, 51.0], "the target wins where both exist"
+    scale = 50.0 / 12.0  # target over source on the seam date, the first both print
+    assert out["LT13TRUU"].tolist() == pytest.approx(
+        [10.0 * scale, 11.0 * scale, 50.0, 51.0]
+    ), "the target wins where both exist; the source is put on the target's scale"
     assert len(records) == 1
     assert records[0].n_observations_taken == 2
     assert records[0].splice_date == index[0].date()
+    assert records[0].scale_factor == pytest.approx(scale)
+    assert records[0].seam_date == index[2].date()
     assert new_meta["LT13TRUU"].splice is records[0]
+
+    # The property that matters: no fabricated jump anywhere in the joined series.
+    returns = returns_from_prior_observation(out)["LT13TRUU"].dropna()
+    assert float(np.abs(returns).max()) < 0.5
+
+
+def test_splice_without_an_overlap_is_refused():
+    """
+    No overlapping observation means no common scale.
+
+    Choosing one anyway would fabricate a level, and a fabricated level is
+    indistinguishable from a measured one by the time it reaches a covariance
+    estimate. Refusing is the only honest answer.
+    """
+    index = pd.date_range("2010-01-04", periods=4, freq="B")
+    levels = pd.DataFrame(
+        {"T": [np.nan, np.nan, 50.0, 51.0], "S": [10.0, 11.0, np.nan, np.nan]}, index=index
+    )
+    meta = {"T": meta_for("T", index[0]), "S": meta_for("S", index[0])}
+    with pytest.raises(SpliceRefused):
+        apply_splices(levels, [{"target": "T", "source": "S", "active": True}], meta)
 
 
 def test_inactive_and_unresolved_splices_are_skipped():
