@@ -1,103 +1,103 @@
-ticker,name,section,first_daily,tier,hedged,investable,cost_bucket,reporting_class,source_file
-NDDUPXJ,MSCI Pacific ex Japan Net Tota,7. Equity Regions - Developed ex-US,1999-01-04,backbone,False,True,mid,APAC ex-Japan Equities,bbg_index_coverage.csv
-LD20TRUU,Bloomberg US Treasury Bills To,1. Risk-Free / Cash,1998-01-02,backbone,False,True,low,Cash,bbg_index_coverage.csv
-BCOMTR,Bloomberg Commodity Index Tota,15. Real Assets,1970-01-01,backbone,False,True,high,Commodities,bbg_index_coverage.csv
-M1CXVRSD,MSCI WORLD ex USA MINIMUM VOLA,13. Factor / Style - World ex-US,2016-01-04,tradable-only,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1EA000G,MSCI EAFE Growth Net Total Ret,12. Factor / Style - EAFE,2001-01-02,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1EA000V,MSCI EAFE Value Net Total Retu,12. Factor / Style - EAFE,2001-01-02,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1EAHDVD,MSCI EAFE HIGH DIVIDEND YIELD,12. Factor / Style - EAFE,2001-01-02,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1EAMM,MSCI EAFE MOMENTUM USD Net Tot,12. Factor / Style - EAFE,2017-01-02,tradable-only,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1EAMVOL,MSCI EAFE Minimum Volatility N,12. Factor / Style - EAFE,2002-01-02,second,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1EAQU,MSCI EAFE Quality Net Total Re,12. Factor / Style - EAFE,2015-02-18,tradable-only,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1WDU00G,MSCI ACWI ex USA Growth Net To,13. Factor / Style - World ex-US,2001-01-01,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1WDUMMT,MSCI ACWI ex USA MOMENTUM USD,13. Factor / Style - World ex-US,2018-01-01,tradable-only,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1WDUQU,MSCI ACWI ex USA QUALITY Net T,13. Factor / Style - World ex-US,1999-01-04,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-M1WOUDY,MSCI World Ex USA High Dividen,13. Factor / Style - World ex-US,1999-01-04,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-MXCA,MSCI Canada Index,7. Equity Regions - Developed ex-US,1972-01-03,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-NDUVWXUS,MSCI World ex USA Value Net To,13. Factor / Style - World ex-US,1999-01-01,backbone,False,True,mid,DM ex-US Equities,bbg_index_coverage.csv
-I12877US,Bloomberg: EM USD Aggregate: C,5. Credit,2006-01-03,second,False,True,high,EM Corporate Bonds,bbg_index_coverage.csv
-M1CXBRV,MSCI Emerging Markets ex China,8. Equity Regions - Emerging Markets,1999-01-04,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-M1EF,MSCI Emerging Markets Net Tota,8. Equity Regions - Emerging Markets,2001-01-01,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-M1EF000G,MSCI Emerging Markets Growth N,14. Factor / Style - EM,2001-01-01,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-M1EF000V,MSCI Emerging Markets Value Ne,14. Factor / Style - EM,2003-01-01,second,False,True,high,EM Equities,bbg_index_coverage.csv
-M1EFHDY,MSCI EM (EMERGING MARKETS) HIG,14. Factor / Style - EM,2016-01-01,tradable-only,False,True,high,EM Equities,bbg_index_coverage.csv
-M1EFMMT,MSCI EM Momentum Net Total Ret,14. Factor / Style - EM,1995-01-02,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-M1EFMVOL,MSCI EM Minimum Volatility Net,14. Factor / Style - EM,2002-01-01,second,False,True,high,EM Equities,bbg_index_coverage.csv
-M1EFQU,MSCI EM Quality Net Total Retu,14. Factor / Style - EM,1993-01-04,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-MXCN,MSCI China Index,8. Equity Regions - Emerging Markets,1993-01-04,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-MXIN,MSCI India Index,8. Equity Regions - Emerging Markets,1993-01-04,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-MXKR,MSCI Korea Index,8. Equity Regions - Emerging Markets,1988-01-04,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-MXLA,MSCI Emerging Markets Latin Am,8. Equity Regions - Emerging Markets,1988-01-04,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-TAMSCI,MSCI Taiwan Index,8. Equity Regions - Emerging Markets,1988-01-05,backbone,False,True,high,EM Equities,bbg_index_coverage.csv
-EMUSTRUU,Bloomberg EM USD Aggregate Tot,5. Credit,1997-01-02,backbone,False,True,high,EM Sovereign Bonds,bbg_index_coverage.csv
-I20344US,Bloomberg EM Local Currency Go,5. Credit,2009-01-02,second,False,True,high,EM Sovereign Bonds,bbg_index_coverage.csv
-MXEU0CD,MSCI Europe Consumer Discretio,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0CS,MSCI Europe Consumer Staples I,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0EN,MSCI Europe Energy Sector Inde,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0FN,MSCI Europe Financials Index,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0HC,MSCI Europe Health Care Index,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0IN,MSCI Europe Industrials Index,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0IT,MSCI Europe Information Techno,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0MT,MSCI Europe Materials Sector I,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0RL,MSCI Europe Real Estate GICS L,10. European Sectors (MSCI Europe),2017-01-02,tradable-only,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0TC,MSCI Europe Communication Serv,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEU0UT,MSCI Europe Utilities Sector I,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-MXEUG,MSCI Europe Excluding United K,7. Equity Regions - Developed ex-US,1995-01-02,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-NDDLUK,MSCI UK Net Total Return Local,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-NDDUUK,MSCI UK Net Total Return USD I,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,European Equities,bbg_index_coverage.csv
-BTSYTRUH,Bloomberg Global Treasury Tota,3. International Government Bonds,1998-01-02,backbone,True,False,mid,Ex-USD Bonds,bbg_index_coverage.csv
-H02549US,Bloomberg Pan European Aggrega,5. Credit,2001-01-02,backbone,True,False,mid,Ex-USD Bonds,bbg_index_coverage.csv
-H09122US,Bloomberg Euro Treasury 1-10 Y,3. International Government Bonds,2010-01-04,tradable-only,True,False,mid,Ex-USD Bonds,bbg_index_coverage.csv
-H12823US,Bloomberg UK Gilt 1-10 Total R,3. International Government Bonds,2010-01-04,tradable-only,True,False,mid,Ex-USD Bonds,bbg_index_coverage.csv
-I02513EU,Bloomberg Pan-European Governm,3. International Government Bonds,1999-01-04,backbone,False,True,mid,Ex-USD Bonds,bbg_index_coverage.csv
-I02913JP,japan_aggregate,3. International Government Bonds,2001-01-04,,False,True,mid,Ex-USD Bonds,bbg_exusd_bonds_coverage.csv
-I12823GB,uk_gilt_1_10y,3. International Government Bonds,2006-01-03,,False,True,mid,Ex-USD Bonds,bbg_exusd_bonds_coverage.csv
-LET1TREU,euro_treasury_1_10y,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,bbg_exusd_bonds_coverage.csv
-LG38TRUU,global_agg_ex_usd,3. International Government Bonds,2001-01-02,,False,True,mid,Ex-USD Bonds,bbg_exusd_bonds_coverage.csv
-LGTRTRGU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-01-16,backbone,False,True,mid,Ex-USD Bonds,bbg_index_coverage.csv
-LGTRTRJU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-01-16,backbone,False,True,mid,Ex-USD Bonds,bbg_index_coverage.csv
-LP05TREU,pan_euro_agg_corporate,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,bbg_exusd_bonds_coverage.csv
-BCOMGCTR,Bloomberg Gold Subindex Total,15. Real Assets,1975-01-14,backbone,False,True,high,Gold,bbg_index_coverage.csv
-I00183US,Bloomberg Intermediate Ba U.S.,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,bbg_index_coverage.csv
-I00184US,Bloomberg Long Ba U.S. High Yi,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,bbg_index_coverage.csv
-I00185US,Bloomberg B US High Yield  TR,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,bbg_index_coverage.csv
-I00188US,Bloomberg Caa US High Yield To,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,bbg_index_coverage.csv
-LF98TRUU,Bloomberg US Corporate High Yi,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,bbg_index_coverage.csv
-LP01TRUH,Bloomberg Pan-European High Yi,5. Credit,2001-01-02,backbone,True,False,high,HY Corporates,bbg_index_coverage.csv
-SPBDALB,Morningstar LSTA US Leveraged,5. Credit,2008-01-02,second,False,True,high,HY Corporates,bbg_index_coverage.csv
-LDC5TRUU,Bloomberg USD Corporate Bonds,5. Credit,2004-01-02,second,False,True,mid,IG Corporates,bbg_index_coverage.csv
-LUACTRUU,Bloomberg US Corporate Total R,5. Credit,1989-01-03,backbone,False,True,mid,IG Corporates,bbg_index_coverage.csv
-M0JPHUSD,MSCI Japan US Dollar Hedged Ne,7. Equity Regions - Developed ex-US,2002-01-02,second,True,False,mid,Japanese Equities,bbg_index_coverage.csv
-NDDUJN,MSCI Japan Net Total Return US,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,Japanese Equities,bbg_index_coverage.csv
-LT11TRUU,Bloomberg U.S. Treasury: 20+ Y,2. US Treasury Maturity Buckets,1994-01-31,backbone,False,True,low,Long Treasuries,bbg_index_coverage.csv
-LUTLTRUU,Bloomberg US Long Treasury Tot,2. US Treasury Maturity Buckets,1994-01-31,backbone,False,True,low,Long Treasuries,bbg_index_coverage.csv
-LUMSTRUU,Bloomberg US MBS Index Total R,5. Credit,1989-01-03,backbone,False,True,mid,MBS,bbg_index_coverage.csv
-ENXG,FTSE EPRA Nareit Global REITs,15. Real Assets,2009-01-02,second,False,True,high,Real Assets,bbg_index_coverage.csv
-FGCIICUT,FTSE Global Core Infrastructur,15. Real Assets,2006-01-02,second,False,True,high,Real Assets,bbg_index_coverage.csv
-M2WDCOMP,MSCI ACWI Commodity Producers,15. Real Assets,1999-01-04,backbone,False,True,high,Real Assets,bbg_index_coverage.csv
-SPGNRUT,S&P Global Natural Resources T,15. Real Assets,2003-01-02,second,False,True,high,Real Assets,bbg_index_coverage.csv
-LBUTTRUU,Bloomberg US Treasury Inflatio,4. Inflation-Linked,1999-01-04,backbone,False,True,low,TIPS,bbg_index_coverage.csv
-LTP5TRUU,Bloomberg US Treasury TIPS 0-5,4. Inflation-Linked,2011-01-03,tradable-only,False,True,low,TIPS,bbg_index_coverage.csv
-LT01TRUU,Bloomberg U.S. Treasury: 1-3 Y,2. US Treasury Maturity Buckets,1998-01-02,backbone,False,True,low,Treasuries,bbg_index_coverage.csv
-LT09TRUU,Bloomberg U.S. Treasury: 7-10,2. US Treasury Maturity Buckets,1998-01-02,backbone,False,True,low,Treasuries,bbg_index_coverage.csv
-LT13TRUU,Bloomberg U.S. Treasury 3-7 Yr,2. US Treasury Maturity Buckets,2007-01-08,second,False,True,low,Treasuries,bbg_index_coverage.csv
-M1CXNNA,MSCI USA High Dividend Yield N,11. Factor / Style - US,2017-01-03,tradable-only,False,True,mid,US Equities,bbg_index_coverage.csv
-M1US000G,MSCI USA Growth Net Total Retu,11. Factor / Style - US,1999-01-04,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-M1US000V,MSCI USA Value Net Total Retur,11. Factor / Style - US,2001-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-M1USMMT,MSCI USA Momentum USD Net Tota,11. Factor / Style - US,1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-M1USMVOL,MSCI USA Minimum Volatility Ne,11. Factor / Style - US,1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-M1USQU,MSCI USA Quality Net Total Ret,11. Factor / Style - US,1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-M1USSC,MSCI USA Small Cap Net Total R,6. Equity Regions - US (also 11. Factor/Style - US),2001-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0CD,MSCI USA Consumer Discretionar,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0CS,MSCI USA Consumer Staples Inde,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0EN,MSCI USA Energy Index,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0FN,MSCI USA Financials Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0HC,MSCI USA Health Care Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0IN,MSCI USA Industrials Index,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0IT,MSCI USA Information Technolog,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0MT,MSCI USA Materials Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0RE,MSCI US Real Estate Index GICS,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0TC,MSCI USA/COMM SVC STRD USD RT,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUS0UT,MSCI USA Utilities Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-MXUSMC,MSCI USA MID CAP INDEX,6. Equity Regions - US,1995-01-03,backbone,False,True,mid,US Equities,bbg_index_coverage.csv
-SPXT,S&P 500 Total Return Index,6. Equity Regions - US,1990-01-02,backbone,False,True,low,US Equities,bbg_index_coverage.csv
+ticker,name,section,first_daily,tier,hedged,investable,cost_bucket,reporting_class,not_investable_because,source_file
+NDDUPXJ,MSCI Pacific ex Japan Net Tota,7. Equity Regions - Developed ex-US,1999-01-04,backbone,False,True,mid,APAC ex-Japan Equities,,bbg_index_coverage.csv
+LD20TRUU,Bloomberg US Treasury Bills To,1. Risk-Free / Cash,1998-01-02,backbone,False,True,low,Cash,,bbg_index_coverage.csv
+BCOMTR,Bloomberg Commodity Index Tota,15. Real Assets,1970-01-01,backbone,False,True,high,Commodities,,bbg_index_coverage.csv
+M1CXVRSD,MSCI WORLD ex USA MINIMUM VOLA,13. Factor / Style - World ex-US,2016-01-04,tradable-only,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1EA000G,MSCI EAFE Growth Net Total Ret,12. Factor / Style - EAFE,2001-01-02,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1EA000V,MSCI EAFE Value Net Total Retu,12. Factor / Style - EAFE,2001-01-02,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1EAHDVD,MSCI EAFE HIGH DIVIDEND YIELD,12. Factor / Style - EAFE,2001-01-02,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1EAMM,MSCI EAFE MOMENTUM USD Net Tot,12. Factor / Style - EAFE,2017-01-02,tradable-only,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1EAMVOL,MSCI EAFE Minimum Volatility N,12. Factor / Style - EAFE,2002-01-02,second,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1EAQU,MSCI EAFE Quality Net Total Re,12. Factor / Style - EAFE,2015-02-18,tradable-only,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1WDU00G,MSCI ACWI ex USA Growth Net To,13. Factor / Style - World ex-US,2001-01-01,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1WDUMMT,MSCI ACWI ex USA MOMENTUM USD,13. Factor / Style - World ex-US,2018-01-01,tradable-only,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1WDUQU,MSCI ACWI ex USA QUALITY Net T,13. Factor / Style - World ex-US,1999-01-04,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+M1WOUDY,MSCI World Ex USA High Dividen,13. Factor / Style - World ex-US,1999-01-04,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+MXCA,MSCI Canada Index,7. Equity Regions - Developed ex-US,1972-01-03,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+NDUVWXUS,MSCI World ex USA Value Net To,13. Factor / Style - World ex-US,1999-01-01,backbone,False,True,mid,DM ex-US Equities,,bbg_index_coverage.csv
+I12877US,Bloomberg: EM USD Aggregate: C,5. Credit,2006-01-03,second,False,True,high,EM Corporate Bonds,,bbg_index_coverage.csv
+M1CXBRV,MSCI Emerging Markets ex China,8. Equity Regions - Emerging Markets,1999-01-04,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+M1EF,MSCI Emerging Markets Net Tota,8. Equity Regions - Emerging Markets,2001-01-01,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+M1EF000G,MSCI Emerging Markets Growth N,14. Factor / Style - EM,2001-01-01,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+M1EF000V,MSCI Emerging Markets Value Ne,14. Factor / Style - EM,2003-01-01,second,False,True,high,EM Equities,,bbg_index_coverage.csv
+M1EFHDY,MSCI EM (EMERGING MARKETS) HIG,14. Factor / Style - EM,2016-01-01,tradable-only,False,True,high,EM Equities,,bbg_index_coverage.csv
+M1EFMMT,MSCI EM Momentum Net Total Ret,14. Factor / Style - EM,1995-01-02,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+M1EFMVOL,MSCI EM Minimum Volatility Net,14. Factor / Style - EM,2002-01-01,second,False,True,high,EM Equities,,bbg_index_coverage.csv
+M1EFQU,MSCI EM Quality Net Total Retu,14. Factor / Style - EM,1993-01-04,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+MXCN,MSCI China Index,8. Equity Regions - Emerging Markets,1993-01-04,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+MXIN,MSCI India Index,8. Equity Regions - Emerging Markets,1993-01-04,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+MXKR,MSCI Korea Index,8. Equity Regions - Emerging Markets,1988-01-04,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+MXLA,MSCI Emerging Markets Latin Am,8. Equity Regions - Emerging Markets,1988-01-04,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+TAMSCI,MSCI Taiwan Index,8. Equity Regions - Emerging Markets,1988-01-05,backbone,False,True,high,EM Equities,,bbg_index_coverage.csv
+EMUSTRUU,Bloomberg EM USD Aggregate Tot,5. Credit,1997-01-02,backbone,False,True,high,EM Sovereign Bonds,,bbg_index_coverage.csv
+I20344US,Bloomberg EM Local Currency Go,5. Credit,2009-01-02,second,False,True,high,EM Sovereign Bonds,,bbg_index_coverage.csv
+MXEU0CD,MSCI Europe Consumer Discretio,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0CS,MSCI Europe Consumer Staples I,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0EN,MSCI Europe Energy Sector Inde,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0FN,MSCI Europe Financials Index,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0HC,MSCI Europe Health Care Index,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0IN,MSCI Europe Industrials Index,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0IT,MSCI Europe Information Techno,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0MT,MSCI Europe Materials Sector I,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0RL,MSCI Europe Real Estate GICS L,10. European Sectors (MSCI Europe),2017-01-02,tradable-only,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0TC,MSCI Europe Communication Serv,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEU0UT,MSCI Europe Utilities Sector I,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+MXEUG,MSCI Europe Excluding United K,7. Equity Regions - Developed ex-US,1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+NDDLUK,MSCI UK Net Total Return Local,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+NDDUUK,MSCI UK Net Total Return USD I,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+BTSYTRUH,Bloomberg Global Treasury Tota,3. International Government Bonds,1998-01-02,backbone,True,False,mid,Ex-USD Bonds,hedged (decisions/0013),bbg_index_coverage.csv
+H02549US,Bloomberg Pan European Aggrega,5. Credit,2001-01-02,backbone,True,False,mid,Ex-USD Bonds,hedged (decisions/0013),bbg_index_coverage.csv
+H09122US,Bloomberg Euro Treasury 1-10 Y,3. International Government Bonds,2010-01-04,tradable-only,True,False,mid,Ex-USD Bonds,hedged (decisions/0013),bbg_index_coverage.csv
+H12823US,Bloomberg UK Gilt 1-10 Total R,3. International Government Bonds,2010-01-04,tradable-only,True,False,mid,Ex-USD Bonds,hedged (decisions/0013),bbg_index_coverage.csv
+I02513EU,Bloomberg Pan-European Governm,3. International Government Bonds,1999-01-04,backbone,False,True,mid,Ex-USD Bonds,,bbg_index_coverage.csv
+I02913JP,japan_aggregate,3. International Government Bonds,2001-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
+I12823GB,uk_gilt_1_10y,3. International Government Bonds,2006-01-03,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
+LET1TREU,euro_treasury_1_10y,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
+LG38TRUU,global_agg_ex_usd,3. International Government Bonds,2001-01-02,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
+LGTRTRGU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-01-16,backbone,False,True,mid,Ex-USD Bonds,,bbg_index_coverage.csv
+LGTRTRJU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-01-16,backbone,False,True,mid,Ex-USD Bonds,,bbg_index_coverage.csv
+LP05TREU,pan_euro_agg_corporate,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
+BCOMGCTR,Bloomberg Gold Subindex Total,15. Real Assets,1975-01-14,backbone,False,True,high,Gold,,bbg_index_coverage.csv
+I00183US,Bloomberg Intermediate Ba U.S.,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,,bbg_index_coverage.csv
+I00184US,Bloomberg Long Ba U.S. High Yi,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,,bbg_index_coverage.csv
+I00185US,Bloomberg B US High Yield  TR,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,,bbg_index_coverage.csv
+I00188US,Bloomberg Caa US High Yield To,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,,bbg_index_coverage.csv
+LF98TRUU,Bloomberg US Corporate High Yi,5. Credit,1999-01-04,backbone,False,True,high,HY Corporates,,bbg_index_coverage.csv
+LP01TRUH,Bloomberg Pan-European High Yi,5. Credit,2001-01-02,backbone,True,False,high,HY Corporates,hedged (decisions/0013),bbg_index_coverage.csv
+SPBDALB,Morningstar LSTA US Leveraged,5. Credit,2008-01-02,second,False,False,high,HY Corporates,"price index, not total return (decisions/0022)",bbg_index_coverage.csv
+LDC5TRUU,Bloomberg USD Corporate Bonds,5. Credit,2004-01-02,second,False,True,mid,IG Corporates,,bbg_index_coverage.csv
+LUACTRUU,Bloomberg US Corporate Total R,5. Credit,1989-01-03,backbone,False,True,mid,IG Corporates,,bbg_index_coverage.csv
+M0JPHUSD,MSCI Japan US Dollar Hedged Ne,7. Equity Regions - Developed ex-US,2002-01-02,second,True,False,mid,Japanese Equities,hedged (decisions/0013),bbg_index_coverage.csv
+NDDUJN,MSCI Japan Net Total Return US,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,Japanese Equities,,bbg_index_coverage.csv
+LT11TRUU,Bloomberg U.S. Treasury: 20+ Y,2. US Treasury Maturity Buckets,1994-01-31,backbone,False,True,low,Long Treasuries,,bbg_index_coverage.csv
+LUTLTRUU,Bloomberg US Long Treasury Tot,2. US Treasury Maturity Buckets,1994-01-31,backbone,False,True,low,Long Treasuries,,bbg_index_coverage.csv
+LUMSTRUU,Bloomberg US MBS Index Total R,5. Credit,1989-01-03,backbone,False,True,mid,MBS,,bbg_index_coverage.csv
+ENXG,FTSE EPRA Nareit Global REITs,15. Real Assets,2009-01-02,second,False,True,high,Real Assets,,bbg_index_coverage.csv
+FGCIICUT,FTSE Global Core Infrastructur,15. Real Assets,2006-01-02,second,False,True,high,Real Assets,,bbg_index_coverage.csv
+M2WDCOMP,MSCI ACWI Commodity Producers,15. Real Assets,1999-01-04,backbone,False,True,high,Real Assets,,bbg_index_coverage.csv
+SPGNRUT,S&P Global Natural Resources T,15. Real Assets,2003-01-02,second,False,True,high,Real Assets,,bbg_index_coverage.csv
+LBUTTRUU,Bloomberg US Treasury Inflatio,4. Inflation-Linked,1999-01-04,backbone,False,True,low,TIPS,,bbg_index_coverage.csv
+LTP5TRUU,Bloomberg US Treasury TIPS 0-5,4. Inflation-Linked,2011-01-03,tradable-only,False,True,low,TIPS,,bbg_index_coverage.csv
+LT01TRUU,Bloomberg U.S. Treasury: 1-3 Y,2. US Treasury Maturity Buckets,1998-01-02,backbone,False,True,low,Treasuries,,bbg_index_coverage.csv
+LT09TRUU,Bloomberg U.S. Treasury: 7-10,2. US Treasury Maturity Buckets,1998-01-02,backbone,False,True,low,Treasuries,,bbg_index_coverage.csv
+LT13TRUU,Bloomberg U.S. Treasury 3-7 Yr,2. US Treasury Maturity Buckets,2007-01-08,second,False,True,low,Treasuries,,bbg_index_coverage.csv
+M1CXNNA,MSCI USA High Dividend Yield N,11. Factor / Style - US,2017-01-03,tradable-only,False,True,mid,US Equities,,bbg_index_coverage.csv
+M1US000G,MSCI USA Growth Net Total Retu,11. Factor / Style - US,1999-01-04,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+M1US000V,MSCI USA Value Net Total Retur,11. Factor / Style - US,2001-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+M1USMMT,MSCI USA Momentum USD Net Tota,11. Factor / Style - US,1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+M1USMVOL,MSCI USA Minimum Volatility Ne,11. Factor / Style - US,1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+M1USQU,MSCI USA Quality Net Total Ret,11. Factor / Style - US,1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+M1USSC,MSCI USA Small Cap Net Total R,6. Equity Regions - US (also 11. Factor/Style - US),2001-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0CD,MSCI USA Consumer Discretionar,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0CS,MSCI USA Consumer Staples Inde,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0EN,MSCI USA Energy Index,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0FN,MSCI USA Financials Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0HC,MSCI USA Health Care Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0IN,MSCI USA Industrials Index,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0IT,MSCI USA Information Technolog,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0MT,MSCI USA Materials Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0RE,MSCI US Real Estate Index GICS,9. US Sectors (MSCI USA),1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0TC,MSCI USA/COMM SVC STRD USD RT,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUS0UT,MSCI USA Utilities Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+MXUSMC,MSCI USA MID CAP INDEX,6. Equity Regions - US,1995-01-03,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
+SPXT,S&P 500 Total Return Index,6. Equity Regions - US,1990-01-02,backbone,False,True,low,US Equities,,bbg_index_coverage.csv
