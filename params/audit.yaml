@@ -4,7 +4,7 @@
 # measured before any hypothesis is generated. A computation on returns, the
 # covariance, the constraint set and the cost model; it contains no hypothesis,
 # consumes no trial and carries no multiple-testing charge.
-params_version: "0.5.0"
+params_version: "0.6.0"
 
 # The bar. Net information ratio versus the 50/50 benchmark over the development
 # window, after the section 8 cost model, at the section 4 tracking-error budget.

@@ -1,7 +1,7 @@
 # Veto thresholds. SUBSTRATE.md section 10, as amended by decisions/0003
 # (eleven vetoes, not ten). Owner-only.
 # Agents may not change a threshold to make a run pass (SUBSTRATE section 2).
-params_version: "0.5.0"
+params_version: "0.6.0"
 
 turnover:
   # Traded notional (sum |dw|, buys plus sells), annualised. decisions/0017.

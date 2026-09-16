@@ -1,6 +1,6 @@
 # Cost model. SUBSTRATE.md section 8. v0.1 placeholders, to be revised
 # against live ETF data. Owner-only.
-params_version: "0.5.0"
+params_version: "0.6.0"
 
 # net = gross - turnover * half_spread - annual_fee_tracking / weeks_per_year
 application:

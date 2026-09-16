@@ -1,6 +1,6 @@
 # Portfolio constraints. SUBSTRATE.md section 4.
 # Owner-only. Agents may not edit this file (SUBSTRATE section 2).
-params_version: "0.5.0"
+params_version: "0.6.0"
 
 direction: long_only
 leverage_allowed: false
@@ -61,9 +61,41 @@ tracking_error:
     # than reaching zero.
     shape: asymmetric_conviction_scaled
     conviction_measure: entropy       # see harness/conviction.py; alt: max_probability
-    coefficient_low_conviction: null  # lambda at c = 0, TE expensive
-    coefficient_high_conviction: null # lambda at c = 1, TE cheap, NOT zero
-    owner_to_confirm: [coefficient_low_conviction, coefficient_high_conviction]
+    # SUPERSEDED by decisions/0025. The budget is no longer a penalty scaled by
+    # two hand-set coefficients; it is DERIVED from the drawdown tolerance below,
+    # and conviction enters through the model's own expected information ratio.
+    # These two stay null rather than being deleted because harness/objective.py
+    # still reads them; they come out with the solver change.
+    coefficient_low_conviction: null  # superseded, decisions/0025
+    coefficient_high_conviction: null # superseded, decisions/0025
+    owner_to_confirm: []
+
+  budget_from_drawdown:
+    # decisions/0025. The tracking-error budget is derived rather than fixed:
+    #
+    #     budget = tolerance / g(expected IR, signal persistence)
+    #
+    # where g is the maximum active drawdown per unit of tracking error, from
+    # scripts/drawdown_map.py. The scaling law E[max drawdown] = sigma *
+    # g(IR, horizon) is exact, so the inversion is one division.
+    #
+    # Conviction scaling falls out instead of being asserted: higher conviction
+    # means higher expected IR, which means the same drawdown tolerance affords
+    # more tracking error. The bound decisions/0019 wanted comes from the
+    # geometry -- relaxing the budget raises expected active return less than
+    # proportionally under long-only and the caps, so ex-ante IR falls as the
+    # budget rises and the fixed point is a contraction.
+    enabled: false            # the solver does not read this yet; see 0025
+    tolerance: 0.320          # p95 maximum active drawdown over the horizon
+    statistic: p95            # owner, 2026-09-16: a median tolerance is a coin flip
+    index_by_persistence: true  # a slow signal earns a tighter budget, 0025
+    horizon_years: 19         # the development window, as decisions/0003 used
+    may_exceed_mandate: true  # section 4's episodic excursions; the p95 TE veto governs
+    # Calibration, and it is not a loosening: 0.320 is the value that puts the
+    # budget at exactly 6.00% at the lab's own IR 0.30 target. decisions/0003's
+    # 18% was a MEDIAN statement ("roughly the worse half of paths fail at IR
+    # 0.3"); read at p95 it would have meant 2.74%, less than half today's risk.
+    # 32% is what the current 6% mandate has always implied and never stated.
 
 rebalance:
   frequency: weekly
