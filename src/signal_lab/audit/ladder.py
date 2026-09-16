@@ -467,8 +467,78 @@ def run_cell(
         "solvers_used": solvers_used(diag["solver"]),
         "seconds": time.time() - started,
     }
+    row.update(
+        risk_calibration(
+            path.active_returns,
+            diag.set_index("date")["te_ex_ante"],
+            rule.ppy,
+            float(params.require("constraints.tracking_error.max_trailing_3y")),
+            te_p95=row["te_p95"],
+            active_vol=row["active_vol_annual"],
+            ex_ante_mean=row["te_ex_ante_mean"],
+        )
+    )
     row.update(portfolio_veto_verdicts(row, params))
     return row, path
+
+
+# Ex-ante TE below this (annual) carries no scale to calibrate against: a blind
+# book hugging the benchmark would divide by rounding.
+_MIN_EX_ANTE_TE = 1e-4
+
+
+def risk_calibration(
+    active: pd.Series,
+    ex_ante_annual: pd.Series,
+    periods_per_year: float,
+    budget: float,
+    te_p95: float,
+    active_vol: float,
+    ex_ante_mean: float,
+) -> dict[str, float]:
+    """
+    Does the risk the book was SIZED to match the risk it RAN? decisions/0027.
+
+    Measured and reported, never a gate. Three readings:
+
+      * `te_realised_to_ex_ante` -- realised active volatility over the mean
+        ex-ante TE. Below one, the covariance overstates risk; above, it
+        understates it.
+      * `te_p95_to_ex_ante`, `te_p95_to_budget` -- the statistic the TE veto
+        reads, against what the solver aimed at and against the budget. A book
+        that spends its budget can breach a p95 veto set at the same level on
+        sampling error alone; these say by how much.
+      * `bias_stat` -- the standard deviation of z = r / sigma_ex_ante, one
+        observation per period, each return standardised by the ex-ante TE of
+        the book that EARNED it (set at the previous rebalance). One when the
+        risk model is calibrated; `bias_band` is the approximate 95%
+        half-width, 1.96 / sqrt(2T), for iid normal z. It is a candidate for
+        the `risk_calibration` check decisions/0026 named, whose statistic is
+        still an owner decision.
+
+    `ex_ante_annual` is indexed by the rebalance date the book was set on, so
+    it is shifted one period onto the return that book earned.
+    """
+    sigma = ex_ante_annual.sort_index().shift(1).reindex(active.index)
+    ok = sigma.notna() & active.notna() & (sigma > _MIN_EX_ANTE_TE)
+    z = active[ok] / (sigma[ok] / np.sqrt(periods_per_year))
+    n = int(ok.sum())
+    bias = float(z.std()) if n > 1 else float("nan")
+    band = float(1.96 / np.sqrt(2.0 * n)) if n > 0 else float("nan")
+
+    def ratio(num: float, den: float) -> float:
+        return (
+            float(num / den) if np.isfinite(num) and np.isfinite(den) and den > 0 else float("nan")
+        )
+
+    return {
+        "te_realised_to_ex_ante": ratio(active_vol, ex_ante_mean),
+        "te_p95_to_ex_ante": ratio(te_p95, ex_ante_mean),
+        "te_p95_to_budget": ratio(te_p95, budget),
+        "bias_stat": bias,
+        "bias_band": band,
+        "bias_n": n,
+    }
 
 
 def solvers_used(names: pd.Series) -> str:

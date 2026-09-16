@@ -54,6 +54,23 @@ def _pivot_range(table: pd.DataFrame, tag: str, value: str = "net_ir") -> pd.Dat
     return hi - lo
 
 
+CALIBRATION_COLUMNS = ("bias_stat", "te_realised_to_ex_ante", "te_p95_to_budget")
+
+
+def _calibration(table: pd.DataFrame) -> dict[str, Any]:
+    """The risk-calibration pivots over the base cells (decisions/0027)."""
+    base = table[table["tag"] == "base"] if "tag" in table.columns else table.iloc[0:0]
+    present = [c for c in CALIBRATION_COLUMNS if c in base.columns]
+    if base.empty or not present:
+        return {}
+    out: dict[str, Any] = {c: _pivot(table, "base", c).to_dict() for c in present}
+    if "bias_band" in base.columns:
+        out["bias_band_median"] = float(base["bias_band"].median())
+    if "bias_stat" in base.columns:
+        out["bias_stat_median"] = float(base["bias_stat"].median())
+    return out
+
+
 def summarise(
     table: pd.DataFrame,
     breadth: Breadth,
@@ -87,6 +104,7 @@ def summarise(
         "ladder_seed_range": _pivot_range(table, "base").to_dict(),
         "oracle_net_ir": _pivot(table, "oracle").to_dict(),
         "required_ic_surviving": req_surviving.to_dict(orient="records"),
+        "risk_calibration": _calibration(table),
         "stress_horizon": stress_h,
         "n_cells_failing_vetoes": int((~table["passes_portfolio_vetoes"]).sum())
         if "passes_portfolio_vetoes" in table.columns
@@ -219,6 +237,9 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         "",
         _md_table(_pivot_range(table, "base"), 2, "IC \\ h"),
         "",
+    ]
+    out += _md_calibration(summary.get("risk_calibration") or {})
+    out += [
         "## Oracle (IC = 1) — a ceiling, not the ruler",
         "",
         _md_table(_pivot(table, "oracle"), 2, "IC \\ h"),
@@ -259,6 +280,70 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         "",
     ]
     return "\n".join(out)
+
+
+CALIBRATION_INTRO = (
+    "Measured, gates nothing (decisions/0027). Does the risk each book was sized to "
+    "match the risk it ran? `bias` is the standard deviation of each period's active "
+    "return over the ex-ante TE of the book that earned it: 1.00 is a calibrated "
+    "risk model. `TE p95 / budget` is the statistic the tracking-error veto reads, "
+    "over the budget the solver aimed at: above 1.00 the veto fires on a book that "
+    "did what it was told."
+)
+
+
+def _frame(pivot: dict) -> pd.DataFrame:
+    return pd.DataFrame(pivot) if pivot else pd.DataFrame()
+
+
+def _md_calibration(cal: dict[str, Any]) -> list[str]:
+    if not cal:
+        return []
+    out = ["## Risk calibration — ex ante against realised", "", CALIBRATION_INTRO, ""]
+    if "bias_stat" in cal:
+        band = cal.get("bias_band_median", float("nan"))
+        out += [
+            f"Bias statistic (1.00 is calibrated; approximate 95% band ±{_fmt(band, 3)}):",
+            "",
+            _md_table(_frame(cal["bias_stat"]), 2, "IC \\ h"),
+            "",
+        ]
+    if "te_realised_to_ex_ante" in cal:
+        out += [
+            "Realised active volatility / mean ex-ante TE:",
+            "",
+            _md_table(_frame(cal["te_realised_to_ex_ante"]), 2, "IC \\ h"),
+            "",
+        ]
+    if "te_p95_to_budget" in cal:
+        out += [
+            "Trailing-3y TE p95 / budget (the veto's reading):",
+            "",
+            _md_table(_frame(cal["te_p95_to_budget"]), 2, "IC \\ h"),
+            "",
+        ]
+    return out
+
+
+def _html_calibration(cal: dict[str, Any]) -> str:
+    if not cal:
+        return ""
+    parts = [
+        "<h2>Risk calibration — ex ante against realised</h2>",
+        f"<p class='muted'>{CALIBRATION_INTRO.replace('`', '')}</p>",
+    ]
+    labels = {
+        "bias_stat": "Bias statistic (approximate 95% band ±"
+        + _fmt(cal.get("bias_band_median", float("nan")), 3)
+        + ")",
+        "te_realised_to_ex_ante": "Realised active volatility / mean ex-ante TE",
+        "te_p95_to_budget": "Trailing-3y TE p95 / budget",
+    }
+    for key, label in labels.items():
+        if key in cal:
+            parts.append(f"<p class='muted'>{label}</p>")
+            parts.append(_html_table(_frame(cal[key]), 2, "IC \\ h"))
+    return "\n".join(parts)
 
 
 # --- html -------------------------------------------------------------------------
@@ -351,6 +436,7 @@ def to_html(summary: dict[str, Any], table: pd.DataFrame) -> str:
     ladder_html = _html_table(_pivot(table, "base"), 2, ic_h, target)
     range_html = _html_table(_pivot_range(table, "base"), 2, ic_h)
     oracle_html = _html_table(_pivot(table, "oracle"), 2, ic_h)
+    calibration_html = _html_calibration(summary.get("risk_calibration") or {})
     decisions = ", ".join(f"h={h}: {v:.1f}" for h, v in b["decisions_per_year"].items())
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Ruler audit — {m["run_id"]}</title>
 <style>{css}</style></head><body>
@@ -374,6 +460,7 @@ The gap between the two IC columns is the price of the constraints and of covari
 {ladder_html}
 <p class="muted">Orange: at or above the bar. Seed range per cell:</p>
 {range_html}
+{calibration_html}
 <h2>Oracle (IC = 1) — a ceiling, not the ruler</h2>
 {oracle_html}
 <h2>Required IC among cells that would survive the portfolio vetoes</h2>

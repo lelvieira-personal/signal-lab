@@ -244,6 +244,9 @@ def test_a_cell_runs_the_whole_chain_and_reports_what_bound(small_universe):
     assert 0.0 <= row["inaccurate_share"] <= 1.0
     assert row["solvers_used"].startswith("SLSQP:"), "the solver that ran, not the one asked for"
     assert row["polish_shift_max"] < 1e-4
+    for column in ("bias_stat", "te_realised_to_ex_ante", "te_p95_to_budget"):
+        assert column in row, f"decisions/0027: {column} is reported for every cell"
+    assert row["bias_n"] > 0 and np.isfinite(row["bias_stat"])
 
 
 def test_the_oracle_beats_a_blind_signal(small_universe):
@@ -539,6 +542,7 @@ def test_the_report_names_the_panel_and_the_params_it_ran_on(small_universe, tmp
     assert "lookahead by construction" in markdown and "Not a run" in html
     assert "http://" not in html and "https://" not in html, "the page loads nothing"
     assert (out / "cells.csv").exists() and (out / "summary.json").exists()
+    assert "Risk calibration" in markdown and "Risk calibration" in html
 
 
 # --- the vetoes, and the stress tables ---------------------------------------
@@ -672,3 +676,87 @@ def test_the_stress_tables_compare_one_horizon_with_itself(params):
     assert all(abs(r["net_ir"] - 0.2) < 1e-9 for r in summary["cost_stress"]), (
         "only the stress horizon's cells should appear"
     )
+
+
+# --- risk calibration, decisions/0027 -----------------------------------------
+
+
+def _calibration_case(true_scale: float, n: int = 2000, seed: int = 3):
+    """Returns drawn at `true_scale` times the ex-ante TE the book was sized to."""
+    from signal_lab.audit.ladder import risk_calibration
+
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2004-01-02", periods=n + 1, freq="W-FRI")
+    ex_ante = pd.Series(rng.uniform(0.03, 0.08, n + 1), index=dates)
+    # The return stamped at dates[i] was earned by the book set at dates[i - 1].
+    per_period = ex_ante.shift(1).iloc[1:] / np.sqrt(52)
+    active = pd.Series(rng.standard_normal(n), index=dates[1:]) * per_period * true_scale
+    vol = float(active.std() * np.sqrt(52))
+    return risk_calibration(active, ex_ante, 52, 0.06, 0.065, vol, float(ex_ante.mean()))
+
+
+def test_the_bias_statistic_is_one_for_a_calibrated_risk_model():
+    out = _calibration_case(1.0)
+    assert abs(out["bias_stat"] - 1.0) < 2 * out["bias_band"]
+    assert out["bias_n"] == 2000
+
+
+def test_the_bias_statistic_sees_a_model_that_understates_risk():
+    out = _calibration_case(1.6)
+    assert out["bias_stat"] == pytest.approx(1.6, rel=0.05)
+    assert out["bias_stat"] - 1.0 > 5 * out["bias_band"]
+
+
+def test_the_bias_statistic_pairs_each_return_with_the_book_that_earned_it():
+    """
+    Standardising a return by the TE of the book set on the SAME date would
+    divide by the risk of a book that did not earn it. With ex-ante TE that
+    alternates week to week, the misaligned reading is far from one.
+    """
+    from signal_lab.audit.ladder import risk_calibration
+
+    rng = np.random.default_rng(11)
+    n = 2000
+    dates = pd.bdate_range("2004-01-02", periods=n + 1, freq="W-FRI")
+    ex_ante = pd.Series(np.where(np.arange(n + 1) % 2 == 0, 0.02, 0.08), index=dates)
+    active = pd.Series(rng.standard_normal(n), index=dates[1:]) * (
+        ex_ante.shift(1).iloc[1:] / np.sqrt(52)
+    )
+    out = risk_calibration(active, ex_ante, 52, 0.06, 0.06, 0.05, 0.05)
+    assert out["bias_stat"] == pytest.approx(1.0, abs=0.06)
+
+
+def test_the_veto_reading_is_reported_against_the_budget():
+    from signal_lab.audit.ladder import risk_calibration
+
+    dates = pd.bdate_range("2004-01-02", periods=5, freq="W-FRI")
+    out = risk_calibration(
+        pd.Series(0.001, index=dates[1:]),
+        pd.Series(0.059, index=dates),
+        52,
+        budget=0.06,
+        te_p95=0.0646,
+        active_vol=0.0577,
+        ex_ante_mean=0.0589,
+    )
+    assert out["te_p95_to_budget"] == pytest.approx(0.0646 / 0.06)
+    assert out["te_p95_to_ex_ante"] == pytest.approx(0.0646 / 0.0589)
+    assert out["te_realised_to_ex_ante"] == pytest.approx(0.0577 / 0.0589)
+
+
+def test_a_book_with_no_ex_ante_risk_is_left_out_of_the_bias_count():
+    from signal_lab.audit.ladder import risk_calibration
+
+    dates = pd.bdate_range("2004-01-02", periods=4, freq="W-FRI")
+    out = risk_calibration(
+        pd.Series([0.0, 1e-9, -1e-9], index=dates[1:]),
+        pd.Series(0.0, index=dates),
+        52,
+        0.06,
+        float("nan"),
+        0.0,
+        0.0,
+    )
+    assert out["bias_n"] == 0
+    assert np.isnan(out["bias_stat"])
+    assert np.isnan(out["te_realised_to_ex_ante"]), "no division by a zero ex-ante TE"
