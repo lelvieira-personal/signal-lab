@@ -25,7 +25,7 @@ def test_veto_legend_covers_every_veto_and_reads_params(params):
     assert "150%" in dict(legend)["turnover"]
     assert "6.0%" in dict(legend)["tracking_error"]
     assert "p95" in dict(legend)["tracking_error"]
-    assert "18.0%" in dict(legend)["active_drawdown"]
+    assert "active_drawdown" not in dict(legend), "decisions/0026"
 
 
 def test_leaderboard_puts_survivors_first_then_objective():

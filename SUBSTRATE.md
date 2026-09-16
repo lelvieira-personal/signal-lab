@@ -91,7 +91,7 @@ not distinguishable from that null is not a result.
 | Positions | ≤ 30 instruments with non-zero weight |
 | Turnover | ≤ 150% annualised **traded notional** (buys plus sells); 100% is a soft target, not a second ceiling (§8, `decisions/0017`, `0018`) |
 | Tracking error | ≤ 6.0% trailing 3y at the 95th percentile of readings; episodic excursions allowed, not rewarded on average |
-| Active drawdown | ≤ 3× the tracking-error ceiling, i.e. 18.0% at 6.0% (`decisions/0003`) |
+| Active drawdown | Controlled ex ante, through the tracking-error budget (`decisions/0025`), not by a post-hoc cap (`decisions/0026`) |
 | Rebalance | Weekly, Friday close; alternates tested by averaging over Tue/Wed/Fri |
 | Benchmark | 50/50 MSCI ACWI net TR (`NDUEACWF`) / Bloomberg Global Aggregate unhedged USD (`LEGATRUU`), rebalanced with the strategy; pre-1999 extended with `MXWO` and `SBWGU` (see §5.6) |
 | FX | Benchmark is unhedged. FX exposure is taken through unhedged international fixed income indices (Euro, UK, Japan, global ex-US, EM local); hedged series are the counterfactual, not a separate live axis in v0.3 |
@@ -397,12 +397,13 @@ statistic is shown. Failing any one kills the run with the reason logged.
 | coverage | signal available for ≥ 80% of the estimation universe on ≥ 90% of dates |
 | lookahead | bitemporal check passes: no observation used before its knowledge date, and no estimated parameter fitted on data unavailable when it is used |
 | frequency | no series contributes returns before its true daily start |
-| active_drawdown | max drawdown of the active return stream ≤ 3× the TE ceiling |
 | seed_stability | IR range across resampling seeds ≤ 0.15 |
 | multiple_testing | survives Romano-Wolf stepdown at FWER α (family level, then within family) |
 | direction | realised sign matches pre-registered direction |
 
-Eleven vetoes. They are not advisory and are not tuned per run. A veto whose
+Ten vetoes (`decisions/0026` removed `active_drawdown`; see section 4 for why
+drawdown is now controlled where the book is built rather than after the
+fact). They are not advisory and are not tuned per run. A veto whose
 input is absent **fails**: an unevaluated constraint is an unenforced one, and
 fail-open would put an unmeasured run on the leaderboard. Every verdict is
 recorded, not only the first failure, so a run that breached five constraints is

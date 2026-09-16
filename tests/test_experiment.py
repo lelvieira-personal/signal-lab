@@ -129,9 +129,9 @@ def test_the_vetoes_run_on_the_validation_path_and_bite(validation, params):
     from vetoes import apply_vetoes
 
     verdicts, failure = apply_vetoes(validation.run_context, params)
-    assert len(verdicts) == 11
+    assert len(verdicts) == 10
     assert failure == "turnover", {k: v.detail for k, v in verdicts.items() if not v.passed}
-    assert verdicts["positions"].passed and verdicts["active_drawdown"].passed
+    assert verdicts["positions"].passed
 
 
 def test_the_veto_inputs_that_need_a_signal_fail_closed(validation, params):

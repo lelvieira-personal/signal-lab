@@ -24,15 +24,14 @@ VETOES: dict[str, Callable[..., Verdict]] = {
     "coverage": rules.veto_coverage,
     "lookahead": rules.veto_lookahead,
     "frequency": rules.veto_frequency,
-    "active_drawdown": rules.veto_active_drawdown,
     "seed_stability": rules.veto_seed_stability,
     "multiple_testing": rules.veto_multiple_testing,
     "direction": rules.veto_direction,
 }
 
-# SUBSTRATE section 10 as amended by decisions/0003: eleven, not ten. Asserted
-# rather than assumed, so that a row added to the constitution and not to this
-# package is a loud failure rather than a silent gap.
+# SUBSTRATE section 10 as amended by decisions/0003 (eleven) and decisions/0026
+# (ten). Asserted rather than assumed, so that a row added to the constitution
+# and not to this package is a loud failure rather than a silent gap.
 SUBSTRATE_VETOES = frozenset(
     {
         "turnover",
@@ -42,14 +41,13 @@ SUBSTRATE_VETOES = frozenset(
         "coverage",
         "lookahead",
         "frequency",
-        "active_drawdown",
         "seed_stability",
         "multiple_testing",
         "direction",
     }
 )
 assert set(VETOES) == SUBSTRATE_VETOES, (
-    "veto set does not match SUBSTRATE section 10 + decisions/0003"
+    "veto set does not match SUBSTRATE section 10 + decisions/0026"
 )
 
 

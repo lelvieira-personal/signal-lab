@@ -342,14 +342,17 @@ def test_the_recovery_test_would_fail_if_costs_were_dropped(panel, planted):
 
 
 def test_a_completed_path_populates_the_veto_inputs(panel, params, planted_path):
-    from vetoes.rules import veto_active_drawdown, veto_positions, veto_turnover
+    from vetoes.rules import veto_positions, veto_turnover
 
     ctx = to_run_context(planted_path, "R-engine", panel)
 
     assert veto_positions(ctx, params).passed, "20 instruments is inside the 30 ceiling"
-    for veto in (veto_turnover, veto_active_drawdown):
-        verdict = veto(ctx, params)
-        assert "cannot evaluate" not in verdict.detail, verdict.detail
+    verdict = veto_turnover(ctx, params)
+    assert "cannot evaluate" not in verdict.detail, verdict.detail
+    assert ctx.active_returns is not None and not ctx.active_returns.empty, (
+        "the active stream still reaches the context: decisions/0026 stopped gating on its "
+        "drawdown, it did not stop measuring it"
+    )
 
 
 def test_the_summary_reports_cost_drag_and_never_gross_ir(planted_path):

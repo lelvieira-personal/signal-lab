@@ -63,7 +63,7 @@ KINDS = ("signal", "measurement")
 # Vetoes that describe a portfolio. A measurement run does not produce one, so
 # these are recorded as not_applicable rather than passed -- a measurement run
 # must never be mistakable for a portfolio run that passed everything.
-PORTFOLIO_VETOES = ("turnover", "cash", "positions", "tracking_error", "active_drawdown")
+PORTFOLIO_VETOES = ("turnover", "cash", "positions", "tracking_error")
 PROVENANCE = ("literature", "adaptation", "novel")
 EXPRESSIONS = ("cross_sectional", "directional", "both")
 TARGET_AXES = ("duration", "credit", "region", "sector", "style", "real_nominal", "cash")

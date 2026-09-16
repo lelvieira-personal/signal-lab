@@ -12,12 +12,10 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from signal_lab.harness.run_context import RunContext
 from vetoes import VETO_ORDER, VETOES, apply_vetoes, first_failure
 from vetoes.rules import (
-    veto_active_drawdown,
     veto_cash,
     veto_coverage,
     veto_direction,
@@ -40,8 +38,8 @@ def ctx(**kw) -> RunContext:
 # --- the set itself ----------------------------------------------------------
 
 
-def test_exactly_the_eleven_vetoes_of_substrate_section_10_as_amended():
-    """SUBSTRATE section 10 plus active_drawdown (decisions/0003)."""
+def test_exactly_the_ten_vetoes_of_substrate_section_10_as_amended():
+    """SUBSTRATE section 10, less active_drawdown (decisions/0026)."""
     assert set(VETOES) == {
         "turnover",
         "cash",
@@ -50,12 +48,12 @@ def test_exactly_the_eleven_vetoes_of_substrate_section_10_as_amended():
         "coverage",
         "lookahead",
         "frequency",
-        "active_drawdown",
         "seed_stability",
         "multiple_testing",
         "direction",
     }
-    assert len(VETOES) == 11
+    assert len(VETOES) == 10
+    assert "active_drawdown" not in VETOES, "decisions/0026 removed it"
 
 
 def test_every_veto_is_ordered(params):
@@ -346,90 +344,7 @@ def test_frequency_without_input_fails_closed(params):
     assert not veto_frequency(ctx(), params).passed
 
 
-# --- 8. active_drawdown ------------------------------------------------------
-
-
-def active_with_drawdown(depth: float, n_down: int = 100, n_up: int = 400) -> pd.Series:
-    """
-    An active return stream whose max drawdown is `depth`, by construction.
-
-    Built rather than sampled so the test asserts against arithmetic instead of
-    against a random draw.
-    """
-    down = (1.0 - depth) ** (1.0 / n_down) - 1.0
-    return pd.Series([down] * n_down + [0.0005] * n_up)
-
-
-def test_active_drawdown_passes_fails_and_boundary(params):
-    cap = float(params.require("vetoes.active_drawdown.te_multiple")) * float(
-        params.require("vetoes.tracking_error.max_trailing_3y")
-    )
-    assert cap == pytest.approx(0.18)
-
-    assert veto_active_drawdown(ctx(active_returns=active_with_drawdown(0.09)), params).passed
-    assert not veto_active_drawdown(ctx(active_returns=active_with_drawdown(0.30)), params).passed
-
-    at_cap = veto_active_drawdown(ctx(active_returns=active_with_drawdown(cap - 1e-6)), params)
-    assert at_cap.passed, "the ceiling itself must pass"
-    over = veto_active_drawdown(ctx(active_returns=active_with_drawdown(cap + 0.005)), params)
-    assert not over.passed
-
-
-def test_active_drawdown_scales_with_the_te_budget(params, tmp_path):
-    """
-    The coupling is the point: halve the TE budget and the drawdown ceiling
-    halves with it, because the two are not independent quantities.
-    """
-    import shutil
-    from pathlib import Path as _P
-
-    from signal_lab.params import PARAM_FILES, load_params
-
-    src = _P(params.params_dir)
-    for name in PARAM_FILES:
-        shutil.copy(src / name, tmp_path / name)
-    target = tmp_path / "vetoes.yaml"
-    target.write_text(
-        target.read_text().replace("max_trailing_3y: 0.060", "max_trailing_3y: 0.030")
-    )
-    tighter = load_params(tmp_path)
-
-    series = active_with_drawdown(0.12)
-    assert veto_active_drawdown(ctx(active_returns=series), params).passed
-    assert not veto_active_drawdown(ctx(active_returns=series), tighter).passed
-
-
-def test_active_drawdown_absolute_overrides_the_multiple(params, tmp_path):
-    import shutil
-    from pathlib import Path as _P
-
-    from signal_lab.params import PARAM_FILES, load_params
-
-    src = _P(params.params_dir)
-    for name in PARAM_FILES:
-        shutil.copy(src / name, tmp_path / name)
-    target = tmp_path / "vetoes.yaml"
-    target.write_text(target.read_text().replace("absolute: null", "absolute: 0.10"))
-    absolute = load_params(tmp_path)
-    v = veto_active_drawdown(ctx(active_returns=active_with_drawdown(0.12)), absolute)
-    assert not v.passed and "absolute" in v.detail
-
-
-def test_active_drawdown_measures_the_active_stream_not_the_total(params):
-    """
-    A strategy that fell 40% alongside a benchmark that fell 40% has no active
-    drawdown at all. Measuring the total return stream here would kill every
-    run that lived through 2008.
-    """
-    flat_active = pd.Series([0.0] * 500)
-    assert veto_active_drawdown(ctx(active_returns=flat_active), params).passed
-
-
-def test_active_drawdown_without_input_fails_closed(params):
-    assert not veto_active_drawdown(ctx(), params).passed
-
-
-# --- 9. seed_stability -------------------------------------------------------
+# --- 8. seed_stability -------------------------------------------------------
 
 
 def test_seed_stability_passes_fails_and_boundary(params):
@@ -542,7 +457,7 @@ def full_context(panel, **overrides) -> RunContext:
 def test_apply_vetoes_passes_a_clean_run(panel, params):
     verdicts, failure = apply_vetoes(full_context(panel), params)
     assert failure is None, {k: v.detail for k, v in verdicts.items() if not v.passed}
-    assert len(verdicts) == 11
+    assert len(verdicts) == 10
     assert all(v.passed for v in verdicts.values())
 
 
@@ -551,7 +466,7 @@ def test_apply_vetoes_records_every_verdict_not_only_the_failure(panel, params):
         panel, cash_weights=pd.Series(0.35, index=DATES), turnover=pd.Series(0.06, index=DATES)
     )
     verdicts, failure = apply_vetoes(c, params)
-    assert len(verdicts) == 11
+    assert len(verdicts) == 10
     failed = {k for k, v in verdicts.items() if not v.passed}
     assert failed == {"cash", "turnover"}, "both breaches must be visible, not only the first"
     assert failure == "turnover", "first failure follows the configured order"
@@ -585,7 +500,7 @@ def test_apply_vetoes_writes_verdicts_to_the_store(panel, params, store):
     apply_vetoes(ctx_full, params, store=store)
     rows = store.list_runs()
     assert rows.loc[0, "passed"]
-    assert len(rows.loc[0, "verdicts"]) == 11
+    assert len(rows.loc[0, "verdicts"]) == 10
 
 
 def test_a_crashing_veto_fails_rather_than_passing(panel, params, monkeypatch):

@@ -27,15 +27,6 @@ lookahead:
   strict: true                   # no observation used before its knowledge_date
 frequency:
   strict: true                   # no series contributes a return before its true daily start
-active_drawdown:
-  # decisions/0003. Eleventh veto, amending SUBSTRATE section 10.
-  # Expressed as a multiple of the TE ceiling rather than as an absolute number,
-  # so it tightens automatically if the TE budget is cut. At the 6.0% ceiling
-  # this is 18.0%. The owner's stated preference was an absolute 10%; see the
-  # simulation in decisions/0003 for why that number and a 6% TE budget cannot
-  # both hold. Set `absolute` instead of `te_multiple` to override.
-  te_multiple: 3.0
-  absolute: null
 seed_stability:
   max_ir_range: 0.15
 multiple_testing:
@@ -60,7 +51,6 @@ evaluation:
     - coverage
     - lookahead
     - frequency
-    - active_drawdown
     - seed_stability
     - multiple_testing
     - direction

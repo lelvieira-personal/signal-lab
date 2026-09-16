@@ -333,13 +333,6 @@ def veto_legend(params=None):
         ("lookahead", "Bitemporal check: no observation used before its knowledge date"),
         ("frequency", "No series contributes a return before its true daily start"),
         (
-            "active_drawdown",
-            f"Max active drawdown \u2264 "
-            f"{float(p.require('vetoes.active_drawdown.te_multiple')) * float(p.require('vetoes.tracking_error.max_trailing_3y')):.1%}"
-            if p.get("vetoes.active_drawdown.absolute") is None
-            else f"Max active drawdown \u2264 {float(p.require('vetoes.active_drawdown.absolute')):.1%}",
-        ),
-        (
             "seed_stability",
             f"IR range across resampling seeds ≤ {float(p.require('vetoes.seed_stability.max_ir_range')):.2f}",
         ),

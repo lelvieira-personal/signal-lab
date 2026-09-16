@@ -77,7 +77,7 @@ def test_paths_the_agent_owns_are_not_caught(path):
     [
         "substrate: v0.4 (decisions/0020)",
         "substrate: v0.4, per decisions/0020-substrate-v04-amendment.md",
-        "vetoes: add active_drawdown\n\nAuthorised by decision 0020.",
+        "vetoes: drop active_drawdown\n\nAuthorised by decision 0020.",
         "params: turnover penalty\n\nSee #0019.",
     ],
 )

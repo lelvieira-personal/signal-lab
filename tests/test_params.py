@@ -94,7 +94,6 @@ def test_every_substrate_threshold_is_in_params(params):
     assert params.require("vetoes.coverage.min_universe_fraction") == 0.80
     assert params.require("vetoes.coverage.min_date_fraction") == 0.90
     assert params.require("vetoes.seed_stability.max_ir_range") == 0.15
-    assert params.require("vetoes.active_drawdown.te_multiple") == 3.0
     assert params.require("vetoes.tracking_error.statistic") == "p95"
     assert params.require("vetoes.multiple_testing.fwer_alpha") == 0.05
     assert params.require("data.windows.holdout_start") == "2020-01-01"

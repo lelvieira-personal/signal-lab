@@ -334,7 +334,6 @@ def test_portfolio_vetoes_do_not_apply_to_a_measurement_run(params):
         "cash",
         "positions",
         "tracking_error",
-        "active_drawdown",
     } & applicable == set()
     assert {"lookahead", "frequency", "coverage", "multiple_testing", "direction"} <= applicable
 

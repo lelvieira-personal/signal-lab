@@ -533,9 +533,9 @@ def test_the_report_names_the_panel_and_the_params_it_ran_on(small_universe, tmp
 
 def test_a_cell_is_judged_against_the_real_veto_thresholds(params):
     """
-    A cell that clears the bar on net IR but breaches the tracking-error or
-    active-drawdown veto would be killed in phase 3. Counting it as clearing
-    makes the bar optimistic, so every cell carries a verdict.
+    A cell that clears the bar on net IR but breaches the tracking-error veto
+    would be killed in phase 3. Counting it as clearing makes the bar
+    optimistic, so every cell carries a verdict.
     """
     from signal_lab.audit.ladder import portfolio_veto_verdicts
 
@@ -548,15 +548,37 @@ def test_a_cell_is_judged_against_the_real_veto_thresholds(params):
     }
     assert portfolio_veto_verdicts(good, params)["passes_portfolio_vetoes"]
 
-    breach = dict(good, max_active_drawdown=0.20)  # the 18% veto, 3x the 6% TE ceiling
+    breach = dict(good, te_p95=0.08)  # the 6% p95 tracking-error ceiling
     verdict = portfolio_veto_verdicts(breach, params)
     assert not verdict["passes_portfolio_vetoes"]
-    assert "active_drawdown" in verdict["veto_detail"]
+    assert "tracking_error" in verdict["veto_detail"]
 
     absent = dict(good, te_p95=float("nan"))
     verdict = portfolio_veto_verdicts(absent, params)
     assert not verdict["passes_portfolio_vetoes"], "SUBSTRATE section 10: no input means fail"
     assert "no-input" in verdict["veto_detail"]
+
+
+def test_a_deep_active_drawdown_is_reported_but_no_longer_vetoes(params):
+    """
+    decisions/0026: drawdown is a consequence of the tracking-error budget,
+    which decisions/0025 derives FROM the drawdown tolerance. Gating on the
+    realised figure as well charges the same risk twice and selects on the luck
+    of the path -- at a budget set to a p95 tolerance, 5% of runs performing
+    exactly to specification breach by construction.
+    """
+    from signal_lab.audit.ladder import portfolio_veto_verdicts
+
+    deep = {
+        "te_p95": 0.05,
+        "max_active_drawdown": 0.35,
+        "turnover_annual": 1.2,
+        "max_cash": 0.15,
+        "n_positions_max": 25,
+    }
+    verdict = portfolio_veto_verdicts(deep, params)
+    assert verdict["passes_portfolio_vetoes"]
+    assert "active_drawdown" not in verdict["veto_detail"]
 
 
 def test_the_bar_among_surviving_cells_is_never_easier_than_the_raw_bar():

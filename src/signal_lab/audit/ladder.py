@@ -482,13 +482,19 @@ def rolling_annual_turnover_quantile(
 
 def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, Any]:
     """
-    Evaluate the five PORTFOLIO vetoes against a cell, at the real thresholds.
+    Evaluate the four PORTFOLIO vetoes against a cell, at the real thresholds.
 
     The audit is not a run and never records one, but a cell that clears the net
-    IR bar while breaching the tracking-error or active-drawdown veto would be
-    killed in phase 3 -- so counting it as clearing makes the bar optimistic.
-    The required-IC table is therefore reported twice: on net IR alone, and on
-    net IR among cells that would survive.
+    IR bar while breaching the tracking-error veto would be killed in phase 3 --
+    so counting it as clearing makes the bar optimistic. The required-IC table
+    is therefore reported twice: on net IR alone, and on net IR among cells that
+    would survive.
+
+    Maximum active drawdown is still REPORTED per cell; it is no longer a gate.
+    decisions/0026 removed the active_drawdown veto because drawdown is a
+    consequence of the tracking-error budget, which decisions/0025 now derives
+    from the drawdown tolerance -- gating on the realised figure as well would
+    charge the same risk twice and would select on the luck of the path.
 
     The six vetoes not evaluated here need a signal, a hypothesis or a search
     (coverage, lookahead, frequency, seed_stability, multiple_testing,
@@ -501,15 +507,8 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
     rather than for breaching anything, and `veto_detail` says which.
     """
     te_cap = float(params.require("constraints.tracking_error.max_trailing_3y"))
-    absolute = params.get("vetoes.active_drawdown.absolute", None)
-    dd_cap = (
-        float(absolute)
-        if absolute is not None
-        else float(params.require("vetoes.active_drawdown.te_multiple")) * te_cap
-    )
     checks = {
         "tracking_error": (row["te_p95"], te_cap),
-        "active_drawdown": (row["max_active_drawdown"], dd_cap),
         "turnover": (
             row["turnover_annual"],
             float(params.require("vetoes.turnover.max_annualised")),
@@ -528,7 +527,7 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
             failed.append(f"{name}:{value:.4g}>{cap:g}")
     return {
         "passes_portfolio_vetoes": not failed,
-        "veto_detail": "; ".join(failed) if failed else "all five pass",
+        "veto_detail": "; ".join(failed) if failed else "all four pass",
     }
 
 

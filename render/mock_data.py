@@ -60,7 +60,6 @@ VETOES = [
     ("coverage", "Signal coverage \u2265 80% of universe on \u2265 90% of dates"),
     ("lookahead", "Bitemporal check: no future vintages"),
     ("frequency", "No return before a series' true daily start"),
-    ("active_drawdown", "Max active drawdown \u2264 18.0%"),
     ("seed_stability", "IR range across resampling seeds \u2264 0.15"),
     ("multiple_testing", "Survives Romano-Wolf stepdown at FWER 5%"),
     ("direction", "Realised sign matches the pre-registered direction"),
@@ -108,7 +107,6 @@ def build_runs():
         verdicts = {
             "lookahead": bool(lookahead_ok),
             "frequency": bool(rng.random() > 0.04),
-            "active_drawdown": max_active_dd <= 18.0,
             "coverage": coverage >= 0.80,
             "turnover": turnover <= 150,
             "cash": max_cash <= 20,

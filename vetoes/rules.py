@@ -1,7 +1,9 @@
 """
 One function per veto in SUBSTRATE section 10, as amended by decisions/0003
-(eleven vetoes: active_drawdown was added and the tracking_error statistic
-loosened from the maximum to the 95th percentile).
+(the tracking_error statistic loosened from the maximum to the 95th percentile)
+and by decisions/0026 (active_drawdown removed: drawdown is a consequence of the
+tracking-error budget, which decisions/0025 derives from the drawdown
+tolerance). Ten vetoes.
 
 Signature: veto(ctx: RunContext, params: Params | None) -> Verdict.
 Thresholds are read from params/vetoes.yaml on every call, never cached and
@@ -87,9 +89,11 @@ def veto_tracking_error(ctx: RunContext, params: Params | None = None) -> Verdic
     it means anything, since the maximum makes one bad quarter in nineteen years
     fatal. See decisions/0003.
 
-    This veto is the MANDATE test: it asks whether the strategy stayed inside
-    what the investor was told. `active_drawdown` is the economic test, asking
-    what the investor actually experienced. Both are applied.
+    This is the lab's only ex-post risk gate. What the investor actually
+    experienced -- the active drawdown -- is controlled ex ante instead, through
+    the budget this ceiling enforces: decisions/0025 derives that budget FROM a
+    drawdown tolerance, and decisions/0026 removed the separate realised-drawdown
+    veto rather than charge the same risk twice.
     """
     p = _p(params)
     cap = float(p.require("vetoes.tracking_error.max_trailing_3y"))
@@ -265,53 +269,7 @@ def veto_frequency(ctx: RunContext, params: Params | None = None) -> Verdict:
     )
 
 
-# --- 8. active_drawdown ------------------------------------------------------
-
-
-def veto_active_drawdown(ctx: RunContext, params: Params | None = None) -> Verdict:
-    """
-    Peak-to-trough drawdown of the cumulative ACTIVE return stream.
-
-    The economic counterpart to the tracking-error veto. TE is symmetric and so
-    penalises the upside dispersion the strategy is paid for; active drawdown is
-    the number an allocator actually lives through, and it is the one that ends
-    mandates.
-
-    The threshold is a multiple of the TE ceiling rather than an absolute
-    figure, so it tightens automatically when the TE budget is cut. That
-    coupling is deliberate: drawdown and TE are not independent quantities, and
-    an absolute cap set against one TE budget becomes either trivial or
-    impossible under another. See decisions/0003 for the simulation.
-    """
-    p = _p(params)
-    absolute = p.get("vetoes.active_drawdown.absolute", None)
-    if absolute is not None:
-        cap = float(absolute)
-        basis = "absolute"
-    else:
-        multiple = float(p.require("vetoes.active_drawdown.te_multiple"))
-        te_cap = float(p.require("vetoes.tracking_error.max_trailing_3y"))
-        cap = multiple * te_cap
-        basis = f"{multiple:g}x the {te_cap:.1%} TE ceiling"
-
-    try:
-        active = pd.Series(ctx.require("active_returns")).dropna()
-    except MissingInput as exc:
-        return _missing("active_drawdown", exc)
-    if len(active) < 2:
-        return _missing("active_drawdown", MissingInput("active_returns (needs >= 2)"))
-
-    cumulative = (1.0 + active).cumprod()
-    drawdown = cumulative / cumulative.cummax() - 1.0
-    realised = float(-drawdown.min())
-    return Verdict(
-        passed=realised <= cap,
-        veto="active_drawdown",
-        detail=(f"max active drawdown {realised:.1%} against a {cap:.1%} ceiling ({basis})"),
-    )
-
-
-# --- 9. seed_stability -------------------------------------------------------
+# --- 8. seed_stability -------------------------------------------------------
 
 
 def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -337,7 +295,7 @@ def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdic
     )
 
 
-# --- 10. multiple_testing -----------------------------------------------------
+# --- 9. multiple_testing ------------------------------------------------------
 
 
 def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -395,7 +353,7 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
     )
 
 
-# --- 11. direction -----------------------------------------------------------
+# --- 10. direction ------------------------------------------------------------
 
 
 def veto_direction(ctx: RunContext, params: Params | None = None) -> Verdict:
