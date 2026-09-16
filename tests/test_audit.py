@@ -425,15 +425,23 @@ def test_an_early_over_trade_does_not_block_a_later_one(small_universe):
     The failure the owner named: "we rebalanced too much on previous windows and
     then cannot do more when we really need it". With no annual wall and no
     bank, a cell that trades heavily early must still be able to trade later.
-    The evidence is that the biggest single session is not in the first quarter
-    of the path by construction, and that no rebalance is refused for want of
-    budget.
+    The evidence is that the second half of the path still trades at the scale
+    the first half did.
+
+    The first recorded session is left out of the comparison. It is start-up,
+    not an over-trade: on this panel a series completes its covariance window
+    one week after the first rebalance and enters at over 40% of the book, a
+    0.9 session that no later week can or should match. Comparing against it
+    measured universe entry, and the test flipped when the synthetic panel
+    started being costed at its own buckets (decisions/0027).
     """
     universe, params = small_universe
     row, path = run_cell(universe, AuditCell(0.20, 4, 0), params, solver="scipy")
     assert row["turnover_cap"] is None, "no annual wall on a base cell"
-    late = path.turnover.iloc[len(path.turnover) // 2 :]
-    assert late.max() > 0.5 * path.turnover.max(), (
+    half = len(path.turnover) // 2
+    early = path.turnover.iloc[1:half]
+    late = path.turnover.iloc[half:]
+    assert late.max() > 0.5 * early.max(), (
         "the second half of the path must still be able to trade at scale"
     )
 
@@ -910,3 +918,43 @@ def test_frictionless_cells_are_reported_but_never_counted_as_veto_failures(para
     assert req["empirical_breadth"] == pytest.approx(36.0)
     markdown = to_markdown(summary, table)
     assert "Frictionless cells" in markdown and "empirical breadth" in markdown
+
+
+# --- costs: the panel's own buckets ----------------------------------------------
+
+
+def test_a_series_the_universe_map_lacks_is_costed_at_its_panel_bucket(params):
+    """
+    The synthetic ids are not in investable_universe.csv, so every one of them
+    paid the high bucket on the first lean audit. decisions/0002 charges the
+    dear bucket to an instrument with NO bucket; these carry one.
+    """
+    from types import SimpleNamespace
+
+    from signal_lab.audit.ladder import audit_cost_model
+    from signal_lab.harness.costs import CostModel
+
+    mapped = next(iter(CostModel(params).buckets))  # a real ticker in the map
+    map_bucket = CostModel(params).bucket(mapped)
+    other = next(b for b in ("low", "mid", "high") if b != map_bucket)
+    panel = SimpleNamespace(
+        meta={
+            "SYN_LOW": SimpleNamespace(cost_bucket="low"),
+            "SYN_ODD": SimpleNamespace(cost_bucket="not-a-bucket"),
+            mapped: SimpleNamespace(cost_bucket=other),
+        }
+    )
+    model = audit_cost_model(SimpleNamespace(panel=panel), params, 2.0)
+    assert model.bucket("SYN_LOW") == "low"
+    assert model.bucket("SYN_ODD") == params.require("costs.default_bucket")
+    assert model.bucket(mapped) == map_bucket, "the universe map still wins"
+    assert model.spread_multiplier == 2.0
+
+
+def test_a_synthetic_cell_is_not_charged_the_dear_bucket_throughout(small_universe):
+    from signal_lab.audit.ladder import audit_cost_model
+
+    universe, params = small_universe
+    model = audit_cost_model(universe, params)
+    buckets = {model.bucket(s) for s in universe.holdable}
+    assert buckets != {params.require("costs.default_bucket")}

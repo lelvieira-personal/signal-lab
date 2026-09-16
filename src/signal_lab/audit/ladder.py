@@ -111,6 +111,37 @@ class AuditUniverse:
         return h.hexdigest()
 
 
+def audit_cost_model(
+    universe: AuditUniverse, params: Params, spread_multiplier: float = 1.0
+) -> CostModel:
+    """
+    The cost model for a cell, with the PANEL's buckets filling the gaps in
+    the universe map.
+
+    `CostModel` maps buckets from `investable_universe.csv` by ticker. The
+    synthetic panel's ids (`SYN000`...) are not in that file, so on the first
+    lean audit every synthetic series fell to `default_bucket` and paid the
+    high bucket's 20bp spread and 35bp fee -- a cost drag of exactly
+    35bp + 20bp per unit of turnover, residual 5e-9 -- even though the panel
+    carries its own `cost_bucket` for each series. decisions/0002 charges the
+    dear bucket to an instrument WITH NO BUCKET; these had one.
+
+    The universe map still wins wherever it has an entry, so a Bloomberg run,
+    whose holdable tickers are all in the map and whose panel buckets come from
+    the same file, is costed exactly as before. A bucket name the cost params do
+    not define is ignored and falls to the default. decisions/0027.
+    """
+    model = CostModel(params, spread_multiplier=spread_multiplier)
+    known = set(params.require("costs.buckets"))
+    from_panel = {
+        sid: str(meta.cost_bucket)
+        for sid, meta in universe.panel.meta.items()
+        if str(getattr(meta, "cost_bucket", "")) in known
+    }
+    model.buckets = {**from_panel, **model.buckets}
+    return model
+
+
 def _is_cash(section: str) -> bool:
     return "cash" in (section or "").lower()
 
@@ -254,7 +285,7 @@ class _OptimiserRule:
         self.params = params
         self.solver = solver
         self.ppy = float(params.get("costs.application.weeks_per_year", 52))
-        self.costs = CostModel(params, spread_multiplier=cell.cost_multiplier)
+        self.costs = audit_cost_model(universe, params, cell.cost_multiplier)
         self.shadow_coeff = float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
         self.shadow_start = float(params.require("constraints.turnover.shadow_start_annualised"))
         self.shadow_reference = float(
@@ -408,7 +439,7 @@ def run_cell(
         rule,
         universe.benchmark_weekly,  # per period already; the engine compounds it to itself
         exposures,
-        cost_model=CostModel(params, spread_multiplier=cell.cost_multiplier),
+        cost_model=audit_cost_model(universe, params, cell.cost_multiplier),
         params=params,
         rebalance_day=str(params.get("audit.rebalance_day", "FRI")),
         cash_instrument=universe.cash[0] if len(universe.cash) == 1 else None,
