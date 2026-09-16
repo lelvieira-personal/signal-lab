@@ -20,7 +20,12 @@ import numpy as np
 import pandas as pd
 
 from signal_lab.audit.breadth import Breadth
-from signal_lab.audit.ladder import required_ic
+from signal_lab.audit.ladder import (
+    FRICTIONLESS,
+    empirical_breadth,
+    required_ic,
+    transfer_ratio,
+)
 
 ORANGE = "#FF6100"
 GREY = ["#1C252E", "#455760", "#6B7A86", "#9AA5AE", "#C9D0D6", "#E9ECEF", "#F6F7F8"]
@@ -52,6 +57,43 @@ def _pivot_range(table: pd.DataFrame, tag: str, value: str = "net_ir") -> pd.Dat
     lo = sub.pivot_table(index="ic", columns="horizon", values=value, aggfunc="min")
     hi = sub.pivot_table(index="ic", columns="horizon", values=value, aggfunc="max")
     return hi - lo
+
+
+READING_THE_CHAIN = (
+    "Read left to right, it is a chain of three measurements (decisions/0027). "
+    "Formula breadth against empirical breadth: does the fundamental law's count of "
+    "bets describe this universe and this signal construction? Frictionless against "
+    "FLAM: what covariance error and the breadth formula cost with no constraint in "
+    "the way. Ladder against frictionless: the measured price of long-only, the cash "
+    "and position caps and the costs. A ladder that beats its frictionless twin needs "
+    "an explanation before the table is used. There are three candidates: seed noise "
+    "(about 0.25 of IR per cell on this construction); covariance error that the "
+    "long-only constraint was absorbing and the unconstrained book was not "
+    "(Jagannathan and Ma, 2003), which shows as a frictionless bias statistic well "
+    "above one; or a defect in the ruler."
+)
+
+
+def _md_frictionless(summary: dict[str, Any]) -> list[str]:
+    fric = _frame(summary.get("frictionless_net_ir") or {})
+    ratio = _frame(summary.get("transfer_ratio") or {})
+    if fric.empty:
+        return []
+    out = [
+        "### Frictionless cells — IR with no constraints and no costs",
+        "",
+        _md_table(fric, 2, "IC \\ h"),
+        "",
+    ]
+    if not ratio.empty:
+        out += [
+            "Ladder net IR / frictionless IR at the same (IC, horizon, seed) — the measured "
+            "price of the constraints and costs:",
+            "",
+            _md_table(ratio, 2, "IC \\ h"),
+            "",
+        ]
+    return out
 
 
 CALIBRATION_COLUMNS = ("bias_stat", "te_realised_to_ex_ante", "te_p95_to_budget")
@@ -86,10 +128,23 @@ def summarise(
     implied = {
         int(h): breadth.implied_ic(target, int(h)) for h in sorted(table["horizon"].unique())
     }
+    empirical = (
+        empirical_breadth(table).set_index("horizon")
+        if "tag" in table.columns and (table["tag"] == FRICTIONLESS).any()
+        else pd.DataFrame()
+    )
     for i, row in req.iterrows():
         h = int(row["horizon"])
         req.loc[i, "flam_implied_ic"] = implied.get(h, float("nan"))
         req.loc[i, "effective_breadth"] = breadth.effective_breadth(h)
+        slope = float(empirical["ir_per_unit_ic"].get(h, np.nan)) if len(empirical) else np.nan
+        req.loc[i, "empirical_breadth"] = (
+            float(empirical["empirical_breadth"].get(h, np.nan)) if len(empirical) else np.nan
+        )
+        req.loc[i, "frictionless_ic"] = (
+            target / slope if np.isfinite(slope) and slope > 0 else np.nan
+        )
+    judged = table[table["tag"] != FRICTIONLESS] if "tag" in table.columns else table
     return {
         "meta": meta,
         "target_net_ir": target,
@@ -98,7 +153,10 @@ def summarise(
             "effective_bets_total": breadth.effective_bets_total,
             "effective_bets_active": breadth.effective_bets_active,
             "decisions_per_year": {int(k): v for k, v in breadth.decisions_per_year.items()},
+            "signal_phi": {int(k): v for k, v in breadth.signal_phi.items()},
         },
+        "frictionless_net_ir": _pivot(table, FRICTIONLESS).to_dict(),
+        "transfer_ratio": transfer_ratio(table).to_dict() if "tag" in table.columns else {},
         "required_ic": req.to_dict(orient="records"),
         "ladder_net_ir": _pivot(table, "base").to_dict(),
         "ladder_seed_range": _pivot_range(table, "base").to_dict(),
@@ -106,8 +164,9 @@ def summarise(
         "required_ic_surviving": req_surviving.to_dict(orient="records"),
         "risk_calibration": _calibration(table),
         "stress_horizon": stress_h,
-        "n_cells_failing_vetoes": int((~table["passes_portfolio_vetoes"]).sum())
-        if "passes_portfolio_vetoes" in table.columns
+        "n_cells_judged": int(len(judged)),
+        "n_cells_failing_vetoes": int((~judged["passes_portfolio_vetoes"].astype(bool)).sum())
+        if "passes_portfolio_vetoes" in judged.columns
         else None,
         "cost_stress": _stress(table, "cost", stress_h)
         .groupby(["ic", "cost_multiplier"])["net_ir"]
@@ -186,19 +245,19 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         "",
         "## Required IC to clear the bar",
         "",
-        "| horizon (weeks) | required IC (ladder) | FLAM-implied IC (TC = 1) | effective breadth | note |",
-        "|---|---|---|---|---|",
+        "| horizon (weeks) | required IC (ladder, net) | required IC (frictionless) "
+        "| FLAM-implied IC (formula breadth) | formula breadth | empirical breadth | note |",
+        "|---|---|---|---|---|---|---|",
     ]
     for r in summary["required_ic"]:
         out.append(
-            f"| {r['horizon']} | {_fmt(r['required_ic'], 3)} | {_fmt(r.get('flam_implied_ic'), 3)} | "
-            f"{_fmt(r.get('effective_breadth'), 1)} | {r['note']} |"
+            f"| {r['horizon']} | {_fmt(r['required_ic'], 3)} | {_fmt(r.get('frictionless_ic'), 3)} "
+            f"| {_fmt(r.get('flam_implied_ic'), 3)} | {_fmt(r.get('effective_breadth'), 1)} "
+            f"| {_fmt(r.get('empirical_breadth'), 1)} | {r['note']} |"
         )
+    out += ["", READING_THE_CHAIN, ""]
+    out += _md_frictionless(summary)
     out += [
-        "",
-        "The gap between the ladder's required IC and the fundamental law's is the price "
-        "of long-only, the cash and position caps, the turnover cap and covariance error, "
-        "measured rather than assumed.",
         "",
         "### Required IC among cells that would survive the portfolio vetoes",
         "",
@@ -226,7 +285,11 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
     n_fail = summary.get("n_cells_failing_vetoes")
     if n_fail is not None:
         out.append("")
-        out.append(f"{n_fail} of {len(table)} cells fail at least one portfolio veto.")
+        n_judged = summary.get("n_cells_judged", len(table))
+        out.append(
+            f"{n_fail} of {n_judged} cells fail at least one portfolio veto "
+            "(frictionless cells have no mandate and are not judged)."
+        )
     out += [
         "",
         "## The ladder — mean net IR over seeds (rows: IC, columns: horizon)",
@@ -389,10 +452,28 @@ def to_html(summary: dict[str, Any], table: pd.DataFrame) -> str:
     """
     req_rows = "".join(
         f"<tr><th>{r['horizon']}</th><td class='{'hit' if np.isfinite(r['required_ic']) else ''}'>"
-        f"{_fmt(r['required_ic'], 3)}</td><td>{_fmt(r.get('flam_implied_ic'), 3)}</td>"
-        f"<td>{_fmt(r.get('effective_breadth'), 1)}</td><td style='text-align:left'>{r['note']}</td></tr>"
+        f"{_fmt(r['required_ic'], 3)}</td><td>{_fmt(r.get('frictionless_ic'), 3)}</td>"
+        f"<td>{_fmt(r.get('flam_implied_ic'), 3)}</td>"
+        f"<td>{_fmt(r.get('effective_breadth'), 1)}</td>"
+        f"<td>{_fmt(r.get('empirical_breadth'), 1)}</td>"
+        f"<td style='text-align:left'>{r['note']}</td></tr>"
         for r in summary["required_ic"]
     )
+    fric = _frame(summary.get("frictionless_net_ir") or {})
+    ratio = _frame(summary.get("transfer_ratio") or {})
+    frictionless_html = ""
+    if not fric.empty:
+        frictionless_html = (
+            "<h2>Frictionless cells — no constraints, no costs</h2>"
+            + _html_table(fric, 2, "IC \\ h", target)
+            + (
+                "<p class='muted'>Ladder net IR / frictionless IR at the same cell — the "
+                "measured price of the constraints and costs:</p>"
+                + _html_table(ratio, 2, "IC \\ h")
+                if not ratio.empty
+                else ""
+            )
+        )
     cost = pd.DataFrame(summary["cost_stress"])
     cost_html = (
         _html_table(
@@ -452,10 +533,10 @@ This page measures the pipeline at the section 4 budget; nothing on it is a resu
  <div class="kpi"><b>{m["n_rebalances"]}</b><span>rebalances {m["first_date"]} → {m["last_date"]}</span></div>
 </div>
 <h2>Required IC to clear the bar</h2>
-<table><thead><tr><th>horizon (weeks)</th><th>required IC (ladder)</th><th>FLAM-implied IC (TC=1)</th><th>effective breadth</th><th>note</th></tr></thead>
+<table><thead><tr><th>horizon (weeks)</th><th>required IC (ladder, net)</th><th>required IC (frictionless)</th><th>FLAM-implied IC (formula breadth)</th><th>formula breadth</th><th>empirical breadth</th><th>note</th></tr></thead>
 <tbody>{req_rows}</tbody></table>
-<p class="muted">Independent decisions a year by horizon: {decisions}.
-The gap between the two IC columns is the price of the constraints and of covariance error.</p>
+<p class="muted">Decisions a year by horizon (52/h): {decisions}. {READING_THE_CHAIN}</p>
+{frictionless_html}
 <h2>The ladder — mean net IR over seeds</h2>
 {ladder_html}
 <p class="muted">Orange: at or above the bar. Seed range per cell:</p>

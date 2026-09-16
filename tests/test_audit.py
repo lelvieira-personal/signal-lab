@@ -197,10 +197,23 @@ def test_a_correlated_universe_counts_for_fewer_bets_than_it_has_series(weekly, 
     assert b.effective_bets_active > 1
 
 
-def test_a_persistent_signal_makes_fewer_decisions_a_year():
+def test_the_ar1_effective_sample_count_is_kept_as_a_diagnostic():
     assert independent_decisions_per_year(0.0) == pytest.approx(52.0)
     assert independent_decisions_per_year(0.9) == pytest.approx(52 * 0.1 / 1.9)
     assert independent_decisions_per_year(0.96) < 2.0
+
+
+def test_time_breadth_is_the_non_overlapping_count(weekly, benchmark):
+    """
+    decisions/0027. The ladder's IC is a correlation with the h-week forward
+    return, so an h-week signal makes 52/h decisions a year. The AR(1) count at
+    phi = (h-1)/h is about half that, and it put the fundamental law's TC = 1
+    ceiling above what the constrained ladder achieved.
+    """
+    b = effective_breadth(weekly, benchmark, [4, 26], signal_phi={4: 0.75, 26: 0.96})
+    assert b.decisions_per_year == {4: pytest.approx(13.0), 26: pytest.approx(2.0)}
+    assert b.signal_phi == {4: 0.75, 26: 0.96}, "phi is reported, not used"
+    assert b.effective_breadth(26) == pytest.approx(b.effective_bets_active * 2.0)
 
 
 def test_the_implied_ic_rises_as_breadth_falls(weekly, benchmark):
@@ -472,15 +485,26 @@ def test_the_grid_covers_the_declared_cells_and_tags_the_stress_ones(params):
         * params.require("audit.seeds")
     )
     assert len(base) == expected
-    assert {c.tag for c in cells} == {"base", "oracle", "cost", "turnover", "per_rebalance"}
+    assert {c.tag for c in cells} == {
+        "base",
+        "oracle",
+        "cost",
+        "turnover",
+        "per_rebalance",
+        "frictionless",
+    }
+    fric = [c for c in cells if c.tag == "frictionless"]
+    assert {(c.ic, c.horizon, c.seed) for c in fric} == {(c.ic, c.horizon, c.seed) for c in base}
     assert all(c.ic == 1.0 for c in cells if c.tag == "oracle")
     assert {c.cost_multiplier for c in cells if c.tag == "cost"} == {2.0, 3.0}
 
 
 def test_the_lean_grid_is_small_and_carries_no_stress_cells(params):
     cells = grid_cells(params, lean=True)
-    assert len(cells) <= 6
-    assert {c.tag for c in cells} == {"base"}
+    base = [c for c in cells if c.tag == "base"]
+    assert len(base) <= 6
+    assert {c.tag for c in cells} == {"base", "frictionless"}, "decisions/0027: twins run lean"
+    assert len(cells) == 2 * len(base)
 
 
 def test_required_ic_interpolates_and_says_when_it_is_a_bound():
@@ -760,3 +784,129 @@ def test_a_book_with_no_ex_ante_risk_is_left_out_of_the_bias_count():
     assert out["bias_n"] == 0
     assert np.isnan(out["bias_stat"])
     assert np.isnan(out["te_realised_to_ex_ante"]), "no division by a zero ex-ante TE"
+
+
+# --- the frictionless cells, decisions/0027 -------------------------------------
+
+
+def test_a_frictionless_cell_runs_without_a_solver_and_is_not_judged(small_universe):
+    universe, params = small_universe
+    cell = AuditCell(0.10, 13, 0, 0.0, None, None, "frictionless")
+    row, active = run_cell(universe, cell, params)
+    assert row["tag"] == "frictionless"
+    assert row["key"].endswith("_frictionless"), "never the same key as its base twin"
+    assert row["key"] != AuditCell(0.10, 13, 0).key()
+    assert np.isfinite(row["net_ir"]) and row["cost_drag_annual"] == 0.0
+    assert row["solver"] == "linear"
+    assert not row["passes_portfolio_vetoes"] and "not judged" in row["veto_detail"]
+    assert row["n_rebalances"] == len(active) > 20
+    # Sized to the budget every week, on the covariance it was sized with.
+    budget = params.require("constraints.tracking_error.max_trailing_3y")
+    assert row["te_ex_ante_mean"] == pytest.approx(budget, rel=1e-6)
+
+
+def test_a_frictionless_book_with_no_signal_holds_nothing(small_universe):
+    universe, params = small_universe
+    row, active = run_cell(universe, AuditCell(0.0, 13, 0, 0.0, None, None, "frictionless"), params)
+    # IC = 0 still carries a noise signal, so the book is not empty -- but its
+    # IR is noise, and the ex-ante size is the budget. What must NOT happen is a
+    # division by a zero-length alpha on the last h rows, where the planted
+    # signal runs out.
+    assert np.isfinite(row["active_vol_annual"])
+    assert (active.iloc[-5:] == 0.0).all(), "no forward window, no alpha, no book"
+
+
+def test_empirical_breadth_is_the_squared_slope_of_ir_on_ic():
+    from signal_lab.audit.ladder import empirical_breadth
+
+    rows = []
+    for h, br in ((4, 100.0), (26, 16.0)):
+        for ic in (0.02, 0.05, 0.10):
+            for seed, wobble in ((0, 0.01), (1, -0.01)):
+                rows.append(
+                    {
+                        "tag": "frictionless",
+                        "horizon": h,
+                        "ic": ic,
+                        "seed": seed,
+                        "net_ir": ic * np.sqrt(br) + wobble,
+                    }
+                )
+    rows.append({"tag": "base", "horizon": 4, "ic": 0.10, "seed": 0, "net_ir": 9.0})
+    rows.append({"tag": "frictionless", "horizon": 4, "ic": 1.0, "seed": 0, "net_ir": 50.0})
+    out = empirical_breadth(pd.DataFrame(rows)).set_index("horizon")
+    assert out.loc[4, "empirical_breadth"] == pytest.approx(100.0)
+    assert out.loc[26, "empirical_breadth"] == pytest.approx(16.0)
+    assert out.loc[4, "n_cells"] == 6, "base cells and the oracle stay out of the fit"
+
+
+def test_the_transfer_ratio_pairs_each_base_cell_with_its_own_twin():
+    from signal_lab.audit.ladder import transfer_ratio
+
+    table = pd.DataFrame(
+        [
+            {"tag": "base", "ic": 0.05, "horizon": 13, "seed": 0, "net_ir": 0.2},
+            {"tag": "base", "ic": 0.05, "horizon": 13, "seed": 1, "net_ir": 0.3},
+            {"tag": "frictionless", "ic": 0.05, "horizon": 13, "seed": 0, "net_ir": 0.4},
+            {"tag": "frictionless", "ic": 0.05, "horizon": 13, "seed": 1, "net_ir": 0.5},
+            {"tag": "cost", "ic": 0.05, "horizon": 13, "seed": 0, "net_ir": 0.1},
+        ]
+    )
+    ratio = transfer_ratio(table)
+    assert ratio.loc[0.05, 13] == pytest.approx((0.2 / 0.4 + 0.3 / 0.5) / 2)
+
+
+def test_frictionless_cells_are_reported_but_never_counted_as_veto_failures(params):
+    from signal_lab.audit.report import summarise, to_markdown
+
+    rows = []
+    for tag in ("base", "frictionless"):
+        for ic in (0.05, 0.10):
+            rows.append(
+                {
+                    "tag": tag,
+                    "horizon": 13,
+                    "ic": ic,
+                    "seed": 0,
+                    "net_ir": ic * (4.0 if tag == "base" else 6.0),
+                    "cost_multiplier": 1.0 if tag == "base" else 0.0,
+                    "turnover_cap": None,
+                    "turnover_annual": 1.0,
+                    "cost_drag_annual": 0.002,
+                    "passes_portfolio_vetoes": tag == "base",
+                }
+            )
+    table = pd.DataFrame(rows)
+    breadth = effective_breadth(
+        pd.DataFrame(
+            np.random.default_rng(0).normal(0, 0.01, (200, 4)),
+            index=pd.bdate_range("2015-01-02", periods=200, freq="W-FRI"),
+            columns=list("ABCD"),
+        ),
+        pd.Series(0.0, index=pd.bdate_range("2015-01-02", periods=200, freq="W-FRI")),
+        [13],
+    )
+    meta = {
+        "stress_horizon": 13,
+        "source": "synthetic",
+        "snapshot_id": "t",
+        "panel_hash": "0" * 64,
+        "params_version": "x",
+        "params_hash": "0" * 64,
+        "run_id": "A-TEST",
+        "generated_at": "now",
+        "first_date": "2004-01-09",
+        "last_date": "2019-12-27",
+        "n_rebalances": 834,
+        "te_budget": 0.06,
+        "solver": "auto",
+    }
+    summary = summarise(table, breadth, 0.30, meta)
+    assert summary["n_cells_failing_vetoes"] == 0
+    assert summary["n_cells_judged"] == 2
+    req = summary["required_ic"][0]
+    # frictionless IR = 6 * IC, so the bar needs IC = 0.30 / 6 = 0.05
+    assert req["frictionless_ic"] == pytest.approx(0.05)
+    assert req["empirical_breadth"] == pytest.approx(36.0)
+    markdown = to_markdown(summary, table)
+    assert "Frictionless cells" in markdown and "empirical breadth" in markdown

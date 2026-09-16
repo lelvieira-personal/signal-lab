@@ -12,21 +12,25 @@ different fixes and are therefore measured apart:
     of the benchmark), because a bet the benchmark already holds is not a bet.
 
   * Time. A signal with a 26-week horizon does not make 52 independent
-    decisions a year. For a lag-one autocorrelation phi the independent
-    decisions per year are 52 (1 - phi) / (1 + phi), the usual effective-sample
-    correction for an AR(1) series.
+    decisions a year. The ladder's IC is a correlation with the h-week forward
+    return, so the count that matches it is the non-overlapping one: 52 / h
+    decisions a year (decisions/0027).
 
-The product is the breadth the fundamental law would use, and the IC it then
-implies for the target IR (at transfer coefficient one) is reported next to the
-IC the simulated ladder actually needed. The gap between the two is the price
-of the constraints -- long-only, cash, positions, turnover -- and of the
-covariance error the solver works with. It is the number the Research OS
-advice asked for, measured rather than assumed.
+    It used to be 52 (1 - phi) / (1 + phi) at the signal's measured lag-one
+    autocorrelation -- the effective-sample correction for estimating a MEAN
+    from an AR(1) series. At phi = (h - 1) / h that is about 52 / (2h - 1),
+    half the count above, and on the first lean audit it put the fundamental
+    law's TC = 1 "ceiling" above what the constrained, costed ladder achieved
+    at h = 26. The measured phi is still recorded; it no longer sets breadth.
+
+The product is the FORMULA breadth. It is a statement to be checked, not a
+measurement: the frictionless cells (`ladder.run_frictionless`) measure the
+breadth the pipeline actually delivers, and the report prints both.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -39,7 +43,8 @@ class Breadth:
     n_series: int
     effective_bets_total: float  # on total returns
     effective_bets_active: float  # on returns in excess of the benchmark
-    decisions_per_year: dict[int, float]  # horizon -> independent decisions a year
+    decisions_per_year: dict[int, float]  # horizon -> independent decisions a year, 52 / h
+    signal_phi: dict[int, float] = field(default_factory=dict)  # measured, reported only
 
     def effective_breadth(self, horizon: int) -> float:
         return self.effective_bets_active * self.decisions_per_year[horizon]
@@ -53,7 +58,12 @@ class Breadth:
 
 
 def independent_decisions_per_year(phi: float, periods_per_year: float = 52.0) -> float:
-    """Independent decisions a year for lag-one autocorrelation `phi`."""
+    """
+    The AR(1) effective-sample count for lag-one autocorrelation `phi`.
+
+    Kept as a diagnostic. It is NOT the time breadth of a planted signal; see
+    the module docstring and `decisions_per_year`.
+    """
     phi = float(np.clip(phi, -0.999, 0.999))
     return float(periods_per_year * (1.0 - phi) / (1.0 + phi))
 
@@ -75,8 +85,9 @@ def effective_breadth(
     fewer than `min_periods` observations are left out of the count rather than
     padded.
 
-    `signal_phi` supplies the measured lag-one autocorrelation per horizon; when
-    absent the construction's value (h - 1) / h is used.
+    Time breadth is `periods_per_year / h` (decisions/0027). `signal_phi`, the
+    measured lag-one autocorrelation per horizon, is carried through for the
+    report and does not enter the count.
     """
     keep = weekly.columns[weekly.notna().sum() >= min_periods]
     total = weekly[keep].dropna(how="any")
@@ -84,14 +95,19 @@ def effective_breadth(
         raise ValueError("fewer than two series have enough history for a breadth count")
     active = total.sub(benchmark.reindex(total.index), axis=0).dropna(how="any")
 
-    decisions = {}
-    for h in horizons:
-        phi = (signal_phi or {}).get(h, (h - 1) / h)
-        decisions[h] = independent_decisions_per_year(phi, periods_per_year)
+    decisions = {int(h): decisions_per_year(int(h), periods_per_year) for h in horizons}
 
     return Breadth(
         n_series=int(total.shape[1]),
         effective_bets_total=effective_bets(total.corr()),
         effective_bets_active=effective_bets(active.corr()),
         decisions_per_year=decisions,
+        signal_phi={int(k): float(v) for k, v in (signal_phi or {}).items()},
     )
+
+
+def decisions_per_year(horizon: int, periods_per_year: float = 52.0) -> float:
+    """Non-overlapping h-period decisions a year: the time breadth (decisions/0027)."""
+    if horizon < 1:
+        raise ValueError("horizon must be at least one period")
+    return float(periods_per_year / horizon)

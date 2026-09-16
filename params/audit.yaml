@@ -20,6 +20,12 @@ horizon_weeks: [4, 13, 26, 52]
 seeds: 3
 # The IC = 1 oracle is a ceiling, reported as such; it is not the ruler.
 include_oracle: true
+# decisions/0027: a frictionless twin for every base cell -- same signal, same
+# covariance, no long-only, no caps, no costs. It calibrates the ruler: its IR
+# per unit of IC is the empirical breadth, and base over frictionless is the
+# measured price of the constraints. A linear solve a week; it runs in the lean
+# grid too.
+include_frictionless: true
 
 # Costs, net first. Half-spread stress on the section 8 placeholders; the
 # fee-and-tracking drag is not stressed. Reported net IR is always at 1.0.

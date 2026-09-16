@@ -51,6 +51,9 @@ from signal_lab.portfolio.long_only import BPS, LongOnlySpec, solve
 
 BENCHMARK_SECTION_PREFIX = "18."
 
+# The cell family that calibrates the ruler itself (decisions/0027).
+FRICTIONLESS = "frictionless"
+
 
 # --- the universe the audit runs on ---------------------------------------
 
@@ -199,10 +202,11 @@ class AuditCell:
     def key(self) -> str:
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
         per = "none" if self.per_rebalance_cap is None else f"{self.per_rebalance_cap:.2f}"
-        return (
+        key = (
             f"ic{self.ic:.2f}_h{self.horizon}_s{self.seed}"
             f"_c{self.cost_multiplier:.1f}_t{cap}_r{per}"
         )
+        return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
 class _OptimiserRule:
@@ -390,17 +394,12 @@ def run_cell(
 ) -> tuple[dict[str, Any], PortfolioPath]:
     """One cell: plant, solve weekly, run the engine, summarise."""
     params = params or get_params()
+    if cell.tag == FRICTIONLESS:
+        return run_frictionless(universe, cell, params)
     solver = solver or str(params.get("audit.solver", "auto"))
     started = time.time()
 
-    signal = plant_signal(
-        universe.weekly[universe.holdable],
-        universe.benchmark_weekly,
-        ic=cell.ic,
-        horizon=cell.horizon,
-        seed=cell.seed,
-        vol_window=universe.window,
-    )
+    signal = _plant(universe, cell)
     rule = _OptimiserRule(universe, signal, cell, params, solver)
     engine_panel = universe.engine_panel()
     exposures = constant_exposures(pd.DataFrame(0.0, index=universe.holdable, columns=["f0"]))
@@ -541,6 +540,192 @@ def risk_calibration(
     }
 
 
+def _plant(universe: AuditUniverse, cell: AuditCell) -> PlantedSignal:
+    return plant_signal(
+        universe.weekly[universe.holdable],
+        universe.benchmark_weekly,
+        ic=cell.ic,
+        horizon=cell.horizon,
+        seed=cell.seed,
+        vol_window=universe.window,
+    )
+
+
+def run_frictionless(
+    universe: AuditUniverse, cell: AuditCell, params: Params | None = None
+) -> tuple[dict[str, Any], pd.Series]:
+    """
+    The ruler for the ruler. decisions/0027.
+
+    The same planted signal and the same estimated covariance as a base cell,
+    and nothing else: no long-only constraint, no cash or position cap, no
+    turnover limit, no costs. Each week the active book is the mean-variance
+    direction on returns in excess of the benchmark,
+
+        x = k * inv(Sigma_x) * alpha,     x' Sigma_x x = TE^2 / periods_per_year,
+
+    held for one period and marked on the excess returns that follow. This is
+    the setting the fundamental law describes (TC = 1), up to the error in the
+    estimated covariance. So:
+
+      * frictionless IR over IC, per horizon, is the EMPIRICAL breadth, to set
+        beside the formula's;
+      * a base cell's net IR over its frictionless twin is the measured price
+        of long-only, the caps and the costs.
+
+    "Up to the error in the estimated covariance" is not a small caveat. An
+    unconstrained inv(Sigma) book loads hardest on the directions the shrunk
+    covariance understates. On the synthetic panel (10 seeds, h = 4 to 52) its
+    bias statistic is about 1.21, where 1.00 means calibrated, and the empirical
+    breadth is 0.71 to 0.85 of the 52/h formula. The long-only books sit at
+    0.93 to 0.97 on the same covariance: the constraint absorbs the error
+    (Jagannathan and Ma, 2003). One seed's IR carries a standard deviation of
+    about 0.25 to 0.30 here, which is why `empirical_breadth` fits a slope over
+    every cell rather than reading one.
+
+    A linear solve a week rather than a QP: the whole family costs seconds.
+    Returns the row and the weekly active-return series.
+    """
+    params = params or get_params()
+    started = time.time()
+    ppy = float(params.get("costs.application.weeks_per_year", 52))
+    budget = float(params.require("constraints.tracking_error.max_trailing_3y"))
+    te_var = budget**2 / ppy
+    signal = _plant(universe, cell)
+    dates = universe.audit_dates()
+    legs = universe.leg_ids
+
+    returns: dict[pd.Timestamp, float] = {}
+    ex_ante: dict[pd.Timestamp, float] = {}
+    for held_from, marked_at in zip(dates[:-1], dates[1:], strict=True):
+        cov = universe.covariance(held_from)
+        ids = cov.ids
+        hold = [h for h in universe.holdable if h in ids]
+        if not hold:
+            continue
+        pos = {sid: i for i, sid in enumerate(ids)}
+        bench = np.zeros(len(ids))
+        for leg in legs:
+            bench[pos[leg]] = float(universe.leg_weights[leg])
+        excess = -np.repeat(bench[:, None], len(hold), axis=1)
+        for j, h in enumerate(hold):
+            excess[pos[h], j] += 1.0
+        sigma_x = excess.T @ cov.matrix.to_numpy(dtype=float) @ excess
+        alpha = (
+            signal.alpha.reindex(index=[held_from], columns=hold)
+            .iloc[0]
+            .fillna(0.0)
+            .to_numpy(dtype=float)
+        )
+        direction = np.linalg.lstsq(sigma_x, alpha, rcond=None)[0]
+        quad = float(alpha @ direction)
+        book = direction * np.sqrt(te_var / quad) if quad > 0 else np.zeros(len(hold))
+        realised = universe.weekly.loc[marked_at, hold].fillna(0.0).to_numpy(dtype=float) - float(
+            universe.benchmark_weekly.loc[marked_at]
+        )
+        returns[marked_at] = float(book @ realised)
+        if quad > 0:
+            # Only sized books carry an ex-ante TE. The last `horizon` weeks have
+            # no forward window, hence no alpha and no book; they earn zero and
+            # stay in the IR, as the base cell's benchmark-hugging weeks do.
+            ex_ante[held_from] = float(np.sqrt(max(book @ sigma_x @ book, 0.0) * ppy))
+
+    active = pd.Series(returns, dtype="float64").sort_index()
+    ex_ante_series = pd.Series(ex_ante, dtype="float64")
+    te = active.rolling(int(3 * ppy), min_periods=int(3 * ppy)).std().dropna() * np.sqrt(ppy)
+    sd = float(active.std())
+    ic = realised_ic(signal)
+    row: dict[str, Any] = {
+        "tag": cell.tag,
+        "key": cell.key(),
+        "ic": cell.ic,
+        "horizon": cell.horizon,
+        "seed": cell.seed,
+        "cost_multiplier": 0.0,
+        "turnover_cap": None,
+        "per_rebalance_cap": None,
+        "net_ir": float(active.mean() * ppy / (sd * np.sqrt(ppy))) if sd > 1e-12 else float("nan"),
+        "active_return_annual": float(active.mean() * ppy),
+        "active_vol_annual": float(sd * np.sqrt(ppy)),
+        "te_p95": float(te.quantile(0.95)) if len(te) else float("nan"),
+        "te_max": float(te.max()) if len(te) else float("nan"),
+        "te_ex_ante_mean": float(ex_ante_series.mean()),
+        "turnover_annual": float("nan"),
+        "cost_drag_annual": 0.0,
+        "inaccurate_share": float("nan"),
+        "realised_ic_pooled": ic["pooled"],
+        "realised_ic_cross_sectional": ic["cross_sectional"],
+        "signal_phi": signal_autocorrelation(signal.score),
+        "n_rebalances": int(len(active)),
+        "first_date": str(active.index[0].date()),
+        "last_date": str(active.index[-1].date()),
+        "solver": "linear",
+        "solvers_used": f"linear:{len(active)}",
+        "seconds": time.time() - started,
+    }
+    row.update(
+        risk_calibration(
+            active,
+            ex_ante_series,
+            ppy,
+            budget,
+            te_p95=row["te_p95"],
+            active_vol=row["active_vol_annual"],
+            ex_ante_mean=row["te_ex_ante_mean"],
+        )
+    )
+    row["passes_portfolio_vetoes"] = False
+    row["veto_detail"] = "not judged: a frictionless cell has no mandate"
+    return row, active
+
+
+def empirical_breadth(table: pd.DataFrame) -> pd.DataFrame:
+    """
+    Per horizon, the breadth the frictionless cells actually delivered.
+
+    Under the fundamental law at TC = 1, IR = IC * sqrt(BR), so IR is linear in
+    IC through the origin with slope sqrt(BR). The slope is fitted over every
+    frictionless cell below the oracle (all ICs, all seeds) rather than read off
+    one cell, which would carry that cell's sampling error squared. The IC the
+    frictionless book needs for the bar is `target / slope`.
+    """
+    sub = table[(table["tag"] == FRICTIONLESS) & (table["ic"] < 1.0) & (table["ic"] > 0.0)]
+    out = []
+    for h, group in sub.groupby("horizon"):
+        g = group[np.isfinite(group["net_ir"])]
+        denom = float((g["ic"] ** 2).sum())
+        slope = float((g["ic"] * g["net_ir"]).sum() / denom) if denom > 0 else float("nan")
+        out.append(
+            {
+                "horizon": int(h),
+                "ir_per_unit_ic": slope,
+                "empirical_breadth": slope**2 if np.isfinite(slope) and slope > 0 else float("nan"),
+                "n_cells": int(len(g)),
+            }
+        )
+    return pd.DataFrame(out)
+
+
+def transfer_ratio(table: pd.DataFrame) -> pd.DataFrame:
+    """
+    Base net IR over frictionless IR at the same (IC, horizon, seed), averaged.
+
+    The measured price of long-only, the cash and position caps and the costs,
+    as a fraction of what the same signal and covariance deliver without them.
+    It is not Clarke's transfer coefficient -- costs are in it -- and it is not
+    bounded by one on a single noisy cell.
+    """
+    keys = ["ic", "horizon", "seed"]
+    base = table[table["tag"] == "base"].set_index(keys)["net_ir"]
+    fric = table[table["tag"] == FRICTIONLESS].set_index(keys)["net_ir"]
+    joined = pd.concat({"base": base, "frictionless": fric}, axis=1, join="inner").reset_index()
+    if joined.empty:
+        return pd.DataFrame()
+    joined = joined[joined["frictionless"].abs() > 1e-9]
+    joined["ratio"] = joined["base"] / joined["frictionless"]
+    return joined.pivot_table(index="ic", columns="horizon", values="ratio", aggfunc="mean")
+
+
 def solvers_used(names: pd.Series) -> str:
     """
     Which solver produced each rebalance's book, as `NAME:count` pairs.
@@ -668,6 +853,14 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
         for ic in ics:
             for s in seeds:
                 cells.append(AuditCell(ic, h, s, 1.0, None, default_per, "base"))
+    # decisions/0027: every base cell has a frictionless twin, in the lean grid
+    # too. It is a linear solve a week, and it is what says whether the breadth
+    # the report prints is the breadth the pipeline has.
+    if bool(params.get("audit.include_frictionless", False)):
+        for h in horizons:
+            for ic in ics:
+                for s in seeds:
+                    cells.append(AuditCell(ic, h, s, 0.0, None, None, FRICTIONLESS))
     if lean:
         return cells
 
@@ -732,10 +925,10 @@ def required_ic(
     linearly interpolated between grid points. Outside the grid the answer is
     a bound, and the table says which.
 
-    `surviving_only` restricts to cells that would pass the five portfolio
+    `surviving_only` restricts to cells that would pass the four portfolio
     vetoes. A cell that clears the bar on net IR but breaches the tracking-error
-    or active-drawdown veto would be killed in phase 3, so counting it makes the
-    bar optimistic; the report shows both readings side by side.
+    veto would be killed in phase 3, so counting it makes the bar optimistic;
+    the report shows both readings side by side.
     """
     base = table[table["tag"] == tag]
     if surviving_only:
