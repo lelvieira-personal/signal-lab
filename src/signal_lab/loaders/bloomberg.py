@@ -179,9 +179,7 @@ def read_index_map(path: Path, sheet: str = "Index Map") -> pd.DataFrame:
         ticker = _norm(row[pos["ticker"]]) if pos["ticker"] < len(row) else None
         if not ticker:
             continue
-        rec = {
-            key: (_norm(row[i]) if i < len(row) else None) for key, i in pos.items()
-        }
+        rec = {key: (_norm(row[i]) if i < len(row) else None) for key, i in pos.items()}
         rec["first_daily"] = _as_timestamp(rec["first_daily"])
         rec["first_any"] = _as_timestamp(rec["first_any"])
         records.append(rec)
@@ -350,7 +348,11 @@ def build_series_meta(
         start = pd.Timestamp(start)
 
         tier = (uni.get("tier") or "").strip() or _tier_from_start(start, params)
-        section = (row.get("section") if row is not None else None) or uni.get("section") or "unclassified"
+        section = (
+            (row.get("section") if row is not None else None)
+            or uni.get("section")
+            or "unclassified"
+        )
         sparse = row.get("sparse_obs") if row is not None else None
         month_end_before = start if sparse not in (None, "", "0") else None
 
@@ -393,9 +395,7 @@ class BloombergLoader:
     ):
         self.params = params or get_params()
         self.raw_dir = Path(raw_dir) if raw_dir else REPO_ROOT / "data" / "raw"
-        self.universe_dir = (
-            Path(universe_dir) if universe_dir else REPO_ROOT / "data" / "universe"
-        )
+        self.universe_dir = Path(universe_dir) if universe_dir else REPO_ROOT / "data" / "universe"
         self._manifest: list[dict[str, str]] | None = None
         self.report: dict[str, Any] = {}
 
@@ -462,9 +462,7 @@ class BloombergLoader:
         # counts, a comparison block -- whose headers are prose, and one of which
         # repeats. Taking the whole header row would drag those in as series.
         cand_cols = {
-            ticker: i
-            for i, ticker in enumerate(cand_header[0][1:])
-            if ticker in wanted_sources
+            ticker: i for i, ticker in enumerate(cand_header[0][1:]) if ticker in wanted_sources
         }
         missing_sources = sorted(wanted_sources - set(cand_cols))
         candidates = _named_frame(candidates, cand_cols)
@@ -481,12 +479,12 @@ class BloombergLoader:
         combined = to_missing(combined, markers)
         combined = filter_business_days(combined)
 
-        index_map = read_index_map(self._path(self._entry("index_map")), self._entry("index_map")["sheet"])
+        index_map = read_index_map(
+            self._path(self._entry("index_map")), self._entry("index_map")["sheet"]
+        )
         universe = read_universe(self.universe_dir)
         exusd_starts = self._exusd_starts()
-        meta = build_series_meta(
-            list(combined.columns), index_map, universe, params, exusd_starts
-        )
+        meta = build_series_meta(list(combined.columns), index_map, universe, params, exusd_starts)
 
         # 2. truncate at the true daily start, per series.
         before_truncation = combined
@@ -525,9 +523,7 @@ class BloombergLoader:
         meta = flag_net_of_withholding(
             meta, list(params.get("data.net_of_withholding.prefixes", []))
         )
-        meta = propagate_hedge_flags(
-            meta, [s for s, m in meta.items() if m.hedged]
-        )
+        meta = propagate_hedge_flags(meta, [s for s, m in meta.items() if m.hedged])
 
         # The candidate is not a member of the universe; it existed to be
         # spliced. Dropping it here keeps it out of the estimation universe and
@@ -710,15 +706,15 @@ class BloombergLoader:
             "no_daily_start_in_index_map": sorted(missing_start),
             "oas_unit": "percent (multiply by 100 for basis points)",
         }
-        return AnalyticsPanel(
-            fields=frames, meta=meta, snapshot_id=snapshot_id, source=self.source
-        )
+        return AnalyticsPanel(fields=frames, meta=meta, snapshot_id=snapshot_id, source=self.source)
 
     @staticmethod
     def _treasury_tickers(index_map: pd.DataFrame) -> set[str]:
         """Tickers in the Treasury maturity-bucket and inflation-linked sections."""
-        mask = index_map["section"].astype(str).str.startswith(
-            ("2. US Treasury Maturity Buckets", "1. Risk-Free / Cash")
+        mask = (
+            index_map["section"]
+            .astype(str)
+            .str.startswith(("2. US Treasury Maturity Buckets", "1. Risk-Free / Cash"))
         )
         return set(index_map.loc[mask, "ticker"].astype(str))
 

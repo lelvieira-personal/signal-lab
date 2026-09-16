@@ -66,7 +66,13 @@ SERIES = {
         64,
     ),
     # price index masquerading in a total-return panel
-    "SPBDALB": ("5. Credit", dt.date(2007, 4, 2), "MONTHLY THEN DAILY - daily from 2007-04-02", 95.0, 87),
+    "SPBDALB": (
+        "5. Credit",
+        dt.date(2007, 4, 2),
+        "MONTHLY THEN DAILY - daily from 2007-04-02",
+        95.0,
+        87,
+    ),
 }
 
 # the replacement candidate: much longer daily history, unrelated level scale
@@ -81,12 +87,42 @@ BENCHMARKS = {
 
 # analytics: (full ticker, field, metric, group, first daily date)
 ANALYTICS = [
-    ("LUACTRUU Index", "INDEX_OAS_TSY", "OAS to Treasury (%) x100 for bps", "1. Path1 analytics on TR ticker", dt.date(2004, 10, 1)),
-    ("LUACTRUU Index", "INDEX_YIELD_TO_WORST", "Yield to worst (%)", "1. Path1 analytics on TR ticker", dt.date(2001, 6, 4)),
-    ("LUACTRUU Index", "INDEX_OAD_TSY", "Effective duration (yrs)", "1. Path1 analytics on TR ticker", dt.date(2001, 8, 1)),
+    (
+        "LUACTRUU Index",
+        "INDEX_OAS_TSY",
+        "OAS to Treasury (%) x100 for bps",
+        "1. Path1 analytics on TR ticker",
+        dt.date(2004, 10, 1),
+    ),
+    (
+        "LUACTRUU Index",
+        "INDEX_YIELD_TO_WORST",
+        "Yield to worst (%)",
+        "1. Path1 analytics on TR ticker",
+        dt.date(2001, 6, 4),
+    ),
+    (
+        "LUACTRUU Index",
+        "INDEX_OAD_TSY",
+        "Effective duration (yrs)",
+        "1. Path1 analytics on TR ticker",
+        dt.date(2001, 8, 1),
+    ),
     # OAS on a Treasury bucket: zero by construction, dropped by params
-    ("LT13TRUU Index", "INDEX_OAS_TSY", "OAS to Treasury (%) x100 for bps", "1. Path1 analytics on TR ticker", dt.date(2005, 1, 3)),
-    ("LT13TRUU Index", "INDEX_YIELD_TO_WORST", "Yield to worst (%)", "1. Path1 analytics on TR ticker", dt.date(2002, 1, 2)),
+    (
+        "LT13TRUU Index",
+        "INDEX_OAS_TSY",
+        "OAS to Treasury (%) x100 for bps",
+        "1. Path1 analytics on TR ticker",
+        dt.date(2005, 1, 3),
+    ),
+    (
+        "LT13TRUU Index",
+        "INDEX_YIELD_TO_WORST",
+        "Yield to worst (%)",
+        "1. Path1 analytics on TR ticker",
+        dt.date(2002, 1, 2),
+    ),
     ("MOVE Index", "PX_LAST", "Level", "3. Vol / financial conditions", dt.date(2000, 1, 3)),
 ]
 
@@ -144,17 +180,38 @@ def build(target_dir: Path) -> dict[str, Path]:
     im.title = "Index Map"
     im.append(
         [
-            "Ticker", "Bloomberg Security Name", "Section", "Tier", "Splice Flag (Y/N)",
-            "Splice Date", "Notes", "First data date", "Frequency flag", "First daily year",
-            "First daily date", "Sparse-era obs (pre-daily)", "Peak obs/yr", "First daily month",
-            "Currency hedge", "Hedge pair (counterpart)", "Hedge pair note",
-            "Long name (Bloomberg LONG_COMP_NAME)", "Quote ccy", "Replacement candidate",
-            "Replacement note", None, "Source-declared USD-hedged tickers (from user list)",
-            "Analytics metric", "Bloomberg field", "Full Bloomberg ticker",
+            "Ticker",
+            "Bloomberg Security Name",
+            "Section",
+            "Tier",
+            "Splice Flag (Y/N)",
+            "Splice Date",
+            "Notes",
+            "First data date",
+            "Frequency flag",
+            "First daily year",
+            "First daily date",
+            "Sparse-era obs (pre-daily)",
+            "Peak obs/yr",
+            "First daily month",
+            "Currency hedge",
+            "Hedge pair (counterpart)",
+            "Hedge pair note",
+            "Long name (Bloomberg LONG_COMP_NAME)",
+            "Quote ccy",
+            "Replacement candidate",
+            "Replacement note",
+            None,
+            "Source-declared USD-hedged tickers (from user list)",
+            "Analytics metric",
+            "Bloomberg field",
+            "Full Bloomberg ticker",
         ]
     )
 
-    def imrow(ticker, section, first_daily, flag, sparse, ccy="USD", metric=None, field=None, full=None):
+    def imrow(
+        ticker, section, first_daily, flag, sparse, ccy="USD", metric=None, field=None, full=None
+    ):
         row = [None] * 26
         row[0] = ticker
         row[1] = f"{ticker} name"
@@ -174,13 +231,21 @@ def build(target_dir: Path) -> dict[str, Path]:
 
     for ticker, (section, first_daily, flag, _base, sparse) in SERIES.items():
         imrow(ticker, section, first_daily, flag, sparse)
-    imrow(CANDIDATE[0], CANDIDATE[1], CANDIDATE[2], "MONTHLY THEN DAILY - daily from 2001-01-02", 24)
+    imrow(
+        CANDIDATE[0], CANDIDATE[1], CANDIDATE[2], "MONTHLY THEN DAILY - daily from 2001-01-02", 24
+    )
     for ticker, (section, first_daily, _b) in BENCHMARKS.items():
         imrow(ticker, section, first_daily, "Daily from inception", 0)
     for full, field, metric, group, first_daily in ANALYTICS:
         imrow(
-            full.split()[0], f"17. Analytics / non-investable ({group.split('. ')[1]})",
-            first_daily, "Daily from inception", 0, metric=metric, field=field, full=full,
+            full.split()[0],
+            f"17. Analytics / non-investable ({group.split('. ')[1]})",
+            first_daily,
+            "Daily from inception",
+            0,
+            metric=metric,
+            field=field,
+            full=full,
         )
 
     # --- Loader Notes --------------------------------------------------------
@@ -192,9 +257,7 @@ def build(target_dir: Path) -> dict[str, Path]:
     # --- TR Levels -----------------------------------------------------------
     tr = wb.create_sheet("TR Levels")
     tickers = list(SERIES)
-    sparse_sets = {
-        t: _month_ends(days, SERIES[t][1]) if SERIES[t][4] else set() for t in tickers
-    }
+    sparse_sets = {t: _month_ends(days, SERIES[t][1]) if SERIES[t][4] else set() for t in tickers}
     tr.append(["Date", *tickers, None, "FLAG", "FLAG", "FLAG"])
     tr.append(["Security name", *[f"{t} name" for t in tickers], None, None, None, None])
     tr.append(["Tier", *[None] * len(tickers), None, None, None, None])
@@ -286,16 +349,79 @@ def _write_universe_tables(universe: Path, workbook_name: str, exusd_name: str) 
     with (universe / "raw_manifest.csv").open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(
-            ["file", "sheet", "layout", "field", "currency", "role", "header_rows", "first_data_row"]
+            [
+                "file",
+                "sheet",
+                "layout",
+                "field",
+                "currency",
+                "role",
+                "header_rows",
+                "first_data_row",
+            ]
         )
         rows = [
             (workbook_name, "Index Map", "table", "n/a", "n/a", "index_map", 1, 2),
-            (workbook_name, "TR Levels", "wide_single_date", "TOT_RETURN_INDEX_GROSS_DVDS", "USD", "returns", 4, 5),
-            (workbook_name, "TR Levels Hedged", "wide_single_date", "TOT_RETURN_INDEX_GROSS_DVDS", "USD_hedged", "returns_hedged", 4, 5),
-            (workbook_name, "TR Levels Candidates", "wide_single_date", "TOT_RETURN_INDEX_GROSS_DVDS", "USD", "returns_substitutes", 4, 5),
-            (workbook_name, "TR Benchmarks", "wide_single_date", "TOT_RETURN_INDEX_GROSS_DVDS", "USD", "benchmark", 4, 5),
-            (workbook_name, "TR Analytics", "wide_ticker_field_header", "various", "n/a", "analytics", 4, 5),
-            (exusd_name, "", "paired_date_value", "PX_LAST", "local_or_USD", "returns_ex_usd", 1, 2),
+            (
+                workbook_name,
+                "TR Levels",
+                "wide_single_date",
+                "TOT_RETURN_INDEX_GROSS_DVDS",
+                "USD",
+                "returns",
+                4,
+                5,
+            ),
+            (
+                workbook_name,
+                "TR Levels Hedged",
+                "wide_single_date",
+                "TOT_RETURN_INDEX_GROSS_DVDS",
+                "USD_hedged",
+                "returns_hedged",
+                4,
+                5,
+            ),
+            (
+                workbook_name,
+                "TR Levels Candidates",
+                "wide_single_date",
+                "TOT_RETURN_INDEX_GROSS_DVDS",
+                "USD",
+                "returns_substitutes",
+                4,
+                5,
+            ),
+            (
+                workbook_name,
+                "TR Benchmarks",
+                "wide_single_date",
+                "TOT_RETURN_INDEX_GROSS_DVDS",
+                "USD",
+                "benchmark",
+                4,
+                5,
+            ),
+            (
+                workbook_name,
+                "TR Analytics",
+                "wide_ticker_field_header",
+                "various",
+                "n/a",
+                "analytics",
+                4,
+                5,
+            ),
+            (
+                exusd_name,
+                "",
+                "paired_date_value",
+                "PX_LAST",
+                "local_or_USD",
+                "returns_ex_usd",
+                1,
+                2,
+            ),
         ]
         w.writerows(rows)
 
@@ -305,34 +431,54 @@ def _write_universe_tables(universe: Path, workbook_name: str, exusd_name: str) 
         w = csv.DictWriter(
             fh,
             fieldnames=[
-                "ticker", "name", "section", "first_daily", "tier", "hedged",
-                "investable", "cost_bucket", "reporting_class", "source_file",
+                "ticker",
+                "name",
+                "section",
+                "first_daily",
+                "tier",
+                "hedged",
+                "investable",
+                "cost_bucket",
+                "reporting_class",
+                "source_file",
             ],
         )
         w.writeheader()
         for ticker, (section, first_daily, _flag, _base, _sparse) in SERIES.items():
             tier = (
-                "backbone" if first_daily.year <= 2001
-                else "second" if first_daily.year <= 2009
+                "backbone"
+                if first_daily.year <= 2001
+                else "second"
+                if first_daily.year <= 2009
                 else "tradable-only"
             )
             w.writerow(
                 {
-                    "ticker": ticker, "name": f"{ticker} name", "section": section,
-                    "first_daily": first_daily, "tier": tier,
-                    "hedged": ticker in hedged, "investable": ticker not in not_investable,
-                    "cost_bucket": "mid", "reporting_class": "Test",
+                    "ticker": ticker,
+                    "name": f"{ticker} name",
+                    "section": section,
+                    "first_daily": first_daily,
+                    "tier": tier,
+                    "hedged": ticker in hedged,
+                    "investable": ticker not in not_investable,
+                    "cost_bucket": "mid",
+                    "reporting_class": "Test",
                     "source_file": "fixture",
                 }
             )
         for ticker, (first_daily, _base, _ccy) in EXUSD.items():
             w.writerow(
                 {
-                    "ticker": ticker, "name": f"{ticker} name",
+                    "ticker": ticker,
+                    "name": f"{ticker} name",
                     "section": "3. International Government Bonds",
-                    "first_daily": first_daily, "tier": "", "hedged": False,
-                    "investable": True, "cost_bucket": "mid",
-                    "reporting_class": "Ex-USD Bonds", "source_file": "fixture",
+                    "first_daily": first_daily,
+                    "tier": "",
+                    "hedged": False,
+                    "investable": True,
+                    "cost_bucket": "mid",
+                    "reporting_class": "Ex-USD Bonds",
+                    "source_file": "fixture",
                 }
             )
 

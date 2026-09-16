@@ -193,9 +193,9 @@ def test_splice_fills_only_the_gap_and_is_logged():
     out, new_meta, records = apply_splices(levels, spec, meta)
 
     scale = 50.0 / 12.0  # target over source on the seam date, the first both print
-    assert out["LT13TRUU"].tolist() == pytest.approx(
-        [10.0 * scale, 11.0 * scale, 50.0, 51.0]
-    ), "the target wins where both exist; the source is put on the target's scale"
+    assert out["LT13TRUU"].tolist() == pytest.approx([10.0 * scale, 11.0 * scale, 50.0, 51.0]), (
+        "the target wins where both exist; the source is put on the target's scale"
+    )
     assert len(records) == 1
     assert records[0].n_observations_taken == 2
     assert records[0].splice_date == index[0].date()
