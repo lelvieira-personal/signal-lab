@@ -117,8 +117,9 @@ def test_turnover_is_traded_notional_and_section_8_is_then_literal():
 
 def test_the_veto_reads_traded_notional_not_the_one_way_figure(params):
     """
-    Reading one-way here would let a strategy trade 300% of NAV a year against
-    a ceiling meant to permit 150%. Built to sit just inside and just outside.
+    Reading one-way here would let a strategy trade twice what the ceiling
+    permits. Built to sit just inside and just outside, at whatever the ceiling
+    currently is -- decisions/0024 moved it to a 400% backstop.
     """
     from signal_lab.harness.run_context import RunContext
     from vetoes.rules import veto_turnover

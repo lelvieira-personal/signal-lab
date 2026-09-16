@@ -41,6 +41,23 @@ def _missing(name: str, exc: MissingInput) -> Verdict:
     )
 
 
+# The ceiling itself must pass (SUBSTRATE section 10), and a realised figure is
+# a float aggregate -- a mean over 52 weeks, a percentile, a max -- so summation
+# error can put a book that trades EXACTLY the ceiling a few ulps above it. At a
+# 1.50 ceiling the arithmetic happened to land clean; at the 4.00 backstop
+# decisions/0024 set, `4.00 / 52 * 52` does not. The tolerance is relative and
+# 1e-9, which is nine orders of magnitude below any threshold in
+# params/vetoes.yaml and cannot admit a breach anyone could measure. It is the
+# same reading `audit.ladder.portfolio_veto_verdicts` already used, so the audit
+# and the live veto set now agree at the boundary.
+_REL_TOL = 1e-9
+
+
+def _at_most(realised: float, cap: float) -> bool:
+    """`realised <= cap`, at floating-point tolerance. See _REL_TOL."""
+    return float(realised) <= float(cap) * (1.0 + _REL_TOL)
+
+
 # --- 1. turnover -------------------------------------------------------------
 
 
@@ -52,7 +69,7 @@ def veto_turnover(ctx: RunContext, params: Params | None = None) -> Verdict:
     except MissingInput as exc:
         return _missing("turnover", exc)
     return Verdict(
-        passed=realised <= cap,
+        passed=_at_most(realised, cap),
         veto="turnover",
         detail=f"annualised turnover {realised:.1%} against a {cap:.0%} ceiling",
     )
@@ -70,7 +87,7 @@ def veto_cash(ctx: RunContext, params: Params | None = None) -> Verdict:
         return _missing("cash", exc)
     realised = float(pd.Series(cash).max())
     return Verdict(
-        passed=realised <= cap,
+        passed=_at_most(realised, cap),
         veto="cash",
         detail=f"max cash weight {realised:.1%} against a {cap:.0%} ceiling",
     )
@@ -117,7 +134,7 @@ def veto_tracking_error(ctx: RunContext, params: Params | None = None) -> Verdic
             detail=f"unknown tracking_error statistic {statistic!r} in params/vetoes.yaml",
         )
     return Verdict(
-        passed=realised <= cap,
+        passed=_at_most(realised, cap),
         veto="tracking_error",
         detail=(
             f"{statistic} trailing-3y TE {realised:.2%} against a {cap:.1%} ceiling "
@@ -289,7 +306,7 @@ def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdic
         return _missing("seed_stability", MissingInput("seed_irs (needs >= 2 seeds)"))
     spread = float(max(values) - min(values))
     return Verdict(
-        passed=spread <= cap,
+        passed=_at_most(spread, cap),
         veto="seed_stability",
         detail=f"IR range {spread:.3f} across {len(values)} seeds against a {cap:.2f} ceiling",
     )

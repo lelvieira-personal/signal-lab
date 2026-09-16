@@ -87,3 +87,22 @@ measured from the 100% target. The coefficient and its magnitude survive; what
 it is measured from does not. `decisions/0003`'s reading of 150% as a mandate
 ceiling is withdrawn for turnover only — the tracking-error ceiling is
 untouched.
+
+## Addendum, same day — the boundary tolerance
+
+Raising the ceiling exposed a latent arithmetic defect rather than creating one.
+`vetoes/rules.py` compared a realised float aggregate to its threshold with a
+bare `<=`. A realised figure is a mean over 52 weeks, a percentile or a max, so
+summation error can put a book trading *exactly* the ceiling a few ulps above
+it. At 1.50 the arithmetic happened to land clean; at 4.00, `4.00 / 52 * 52`
+does not, and the ceiling itself failed — which SUBSTRATE §10 says must pass.
+
+The four float-valued vetoes (`turnover`, `cash`, `tracking_error`,
+`seed_stability`) now compare at a **relative tolerance of 1e-9**. That is nine
+orders of magnitude below any threshold in `params/vetoes.yaml` and cannot admit
+a breach anyone could measure. `positions` is an integer count and stays exact.
+
+This is the reading `audit.ladder.portfolio_veto_verdicts` already used, so the
+audit's verdicts and the live veto set now agree at the boundary; they did not
+before, and a cell sitting exactly on a threshold could have been judged
+differently by the two.

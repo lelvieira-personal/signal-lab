@@ -76,9 +76,16 @@ def test_turnover_passes_under_the_ceiling(params):
 
 
 def test_turnover_fails_over_the_ceiling(params):
-    c = ctx(turnover=pd.Series(0.05, index=DATES))  # 260% annualised
+    """
+    decisions/0024: the ceiling is a BACKSTOP at 400%, not a budget. 260% a year
+    is expensive -- roughly 25bp of shadow cost -- and entirely permitted.
+    """
+    assert veto_turnover(ctx(turnover=pd.Series(0.05, index=DATES)), params).passed, (
+        "260% a year is priced, not vetoed"
+    )
+    c = ctx(turnover=pd.Series(0.10, index=DATES))  # 520% annualised
     v = veto_turnover(c, params)
-    assert not v.passed and "260" in v.detail
+    assert not v.passed and "520" in v.detail
 
 
 def test_turnover_boundary_is_inclusive(params):
@@ -463,8 +470,8 @@ def test_apply_vetoes_passes_a_clean_run(panel, params):
 
 def test_apply_vetoes_records_every_verdict_not_only_the_failure(panel, params):
     c = full_context(
-        panel, cash_weights=pd.Series(0.35, index=DATES), turnover=pd.Series(0.06, index=DATES)
-    )
+        panel, cash_weights=pd.Series(0.35, index=DATES), turnover=pd.Series(0.10, index=DATES)
+    )  # 520% a year: past the 0024 backstop
     verdicts, failure = apply_vetoes(c, params)
     assert len(verdicts) == 10
     failed = {k for k, v in verdicts.items() if not v.passed}
