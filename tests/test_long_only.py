@@ -17,8 +17,11 @@ import pytest
 
 from signal_lab.portfolio.long_only import (
     INFEASIBLE_STATUS,
+    POLISH_WARN,
     LongOnlySpec,
     SolverFailed,
+    _arrays,
+    _polish,
     solve,
 )
 
@@ -233,3 +236,74 @@ def test_an_impossible_problem_raises_rather_than_returning_something():
             spec,
             solver="scipy",
         )
+
+
+# --- the book is inside the mandate exactly, not to a solver tolerance -------
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_the_returned_book_is_inside_the_mandate_exactly(solver):
+    """
+    The cash veto compares at a 1e-9 relative tolerance, meant for summation
+    error. A solver lands within ITS tolerance of the cap -- CLARABEL put cash at
+    0.2 + 5e-10 on the synthetic audit and three of four cells failed the veto
+    for it. The book the engine trades must be inside the mandate with no
+    tolerance at all.
+    """
+    alpha = pd.Series({"A": -0.003, "B": -0.003, "C": -0.003, "CASH": 0.0})
+    sol = solve(alpha, toy_sigma(), BOOK, FREE, toy_spec(), solver=solver)
+    assert sol.weights["CASH"] <= 0.2, repr(sol.weights["CASH"])
+    assert (sol.weights >= 0.0).all()
+    assert sol.weights.sum() == pytest.approx(1.0, abs=1e-12)
+    assert sol.meta["polish_shift"] < POLISH_WARN, "the projection is rounding, not repair"
+
+
+def _toy_arrays():
+    spec = toy_spec()
+    return _arrays(ALPHA, toy_sigma(), BOOK, FREE, spec, None, None)
+
+
+def test_polish_pulls_a_tolerance_overshoot_back_inside_and_says_how_far():
+    arr = _toy_arrays()
+    over = 5e-10  # the size CLARABEL left on the synthetic audit
+    w = np.array([0.30, 0.25, 0.25 - over, 0.20 + over])
+    out, shift = _polish(w, arr)
+    assert out[3] <= 0.20
+    assert out.sum() == pytest.approx(1.0, abs=1e-15)
+    assert shift == pytest.approx(over, rel=1e-3)
+
+
+def test_polish_clears_dust_and_negatives_without_opening_a_position():
+    arr = _toy_arrays()
+    w = np.array([0.60, -1e-10, 0.30 + 1e-10 - 3e-8, 0.10 + 3e-8])
+    out, _ = _polish(w, arr)
+    assert out[1] == 0.0, "a solver's negative zero is not a short"
+    assert (out >= 0.0).all()
+    assert out.sum() == pytest.approx(1.0, abs=1e-15)
+    held = np.array([0.60, 0.0, 0.30, 0.10])
+    assert ((out > 0) == (held > 0)).all()
+
+
+def test_an_inaccurate_solve_is_labelled_and_still_projected(monkeypatch):
+    """
+    `optimal_inaccurate` used to be accepted silently -- the warnings on the
+    first audit run were the only trace. The flag travels with the solution so
+    the audit can count it, and the book is projected like any other.
+    """
+    from signal_lab.portfolio import long_only
+
+    def inaccurate_run(arr, backend, params):
+        w = np.array([0.30, 0.25, 0.25 - 5e-10, 0.20 + 5e-10])
+        return w, long_only.INACCURATE, "CLARABEL"
+
+    monkeypatch.setattr(long_only, "_run", inaccurate_run)
+    sol = solve(ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver="cvxpy")
+    assert sol.inaccurate
+    assert sol.status == long_only.INACCURATE
+    assert sol.solver == "CLARABEL"
+    assert sol.weights["CASH"] <= 0.2
+
+
+def test_an_accurate_solve_is_not_labelled_inaccurate():
+    sol = solve(ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver="scipy")
+    assert not sol.inaccurate

@@ -238,8 +238,12 @@ def test_a_cell_runs_the_whole_chain_and_reports_what_bound(small_universe):
     assert row["realised_ic_pooled"] == pytest.approx(0.10, abs=0.05)
     assert row["n_positions_max"] <= params.require("constraints.positions.max_nonzero")
     assert 0.0 <= row["te_binding_share"] <= 1.0
-    assert row["max_cash"] <= params.require("constraints.cash.max_weight") + 1e-6
+    # Exact to rounding, not to a solver tolerance: the veto reads this figure.
+    assert row["max_cash"] <= params.require("constraints.cash.max_weight") * (1 + 1e-12)
     assert len(path.dates) == row["n_rebalances"] > 20
+    assert 0.0 <= row["inaccurate_share"] <= 1.0
+    assert row["solvers_used"].startswith("SLSQP:"), "the solver that ran, not the one asked for"
+    assert row["polish_shift_max"] < 1e-4
 
 
 def test_the_oracle_beats_a_blind_signal(small_universe):

@@ -53,6 +53,7 @@ so a reader can see how often the cap bound.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -68,6 +69,15 @@ BPS = 1e-4
 # worth 0.07bp a period: far below any alpha, decisive only when there is none.
 TIE_BREAK_RISK_AVERSION = 0.1
 INFEASIBLE_STATUS = "infeasible_te:min_te"
+
+# A weight below this is solver noise, not a position. The same threshold
+# decides what counts as held for the position cap.
+DUST = 1e-7
+
+# How far `_polish` may move a book before the move is itself a finding. An
+# interior-point solver lands within ~1e-8 of a bound; a shift beyond this is
+# not rounding, and the audit reports the largest one per cell.
+POLISH_WARN = 1e-4
 
 
 class SolverFailed(Exception):
@@ -147,6 +157,10 @@ class Solution:
     turnover_binding: bool
     cash_binding: bool
     positions_capped: bool
+    # The solver reported `optimal_inaccurate`: it stopped at its reduced
+    # tolerances. The book is still projected onto the mandate (`_polish`), but
+    # how often this happens is a property of the solver worth counting.
+    inaccurate: bool = False
     meta: dict[str, Any] = field(default_factory=dict)
 
 
@@ -218,10 +232,58 @@ def _arrays(
     )
 
 
+def _polish(w: np.ndarray, arr: _Arrays) -> tuple[np.ndarray, float]:
+    """
+    Project a solved book onto the mandate EXACTLY, and say how far it moved.
+
+    A conic solver returns a point within its feasibility tolerance of the
+    constraint set, not inside it: on the synthetic audit CLARABEL put cash at
+    0.2 + 5e-10 against a 0.2 cap, which the cash veto -- compared at a 1e-9
+    relative tolerance meant for summation error, decisions/0024 addendum --
+    correctly refused. The fix belongs here rather than in the veto. The engine
+    trades and earns on these weights, so a book that is outside the mandate by
+    a solver tolerance is outside it, and loosening the veto to the solver's
+    tolerance would make the veto's meaning depend on which solver ran.
+
+    In order: off-support and dust weights (including the solver's tiny
+    negatives) become zero; a cash block above its cap is scaled down to the
+    cap; and the shortfall or excess against full investment is spread over the
+    risky positions in proportion to their size, so no new position is opened
+    and cash is not pushed back over its cap. The largest absolute change is
+    returned, so a projection that is doing more than rounding is visible.
+    """
+    raw = np.asarray(w, dtype=float)
+    out = raw.copy()
+    out[~arr.support] = 0.0
+    out[out < DUST] = 0.0
+    cash = arr.cash_mask
+    if cash.any():
+        held_cash = float(out[cash].sum())
+        if held_cash > arr.max_cash:
+            out[cash] *= arr.max_cash / held_cash
+    total = float(out.sum())
+    if total <= 0.0:
+        raise SolverFailed("the solved book holds nothing")
+    risky = ~cash & (out > 0.0)
+    gap = 1.0 - total
+    if gap != 0.0:
+        if risky.any():
+            out[risky] += gap * out[risky] / float(out[risky].sum())
+        else:  # an all-cash book; only reachable when the cap is not binding
+            out /= total
+    return out, float(np.max(np.abs(out - raw))) if len(raw) else 0.0
+
+
 def _diagnose(
-    w: np.ndarray, arr: _Arrays, spec: LongOnlySpec, status: str, solver: str
+    w: np.ndarray,
+    arr: _Arrays,
+    spec: LongOnlySpec,
+    status: str,
+    solver: str,
+    inaccurate: bool = False,
+    polish_shift: float = 0.0,
 ) -> Solution:
-    w = np.where(np.abs(w) < 1e-7, 0.0, w)
+    w = np.where(np.abs(w) < DUST, 0.0, w)
     var = arr.active_var(w)
     turnover = float(np.abs(w - arr.w0).sum())
     objective = float(arr.a @ w - arr.c @ np.abs(w - arr.w0))
@@ -240,6 +302,8 @@ def _diagnose(
         ),
         cash_binding=bool(w[arr.cash_mask].sum() >= arr.max_cash - tol),
         positions_capped=bool(not arr.support.all()),
+        inaccurate=bool(inaccurate),
+        meta={"polish_shift": polish_shift},
     )
 
 
@@ -251,6 +315,42 @@ def _solver_chain(params: Params | None) -> list[str]:
     chain = [str(params.get("constraints.solver.default", "CLARABEL"))]
     chain += [str(s) for s in params.get("constraints.solver.fallbacks", []) or []]
     return chain
+
+
+INACCURATE = "optimal_inaccurate"
+
+
+def _solve_with_chain(problem, w, params: Params | None, what: str) -> tuple[np.ndarray, str, str]:
+    """
+    Solve `problem` with the first solver in the chain that returns an answer.
+
+    `optimal_inaccurate` is accepted and passed on in the status rather than
+    retried down the chain: the fallbacks are OSQP, a first-order method whose
+    default tolerances are looser than an interior-point solver's reduced
+    ones, and ECOS. Falling from an almost-solved CLARABEL to a "solved" OSQP
+    would trade a flagged approximation for an unflagged, coarser one. The book
+    is projected onto the mandate either way (`_polish`), and the caller counts
+    the inaccurate solves. cvxpy's own warning is silenced for the same reason:
+    the count replaces it.
+    """
+    import cvxpy as cp
+
+    errors = []
+    for name in _solver_chain(params):
+        if name not in cp.installed_solvers():
+            errors.append(f"{name}: not installed")
+            continue
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Solution may be inaccurate")
+                problem.solve(solver=name)
+        except cp.error.SolverError as exc:  # pragma: no cover - depends on installed solvers
+            errors.append(f"{name}: {exc}")
+            continue
+        if problem.status in ("optimal", INACCURATE) and w.value is not None:
+            return np.asarray(w.value, dtype=float), str(problem.status), name
+        errors.append(f"{name}: {problem.status}")
+    raise SolverFailed(f"{what}: " + "; ".join(errors))
 
 
 def solve_cvxpy(arr: _Arrays, params: Params | None = None) -> tuple[np.ndarray, str, str]:
@@ -274,21 +374,7 @@ def solve_cvxpy(arr: _Arrays, params: Params | None = None) -> tuple[np.ndarray,
     if not arr.support.all():
         constraints.append(w[np.flatnonzero(~arr.support)] == 0.0)
     problem = cp.Problem(objective, constraints)
-
-    errors = []
-    for name in _solver_chain(params):
-        if name not in cp.installed_solvers():
-            errors.append(f"{name}: not installed")
-            continue
-        try:
-            problem.solve(solver=name)
-        except cp.error.SolverError as exc:  # pragma: no cover - depends on installed solvers
-            errors.append(f"{name}: {exc}")
-            continue
-        if problem.status in ("optimal", "optimal_inaccurate") and w.value is not None:
-            return np.asarray(w.value, dtype=float), str(problem.status), name
-        errors.append(f"{name}: {problem.status}")
-    raise SolverFailed("; ".join(errors))
+    return _solve_with_chain(problem, w, params, "the budgeted problem")
 
 
 # --- reference path: scipy, split trades ------------------------------------
@@ -304,16 +390,7 @@ def _minimum_trade_cvxpy(arr: _Arrays, params: Params | None) -> tuple[np.ndarra
     if not arr.support.all():
         constraints.append(w[np.flatnonzero(~arr.support)] == 0.0)
     problem = cp.Problem(cp.Minimize(cp.sum(cp.abs(w - arr.w0))), constraints)
-    for name in _solver_chain(params):
-        if name not in cp.installed_solvers():
-            continue
-        try:
-            problem.solve(solver=name)
-        except cp.error.SolverError:  # pragma: no cover - depends on installed solvers
-            continue
-        if problem.status in ("optimal", "optimal_inaccurate") and w.value is not None:
-            return np.asarray(w.value, dtype=float), str(problem.status), name
-    raise SolverFailed("the minimum-trade repair did not solve")
+    return _solve_with_chain(problem, w, params, "the minimum-trade repair")
 
 
 def _minimum_trade_reference(arr: _Arrays) -> tuple[np.ndarray, str, str]:
@@ -532,16 +609,7 @@ def _minimum_te_cvxpy(arr: _Arrays, params: Params | None) -> tuple[np.ndarray, 
     problem = cp.Problem(
         cp.Minimize(cp.quad_form(active, cp.psd_wrap(arr.sigma / arr.te_var))), constraints
     )
-    for name in _solver_chain(params):
-        if name not in cp.installed_solvers():
-            continue
-        try:
-            problem.solve(solver=name)
-        except cp.error.SolverError:  # pragma: no cover - depends on installed solvers
-            continue
-        if problem.status in ("optimal", "optimal_inaccurate") and w.value is not None:
-            return np.asarray(w.value, dtype=float), str(problem.status), name
-    raise SolverFailed("the minimum-tracking-error problem did not solve")
+    return _solve_with_chain(problem, w, params, "the minimum-tracking-error problem")
 
 
 def _minimum_te_reference(arr: _Arrays) -> tuple[np.ndarray, str, str]:
@@ -674,19 +742,24 @@ def _run_or_minimum_te(arr: _Arrays, backend: str, params: Params | None):
     (`_needs_repair`), the repair is the SMALLEST trade that restores compliance
     rather than the minimum-tracking-error book, and the status records that it
     happened.
+
+    Returns `(weights, status, solver, inaccurate)`. The status names the path
+    taken; `inaccurate` says whether the solve that produced the weights
+    stopped at reduced tolerances, whichever path that was.
     """
     try:
-        return _run(arr, backend, params)
+        w, status, name = _run(arr, backend, params)
+        return w, status, name, status == INACCURATE
     except SolverFailed:
         pass
     try:
-        w, _, name = _minimum_te(arr, backend, params)
-        return w, INFEASIBLE_STATUS, name
+        w, status, name = _minimum_te(arr, backend, params)
+        return w, INFEASIBLE_STATUS, name, status == INACCURATE
     except SolverFailed:
         if not _needs_repair(arr):
             raise
-    w, _, name = _minimum_trade(replace(arr, turnover_cap=None), backend, params)
-    return w, f"{INFEASIBLE_STATUS}:repair", name
+    w, status, name = _minimum_trade(replace(arr, turnover_cap=None), backend, params)
+    return w, f"{INFEASIBLE_STATUS}:repair", name, status == INACCURATE
 
 
 def solve(
@@ -706,14 +779,19 @@ def solve(
 
     The position cap is applied by re-solving on the largest positions of the
     relaxed solution; `Solution.positions_capped` says when that happened.
+
+    The returned book is inside the mandate exactly, not to a solver's
+    tolerance: `_polish` projects it, and `Solution.meta["polish_shift"]` says
+    how far that moved it.
     """
     backend = _available(solver)
     arr = _arrays(alpha, sigma, drifted, cost, spec, turnover_cap, None)
-    w, status, name = _run_or_minimum_te(arr, backend, params)
-    held = (w > 1e-7).sum()
+    w, status, name, inaccurate = _run_or_minimum_te(arr, backend, params)
+    held = (w > DUST).sum()
     if spec.max_positions is not None and held > spec.max_positions:
         keep = np.zeros(len(w), dtype=bool)
         keep[np.argsort(-w)[: spec.max_positions]] = True
         arr = _arrays(alpha, sigma, drifted, cost, spec, turnover_cap, keep)
-        w, status, name = _run_or_minimum_te(arr, backend, params)
-    return _diagnose(w, arr, spec, status, name)
+        w, status, name, inaccurate = _run_or_minimum_te(arr, backend, params)
+    w, shift = _polish(w, arr)
+    return _diagnose(w, arr, spec, status, name, inaccurate, shift)

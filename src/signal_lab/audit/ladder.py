@@ -374,6 +374,9 @@ class _OptimiserRule:
                 "trailing_turnover": self.trailing_annual_turnover(),
                 "session_cap": self.session_cap(),
                 "status": sol.status,
+                "solver": sol.solver,
+                "inaccurate": sol.inaccurate,
+                "polish_shift": float(sol.meta.get("polish_shift", 0.0)),
             }
         )
         return sol.weights
@@ -455,14 +458,29 @@ def run_cell(
         "positions_capped_share": float(diag["positions_capped"].mean()),
         "infeasible_te_share": float(diag["status"].str.startswith("infeasible").mean()),
         "repair_share": float(diag["status"].str.endswith("repair").mean()),
+        "inaccurate_share": float(diag["inaccurate"].mean()),
+        "polish_shift_max": float(diag["polish_shift"].max()),
         "n_rebalances": int(len(path.dates)),
         "first_date": str(path.dates[0].date()),
         "last_date": str(path.dates[-1].date()),
-        "solver": solver,
+        "solver": solver,  # what was asked for; `solvers_used` is what ran
+        "solvers_used": solvers_used(diag["solver"]),
         "seconds": time.time() - started,
     }
     row.update(portfolio_veto_verdicts(row, params))
     return row, path
+
+
+def solvers_used(names: pd.Series) -> str:
+    """
+    Which solver produced each rebalance's book, as `NAME:count` pairs.
+
+    `solver` in the cell table is the backend REQUESTED ("auto"), which says
+    nothing about whether CLARABEL, a fallback, or the SLSQP reference path
+    actually ran. This does.
+    """
+    counts = names.astype(str).value_counts()
+    return ";".join(f"{name}:{int(n)}" for name, n in counts.items())
 
 
 def rolling_annual_turnover_quantile(

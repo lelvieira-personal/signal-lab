@@ -68,7 +68,7 @@ def main(argv=None) -> int:
             print(
                 f"  [{i:>3}/{len(cells)}] {cell.key():<34} net IR {row['net_ir']:+.3f}  "
                 f"TE p95 {row['te_p95']:.1%}  turnover {row['turnover_annual']:.0%}  "
-                f"{row['seconds']:.1f}s",
+                f"inaccurate {row['inaccurate_share']:.1%}  {row['seconds']:.1f}s",
                 flush=True,
             )
     table = pd.DataFrame(rows)
