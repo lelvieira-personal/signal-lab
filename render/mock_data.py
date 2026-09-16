@@ -53,7 +53,7 @@ AGGREGATIONS = [
 # All ten of SUBSTRATE section 10. The labels are only for the mock; the live
 # report reads them from params via views.veto_legend().
 VETOES = [
-    ("turnover", "Annualised turnover \u2264 150%"),
+    ("turnover", "Annualised turnover \u2264 400% \u2014 a backstop, not a budget"),
     ("cash", "Max cash weight \u2264 20%"),
     ("tracking_error", "Trailing-3y tracking error \u2264 6.0%"),
     ("positions", "Non-zero holdings \u2264 30"),

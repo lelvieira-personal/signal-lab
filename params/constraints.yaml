@@ -14,31 +14,43 @@ positions:
 
 turnover:
   # decisions/0017: turnover is TRADED NOTIONAL, sum |dw| -- buys plus sells.
-  # Both the ceiling and the section 8 cost formula read this same figure.
+  # Both the cost formula and the backstop veto read this same figure.
   definition: traded_notional
-  max_annualised: 1.50        # 150%, the hard veto
-  target_annualised: 1.00     # the soft target; see penalty below
+  #
+  # decisions/0024: THERE IS NO ANNUAL WALL. The annual figure is priced, never
+  # capped. A wall is free to trade right up to the limit and then forbids
+  # trading entirely, which is the failure the owner named: over-trading in
+  # quiet windows leaves nothing for the window that matters. A cost that rises
+  # without bound restrains the quiet week and can always be paid by the week
+  # carrying real alpha.
+  #
+  # `vetoes.turnover.max_annualised` survives only as a far backstop, at a level
+  # this cost curve already makes uneconomic. It is not a budget.
+  target_annualised: 1.00     # reported, and the level the curve is sized around
+  shadow_start_annualised: 0.75   # the cost begins HERE, below the target
+  shadow_reference_annualised: 1.50   # slope anchor: `coefficient` bps at this level
   penalty:
-    # decisions/0018. A one-sided soft constraint above the 100% target, so the
-    # optimiser can buy lower turnover with a little expected alpha. Expressed
-    # as a shadow COST in basis points per unit of annualised turnover above
-    # target, rather than an abstract lambda, because a number an investment
-    # professional can argue with is worth more than one they cannot.
+    # decisions/0018, re-anchored by decisions/0024. A one-sided cost on
+    # TRAILING one-year turnover, so the optimiser can buy lower turnover with a
+    # little expected alpha.
     #
     # It shapes the weights. It does NOT enter the reported net IR, which is
     # computed from actual costs only -- otherwise a heavily penalised run looks
     # worse for a reason that is not performance and the leaderboard stops being
     # comparable across runs.
-    shape: one_sided_above_target
-    form: linear              # penalty = coefficient * max(0, T_annualised - target)
-    units: bps_per_unit_turnover
-    coefficient: 10.0         # owner, 2026-09-09; bps per UNIT of excess turnover
-    # Magnitude, for the reader: at the 150% ceiling the excess is 0.5 units, so
-    # the shadow cost is 5bp a year, against 15bp of real mid-bucket spread on
-    # that same trading. Roughly a third of the marginal cost the solver already
-    # pays -- enough to prefer a lower-turnover solution when the alpha give-up
-    # is small, not enough to dominate the objective. See decisions/0018 for the
-    # calibration and for the 100x units ambiguity this resolves.
+    shape: one_sided_above_start
+    form: linear
+    #   shadow(T) = coefficient * max(0, T - start) / (reference - start)
+    units: bps_per_unit_traded
+    coefficient: 10.0         # owner, 2026-09-09; bps at the reference level
+    # Magnitude, for the reader, at start 0.75 / reference 1.50 / coefficient 10:
+    #
+    #   trailing annual turnover   0.75   1.00   1.50   2.00   3.00   4.00
+    #   shadow cost (bps)          0.0    3.3    10.0   16.7   30.0   43.3
+    #
+    # against 15bp of real mid-bucket spread on that same trading. The curve
+    # starts below the 100% target on purpose (decisions/0024): a cost that
+    # switches on exactly at the target leaves a kink the optimiser can sit in.
 
 tracking_error:
   # Section 4 describes an asymmetric penalty, not a hard band; section 10 makes

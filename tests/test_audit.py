@@ -343,8 +343,7 @@ def test_the_spread_multiplier_charges_what_it_says(params):
 
 def test_the_base_cells_carry_no_hard_turnover_cap(params):
     """
-    The owner reads 150% as an annual budget a high-conviction period may
-    exceed, not a per-period wall (decisions/proposed/0024). Hard-capping the
+    decisions/0024: turnover is priced, never walled. Hard-capping the
     base cells measured the cap instead of the layer: it bound on half to nine
     tenths of rebalances. Restraint comes from the section 4 shadow cost, and
     hard caps stay where they belong -- in the turnover-shortfall experiment.
@@ -361,27 +360,33 @@ def test_the_shadow_cost_rises_with_trailing_turnover_and_never_becomes_a_wall(p
     """
     The owner's second requirement: never end up unable to trade when it
     matters because earlier windows over-traded. A hard annual cap does exactly
-    that -- free right up to the limit, then forbidden. A progressive cost does
-    not: it is zero at the soft target, exactly the decisions/0018 10bp when the
-    year's budget is reached, and keeps rising on the same slope beyond, so a
-    week carrying real alpha can always pay it.
+    that -- free right up to the limit, then forbidden. decisions/0024 removed
+    the wall outright. The cost is zero at the 75% start, already 3.3bp at the
+    100% target, exactly the decisions/0018 10bp at the 150% reference, and
+    keeps rising on the same slope beyond, so a week carrying real alpha can
+    always pay it.
     """
     from signal_lab.audit.ladder import _OptimiserRule
 
     rule = _OptimiserRule.__new__(_OptimiserRule)
     rule.ppy = 52.0
     rule.shadow_coeff = float(params.require("constraints.turnover.penalty.coefficient"))
-    rule.shadow_target = float(params.require("constraints.turnover.target_annualised"))
-    rule.shadow_budget = float(params.require("constraints.turnover.max_annualised"))
+    rule.shadow_start = float(params.require("constraints.turnover.shadow_start_annualised"))
+    rule.shadow_reference = float(
+        params.require("constraints.turnover.shadow_reference_annualised")
+    )
 
     def shadow_at(annual):
         rule.turnover_log = [annual / 52.0] * 52
         return rule._shadow() / 1e-4
 
-    assert shadow_at(0.50) == 0.0, "below the soft target trading is not penalised"
-    assert shadow_at(1.00) == pytest.approx(0.0), "the target itself is free"
-    assert shadow_at(1.50) == pytest.approx(rule.shadow_coeff), "decisions/0018 at the budget"
-    assert shadow_at(3.00) == pytest.approx(4 * rule.shadow_coeff), "and it keeps rising"
+    assert shadow_at(0.50) == 0.0, "below the start of the curve trading is not penalised"
+    assert shadow_at(0.75) == pytest.approx(0.0), "the start itself is free"
+    assert shadow_at(1.00) == pytest.approx(rule.shadow_coeff / 3.0, rel=1e-6), (
+        "decisions/0024: the cost is already biting at the 100% target, not switching on there"
+    )
+    assert shadow_at(1.50) == pytest.approx(rule.shadow_coeff), "decisions/0018 at the reference"
+    assert shadow_at(3.00) == pytest.approx(3 * rule.shadow_coeff), "and it keeps rising"
     assert np.isfinite(shadow_at(10.0)), "finite everywhere: dear is not the same as forbidden"
 
 

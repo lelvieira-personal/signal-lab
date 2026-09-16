@@ -10,6 +10,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from signal_lab.harness.objective import (
@@ -36,22 +37,25 @@ def variant(tmp_path, params, old, new):
 # --- the penalty is one-sided ------------------------------------------------
 
 
-def test_no_penalty_at_or_below_the_target(params):
+def test_no_penalty_at_or_below_the_start_of_the_curve(params):
     assert annual_turnover_penalty(0.50, params) == 0.0
-    assert annual_turnover_penalty(1.00, params) == 0.0, "the target itself is free"
+    assert annual_turnover_penalty(0.75, params) == 0.0, "the start itself is free"
 
 
 def test_the_penalty_is_linear_in_the_excess(params):
-    at_125 = annual_turnover_penalty(1.25, params)
-    at_150 = annual_turnover_penalty(1.50, params)
-    at_200 = annual_turnover_penalty(2.00, params)
-    assert at_150 == pytest.approx(2 * at_125)
-    assert at_200 == pytest.approx(4 * at_125)
+    at_100 = annual_turnover_penalty(1.00, params)  # 0.25 above the 0.75 start
+    at_125 = annual_turnover_penalty(1.25, params)  # 0.50 above
+    at_175 = annual_turnover_penalty(1.75, params)  # 1.00 above
+    assert at_125 == pytest.approx(2 * at_100)
+    assert at_175 == pytest.approx(4 * at_100)
 
 
 def test_the_coefficient_is_read_from_params_in_basis_points(params):
     coefficient = float(params.require("constraints.turnover.penalty.coefficient"))
-    assert annual_turnover_penalty(1.50, params) == pytest.approx(coefficient * BPS * 0.5)
+    reference = float(params.require("constraints.turnover.shadow_reference_annualised"))
+    assert annual_turnover_penalty(reference, params) == pytest.approx(coefficient * BPS), (
+        "decisions/0024: the coefficient is the cost AT the reference level"
+    )
 
 
 def test_the_per_period_penalty_is_the_annual_one_divided_by_the_year(params):
@@ -60,19 +64,22 @@ def test_the_per_period_penalty_is_the_annual_one_divided_by_the_year(params):
     )
 
 
-def test_the_penalty_at_the_veto_ceiling_bites_without_dominating(params):
+def test_the_penalty_at_the_reference_bites_without_dominating(params):
     """
     An arithmetic guard, not an opinion. The calibration in decisions/0018 is
     that the shadow cost should be a material fraction of the real spread on the
     same trading -- enough to trade one thing against another, not enough to
     dominate. Too small and the term is inert; too large and it stops being a
     soft constraint. Changing the coefficient fails this and forces a look.
+
+    Read at the 150% reference, which decisions/0024 kept as the anchor after
+    removing the wall that used to sit there.
     """
     penalty_bp = annual_turnover_penalty(1.50, params) * 1e4
     mid_spread_bp = 1.50 * float(params.require("costs.buckets.mid.half_spread_bps"))
     ratio = penalty_bp / mid_spread_bp
 
-    assert penalty_bp == pytest.approx(5.0, abs=0.01)
+    assert penalty_bp == pytest.approx(10.0, abs=0.01)
     assert 0.15 < ratio < 0.75, (
         f"shadow cost is {ratio:.0%} of the real spread at the ceiling; under 15% "
         f"the optimiser ignores it, over 75% it is a hard constraint wearing a "
@@ -80,11 +87,28 @@ def test_the_penalty_at_the_veto_ceiling_bites_without_dominating(params):
     )
 
 
-def test_the_penalty_is_zero_at_target_and_grows_from_there(params):
-    """The soft-constraint shape: free up to the target, then priced."""
-    assert annual_turnover_penalty(0.99, params) == 0.0
-    assert annual_turnover_penalty(1.01, params) > 0.0
+def test_the_penalty_is_zero_at_the_start_and_grows_from_there(params):
+    """The soft-constraint shape: free up to the start, then priced, unbounded."""
+    assert annual_turnover_penalty(0.74, params) == 0.0
+    assert annual_turnover_penalty(0.76, params) > 0.0
     assert annual_turnover_penalty(1.50, params) < annual_turnover_penalty(1.51, params)
+
+
+def test_the_cost_is_already_biting_at_the_target(params):
+    """
+    decisions/0024: the curve starts BELOW the 100% target on purpose. A cost
+    that switches on exactly at the target leaves a kink the optimiser can sit
+    in -- 99% free, 101% priced -- for reasons that have nothing to do with
+    alpha.
+    """
+    coefficient = float(params.require("constraints.turnover.penalty.coefficient"))
+    assert annual_turnover_penalty(1.00, params) == pytest.approx(coefficient * BPS / 3.0)
+
+
+def test_the_curve_never_becomes_a_wall(params):
+    """No annual ceiling exists to reach: the cost is finite at any turnover."""
+    assert annual_turnover_penalty(10.0, params) > annual_turnover_penalty(4.0, params)
+    assert np.isfinite(annual_turnover_penalty(50.0, params))
 
 
 # --- refusing rather than defaulting ----------------------------------------

@@ -61,11 +61,20 @@ def turnover_penalty(
     annualised_turnover: float, params: Params | None = None, periods_per_year: float = 52.0
 ) -> float:
     """
-    One period's shadow cost for trading above the target.
+    One period's shadow cost for trading above the start of the curve.
 
-    Linear and one-sided: `coefficient * max(0, T - target)`, in return units per
-    period. Zero at or below the target, so the penalty buys lower turnover
-    without forbidding it -- the 150% veto remains the hard ceiling.
+    Linear, one-sided and unbounded (decisions/0018, re-anchored by 0024):
+
+        shadow(T) = coefficient * max(0, T - start) / (reference - start)
+
+    in return units per period, with `coefficient` basis points reached exactly
+    at `reference`. Zero at or below `start`, which sits BELOW the 100% target
+    so the cost is already biting as turnover approaches it and there is no kink
+    at the target for the optimiser to sit in.
+
+    There is no annual wall (decisions/0024). `vetoes.turnover.max_annualised`
+    is a far backstop for a malfunctioning book, not a budget, and this function
+    never consults it.
 
     `annualised_turnover` is traded notional (decisions/0017).
     """
@@ -80,9 +89,16 @@ def turnover_penalty(
     if str(cfg.get("form", "linear")) != "linear":
         raise ObjectiveNotConfigured(f"unsupported penalty form {cfg.get('form')!r}")
 
-    target = float(params.require("constraints.turnover.target_annualised"))
-    excess = max(0.0, float(annualised_turnover) - target)
-    return float(coefficient) * BPS * excess / periods_per_year
+    start = float(params.require("constraints.turnover.shadow_start_annualised"))
+    reference = float(params.require("constraints.turnover.shadow_reference_annualised"))
+    span = reference - start
+    if span <= 0:
+        raise ObjectiveNotConfigured(
+            "constraints.turnover.shadow_reference_annualised must exceed "
+            "shadow_start_annualised; the curve has no slope otherwise."
+        )
+    excess = max(0.0, float(annualised_turnover) - start)
+    return float(coefficient) * BPS * excess / span / periods_per_year
 
 
 def annual_turnover_penalty(annualised_turnover: float, params: Params | None = None) -> float:

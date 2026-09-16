@@ -89,7 +89,7 @@ not distinguishable from that null is not a result.
 | Direction | Long-only, no leverage |
 | Cash | 0–20% of NAV |
 | Positions | ≤ 30 instruments with non-zero weight |
-| Turnover | ≤ 150% annualised **traded notional** (buys plus sells); 100% is a soft target, not a second ceiling (§8, `decisions/0017`, `0018`) |
+| Turnover | **Priced, not capped** (`decisions/0024`). A progressive shadow cost on trailing one-year **traded notional** (buys plus sells), zero at 75%, 10bp at 150%, rising without bound (§8, `decisions/0017`, `0018`). 100% is the level the curve is sized around, not a ceiling. A per-session cap stops any one rebalance consuming the year. |
 | Tracking error | ≤ 6.0% trailing 3y at the 95th percentile of readings; episodic excursions allowed, not rewarded on average |
 | Active drawdown | Controlled ex ante, through the tracking-error budget (`decisions/0025`), not by a post-hoc cap (`decisions/0026`) |
 | Rebalance | Weekly, Friday close; alternates tested by averaging over Tue/Wed/Fri |
@@ -104,9 +104,11 @@ tracking error (`decisions/0019`). How conviction is measured — the certainty 
 a state estimate, the dispersion of the resulting views, or some combination of
 the two — is a registered research question, H-2026-0012, not a setting.
 
-Turnover handling: the 150% ceiling is the veto; the 100% figure is a soft
-target enforced by a one-sided linear penalty above it, priced as a shadow cost
-in basis points (`decisions/0018`). Shadow costs shape the weights and never
+Turnover handling (`decisions/0024`): there is **no annual wall**. A one-sided
+linear penalty on trailing one-year turnover, priced as a shadow cost in basis
+points (`decisions/0018`), starts at 75%, reaches 10bp at 150% and keeps
+rising — so a quiet week restrains itself and a week carrying real conviction
+can always pay to trade. The veto threshold is a far backstop, not a budget. Shadow costs shape the weights and never
 enter the reported net return, or runs with different coefficients stop being
 comparable — which is the one thing the leaderboard exists to be.
 
@@ -390,7 +392,7 @@ statistic is shown. Failing any one kills the run with the reason logged.
 
 | Veto | v0.1 threshold |
 |---|---|
-| turnover | annualised traded notional ≤ 150% |
+| turnover | annualised traded notional ≤ 400% — a **backstop** for a malfunctioning book, not a budget (`decisions/0024`) |
 | cash | max weight ≤ 20% |
 | tracking_error | 95th percentile of trailing-3y TE readings ≤ 6.0% |
 | positions | ≤ 30 non-zero |

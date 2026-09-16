@@ -87,7 +87,7 @@ def test_unknown_path_raises_but_default_is_honoured(params):
 
 def test_every_substrate_threshold_is_in_params(params):
     """The section 10 table, read back out of params rather than out of code."""
-    assert params.require("vetoes.turnover.max_annualised") == 1.50
+    assert params.require("vetoes.turnover.max_annualised") == 4.00  # backstop, 0024
     assert params.require("vetoes.cash.max_weight") == 0.20
     assert params.require("vetoes.tracking_error.max_trailing_3y") == 0.060
     assert params.require("vetoes.positions.max_nonzero") == 30

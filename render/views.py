@@ -316,7 +316,11 @@ def veto_legend(params=None):
     p = params or get_params()
     pct = lambda x: f"{float(x):.0%}"  # noqa: E731
     return [
-        ("turnover", f"Annualised turnover ≤ {pct(p.require('vetoes.turnover.max_annualised'))}"),
+        (
+            "turnover",
+            f"Annualised turnover ≤ {pct(p.require('vetoes.turnover.max_annualised'))} "
+            f"— a backstop, not a budget (decisions/0024); turnover is priced, not capped",
+        ),
         ("cash", f"Max cash weight ≤ {pct(p.require('vetoes.cash.max_weight'))}"),
         (
             "tracking_error",

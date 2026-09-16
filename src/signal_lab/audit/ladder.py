@@ -252,8 +252,10 @@ class _OptimiserRule:
         self.ppy = float(params.get("costs.application.weeks_per_year", 52))
         self.costs = CostModel(params, spread_multiplier=cell.cost_multiplier)
         self.shadow_coeff = float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
-        self.shadow_target = float(params.require("constraints.turnover.target_annualised"))
-        self.shadow_budget = float(params.require("constraints.turnover.max_annualised"))
+        self.shadow_start = float(params.require("constraints.turnover.shadow_start_annualised"))
+        self.shadow_reference = float(
+            params.require("constraints.turnover.shadow_reference_annualised")
+        )
         self.per_rebalance_cap = cell.per_rebalance_cap
         self.turnover_log: list[float] = []
         self.repair_turnover = 0.0  # traded to restore mandate compliance, cap or no cap
@@ -294,22 +296,27 @@ class _OptimiserRule:
         """
         A shadow cost per unit traded, rising with trailing one-year turnover.
 
-        Zero at or below the soft target; `coefficient` basis points when
-        trailing turnover has reached the budget, which preserves the
-        decisions/0018 calibration exactly at that point; and rising on the same
-        slope beyond it rather than stopping. Progressive and unbounded, never a
-        wall:
+        Zero at or below `shadow_start`, which decisions/0024 put BELOW the 100%
+        target so the cost is already biting as the year approaches it;
+        `coefficient` basis points at `shadow_reference`, which preserves the
+        decisions/0018 calibration at that point; and rising on the same slope
+        beyond it rather than stopping. Progressive and unbounded, never a wall:
 
-            shadow(T) = coefficient * max(0, T - target) / (budget - target)
+            shadow(T) = coefficient * max(0, T - start) / (reference - start)
 
-        At the 100% target it costs nothing; at the 150% budget it costs the
-        10bp decisions/0018 set; at 250% it costs 30bp, which a week carrying
-        real alpha can still justify and a routine week cannot.
+        At 75% it costs nothing, at 100% 3.3bp, at 150% the 10bp
+        decisions/0018 set, at 300% 30bp -- which a week carrying real alpha can
+        still justify and a routine week cannot. There is no annual ceiling: the
+        veto threshold is a backstop for a malfunctioning book (decisions/0024)
+        and this function never reads it.
+
+        This is the same curve as `harness.objective.turnover_penalty`, in cost
+        per unit traded rather than return per period.
         """
-        span = self.shadow_budget - self.shadow_target
+        span = self.shadow_reference - self.shadow_start
         if span <= 0 or self.shadow_coeff <= 0:
             return 0.0
-        excess = max(0.0, self.trailing_annual_turnover() - self.shadow_target)
+        excess = max(0.0, self.trailing_annual_turnover() - self.shadow_start)
         return self.shadow_coeff * BPS * excess / span
 
     def __call__(self, date: pd.Timestamp, _panel: ReturnPanel, drifted: pd.Series | None = None):
@@ -595,7 +602,7 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
                 cells.append(AuditCell(ic, stress_h, s, 1.0, float(tcap), default_per, "turnover"))
     # The per-session cap is the owner's first requirement and has no chosen
     # value yet, so the audit SWEEPS it and reports what each costs. That is a
-    # measurement; picking the number is an owner decision (proposed/0024).
+    # measurement; picking the number is an owner decision, open after 0024.
     for per in params.get("audit.per_rebalance_caps", []) or []:
         value = None if per is None else float(per)
         if value == default_per:

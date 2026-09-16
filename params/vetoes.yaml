@@ -1,14 +1,18 @@
-# Veto thresholds. SUBSTRATE.md section 10, as amended by decisions/0003
-# (eleven vetoes, not ten). Owner-only.
+# Veto thresholds. SUBSTRATE.md section 10, as amended by decisions/0003,
+# 0024 (turnover is a backstop, not a budget) and 0026 (ten vetoes). Owner-only.
 # Agents may not change a threshold to make a run pass (SUBSTRATE section 2).
 params_version: "0.6.0"
 
 turnover:
   # Traded notional (sum |dw|, buys plus sells), annualised. decisions/0017.
-  # Reading the one-way figure here would permit 300% of NAV a year against a
-  # ceiling meant to permit 150%.
+  # Reading the one-way figure here would double the effective ceiling.
   definition: traded_notional
-  max_annualised: 1.50
+  # decisions/0024: a BACKSTOP, not a budget. Turnover is restrained by the
+  # progressive cost in constraints.yaml, which reaches 43bp here -- three times
+  # the real mid-bucket spread -- so a book arriving at this level is not making
+  # an expensive choice, it is malfunctioning. The veto exists to catch that,
+  # and nothing about 150%, 200% or 300% a year is forbidden.
+  max_annualised: 4.00
 cash:
   max_weight: 0.20
 tracking_error:
