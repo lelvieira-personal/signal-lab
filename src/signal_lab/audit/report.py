@@ -178,9 +178,9 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         "### Required IC among cells that would survive the portfolio vetoes",
         "",
         "The table above asks only whether a cell clears the bar on net IR. A cell that "
-        "clears it while breaching the tracking-error or active-drawdown veto would be "
+        "clears it while breaching the tracking-error veto would be "
         "killed in phase 3, so the bar above is optimistic. This one counts only cells "
-        "that pass all five portfolio vetoes at their real thresholds. Where the two "
+        "that pass all four portfolio vetoes at their real thresholds. Where the two "
         "disagree, the SECOND is the bar.",
         "",
     ]
@@ -193,7 +193,7 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
             out.append(f"| {r['horizon']} | {_fmt(r['required_ic'], 3)} | {r['note']} |")
     else:
         out.append(
-            "_No cell passed all five portfolio vetoes._ On a short window this is expected "
+            "_No cell passed all four portfolio vetoes._ On a short window this is expected "
             "and not a finding: a trailing-3y tracking error has no reading until 156 "
             "rebalances have passed, and SUBSTRATE section 10 fails a veto whose input is "
             "absent. See `veto_detail` in `cells.csv`."
@@ -328,14 +328,14 @@ def to_html(summary: dict[str, Any], table: pd.DataFrame) -> str:
         )
         surviving_html = (
             "<p class='muted'>The table above asks only whether a cell clears the bar on net IR. "
-            "A cell that clears it while breaching the tracking-error or active-drawdown veto "
+            "A cell that clears it while breaching the tracking-error veto "
             "would be killed in phase 3. Where the two disagree, this one is the bar.</p>"
             "<table><thead><tr><th>horizon (weeks)</th><th>required IC (surviving cells)</th>"
             f"<th>note</th></tr></thead><tbody>{rows}</tbody></table>"
         )
     else:
         surviving_html = (
-            "<p class='muted'><b>No cell passed all five portfolio vetoes.</b> On a short window "
+            "<p class='muted'><b>No cell passed all four portfolio vetoes.</b> On a short window "
             "this is expected and not a finding: a trailing-3y tracking error has no reading "
             "until 156 rebalances have passed, and a veto whose input is absent fails. See "
             "<code>veto_detail</code> in cells.csv.</p>"

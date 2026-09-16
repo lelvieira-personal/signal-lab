@@ -154,7 +154,11 @@ def test_a_replicating_book_is_priced_as_replicating(weekly):
         active = book.reindex(cov.ids).fillna(0.0) - pd.Series({"LEG": 1.0}).reindex(
             cov.ids
         ).fillna(0.0)
-        return float(np.sqrt(active.values @ cov.matrix.values @ active.values * 52))
+        # The quadratic form is exactly zero for a perfect replication, so it
+        # lands either side of zero by roundoff and the sign depends on the
+        # BLAS. Clamp, as `long_only.solve` already does at its own sqrt.
+        var = float(active.values @ cov.matrix.values @ active.values * 52)
+        return float(np.sqrt(max(var, 0.0)))
 
     assert te(embedded) < 0.005, "an exact replication must carry almost no tracking error"
     assert te(embedded) < te(naive), "embedding must beat shrinking the leg with the holdables"

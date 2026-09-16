@@ -37,7 +37,11 @@ def to_missing(frame: pd.DataFrame, markers: list[str]) -> pd.DataFrame:
     Mapping to 0.0 would make a gap look like a flat day, which is a return of
     exactly zero and a lie about a day the index did not trade.
     """
-    out = frame.replace(list(markers), np.nan)
+    # `mask` rather than `replace`: pandas 2.2 deprecated the silent downcast
+    # that `replace` performs when every value in a column is substituted, and
+    # the project turns FutureWarning into an error. `mask` never re-infers a
+    # dtype, so the behaviour here is the same on 2.x and 3.x.
+    out = frame.mask(frame.isin(list(markers)))
     return out.apply(pd.to_numeric, errors="coerce")
 
 
