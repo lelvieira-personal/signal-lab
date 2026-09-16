@@ -97,7 +97,14 @@ def summarise(
         .reset_index()
         .to_dict(orient="records"),
         "turnover_curve": _stress(table, "turnover", stress_h)
-        .assign(turnover_cap=lambda t: t["turnover_cap"].fillna(np.inf))
+        # `turnover_cap` is object dtype -- the "no cap" cell carries None --
+        # and pandas 2.2 deprecated the silent downcast `fillna` performs on an
+        # object column. Coerce first, so the column is float before the fill
+        # and "no cap" groups under a real infinity rather than under NaN,
+        # which would silently drop that row from the groupby.
+        .assign(
+            turnover_cap=lambda t: pd.to_numeric(t["turnover_cap"], errors="coerce").fillna(np.inf)
+        )
         .groupby(["ic", "turnover_cap"])[["net_ir", "turnover_annual", "cost_drag_annual"]]
         .mean()
         .reset_index()
