@@ -17,7 +17,11 @@ target_net_ir: 0.30
 # the horizon. Alpha follows Grinold: IC x sigma x score, per period.
 ic_grid: [0.02, 0.05, 0.10, 0.20]
 horizon_weeks: [4, 13, 26, 52]
-seeds: 3
+# decisions/0028: ten. One seed's net IR carries a standard deviation of about
+# 0.26 on this construction; three seeds left the mean at +-0.15 and the
+# required IC at slow horizons at about +-0.04, as wide as the grid step. Ten
+# bring the mean to about +-0.08. Paid for in runtime: about 8 h on Bloomberg.
+seeds: 10
 # The IC = 1 oracle is a ceiling, reported as such; it is not the ruler.
 include_oracle: true
 # decisions/0027: a frictionless twin for every base cell -- same signal, same
