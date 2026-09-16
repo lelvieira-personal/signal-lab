@@ -73,6 +73,12 @@ the breadth the fundamental law would use. Both dimensions are reported because
 they have different fixes: the first is breadth of instruments, the second is
 signal speed.
 
+*Amended by `decisions/0027`:* the time dimension is `52/h`, the non-overlapping
+count that matches the ladder's IC (a correlation with the h-week forward
+return). `52(1−φ)/(1+φ)` gave about half of that and put the fundamental law's
+"ceiling" above what the constrained ladder achieved. A frictionless cell family
+now measures breadth empirically.
+
 **B. The simulated-IC ladder.** IC ∈ {0.02, 0.05, 0.10, 0.20} × horizon ∈
 {4, 13, 26, 52} weeks × 3 seeds. The signal blends the standardised forward
 active return with persistent noise; alpha follows Grinold. Each cell is solved
