@@ -228,3 +228,31 @@ def test_digest_writes_a_markdown_summary(tmp_path, params, store):
     body = text.split("## Waiting on the owner")[0]
     assert "gross" not in body.lower(), "gross IR does not appear among the digest's metrics"
     assert "decisions/proposed" in text
+
+
+def test_the_committed_universe_is_what_build_universe_produces():
+    """
+    decisions/0022 made SPBDALB -- a price index, not total return -- not
+    investable, and `scripts/build_universe.py` says so. The committed
+    `investable_universe.csv` was never regenerated, so the Bloomberg audit
+    universe still held SPBDALB: 96 holdable series where 0022 says 95. The
+    table is a build product; this keeps it from drifting from its builder.
+    Compared on content, not bytes, so line endings do not matter.
+    """
+    import csv
+
+    from build_universe import OUT, build
+
+    expected = {r["ticker"]: r for r in build()}
+    with Path(OUT).open(encoding="utf-8", newline="") as fh:
+        committed = {r["ticker"]: r for r in csv.DictReader(fh)}
+
+    assert set(committed) == set(expected), "run `make universe` and commit the table"
+    for ticker, row in expected.items():
+        for field, value in row.items():
+            assert committed[ticker].get(field) == str(value), (
+                f"{ticker}.{field}: committed {committed[ticker].get(field)!r}, "
+                f"builder {value!r} -- run `make universe` and commit the table"
+            )
+    assert committed["SPBDALB"]["investable"] == "False"
+    assert sum(r["investable"] == "True" for r in committed.values()) == 95
