@@ -103,7 +103,10 @@ def main(argv=None) -> int:
     out = write_outputs(f"{out_root}/{run_id}", table, breadth, target, meta)
     if not args.quiet:
         print(f"\nwrote {out}/  ({meta['seconds']:.0f}s)")
-        print((out / "ruler.md").read_text(encoding="utf-8").split("## Required IC")[1][:800])
+        text = (out / "ruler.md").read_text(encoding="utf-8")
+        start = text.find("## Required IC")
+        end = text.find("\n## ", start + 1)
+        print(text[start : end if end > 0 else None] if start >= 0 else text[:800])
     return 0
 
 

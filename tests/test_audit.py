@@ -529,6 +529,31 @@ def test_required_ic_interpolates_and_says_when_it_is_a_bound():
     assert out.loc[13, "note"] == "interpolated"
     assert np.isinf(out.loc[52, "required_ic"]), "a bar never reached is a bound, not a number"
     assert "not reached" in out.loc[52, "note"]
+    assert out.loc[13, "display"] == f"{0.02 + 0.03 * (0.20 / 0.40):.3f}"
+    assert out.loc[52, "display"] == "> 0.050"
+    assert np.isnan(out.loc[13, "seed_range_max"]), "one seed has no range, not a zero range"
+
+
+def test_a_bar_cleared_at_the_lowest_rung_is_printed_as_a_bound():
+    """
+    The first lean audit printed "0.050" for a horizon that cleared the bar at
+    IC 0.05, the lowest rung it ran. The required IC there is AT MOST 0.05;
+    printing the grid point reads as a measurement.
+    """
+    from signal_lab.audit.report import _pivot_range, _required
+
+    table = pd.DataFrame(
+        [
+            {"tag": "base", "horizon": 26, "ic": 0.05, "seed": 0, "net_ir": 0.32},
+            {"tag": "base", "horizon": 26, "ic": 0.10, "seed": 0, "net_ir": 0.42},
+        ]
+    )
+    row = required_ic(table, 0.30).iloc[0].to_dict()
+    assert _required(row) == "≤ 0.050"
+    assert _pivot_range(table, "base").isna().all().all()
+    two = pd.concat([table, table.assign(seed=1, net_ir=table["net_ir"] + 0.1)])
+    assert _pivot_range(two, "base").loc[0.05, 26] == pytest.approx(0.1)
+    assert required_ic(two, 0.30).iloc[0]["seed_range_max"] == pytest.approx(0.1)
 
 
 # --- the audit is not a run --------------------------------------------------

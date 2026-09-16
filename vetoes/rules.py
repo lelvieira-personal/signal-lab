@@ -62,7 +62,7 @@ def _at_most(realised: float, cap: float) -> bool:
 
 
 def veto_turnover(ctx: RunContext, params: Params | None = None) -> Verdict:
-    """Annualised one-way turnover against the ceiling in params."""
+    """Annualised traded notional (buys plus sells, decisions/0017) against the backstop."""
     cap = float(_p(params).require("vetoes.turnover.max_annualised"))
     try:
         realised = ctx.annualised_turnover()

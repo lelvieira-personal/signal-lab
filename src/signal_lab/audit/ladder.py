@@ -858,10 +858,10 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
     rebalances, so the required-IC table was reporting a constrained answer as
     if it were the layer's answer.
 
-    What still restrains the base cells is the section 4 shadow cost
-    (`decisions/0018`): 10bp per unit of annualised turnover above the 100%
-    target, one-sided. Turnover goes where the alpha justifies it, and the
-    realised figure is reported rather than assumed.
+    What still restrains the base cells is the progressive shadow cost of
+    `decisions/0024`: zero up to 75% trailing annual turnover, 10bp at 150%,
+    rising without bound on the same slope. Turnover goes where the alpha
+    justifies it, and the realised figure is reported rather than assumed.
 
     Hard caps remain an EXPERIMENT, in the `turnover` cells, which is what the
     turnover-shortfall curve measures: what the layer gives up when the budget
@@ -975,27 +975,39 @@ def required_ic(
         note, value = "", float("nan")
         if len(ics) == 0:
             continue
+        display = ""
         if means.max() < target:
             note, value = f"> {ics.max():.2f} (not reached in grid)", float("inf")
+            display = f"> {ics.max():.3f}"
         elif means.min() >= target:
-            note, value = f"< {ics.min():.2f} (cleared at every grid point)", float(ics.min())
+            note, value = f"≤ {ics.min():.2f} (cleared at every grid point)", float(ics.min())
+            display = f"≤ {ics.min():.3f}"
         else:
             for lo, hi in zip(range(len(ics) - 1), range(1, len(ics)), strict=True):
                 if means[lo] < target <= means[hi]:
                     frac = (target - means[lo]) / (means[hi] - means[lo])
                     value = float(ics[lo] + frac * (ics[hi] - ics[lo]))
                     note = "interpolated"
+                    display = f"{value:.3f}"
                     break
             if not note:
                 note, value = "non-monotone; first crossing not found", float("nan")
+        n_seeds = int(group.groupby("ic")["net_ir"].count().min())
         out.append(
             {
                 "horizon": int(h),
                 "target_net_ir": target,
                 "required_ic": value,
+                # What the report prints: a bound is shown as a bound, never as
+                # the grid point it was read at.
+                "display": display or "—",
                 "note": note,
                 "net_ir_at_grid": {float(k): float(v) for k, v in by_ic["mean"].items()},
-                "seed_range_max": float((by_ic["max"] - by_ic["min"]).max()),
+                # One seed has no range; 0.00 would read as perfect stability.
+                "seed_range_max": float((by_ic["max"] - by_ic["min"]).max())
+                if n_seeds > 1
+                else float("nan"),
+                "n_seeds": n_seeds,
             }
         )
     return pd.DataFrame(out)

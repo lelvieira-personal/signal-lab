@@ -51,12 +51,22 @@ def _pivot(table: pd.DataFrame, tag: str, value: str = "net_ir") -> pd.DataFrame
 
 
 def _pivot_range(table: pd.DataFrame, tag: str, value: str = "net_ir") -> pd.DataFrame:
+    """Max minus min over seeds; NaN (printed "—") where only one seed ran."""
     sub = table[table["tag"] == tag]
     if sub.empty:
         return pd.DataFrame()
     lo = sub.pivot_table(index="ic", columns="horizon", values=value, aggfunc="min")
     hi = sub.pivot_table(index="ic", columns="horizon", values=value, aggfunc="max")
-    return hi - lo
+    n = sub.pivot_table(index="ic", columns="horizon", values=value, aggfunc="count")
+    return (hi - lo).where(n > 1)
+
+
+def _required(r: dict[str, Any]) -> str:
+    """A required IC as the report prints it: a bound stays a bound."""
+    shown = r.get("display")
+    if isinstance(shown, str) and shown:
+        return shown
+    return _fmt(r.get("required_ic"), 3)
 
 
 READING_THE_CHAIN = (
@@ -72,6 +82,17 @@ READING_THE_CHAIN = (
     "(Jagannathan and Ma, 2003), which shows as a frictionless bias statistic well "
     "above one; or a defect in the ruler."
 )
+
+
+def _stress_note(summary: dict[str, Any]) -> list[str]:
+    used, asked = summary.get("stress_horizon"), summary.get("stress_horizon_requested")
+    if asked is None or used == asked:
+        return []
+    return [
+        f"_The stress horizon in params is {asked}w, which this grid did not run; "
+        f"the tables below use {used}w and hold base cells only unless stress cells ran._",
+        "",
+    ]
 
 
 def _md_frictionless(summary: dict[str, Any]) -> list[str]:
@@ -120,7 +141,8 @@ def summarise(
     meta: dict[str, Any],
 ) -> dict[str, Any]:
     """Everything the markdown and HTML render, as plain objects."""
-    stress_h = int(meta.get("stress_horizon") or table["horizon"].median())
+    requested_h = int(meta.get("stress_horizon") or table["horizon"].median())
+    stress_h = requested_h
     if stress_h not in set(table["horizon"]):
         stress_h = int(sorted(table["horizon"].unique())[len(table["horizon"].unique()) // 2])
     req = required_ic(table, target)
@@ -164,6 +186,7 @@ def summarise(
         "required_ic_surviving": req_surviving.to_dict(orient="records"),
         "risk_calibration": _calibration(table),
         "stress_horizon": stress_h,
+        "stress_horizon_requested": requested_h,
         "n_cells_judged": int(len(judged)),
         "n_cells_failing_vetoes": int((~judged["passes_portfolio_vetoes"].astype(bool)).sum())
         if "passes_portfolio_vetoes" in judged.columns
@@ -251,7 +274,7 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
     ]
     for r in summary["required_ic"]:
         out.append(
-            f"| {r['horizon']} | {_fmt(r['required_ic'], 3)} | {_fmt(r.get('frictionless_ic'), 3)} "
+            f"| {r['horizon']} | {_required(r)} | {_fmt(r.get('frictionless_ic'), 3)} "
             f"| {_fmt(r.get('flam_implied_ic'), 3)} | {_fmt(r.get('effective_breadth'), 1)} "
             f"| {_fmt(r.get('empirical_breadth'), 1)} | {r['note']} |"
         )
@@ -274,7 +297,7 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
             "|---|---|---|",
         ]
         for r in summary["required_ic_surviving"]:
-            out.append(f"| {r['horizon']} | {_fmt(r['required_ic'], 3)} | {r['note']} |")
+            out.append(f"| {r['horizon']} | {_required(r)} | {r['note']} |")
     else:
         out.append(
             "_No cell passed all four portfolio vetoes._ On a short window this is expected "
@@ -296,7 +319,7 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         "",
         _md_table(_pivot(table, "base"), 2, "IC \\ h"),
         "",
-        "Seed range (max − min) per cell:",
+        "Seed range (max − min) per cell; — where only one seed ran:",
         "",
         _md_table(_pivot_range(table, "base"), 2, "IC \\ h"),
         "",
@@ -310,6 +333,7 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         f"## Cost stress — net IR by half-spread multiplier (horizon {summary['stress_horizon']}w)",
         "",
     ]
+    out += _stress_note(summary)
     cost = pd.DataFrame(summary["cost_stress"])
     if not cost.empty:
         piv = cost.pivot_table(index="ic", columns="cost_multiplier", values="net_ir")
@@ -452,7 +476,7 @@ def to_html(summary: dict[str, Any], table: pd.DataFrame) -> str:
     """
     req_rows = "".join(
         f"<tr><th>{r['horizon']}</th><td class='{'hit' if np.isfinite(r['required_ic']) else ''}'>"
-        f"{_fmt(r['required_ic'], 3)}</td><td>{_fmt(r.get('frictionless_ic'), 3)}</td>"
+        f"{_required(r)}</td><td>{_fmt(r.get('frictionless_ic'), 3)}</td>"
         f"<td>{_fmt(r.get('flam_implied_ic'), 3)}</td>"
         f"<td>{_fmt(r.get('effective_breadth'), 1)}</td>"
         f"<td>{_fmt(r.get('empirical_breadth'), 1)}</td>"
@@ -495,7 +519,7 @@ def to_html(summary: dict[str, Any], table: pd.DataFrame) -> str:
     surviving = summary.get("required_ic_surviving") or []
     if surviving:
         rows = "".join(
-            f"<tr><th>{r['horizon']}</th><td class='hit'>{_fmt(r['required_ic'], 3)}</td>"
+            f"<tr><th>{r['horizon']}</th><td class='hit'>{_required(r)}</td>"
             f"<td style='text-align:left'>{r['note']}</td></tr>"
             for r in surviving
         )
@@ -539,7 +563,7 @@ This page measures the pipeline at the section 4 budget; nothing on it is a resu
 {frictionless_html}
 <h2>The ladder — mean net IR over seeds</h2>
 {ladder_html}
-<p class="muted">Orange: at or above the bar. Seed range per cell:</p>
+<p class="muted">Orange: at or above the bar. Seed range per cell (— where only one seed ran):</p>
 {range_html}
 {calibration_html}
 <h2>Oracle (IC = 1) — a ceiling, not the ruler</h2>
