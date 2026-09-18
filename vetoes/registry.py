@@ -19,7 +19,7 @@ from vetoes import rules
 VETOES: dict[str, Callable[..., Verdict]] = {
     "turnover": rules.veto_turnover,
     "cash": rules.veto_cash,
-    "tracking_error": rules.veto_tracking_error,
+    "risk_calibration": rules.veto_risk_calibration,
     "positions": rules.veto_positions,
     "coverage": rules.veto_coverage,
     "lookahead": rules.veto_lookahead,
@@ -29,14 +29,15 @@ VETOES: dict[str, Callable[..., Verdict]] = {
     "direction": rules.veto_direction,
 }
 
-# SUBSTRATE section 10 as amended by decisions/0003 (eleven) and decisions/0026
-# (ten). Asserted rather than assumed, so that a row added to the constitution
-# and not to this package is a loud failure rather than a silent gap.
+# SUBSTRATE section 10 as amended by decisions/0003 (eleven), decisions/0026
+# (ten) and decisions/0030 (tracking_error out, risk_calibration in; still ten).
+# Asserted rather than assumed, so that a row added to the constitution and not
+# to this package is a loud failure rather than a silent gap.
 SUBSTRATE_VETOES = frozenset(
     {
         "turnover",
         "cash",
-        "tracking_error",
+        "risk_calibration",
         "positions",
         "coverage",
         "lookahead",
@@ -47,7 +48,7 @@ SUBSTRATE_VETOES = frozenset(
     }
 )
 assert set(VETOES) == SUBSTRATE_VETOES, (
-    "veto set does not match SUBSTRATE section 10 + decisions/0026"
+    "veto set does not match SUBSTRATE section 10 + decisions/0026 + decisions/0030"
 )
 
 

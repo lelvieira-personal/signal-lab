@@ -323,10 +323,11 @@ def veto_legend(params=None):
         ),
         ("cash", f"Max cash weight ≤ {pct(p.require('vetoes.cash.max_weight'))}"),
         (
-            "tracking_error",
-            f"Trailing-3y tracking error ≤ "
-            f"{float(p.require('vetoes.tracking_error.max_trailing_3y')):.1%}, "
-            f"{p.get('vetoes.tracking_error.statistic', 'p95')} of readings",
+            "risk_calibration",
+            f"Worst annual bias statistic ≤ "
+            f"{float(p.require('vetoes.risk_calibration.max_worst_annual_bias')):.2f} — did the "
+            f"book run the risk it was sized for? The realised tracking error itself is a "
+            f"disclosed characteristic, not a gate (decisions/0030)",
         ),
         ("positions", f"Non-zero holdings ≤ {int(p.require('vetoes.positions.max_nonzero'))}"),
         (

@@ -1,9 +1,10 @@
 """
-One function per veto in SUBSTRATE section 10, as amended by decisions/0003
-(the tracking_error statistic loosened from the maximum to the 95th percentile)
-and by decisions/0026 (active_drawdown removed: drawdown is a consequence of the
-tracking-error budget, which decisions/0025 derives from the drawdown
-tolerance). Ten vetoes.
+One function per veto in SUBSTRATE section 10, as amended by decisions/0026
+(active_drawdown removed: drawdown is a consequence of the tracking-error
+budget, which decisions/0025 derives from the drawdown tolerance) and by
+decisions/0030 (tracking_error removed, risk_calibration added: the realised
+tracking error is a disclosed characteristic, and what gates is whether the
+book ran the risk it was sized for). Ten vetoes.
 
 Signature: veto(ctx: RunContext, params: Params | None) -> Verdict.
 Thresholds are read from params/vetoes.yaml on every call, never cached and
@@ -19,6 +20,11 @@ from signal_lab.harness.run_context import MissingInput, RunContext
 from signal_lab.loaders.invariants import frequency_breaches
 from signal_lab.params import Params, get_params
 from signal_lab.results.store import Verdict
+
+# Ex-ante TE below this (annual) carries no scale to calibrate against: a blind
+# book hugging the benchmark would divide by rounding. Mirrors the audit's own
+# floor in signal_lab.audit.ladder.
+_MIN_EX_ANTE_TE = 1e-4
 
 
 def _p(params: Params | None) -> Params:
@@ -93,52 +99,80 @@ def veto_cash(ctx: RunContext, params: Params | None = None) -> Verdict:
     )
 
 
-# --- 3. tracking_error -------------------------------------------------------
+# --- 3. risk_calibration -----------------------------------------------------
 
 
-def veto_tracking_error(ctx: RunContext, params: Params | None = None) -> Verdict:
+def veto_risk_calibration(ctx: RunContext, params: Params | None = None) -> Verdict:
     """
-    Trailing-3y tracking error against the ceiling.
+    Did the book run the risk it was sized for? The worst year answers.
 
-    params/vetoes.yaml sets `statistic: p95` -- the 95th percentile of trailing-3y
-    readings. SUBSTRATE section 4 allows episodic excursions and section 10
-    states a hard ceiling; the 95th percentile is what "episodic" has to mean if
-    it means anything, since the maximum makes one bad quarter in nineteen years
-    fatal. See decisions/0003.
+    `decisions/0030` removed the tracking_error veto: how much active risk a
+    book ran is a characteristic of the strategy and gets disclosed, because
+    active volatility clusters and a book honestly sized to the budget WILL run
+    above it in a crisis and below it in a calm decade. Killing the run that
+    lived through 2008 does not reduce the risk taken -- the ex-ante budget
+    already did -- it selects the leaderboard on which sixteen years a strategy
+    happened to be tested in.
 
-    This is the lab's only ex-post risk gate. What the investor actually
-    experienced -- the active drawdown -- is controlled ex ante instead, through
-    the budget this ceiling enforces: decisions/0025 derives that budget FROM a
-    drawdown tolerance, and decisions/0026 removed the separate realised-drawdown
-    veto rather than charge the same risk twice.
+    What is not a characteristic is a risk model that lies. The statistic is the
+    bias statistic of `decisions/0027` section 2: the standard deviation of
+    z_t = r_t / sigma_ex_ante(t-1), which is 1 when a book realises the risk it
+    was sized to, read **per calendar year and taken at the worst one**.
+
+    The full-sample reading, which is what 0027 proposed, has no power and this
+    is measured: across seventeen Bloomberg base cells it runs 0.87 to 1.05
+    while the same cells' worst year runs 1.39 to 2.21, hitting 2.03 in 2008.
+    Applying the volatility overlay that fixes the sizing moves the full-sample
+    reading to 0.89 to 1.03 -- indistinguishable -- while the worst year falls
+    to 1.17 to 1.61. A gate on the average would pass a book running twice its
+    sized risk for a year and would not notice the repair either.
+
+    The ceiling is derived rather than chosen. `scripts/bias_map.py` simulates
+    the worst annual reading under a CORRECTLY specified model; at the measured
+    excess kurtosis of z (2.37) the p99 is 1.715. Fat tails are not a detail
+    here: at kurtosis 0 the same quantile is 1.327, so a Gaussian null would set
+    a ceiling that kills honestly sized books. p99 rather than p95 for the
+    reason decisions/0026 gave against the drawdown cap -- a p95 gate fails one
+    honest run in twenty by construction.
+
+    A year with fewer than `min_observations_per_year` readings is not read: a
+    standard deviation of eight numbers is not evidence about a risk model. A
+    run with no readable year cannot be evaluated and fails closed.
     """
     p = _p(params)
-    cap = float(p.require("vetoes.tracking_error.max_trailing_3y"))
-    statistic = str(p.get("vetoes.tracking_error.statistic", "max"))
+    cap = float(p.require("vetoes.risk_calibration.max_worst_annual_bias"))
+    min_obs = int(p.get("vetoes.risk_calibration.min_observations_per_year", 40))
     try:
-        te = pd.Series(ctx.require("te_trailing_3y")).dropna()
+        active = pd.Series(ctx.require("active_returns"))
+        ex_ante = pd.Series(ctx.require("te_ex_ante"))
     except MissingInput as exc:
-        return _missing("tracking_error", exc)
-    if te.empty:
-        return _missing("tracking_error", MissingInput("te_trailing_3y (all NaN)"))
-    if statistic == "max":
-        realised = float(te.max())
-    elif statistic == "last":
-        realised = float(te.iloc[-1])
-    elif statistic.startswith("p"):
-        realised = float(np.percentile(te.to_numpy(), float(statistic[1:])))
-    else:
-        return Verdict(
-            passed=False,
-            veto="tracking_error",
-            detail=f"unknown tracking_error statistic {statistic!r} in params/vetoes.yaml",
+        return _missing("risk_calibration", exc)
+
+    ppy = float(ctx.rebalances_per_year)
+    sigma = ex_ante.sort_index().shift(1).reindex(active.index)
+    usable = sigma.notna() & active.notna() & (sigma > _MIN_EX_ANTE_TE)
+    z = active[usable] / (sigma[usable] / np.sqrt(ppy))
+    if not isinstance(z.index, pd.DatetimeIndex):
+        return _missing("risk_calibration", MissingInput("active_returns (not dated)"))
+
+    annual = {
+        int(year): float(group.std(ddof=1))
+        for year, group in z.groupby(z.index.year)
+        if len(group) >= min_obs
+    }
+    if not annual:
+        return _missing(
+            "risk_calibration",
+            MissingInput(f"no calendar year with {min_obs} usable readings"),
         )
+    worst_year = max(annual, key=annual.__getitem__)
+    worst = annual[worst_year]
     return Verdict(
-        passed=_at_most(realised, cap),
-        veto="tracking_error",
+        passed=_at_most(worst, cap),
+        veto="risk_calibration",
         detail=(
-            f"{statistic} trailing-3y TE {realised:.2%} against a {cap:.1%} ceiling "
-            f"(worst reading {float(te.max()):.2%})"
+            f"worst annual bias {worst:.2f} in {worst_year} against a {cap:.2f} ceiling "
+            f"({len(annual)} years read; full-sample {float(z.std(ddof=1)):.2f})"
         ),
     )
 

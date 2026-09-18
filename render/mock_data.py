@@ -55,7 +55,7 @@ AGGREGATIONS = [
 VETOES = [
     ("turnover", "Annualised turnover \u2264 400% \u2014 a backstop, not a budget"),
     ("cash", "Max cash weight \u2264 20%"),
-    ("tracking_error", "Trailing-3y tracking error \u2264 6.0%"),
+    ("risk_calibration", "Worst annual bias statistic \u2264 1.72"),
     ("positions", "Non-zero holdings \u2264 30"),
     ("coverage", "Signal coverage \u2265 80% of universe on \u2265 90% of dates"),
     ("lookahead", "Bitemporal check: no future vintages"),
@@ -103,6 +103,8 @@ def build_runs():
         n_positions = int(rng.integers(18, 33))
         null_pct = float(np.clip(rng.normal(0.72, 0.20), 0.01, 0.999))
         ess_cycles = float(rng.integers(3, 14))
+        # decisions/0030: what gates is the risk model, not the risk level.
+        worst_annual_bias = float(rng.normal(1.22, 0.22))
 
         verdicts = {
             "lookahead": bool(lookahead_ok),
@@ -110,7 +112,7 @@ def build_runs():
             "coverage": coverage >= 0.80,
             "turnover": turnover <= 150,
             "cash": max_cash <= 20,
-            "tracking_error": te <= 6.0,
+            "risk_calibration": worst_annual_bias <= 1.72,
             "positions": n_positions <= 30,
             "seed_stability": seed_range <= 0.15,
             "multiple_testing": bool(rng.random() > 0.55),

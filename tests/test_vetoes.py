@@ -23,8 +23,8 @@ from vetoes.rules import (
     veto_lookahead,
     veto_multiple_testing,
     veto_positions,
+    veto_risk_calibration,
     veto_seed_stability,
-    veto_tracking_error,
     veto_turnover,
 )
 
@@ -39,11 +39,12 @@ def ctx(**kw) -> RunContext:
 
 
 def test_exactly_the_ten_vetoes_of_substrate_section_10_as_amended():
-    """SUBSTRATE section 10, less active_drawdown (decisions/0026)."""
+    """SUBSTRATE section 10, less active_drawdown (decisions/0026), with
+    tracking_error swapped for risk_calibration (decisions/0030)."""
     assert set(VETOES) == {
         "turnover",
         "cash",
-        "tracking_error",
+        "risk_calibration",
         "positions",
         "coverage",
         "lookahead",
@@ -63,7 +64,7 @@ def test_every_veto_is_ordered(params):
 def test_evaluation_order_follows_the_substrate_table(params):
     """decisions/0005: the section 10 table order is authoritative."""
     order = VETO_ORDER(params)
-    assert order[:5] == ["turnover", "cash", "tracking_error", "positions", "coverage"]
+    assert order[:5] == ["turnover", "cash", "risk_calibration", "positions", "coverage"]
     assert order[-1] == "direction"
 
 
@@ -116,54 +117,111 @@ def test_cash_without_input_fails_closed(params):
     assert not veto_cash(ctx(), params).passed
 
 
-# --- 3. tracking_error -------------------------------------------------------
+# --- 3. risk_calibration -----------------------------------------------------
+
+CAL_DATES = pd.date_range("2010-01-08", periods=156, freq="W-FRI")
+EX_ANTE = 0.05
 
 
-def test_tracking_error_passes_fails_and_boundary(params):
-    cap = params.require("vetoes.tracking_error.max_trailing_3y")
-    assert veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.041, 0.052])), params).passed
-    assert not veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.041, 0.071])), params).passed
-    assert veto_tracking_error(ctx(te_trailing_3y=pd.Series([cap])), params).passed
-    assert not veto_tracking_error(ctx(te_trailing_3y=pd.Series([cap + 1e-9])), params).passed
+def _active_with_bias(bias_by_year: dict[int, float], dates=CAL_DATES, ex_ante=EX_ANTE):
+    """Active returns whose annual bias statistic is exactly what is asked for.
 
-
-def test_tracking_error_tolerates_one_episodic_excursion(params):
+    The veto divides by sigma_ex_ante SHIFTED one period, so the first reading
+    of the series has no sizing to be judged against and drops out. Building the
+    z series first and inverting makes the intent of each test readable: the
+    number in the dict is the number the veto should report.
     """
-    decisions/0003: the statistic is p95, not the maximum. A single excursion in
-    a long run of compliant readings passes; a persistent breach does not. This
-    is what "episodic excursions allowed" (SUBSTRATE section 4) has to mean if
-    it means anything.
+    rng = np.random.default_rng(11)
+    z = pd.Series(0.0, index=dates)
+    usable = dates[1:]  # the first reading has no prior sizing and is dropped
+    for year, target in bias_by_year.items():
+        mask = pd.Series(usable.year == year, index=usable)
+        raw = rng.standard_normal(int(mask.sum()))
+        raw = raw - raw.mean()
+        z.loc[usable[mask.to_numpy()]] = raw / raw.std(ddof=1) * target
+    return z * (ex_ante / np.sqrt(52.0))
+
+
+def _cal_ctx(bias_by_year, **kw):
+    active = _active_with_bias(bias_by_year)
+    return ctx(
+        active_returns=active,
+        te_ex_ante=pd.Series(EX_ANTE, index=CAL_DATES),
+        rebalances_per_year=52.0,
+        **kw,
+    )
+
+
+def test_risk_calibration_passes_fails_and_boundary(params):
+    cap = params.require("vetoes.risk_calibration.max_worst_annual_bias")
+    years = [2010, 2011, 2012]
+    assert veto_risk_calibration(_cal_ctx({y: 1.0 for y in years}), params).passed
+    assert not veto_risk_calibration(_cal_ctx({y: cap + 0.2 for y in years}), params).passed
+    assert veto_risk_calibration(_cal_ctx({y: cap for y in years}), params).passed
+    assert not veto_risk_calibration(_cal_ctx({y: cap + 1e-6 for y in years}), params).passed
+
+
+def test_risk_calibration_reads_the_worst_year_not_the_average(params):
+    """The whole point of decisions/0030, and the reason 0027's statistic failed.
+
+    A book calibrated on average but running double its sized risk for one year
+    is the Bloomberg 2008 case: full-sample 0.92-1.01, worst year 2.03.
     """
-    episodic = ctx(te_trailing_3y=pd.Series([0.04] * 40 + [0.075]))
-    assert veto_tracking_error(episodic, params).passed
-
-    persistent = ctx(te_trailing_3y=pd.Series([0.075] * 40 + [0.04]))
-    assert not veto_tracking_error(persistent, params).passed
-
-
-def test_tracking_error_reports_the_worst_reading_even_when_it_passes(params):
-    """The excursion is not hidden just because it did not kill the run."""
-    v = veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.04] * 40 + [0.075])), params)
-    assert v.passed and "worst reading 7.50%" in v.detail
+    c = _cal_ctx({2010: 0.62, 2011: 2.03, 2012: 0.70})
+    v = veto_risk_calibration(c, params)
+    assert not v.passed
+    assert "2011" in v.detail
+    full = float(pd.Series(c.active_returns).std(ddof=1) / (EX_ANTE / np.sqrt(52.0)))
+    assert full < params.require("vetoes.risk_calibration.max_worst_annual_bias"), (
+        "the full-sample reading must be the one that would have passed"
+    )
 
 
-def test_unknown_tracking_error_statistic_fails_closed(params, tmp_path):
-    import shutil
-    from pathlib import Path as _P
+def test_risk_calibration_does_not_read_a_year_too_short_to_judge(params):
+    """A standard deviation of a handful of numbers is not evidence."""
+    dates = pd.date_range("2010-11-05", periods=60, freq="W-FRI")  # 2010 has 9
+    rng = np.random.default_rng(3)
+    z = pd.Series(rng.standard_normal(len(dates)), index=dates)
+    z[dates.year == 2010] *= 40.0  # a wild short year that must be ignored
+    z[dates.year == 2011] = z[dates.year == 2011] / z[dates.year == 2011].std(ddof=1)
+    active = z * (EX_ANTE / np.sqrt(52.0))
+    c = ctx(
+        active_returns=active,
+        te_ex_ante=pd.Series(EX_ANTE, index=dates),
+        rebalances_per_year=52.0,
+    )
+    v = veto_risk_calibration(c, params)
+    assert v.passed, v.detail
+    assert "2010" not in v.detail
 
-    from signal_lab.params import PARAM_FILES, load_params
 
-    src = _P(params.params_dir)
-    for name in PARAM_FILES:
-        shutil.copy(src / name, tmp_path / name)
-    target = tmp_path / "vetoes.yaml"
-    target.write_text(target.read_text().replace("statistic: p95", "statistic: vibes"))
-    v = veto_tracking_error(ctx(te_trailing_3y=pd.Series([0.01])), load_params(tmp_path))
-    assert not v.passed and "unknown tracking_error statistic" in v.detail
+def test_risk_calibration_without_the_ex_ante_series_fails_closed(params):
+    """The input decisions/0030 added. Without it there is no ratio to read."""
+    active = _active_with_bias({2010: 1.0, 2011: 1.0, 2012: 1.0})
+    v = veto_risk_calibration(ctx(active_returns=active), params)
+    assert not v.passed
+    assert "te_ex_ante" in v.detail
 
 
-def test_tracking_error_all_nan_fails_closed(params):
-    assert not veto_tracking_error(ctx(te_trailing_3y=pd.Series([np.nan, np.nan])), params).passed
+def test_risk_calibration_without_returns_fails_closed(params):
+    assert not veto_risk_calibration(ctx(), params).passed
+
+
+def test_risk_calibration_with_no_readable_year_fails_closed(params):
+    dates = pd.date_range("2010-01-08", periods=12, freq="W-FRI")
+    c = ctx(
+        active_returns=pd.Series(0.001, index=dates),
+        te_ex_ante=pd.Series(EX_ANTE, index=dates),
+    )
+    v = veto_risk_calibration(c, params)
+    assert not v.passed
+    assert "usable readings" in v.detail
+
+
+def test_risk_calibration_reports_the_year_and_the_full_sample_beside_it(params):
+    v = veto_risk_calibration(_cal_ctx({2010: 0.9, 2011: 1.1, 2012: 1.0}), params)
+    assert v.passed
+    assert "2011" in v.detail and "full-sample" in v.detail and "3 years read" in v.detail
 
 
 # --- 4. positions ------------------------------------------------------------
@@ -432,7 +490,8 @@ def full_context(panel, **overrides) -> RunContext:
         turnover=pd.Series(0.02, index=DATES),
         cash_weights=pd.Series(0.10, index=DATES),
         te_trailing_3y=pd.Series([0.045, 0.050]),
-        active_returns=pd.Series([0.0004] * 300),
+        active_returns=_active_with_bias({2010: 0.95, 2011: 1.02, 2012: 0.98}),
+        te_ex_ante=pd.Series(EX_ANTE, index=CAL_DATES),
         weights=weights_with(25),
         signal_availability=availability(0.95, 0.97),
         estimation_universe=None,

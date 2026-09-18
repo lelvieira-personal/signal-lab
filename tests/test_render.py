@@ -23,8 +23,8 @@ def test_veto_legend_covers_every_veto_and_reads_params(params):
 
     assert {name for name, _ in legend} == set(VETOES)
     assert "400%" in dict(legend)["turnover"] and "backstop" in dict(legend)["turnover"]
-    assert "6.0%" in dict(legend)["tracking_error"]
-    assert "p95" in dict(legend)["tracking_error"]
+    assert "1.72" in dict(legend)["risk_calibration"]
+    assert "sized for" in dict(legend)["risk_calibration"]
     assert "active_drawdown" not in dict(legend), "decisions/0026"
 
 

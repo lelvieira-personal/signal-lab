@@ -29,8 +29,8 @@ from vetoes.rules import (
     veto_lookahead,
     veto_multiple_testing,
     veto_positions,
+    veto_risk_calibration,
     veto_seed_stability,
-    veto_tracking_error,
     veto_turnover,
 )
 
@@ -46,7 +46,7 @@ __all__ = [
     "veto_lookahead",
     "veto_multiple_testing",
     "veto_positions",
+    "veto_risk_calibration",
     "veto_seed_stability",
-    "veto_tracking_error",
     "veto_turnover",
 ]

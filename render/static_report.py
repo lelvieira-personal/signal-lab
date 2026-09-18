@@ -250,7 +250,9 @@ def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
     champ = data.champion
     detail = data.detail
     holdout = v.holdout_panel(params)
-    te_cap = float(params.require("vetoes.tracking_error.max_trailing_3y")) * 100
+    # The ex-ante BUDGET the solver targets, not a veto ceiling: decisions/0030
+    # made the realised tracking error a disclosed characteristic.
+    te_cap = float(params.require("constraints.tracking_error.max_trailing_3y")) * 100
 
     veto_list = "".join(
         f"<li><b>{name}</b> — {label}</li>" for name, label in v.veto_legend(params)

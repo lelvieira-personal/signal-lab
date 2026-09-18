@@ -83,7 +83,9 @@ def main() -> None:
         st.markdown(f"**{holdout['title']}** {holdout['body']}")
         return
 
-    te_cap = float(params.require("vetoes.tracking_error.max_trailing_3y")) * 100
+    # The ex-ante BUDGET the solver targets, not a veto ceiling: decisions/0030
+    # made the realised tracking error a disclosed characteristic.
+    te_cap = float(params.require("constraints.tracking_error.max_trailing_3y")) * 100
 
     st.subheader("Leaderboard")
     st.caption(

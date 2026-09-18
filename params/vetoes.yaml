@@ -15,13 +15,23 @@ turnover:
   max_annualised: 4.00
 cash:
   max_weight: 0.20
-tracking_error:
-  max_trailing_3y: 0.060
-  # decisions/0003: the 95th percentile of trailing-3y readings, not the worst.
-  # "Episodic excursions allowed" (section 4) has to mean something, and the max
-  # makes a single bad quarter fatal. TE is retained as the MANDATE test; active
-  # drawdown below is the economic one.
-  statistic: p95
+risk_calibration:
+  # decisions/0030. The realised tracking error is no longer a gate: how much
+  # active risk a book ran is a characteristic, disclosed on every run. What
+  # gates is whether the book ran the risk it was SIZED for -- the bias
+  # statistic of decisions/0027 section 2, std(r_t / sigma_ex_ante(t-1)), read
+  # per calendar year and taken at the worst one. The full-sample reading has no
+  # power: it is 0.87-1.05 on Bloomberg base cells whose worst year is 1.39-2.21.
+  #
+  # The ceiling is the p99 of that statistic under a CORRECTLY specified model,
+  # from scripts/bias_map.py at the measured excess kurtosis of z (2.37). Not
+  # the p95 (1.49): decisions/0026's argument against the drawdown cap applies
+  # to any gate that fails one honest run in twenty by construction. Fat tails
+  # set the level -- the same quantile is 1.33 at kurtosis 0 -- so re-derive
+  # this, do not nudge it, if the panel's tails change.
+  max_worst_annual_bias: 1.72
+  # A standard deviation of eight numbers is not evidence about a risk model.
+  min_observations_per_year: 40
 positions:
   max_nonzero: 30
 coverage:
@@ -50,7 +60,7 @@ evaluation:
   order:
     - turnover
     - cash
-    - tracking_error
+    - risk_calibration
     - positions
     - coverage
     - lookahead

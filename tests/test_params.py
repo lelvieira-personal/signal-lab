@@ -89,12 +89,13 @@ def test_every_substrate_threshold_is_in_params(params):
     """The section 10 table, read back out of params rather than out of code."""
     assert params.require("vetoes.turnover.max_annualised") == 4.00  # backstop, 0024
     assert params.require("vetoes.cash.max_weight") == 0.20
-    assert params.require("vetoes.tracking_error.max_trailing_3y") == 0.060
+    assert params.require("vetoes.risk_calibration.max_worst_annual_bias") == 1.72
     assert params.require("vetoes.positions.max_nonzero") == 30
     assert params.require("vetoes.coverage.min_universe_fraction") == 0.80
     assert params.require("vetoes.coverage.min_date_fraction") == 0.90
     assert params.require("vetoes.seed_stability.max_ir_range") == 0.15
-    assert params.require("vetoes.tracking_error.statistic") == "p95"
+    assert params.require("vetoes.risk_calibration.min_observations_per_year") == 40
+    assert params.require("constraints.tracking_error.max_trailing_3y") == 0.060
     assert params.require("vetoes.multiple_testing.fwer_alpha") == 0.05
     assert params.require("data.windows.holdout_start") == "2020-01-01"
     assert params.require("costs.buckets.low.half_spread_bps") == 5
