@@ -43,6 +43,12 @@ class RunContext:
     rebalances_per_year: float = 52.0
     te_trailing_3y: pd.Series | None = None  # annualised, as a fraction
     active_returns: pd.Series | None = None  # per rebalance, strategy minus benchmark
+    # The tracking error each book was SIZED to, annualised, indexed by the date
+    # the book was set on -- so it is shifted one period onto the return that
+    # book earned. `risk_calibration` divides one by the other: without it there
+    # is no way to ask whether a book ran the risk it was sized for, only how
+    # much risk it ran. See decisions/0030.
+    te_ex_ante: pd.Series | None = None
 
     # --- data-integrity inputs ---
     signal_availability: pd.DataFrame | None = None  # dates x series, bool

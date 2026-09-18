@@ -360,3 +360,74 @@ def test_the_summary_reports_cost_drag_and_never_gross_ir(planted_path):
     summary = planted_path.summary()
     assert "cost_drag" in summary and summary["cost_drag"] > 0
     assert not any("gross" in k for k in summary), "decisions/0004"
+
+
+# --- the ex-ante tracking error reaches the veto set (decisions/0030) ---------
+
+
+class _RuleWithExAnte:
+    """A weight rule that knows what risk it sized to, as a solver does."""
+
+    def __init__(self, ids, te):
+        self.ids = list(ids)
+        self.te = float(te)
+        self.seen: list[pd.Timestamp] = []
+
+    def __call__(self, date, _panel, drifted=None):
+        self.seen.append(pd.Timestamp(date))
+        return pd.Series(1.0 / len(self.ids), index=self.ids)
+
+    def ex_ante_te(self):
+        return pd.Series(self.te, index=pd.DatetimeIndex(self.seen))
+
+
+def _tiny_panel(periods=8):
+    dates = pd.date_range("2012-01-06", periods=periods, freq="W-FRI")
+    ids = ["A", "B"]
+    returns = pd.DataFrame(0.001, index=dates, columns=ids)
+    levels = (1.0 + returns).cumprod()
+    return ReturnPanel(levels=levels, returns=returns, meta={}), dates, ids
+
+
+def test_a_rule_that_reports_its_ex_ante_te_puts_it_on_the_path():
+    panel, dates, ids = _tiny_panel()
+    rule = _RuleWithExAnte(ids, 0.055)
+    path = run_walk_forward(
+        panel,
+        rule,
+        pd.Series(0.0005, index=dates),
+        constant_exposures(pd.DataFrame(0.0, index=ids, columns=["f0"])),
+    )
+    assert path.te_ex_ante is not None
+    assert float(path.te_ex_ante.iloc[0]) == pytest.approx(0.055)
+    assert path.te_ex_ante.index.is_monotonic_increasing
+
+
+def test_a_rule_that_does_not_report_one_leaves_the_field_empty():
+    """Not every rule solves against a risk model, and None fails closed."""
+    panel, dates, ids = _tiny_panel()
+
+    def rule(date, _panel, drifted=None):
+        return pd.Series(1.0 / len(ids), index=ids)
+
+    path = run_walk_forward(
+        panel,
+        rule,
+        pd.Series(0.0005, index=dates),
+        constant_exposures(pd.DataFrame(0.0, index=ids, columns=["f0"])),
+    )
+    assert path.te_ex_ante is None
+
+
+def test_to_run_context_carries_the_ex_ante_te_to_the_vetoes():
+    panel, dates, ids = _tiny_panel()
+    rule = _RuleWithExAnte(ids, 0.048)
+    path = run_walk_forward(
+        panel,
+        rule,
+        pd.Series(0.0005, index=dates),
+        constant_exposures(pd.DataFrame(0.0, index=ids, columns=["f0"])),
+    )
+    ctx = to_run_context(path, "R-test", panel)
+    assert ctx.te_ex_ante is not None
+    assert float(ctx.require("te_ex_ante").iloc[0]) == pytest.approx(0.048)

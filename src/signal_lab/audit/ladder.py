@@ -394,6 +394,19 @@ class _OptimiserRule:
         excess = max(0.0, self.trailing_annual_turnover() - self.shadow_start)
         return self.shadow_coeff * BPS * excess / span
 
+    def ex_ante_te(self) -> pd.Series | None:
+        """The annualised TE each solved book was sized to, by rebalance date.
+
+        The engine reads this to put `te_ex_ante` on the path, which is what
+        `decisions/0030`'s risk_calibration veto divides the realised return by.
+        The same numbers already went into `diagnostics`; this is the engine's
+        agreed way of asking for them.
+        """
+        if not self.diagnostics:
+            return None
+        frame = pd.DataFrame(self.diagnostics)
+        return frame.set_index("date")["te_ex_ante"]
+
     def __call__(self, date: pd.Timestamp, _panel: ReturnPanel, drifted: pd.Series | None = None):
         date = pd.Timestamp(date)
         cov = self.u.covariance(date, self.cell.vol_halflife, self.cell.vol_overlay)

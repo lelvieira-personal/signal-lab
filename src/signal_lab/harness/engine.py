@@ -50,6 +50,13 @@ from signal_lab.params import Params, get_params
 # is handed the book as it stands at the close, which an optimiser needs to
 # price the trade; a rule that does not is called exactly as before.
 WeightRule = Callable[..., pd.Series]
+# A weight rule MAY also carry `ex_ante_te()`, returning the annualised tracking
+# error it sized each book to, indexed by rebalance date. It is optional because
+# a rule that does not solve against a risk model has no such number to report;
+# where it exists the engine carries it onto the path, and `decisions/0030`'s
+# risk_calibration veto reads it there. A rule that solves and does NOT expose
+# it makes that veto unevaluable, and an unevaluated constraint fails closed.
+ExAnteTERule = Callable[[], "pd.Series | None"]
 
 # The exposure matrix as of a date: instruments x factors. Constant in phase 1.
 ExposureRule = Callable[[pd.Timestamp], pd.DataFrame]
@@ -73,6 +80,7 @@ class PortfolioPath:
     cash_weights: pd.Series
     exposures: pd.DataFrame
     rebalance_day: str = "FRI"
+    te_ex_ante: pd.Series | None = None  # annualised, indexed by rebalance date
     meta: dict[str, Any] = field(default_factory=dict)
 
     # --- derived statistics --------------------------------------------------
@@ -309,8 +317,26 @@ def run_walk_forward(
         cash_weights=frame["cash"],
         exposures=pd.DataFrame(exposure_rows).T.reindex(index),
         rebalance_day=rebalance_day,
+        te_ex_ante=_ex_ante_te(weight_rule),
         meta={"periods_per_year": periods_per_year, "n_rebalances": len(index)},
     )
+
+
+def _ex_ante_te(weight_rule: WeightRule) -> pd.Series | None:
+    """The risk the rule sized each book to, if it is a rule that knows.
+
+    Read off the rule rather than passed in, because only the rule holds it: by
+    the time a path exists the solve is over. A rule without the attribute, or
+    one that returns nothing, leaves the field None and the risk_calibration
+    veto of decisions/0030 unevaluable -- which fails closed, by design.
+    """
+    getter = getattr(weight_rule, "ex_ante_te", None)
+    if getter is None:
+        return None
+    series = getter()
+    if series is None or len(series) == 0:
+        return None
+    return pd.Series(series).sort_index()
 
 
 def run_averaged_over_rebalance_days(
@@ -364,6 +390,7 @@ def run_averaged_over_rebalance_days(
         cash_weights=mean_series("cash_weights"),
         exposures=primary.exposures,
         rebalance_day="averaged:" + ",".join(days),
+        te_ex_ante=primary.te_ex_ante,
         meta={
             "averaged_over": days,
             "ir_by_day": {d: p.information_ratio() for d, p in paths.items()},
@@ -387,6 +414,7 @@ def to_run_context(
         rebalances_per_year=float(path.meta.get("periods_per_year", 52)),
         te_trailing_3y=path.tracking_error(),
         active_returns=path.active_returns,
+        te_ex_ante=path.te_ex_ante,
         series_meta=panel.meta,
     )
     for key, value in overrides.items():
