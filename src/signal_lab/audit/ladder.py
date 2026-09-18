@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 
 from signal_lab.audit.signals import (
+    POOLED,
     PlantedSignal,
     plant_signal,
     realised_ic,
@@ -229,6 +230,10 @@ class AuditCell:
     turnover_cap: float | None = None  # annualised traded notional; None = no annual wall
     per_rebalance_cap: float | None = None  # traded notional in ONE session; None = uncapped
     tag: str = "base"
+    # How the planted truth is standardised. `pooled` is the default and what
+    # every run before 2026-09-17 used; `cross_sectional` plants purely relative
+    # information. See `audit.signals` and the standardisation probe.
+    standardise: str = POOLED
 
     def key(self) -> str:
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
@@ -237,6 +242,8 @@ class AuditCell:
             f"ic{self.ic:.2f}_h{self.horizon}_s{self.seed}"
             f"_c{self.cost_multiplier:.1f}_t{cap}_r{per}"
         )
+        if self.standardise != POOLED:
+            key = f"{key}_{self.standardise}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -579,6 +586,7 @@ def _plant(universe: AuditUniverse, cell: AuditCell) -> PlantedSignal:
         horizon=cell.horizon,
         seed=cell.seed,
         vol_window=universe.window,
+        standardise=cell.standardise,
     )
 
 
