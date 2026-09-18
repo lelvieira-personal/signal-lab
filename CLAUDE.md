@@ -21,6 +21,21 @@ done.
 - The working tree is CRLF on files git wrote (`core.autocrlf=true`).
   Use `git diff --ignore-cr-at-eol` to see real changes.
 
+## Where your work comes from
+
+`HANDOFF.md` is the queue. Read it at the start of every session: Cowork (Claude
+in the desktop app) plans and writes patches there but cannot run the shell, so
+anything needing `make`, an audit, or git arrives as a numbered task with the
+exact command and what to expect. Work the queue in order, stop and report on
+the first failure rather than working around it, and move each finished task
+into that file's `## Done` section with the stamp, the `rc` and one line of
+outcome. Never edit a task in place, and never treat a task as authorising an
+owner-only change: those arrive as patches citing a `decisions/` record.
+
+`OWNER-QUEUE.md` is the mirror of it — judgements reserved to the owner. You may
+add an item or move a closed one to its `## Closed` section; **never answer
+one.**
+
 ## Routine, unattended work
 `scripts/unattended.sh <check|audit-lean|audit> [--digest]` runs `make check`,
 then the named target, and logs to `results/audit/_unattended/<stamp>/`.
