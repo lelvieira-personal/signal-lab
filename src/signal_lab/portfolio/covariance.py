@@ -22,6 +22,13 @@ the benchmark almost exactly is told its tracking error is several percent,
 and a 6% budget can look infeasible when the realised TE is under 1%. That was
 observed on the synthetic panel before the target was changed. The constant-
 correlation target keeps the average correlation and the replication.
+
+A 156-week equal-weighted window cannot see a volatility spike, which is what
+`results/audit/_probe/TE-20260917-bbg1` measured: across 2007-2009 the ex-ante
+tracking error of an audit book moved 5.2% -> 6.0% -> 6.0% while its realised
+active volatility moved 6.6% -> 12.2% -> 3.7%. `rescale_volatility` is the
+opt-in answer to that -- fast volatilities on the slow correlation -- and it is
+off unless a caller asks for it.
 """
 
 from __future__ import annotations
@@ -159,8 +166,110 @@ def ledoit_wolf(returns: pd.DataFrame, min_observations: int = 2) -> ShrunkCovar
     )
 
 
+def ewma_weights(n: int, halflife: float) -> np.ndarray:
+    """Weights over `n` observations, oldest first, summing to one.
+
+    `halflife` is in observations: the weight on a point `halflife` periods
+    back is half the weight on the newest one.
+    """
+    if halflife <= 0:
+        raise ValueError(f"halflife must be positive, got {halflife}")
+    lam = 0.5 ** (1.0 / float(halflife))
+    w = lam ** np.arange(n - 1, -1, -1, dtype=float)
+    return w / w.sum()
+
+
+def volatility_scalar(cov: ShrunkCovariance, returns: pd.DataFrame, halflife: float) -> float:
+    """
+    One number: how turbulent the panel is now against its own window average.
+
+        s = sqrt( mean_i var_fast_i / mean_i var_slow_i )
+
+    `rescale_volatility` moves 95 volatilities and so moves the book's
+    COMPOSITION as well as its scale, because the solver reads the same matrix
+    for both. That costs accuracy in the cross-section -- an exponentially
+    weighted variance at a 26-week halflife rests on roughly 37 effective
+    observations per series -- to buy accuracy in time. Scaling by one number
+    buys the second without paying the first: `s**2 * Sigma` leaves every
+    correlation AND every relative volatility exactly as the full window
+    estimated them, so the optimum keeps its shape and only its size responds.
+
+    Equal weight across series is deliberate. A benchmark-weighted or
+    book-weighted turbulence measure would read the risk of a particular
+    portfolio, which is the thing being sized: the scalar has to be a property
+    of the panel at that date, not of the answer.
+    """
+    ids = cov.ids
+    window = returns[ids] if list(returns.columns) != ids else returns
+    x = window.to_numpy(dtype=float)
+    if x.shape[0] == 0:
+        return 1.0
+    w = ewma_weights(x.shape[0], halflife)
+    var_fast = float(np.mean(w @ (x - w @ x) ** 2))
+    var_slow = float(np.mean(np.clip(np.diag(cov.matrix.to_numpy(dtype=float)), 0.0, None)))
+    if not np.isfinite(var_fast) or not np.isfinite(var_slow) or var_slow <= 0.0:
+        return 1.0
+    return float(np.sqrt(var_fast / var_slow))
+
+
+def rescale_volatility(
+    cov: ShrunkCovariance, returns: pd.DataFrame, halflife: float
+) -> ShrunkCovariance:
+    """
+    Keep the correlation, swap the volatilities for exponentially weighted ones.
+
+    The estimate the solver sizes against has to answer two questions at once:
+    how instruments move TOGETHER, and how much each one moves. The first is a
+    cross-sectional structure that a long window estimates well and a short one
+    estimates terribly -- it is why the window is 156 weeks and why the result
+    is shrunk. The second is a level that clusters in time, and a 156-week
+    equal-weighted window is the wrong instrument for it: it gives a 2008
+    observation the same weight as a 2005 one.
+
+    So this rescales, leaving the correlation matrix EXACTLY as the shrinkage
+    left it and replacing each series' standard deviation with its
+    exponentially weighted estimate:
+
+        Sigma_new = D_fast R_slow D_fast,   D_fast = diag(sigma_ewma)
+
+    Separating the two is a modelling choice with a long history (it is what
+    RiskMetrics does, and the risk-model literature calls it a volatility
+    overlay), and it is the narrowest change that can respond to a regime: one
+    channel moves, so a test of it is a test of one hypothesis. If correlations
+    also have to respond, this will not be enough, and that is a finding rather
+    than a failure.
+
+    `halflife` is in observations -- the panel here is weekly, so 26 is half a
+    year. The shrinkage intensity and observation count are carried through
+    unchanged; they describe the correlation, which is untouched.
+    """
+    ids = cov.ids
+    window = returns[ids] if list(returns.columns) != ids else returns
+    x = window.to_numpy(dtype=float)
+    if x.shape[0] == 0:
+        return cov
+    w = ewma_weights(x.shape[0], halflife)
+    mean = w @ x
+    var_fast = w @ (x - mean) ** 2
+    sd_fast = np.sqrt(np.clip(var_fast, 0.0, None))
+    sd_slow = np.sqrt(np.clip(np.diag(cov.matrix.to_numpy(dtype=float)), 0.0, None))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        scale = np.where(sd_slow > 0.0, sd_fast / sd_slow, 0.0)
+    scale = np.nan_to_num(scale, nan=0.0, posinf=0.0)
+    matrix = cov.matrix.to_numpy(dtype=float) * np.outer(scale, scale)
+    return ShrunkCovariance(
+        matrix=pd.DataFrame(matrix, index=cov.matrix.index, columns=cov.matrix.columns),
+        shrinkage=cov.shrinkage,
+        n_observations=cov.n_observations,
+        legs=dict(cov.legs),
+    )
+
+
 def embed_benchmark_legs(
-    holdable_cov: ShrunkCovariance, window: pd.DataFrame, legs: list[str]
+    holdable_cov: ShrunkCovariance,
+    window: pd.DataFrame,
+    legs: list[str],
+    halflife: float | None = None,
 ) -> ShrunkCovariance:
     """
     Price the benchmark legs through their tracking portfolios.
@@ -184,6 +293,14 @@ def embed_benchmark_legs(
     residual variance, whatever the shrinkage did to the holdable block, and
     the tracking weights and R^2 are kept on the result so a poor replication
     is visible rather than absorbed.
+
+    `halflife` weights the residual variance the same way `rescale_volatility`
+    weighted the holdable volatilities. It has to: the leg's variance is
+    `B' Sigma_hold B + residual`, and mixing an exponentially weighted first
+    term with an equal-weighted second one would leave the leg quietly
+    mis-sized in exactly the regimes this is meant to catch. The tracking
+    weights themselves stay equal-weighted -- they are a replication, which is
+    the same structural question the long window answers for correlations.
     """
     from scipy.optimize import nnls
 
@@ -204,8 +321,13 @@ def embed_benchmark_legs(
         b = np.concatenate([y, [weight]])
         beta, _ = nnls(a, b)
         resid = y - x @ beta
-        resid_var = float(resid.var())
-        total_var = float(y.var())
+        if halflife is None:
+            resid_var = float(resid.var())
+            total_var = float(y.var())
+        else:
+            w = ewma_weights(len(resid), halflife)
+            resid_var = float(w @ (resid - w @ resid) ** 2)
+            total_var = float(w @ (y - w @ y) ** 2)
         betas[leg] = beta
         diagnostics[leg] = {
             "weights": pd.Series(beta, index=hold),
@@ -237,6 +359,8 @@ def trailing_covariance(
     ids: list[str] | None = None,
     min_fraction: float = 0.9,
     legs: list[str] | None = None,
+    vol_halflife: float | None = None,
+    vol_overlay: str = "per_series",
 ) -> ShrunkCovariance:
     """
     The covariance an allocator could have estimated at `as_of`.
@@ -250,6 +374,20 @@ def trailing_covariance(
     imputing one would be the guess the lab does not make. Callers treat a
     series absent from the result as unholdable at that date. A live series'
     occasional missing period counts as zero, which is how the engine earns it.
+
+    `vol_halflife`, in periods, makes the estimate respond to the volatility
+    regime; `None`, the default, is the equal-weighted estimate every run
+    before 2026-09-17 used, to the bit. `vol_overlay` chooses how:
+
+      * `per_series` -- `rescale_volatility`, each series' own exponentially
+        weighted volatility. Responds instrument by instrument and moves the
+        book's composition with it.
+      * `scalar` -- `volatility_scalar`, one multiplier for the whole matrix.
+        The composition is left exactly as the full window estimated it and
+        only the risk level responds.
+
+    Which is right is an empirical question about where the estimation error
+    hurts more; see the TE path probe.
     """
     history = weekly.loc[weekly.index <= as_of]
     if ids is not None:
@@ -264,12 +402,28 @@ def trailing_covariance(
     live_at_start = present.iloc[0]
     enough = present.mean(axis=0) >= min_fraction
     keep = [c for c in history.columns[live_at_start & enough] if c not in set(legs or [])]
-    cov = ledoit_wolf(history[keep].fillna(0.0))
+    holdable = history[keep].fillna(0.0)
+    cov = ledoit_wolf(holdable)
+    if vol_halflife is not None:
+        # Rescale BEFORE the legs are embedded, so each leg's variance is rebuilt
+        # from the rescaled holdable block and its replication stays exact.
+        if vol_overlay == "per_series":
+            cov = rescale_volatility(cov, holdable, vol_halflife)
+        elif vol_overlay == "scalar":
+            scale = volatility_scalar(cov, holdable, vol_halflife)
+            cov = ShrunkCovariance(
+                matrix=cov.matrix * scale**2,
+                shrinkage=cov.shrinkage,
+                n_observations=cov.n_observations,
+                legs=dict(cov.legs),
+            )
+        else:
+            raise ValueError(f"unknown vol_overlay {vol_overlay!r}")
     if legs:
         missing = [g for g in legs if not (live_at_start.get(g, False) and enough.get(g, False))]
         if missing:
             raise ValueError(f"benchmark legs {missing} lack a full window at {as_of.date()}")
-        cov = embed_benchmark_legs(cov, history, list(legs))
+        cov = embed_benchmark_legs(cov, history, list(legs), halflife=vol_halflife)
     return cov
 
 

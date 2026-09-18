@@ -73,19 +73,39 @@ class AuditUniverse:
     benchmark_weekly: pd.Series  # the 50/50 benchmark's period return
     window: int
     first_audit_date: pd.Timestamp  # first rebalance with a full covariance window
-    _cov_cache: dict[pd.Timestamp, ShrunkCovariance] = field(default_factory=dict, repr=False)
+    _cov_cache: dict[tuple[pd.Timestamp, float | None, str], ShrunkCovariance] = field(
+        default_factory=dict, repr=False
+    )
 
     @property
     def leg_ids(self) -> list[str]:
         return list(self.legs.columns)
 
-    def covariance(self, date: pd.Timestamp) -> ShrunkCovariance:
-        """Trailing covariance as of `date`, holdable + legs, cached."""
+    def covariance(
+        self,
+        date: pd.Timestamp,
+        vol_halflife: float | None = None,
+        vol_overlay: str = "per_series",
+    ) -> ShrunkCovariance:
+        """Trailing covariance as of `date`, holdable + legs, cached.
+
+        The cache is keyed on the halflife as well as the date: one universe is
+        shared across cells, and two cells that size their volatilities
+        differently do not share a covariance.
+        """
         date = pd.Timestamp(date)
-        cov = self._cov_cache.get(date)
+        cache_key = (date, vol_halflife, vol_overlay)
+        cov = self._cov_cache.get(cache_key)
         if cov is None:
-            cov = trailing_covariance(self.weekly, date, self.window, legs=self.leg_ids)
-            self._cov_cache[date] = cov
+            cov = trailing_covariance(
+                self.weekly,
+                date,
+                self.window,
+                legs=self.leg_ids,
+                vol_halflife=vol_halflife,
+                vol_overlay=vol_overlay,
+            )
+            self._cov_cache[cache_key] = cov
         return cov
 
     def audit_dates(self) -> pd.DatetimeIndex:
@@ -234,6 +254,15 @@ class AuditCell:
     # every run before 2026-09-17 used; `cross_sectional` plants purely relative
     # information. See `audit.signals` and the standardisation probe.
     standardise: str = POOLED
+    # Halflife in weeks for the covariance's volatilities; the correlation keeps
+    # the full window. `None` is the equal-weighted estimate every run before
+    # 2026-09-17 used. See `portfolio.covariance.rescale_volatility` and the TE
+    # path probe, which is what this exists to test.
+    vol_halflife: float | None = None
+    # How that halflife is applied: `per_series` moves each volatility and so
+    # the composition too; `scalar` moves only the risk level. Ignored when
+    # `vol_halflife` is None.
+    vol_overlay: str = "per_series"
 
     def key(self) -> str:
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
@@ -244,6 +273,10 @@ class AuditCell:
         )
         if self.standardise != POOLED:
             key = f"{key}_{self.standardise}"
+        if self.vol_halflife is not None:
+            key = f"{key}_vhl{self.vol_halflife:g}"
+            if self.vol_overlay != "per_series":
+                key = f"{key}{self.vol_overlay}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -363,7 +396,7 @@ class _OptimiserRule:
 
     def __call__(self, date: pd.Timestamp, _panel: ReturnPanel, drifted: pd.Series | None = None):
         date = pd.Timestamp(date)
-        cov = self.u.covariance(date)
+        cov = self.u.covariance(date, self.cell.vol_halflife, self.cell.vol_overlay)
         ids = cov.ids
         hold = [h for h in self.u.holdable if h in ids]
         legs = [g for g in self.u.leg_ids if g in ids]
@@ -637,7 +670,7 @@ def run_frictionless(
     returns: dict[pd.Timestamp, float] = {}
     ex_ante: dict[pd.Timestamp, float] = {}
     for held_from, marked_at in zip(dates[:-1], dates[1:], strict=True):
-        cov = universe.covariance(held_from)
+        cov = universe.covariance(held_from, cell.vol_halflife, cell.vol_overlay)
         ids = cov.ids
         hold = [h for h in universe.holdable if h in ids]
         if not hold:
