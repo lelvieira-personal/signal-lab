@@ -90,13 +90,20 @@ not distinguishable from that null is not a result.
 | Cash | 0–20% of NAV |
 | Positions | ≤ 30 instruments with non-zero weight |
 | Turnover | **Priced, not capped** (`decisions/0024`). A progressive shadow cost on trailing one-year **traded notional** (buys plus sells), zero at 75%, 10bp at 150%, rising without bound (§8, `decisions/0017`, `0018`). 100% is the level the curve is sized around, not a ceiling. A per-session cap stops any one rebalance consuming the year. |
-| Tracking error | ≤ 6.0% trailing 3y at the 95th percentile of readings; episodic excursions allowed, not rewarded on average |
+| Tracking error | ≤ 6.0% **ex ante**, enforced at every rebalance by the solver. The realised trailing-3y figure is a reported characteristic and not a gate (`decisions/0030`): active volatility clusters, so a book sized to the budget runs above it in a crisis and below it in a calm decade. |
 | Active drawdown | Controlled ex ante, through the tracking-error budget (`decisions/0025`), not by a post-hoc cap (`decisions/0026`) |
+| Risk calibration | The one ex-post gate: the worst annual bias statistic, `std(r_t / sigma_ex_ante(t-1))` by calendar year, ≤ 1.72 (`decisions/0030`). It asks whether the risk model told the truth, not whether the book was risky. |
 | Rebalance | Weekly, Friday close; alternates tested by averaging over Tue/Wed/Fri |
 | Benchmark | 50/50 MSCI ACWI net TR (`NDUEACWF`) / Bloomberg Global Aggregate unhedged USD (`LEGATRUU`), rebalanced with the strategy; pre-1999 extended with `MXWO` and `SBWGU` (see §5.6) |
 | FX | Benchmark is unhedged. FX exposure is taken through unhedged international fixed income indices (Euro, UK, Japan, global ex-US, EM local); hedged series are the counterfactual, not a separate live axis in v0.3 |
 
-TE handling: an asymmetric penalty **as well as** the hard veto. The penalty
+TE handling (`decisions/0030`): an asymmetric penalty **as well as** the hard
+ex-ante constraint. There is no longer a veto on the realised figure. The two
+questions the old veto conflated are now asked separately — *how much risk did
+the book run*, which is disclosed, and *did it run the risk it was sized for*,
+which is the `risk_calibration` gate of §10. Measured on Bloomberg base cells,
+the full-sample bias statistic could not tell a book running twice its sized
+risk for a year from one that was not; the worst annual reading can. The penalty
 coefficient is a *function of conviction*, not a number: it runs from a dear
 value at zero conviction to a cheap one at full conviction, and floors there
 rather than reaching zero, so an overconfident estimate cannot buy unlimited
@@ -394,7 +401,7 @@ statistic is shown. Failing any one kills the run with the reason logged.
 |---|---|
 | turnover | annualised traded notional ≤ 400% — a **backstop** for a malfunctioning book, not a budget (`decisions/0024`) |
 | cash | max weight ≤ 20% |
-| tracking_error | 95th percentile of trailing-3y TE readings ≤ 6.0% |
+| risk_calibration | worst annual bias statistic ≤ 1.72 — the p99 under a correctly specified model (`scripts/bias_map.py`, `decisions/0030`) |
 | positions | ≤ 30 non-zero |
 | coverage | signal available for ≥ 80% of the estimation universe on ≥ 90% of dates |
 | lookahead | bitemporal check passes: no observation used before its knowledge date, and no estimated parameter fitted on data unavailable when it is used |
@@ -403,9 +410,10 @@ statistic is shown. Failing any one kills the run with the reason logged.
 | multiple_testing | survives Romano-Wolf stepdown at FWER α (family level, then within family) |
 | direction | realised sign matches pre-registered direction |
 
-Ten vetoes (`decisions/0026` removed `active_drawdown`; see section 4 for why
-drawdown is now controlled where the book is built rather than after the
-fact). They are not advisory and are not tuned per run. A veto whose
+Ten vetoes (`decisions/0026` removed `active_drawdown`; `decisions/0030`
+replaced `tracking_error` with `risk_calibration`; see section 4 for why both
+the drawdown and the tracking error are now controlled where the book is built
+rather than after the fact). They are not advisory and are not tuned per run. A veto whose
 input is absent **fails**: an unevaluated constraint is an unenforced one, and
 fail-open would put an unmeasured run on the leaderboard. Every verdict is
 recorded, not only the first failure, so a run that breached five constraints is
