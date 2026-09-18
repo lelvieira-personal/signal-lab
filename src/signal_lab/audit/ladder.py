@@ -570,6 +570,16 @@ def run_cell(
 _MIN_EX_ANTE_TE = 1e-4
 
 
+def params_min_obs() -> int:
+    """Readings a calendar year needs before its bias statistic is read.
+
+    From params, so the audit's column and the veto of decisions/0030 cannot
+    drift apart: a cell that reports a worst year the veto would not have read
+    is a cell whose verdict nobody can reproduce.
+    """
+    return int(get_params().get("vetoes.risk_calibration.min_observations_per_year", 40))
+
+
 def risk_calibration(
     active: pd.Series,
     ex_ante_annual: pd.Series,
@@ -595,9 +605,15 @@ def risk_calibration(
         observation per period, each return standardised by the ex-ante TE of
         the book that EARNED it (set at the previous rebalance). One when the
         risk model is calibrated; `bias_band` is the approximate 95%
-        half-width, 1.96 / sqrt(2T), for iid normal z. It is a candidate for
-        the `risk_calibration` check decisions/0026 named, whose statistic is
-        still an owner decision.
+        half-width, 1.96 / sqrt(2T), for iid normal z.
+      * `bias_worst_annual` and `bias_worst_year` -- the same statistic read
+        per calendar year and taken at its worst, which is what decisions/0030
+        made the `risk_calibration` VETO. The full-sample reading is kept
+        beside it and is not a gate: measured on Bloomberg base cells it runs
+        0.87 to 1.05 while the worst year runs 1.39 to 2.21, so it cannot tell
+        a book running twice its sized risk for a year from one that is not.
+        A year with fewer than `min_observations_per_year` readings is not
+        read; `bias_years_read` says how many were.
 
     `ex_ante_annual` is indexed by the rebalance date the book was set on, so
     it is shifted one period onto the return that book earned.
@@ -614,6 +630,15 @@ def risk_calibration(
             float(num / den) if np.isfinite(num) and np.isfinite(den) and den > 0 else float("nan")
         )
 
+    min_obs = int(params_min_obs())
+    annual: dict[int, float] = {}
+    if n > 1 and isinstance(z.index, pd.DatetimeIndex):
+        annual = {
+            int(year): float(group.std(ddof=1))
+            for year, group in z.groupby(z.index.year)
+            if len(group) >= min_obs
+        }
+    worst_year = max(annual, key=annual.__getitem__) if annual else None
     return {
         "te_realised_to_ex_ante": ratio(active_vol, ex_ante_mean),
         "te_p95_to_ex_ante": ratio(te_p95, ex_ante_mean),
@@ -621,6 +646,9 @@ def risk_calibration(
         "bias_stat": bias,
         "bias_band": band,
         "bias_n": n,
+        "bias_worst_annual": annual[worst_year] if worst_year else float("nan"),
+        "bias_worst_year": float(worst_year) if worst_year else float("nan"),
+        "bias_years_read": len(annual),
     }
 
 
@@ -860,20 +888,26 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
     consequence of the tracking-error budget, which decisions/0025 now derives
     from the drawdown tolerance -- gating on the realised figure as well would
     charge the same risk twice and would select on the luck of the path.
+    decisions/0030 applied the same argument to the tracking error itself: the
+    realised level is a characteristic, and what is checked here is whether the
+    book ran the risk it was SIZED for. `te_p95` is still reported on every
+    cell; it simply no longer decides anything.
 
     The six vetoes not evaluated here need a signal, a hypothesis or a search
     (coverage, lookahead, frequency, seed_stability, multiple_testing,
     direction) and have no meaning for a planted signal. They are absent, not
     passed.
 
-    SUBSTRATE section 10: a veto whose input is absent FAILS. A trailing-3y
-    tracking error needs 156 rebalances of active return before its first
-    reading, so a short window fails the tracking_error veto for want of data
-    rather than for breaching anything, and `veto_detail` says which.
+    SUBSTRATE section 10: a veto whose input is absent FAILS. A cell whose
+    window holds no calendar year long enough to read has no worst-annual bias,
+    so it fails `risk_calibration` for want of data rather than for breaching
+    anything, and `veto_detail` says which.
     """
-    te_cap = float(params.require("constraints.tracking_error.max_trailing_3y"))
     checks = {
-        "tracking_error": (row["te_p95"], te_cap),
+        "risk_calibration": (
+            row.get("bias_worst_annual"),
+            float(params.require("vetoes.risk_calibration.max_worst_annual_bias")),
+        ),
         "turnover": (
             row["turnover_annual"],
             float(params.require("vetoes.turnover.max_annualised")),

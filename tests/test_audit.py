@@ -607,14 +607,15 @@ def test_the_report_names_the_panel_and_the_params_it_ran_on(small_universe, tmp
 
 def test_a_cell_is_judged_against_the_real_veto_thresholds(params):
     """
-    A cell that clears the bar on net IR but breaches the tracking-error veto
-    would be killed in phase 3. Counting it as clearing makes the bar
-    optimistic, so every cell carries a verdict.
+    A cell that clears the bar on net IR but breaches a veto would be killed in
+    phase 3. Counting it as clearing makes the bar optimistic, so every cell
+    carries a verdict.
     """
     from signal_lab.audit.ladder import portfolio_veto_verdicts
 
     good = {
         "te_p95": 0.05,
+        "bias_worst_annual": 1.20,
         "max_active_drawdown": 0.12,
         "turnover_annual": 1.2,
         "max_cash": 0.15,
@@ -622,15 +623,36 @@ def test_a_cell_is_judged_against_the_real_veto_thresholds(params):
     }
     assert portfolio_veto_verdicts(good, params)["passes_portfolio_vetoes"]
 
-    breach = dict(good, te_p95=0.08)  # the 6% p95 tracking-error ceiling
+    breach = dict(good, bias_worst_annual=2.03)  # the Bloomberg 2008 reading
     verdict = portfolio_veto_verdicts(breach, params)
     assert not verdict["passes_portfolio_vetoes"]
-    assert "tracking_error" in verdict["veto_detail"]
+    assert "risk_calibration" in verdict["veto_detail"]
 
-    absent = dict(good, te_p95=float("nan"))
+    absent = dict(good, bias_worst_annual=float("nan"))
     verdict = portfolio_veto_verdicts(absent, params)
     assert not verdict["passes_portfolio_vetoes"], "SUBSTRATE section 10: no input means fail"
     assert "no-input" in verdict["veto_detail"]
+
+
+def test_a_hot_tracking_error_is_reported_but_no_longer_vetoes(params):
+    """
+    decisions/0030: how much active risk a book ran is a characteristic, not a
+    gate. A cell whose trailing-3y p95 is half again the budget still passes,
+    so long as the risk model said so in advance.
+    """
+    from signal_lab.audit.ladder import portfolio_veto_verdicts
+
+    hot = {
+        "te_p95": 0.09,  # against a 6% budget
+        "bias_worst_annual": 1.20,
+        "max_active_drawdown": 0.12,
+        "turnover_annual": 1.2,
+        "max_cash": 0.15,
+        "n_positions_max": 25,
+    }
+    verdict = portfolio_veto_verdicts(hot, params)
+    assert verdict["passes_portfolio_vetoes"]
+    assert "tracking_error" not in verdict["veto_detail"]
 
 
 def test_a_deep_active_drawdown_is_reported_but_no_longer_vetoes(params):
@@ -645,6 +667,7 @@ def test_a_deep_active_drawdown_is_reported_but_no_longer_vetoes(params):
 
     deep = {
         "te_p95": 0.05,
+        "bias_worst_annual": 1.20,
         "max_active_drawdown": 0.35,
         "turnover_annual": 1.2,
         "max_cash": 0.15,
@@ -983,3 +1006,50 @@ def test_a_synthetic_cell_is_not_charged_the_dear_bucket_throughout(small_univer
     model = audit_cost_model(universe, params)
     buckets = {model.bucket(s) for s in universe.holdable}
     assert buckets != {params.require("costs.default_bucket")}
+
+
+def test_risk_calibration_reads_the_worst_year_beside_the_full_sample():
+    """
+    decisions/0030. The statistic that gates is the worst calendar year; the
+    full-sample reading stays beside it and is the one that has no power.
+    """
+    from signal_lab.audit.ladder import risk_calibration
+
+    dates = pd.date_range("2010-01-08", periods=157, freq="W-FRI")
+    rng = np.random.default_rng(7)
+    z = pd.Series(rng.standard_normal(len(dates)), index=dates)
+    for year, target in ((2010, 0.62), (2011, 2.03), (2012, 0.70)):
+        mask = dates.year == year
+        raw = z[mask] - z[mask].mean()
+        z[mask] = raw / raw.std(ddof=1) * target
+    ex_ante = pd.Series(0.05, index=dates)
+    active = z * (0.05 / np.sqrt(52.0))
+
+    out = risk_calibration(
+        active, ex_ante, 52.0, 0.06, te_p95=0.055, active_vol=0.05, ex_ante_mean=0.05
+    )
+    assert out["bias_worst_annual"] == pytest.approx(2.03, abs=0.03)
+    assert out["bias_worst_year"] == 2011
+    assert out["bias_years_read"] == 3
+    assert out["bias_stat"] < 1.72, "the full-sample reading is what would have passed"
+
+
+def test_risk_calibration_does_not_read_a_year_too_short_to_judge():
+    from signal_lab.audit.ladder import risk_calibration
+
+    dates = pd.date_range("2010-11-05", periods=61, freq="W-FRI")  # 2010 has 9
+    rng = np.random.default_rng(5)
+    z = pd.Series(rng.standard_normal(len(dates)), index=dates)
+    z[dates.year == 2010] *= 40.0
+    ex_ante = pd.Series(0.05, index=dates)
+    out = risk_calibration(
+        z * (0.05 / np.sqrt(52.0)),
+        ex_ante,
+        52.0,
+        0.06,
+        te_p95=0.055,
+        active_vol=0.05,
+        ex_ante_mean=0.05,
+    )
+    assert out["bias_worst_year"] == 2011
+    assert out["bias_years_read"] == 1
