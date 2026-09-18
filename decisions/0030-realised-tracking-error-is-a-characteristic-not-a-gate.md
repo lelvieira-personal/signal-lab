@@ -1,11 +1,9 @@
-# 0030 (PROPOSED) — Realised tracking error is a disclosed characteristic, not a gate
+# 0030 — Realised tracking error is a disclosed characteristic, not a gate
 
-Status: **proposed, 2026-09-18**, from the owner's call on `decisions/0027`
-§2 ("make it a disclosed characteristic"). Removes the `tracking_error` veto and
+Status: **decided, 2026-09-18, Leo.** Removes the `tracking_error` veto and
 promotes `risk_calibration` in its place. Amends SUBSTRATE §4 and §10, and
 `decisions/0026` §"The residual risk, and the successor check". Touches
-`vetoes/`, `params/vetoes.yaml`, `SUBSTRATE.md` — owner-only paths, so nothing
-here has been applied.
+`vetoes/`, `params/vetoes.yaml`, `SUBSTRATE.md`.
 
 Evidence: `results/audit/_probe/TE-20260917-*` (the TE path probe and the
 volatility overlay), `scripts/bias_map.py` (the null distribution below).
@@ -13,6 +11,10 @@ volatility overlay), `scripts/bias_map.py` (the null distribution below).
 ## What the owner said
 
 > "0027 - make it a disclosed characteristic"
+
+and, on what should gate instead and how its threshold should be set:
+`risk_calibration` on the worst-period bias, with the threshold simulated from
+the null "like 0025", at the **p99**.
 
 ## Decided
 
@@ -109,7 +111,7 @@ The full-sample column is the control: it is 1.000 under the null whatever the
 tails, which is another way of saying the statistic `decisions/0027` gates on
 today cannot distinguish anything.
 
-**Proposed threshold: the p99, 1.72 at the measured kurtosis.** Not the p95,
+**Threshold: the p99, 1.72 at the measured kurtosis.** Not the p95,
 for the reason `decisions/0026` gave against the drawdown cap — *"a p95 target
 makes breaches mandatory by construction… one run in twenty is designed to
 exceed it"*. A gate with a 5 per cent by-design false-positive rate kills one
@@ -141,8 +143,6 @@ it.
 
 ## Open, and deliberately
 
-- **The threshold percentile** is the one number here that is a judgement
-  rather than a derivation. p99 is recommended and p95 is a one-line change.
 - **Threshold sensitivity to kurtosis is material**: p99 runs 1.48 at kappa = 1,
   1.72 at 2.37, 1.92 at 4.0. The measured median is 2.37 but one cell read
   14.65. Whether the threshold should be set at a conservative kappa, or the
@@ -153,10 +153,11 @@ it.
   not done.
 - **A minimum-observations rule** is needed for a partial calendar year: the
   Bloomberg cells all carry 52–53 readings in every one of 16 years, so nothing
-  forced the question, but a run over a shorter window will hit it. Proposed:
-  a year with fewer than 40 readings is not read.
+  forced the question, but a run over a shorter window will hit it. Set at 40,
+  and a run with fewer than two readable years cannot be evaluated and so fails
+  closed like any other missing input.
 
-## Changed (nothing applied)
+## Changed
 
 - `vetoes/rules.py` — `veto_tracking_error` removed; `veto_risk_calibration`
   added, reading the worst annual bias against `params/vetoes.yaml`
@@ -179,5 +180,5 @@ it.
   when it occurred, the annual bias profile, and the episode breakdown
 - `render/views.py`, `render/mock_data.py` — the veto row swapped, the TE
   charts kept and promoted
-- `scripts/bias_map.py` — new, the derivation above (already written, ruff
-  clean, not yet committed)
+- `scripts/bias_map.py` — the derivation above, committed with the proposal in
+  `c0853d6`
