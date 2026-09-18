@@ -599,7 +599,11 @@ def test_the_report_names_the_panel_and_the_params_it_ran_on(small_universe, tmp
     assert "lookahead by construction" in markdown and "Not a run" in html
     assert "http://" not in html and "https://" not in html, "the page loads nothing"
     assert (out / "cells.csv").exists() and (out / "summary.json").exists()
-    assert "Risk calibration" in markdown and "Risk calibration" in html
+    assert "Risk characteristics" in markdown and "Risk characteristics" in html
+    # decisions/0030: the disclosure has to be somewhere a person reads.
+    assert "What this book does to risk" in markdown
+    assert "disclosed, gates nothing" in markdown
+    assert "what risk_calibration gates on" in markdown
 
 
 # --- the vetoes, and the stress tables ---------------------------------------

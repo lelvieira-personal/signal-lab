@@ -117,7 +117,12 @@ def _md_frictionless(summary: dict[str, Any]) -> list[str]:
     return out
 
 
-CALIBRATION_COLUMNS = ("bias_stat", "te_realised_to_ex_ante", "te_p95_to_budget")
+CALIBRATION_COLUMNS = (
+    "bias_worst_annual",
+    "bias_stat",
+    "te_realised_to_ex_ante",
+    "te_p95_to_budget",
+)
 
 
 def _calibration(table: pd.DataFrame) -> dict[str, Any]:
@@ -131,6 +136,21 @@ def _calibration(table: pd.DataFrame) -> dict[str, Any]:
         out["bias_band_median"] = float(base["bias_band"].median())
     if "bias_stat" in base.columns:
         out["bias_stat_median"] = float(base["bias_stat"].median())
+    if "bias_worst_annual" in base.columns:
+        worst = base["bias_worst_annual"].dropna()
+        out["bias_worst_annual_median"] = float(worst.median()) if len(worst) else float("nan")
+        out["bias_worst_annual_max"] = float(worst.max()) if len(worst) else float("nan")
+    if "bias_worst_year" in base.columns:
+        years = base["bias_worst_year"].dropna()
+        if len(years):
+            counts = years.astype(int).value_counts()
+            out["bias_worst_year_mode"] = int(counts.index[0])
+            out["bias_worst_year_share"] = float(counts.iloc[0] / len(years))
+    if "te_p95" in base.columns:
+        te = base["te_p95"].dropna()
+        if len(te):
+            out["te_p95_median"] = float(te.median())
+            out["te_p95_max"] = float(te.max())
     return out
 
 
@@ -324,7 +344,7 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         _md_table(_pivot_range(table, "base"), 2, "IC \\ h"),
         "",
     ]
-    out += _md_calibration(summary.get("risk_calibration") or {})
+    out += _md_calibration(summary.get("risk_calibration") or {}, m.get("te_budget"))
     out += [
         "## Oracle (IC = 1) — a ceiling, not the ruler",
         "",
@@ -370,23 +390,73 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
 
 
 CALIBRATION_INTRO = (
-    "Measured, gates nothing (decisions/0027). Does the risk each book was sized to "
-    "match the risk it ran? `bias` is the standard deviation of each period's active "
-    "return over the ex-ante TE of the book that earned it: 1.00 is a calibrated "
-    "risk model. `TE p95 / budget` is the statistic the tracking-error veto reads, "
-    "over the budget the solver aimed at: above 1.00 the veto fires on a book that "
-    "did what it was told."
+    "Two different questions, and decisions/0030 separates them. HOW MUCH RISK the "
+    "book ran is a characteristic and is disclosed: active volatility clusters, so a "
+    "book honestly sized to the budget runs above it in a crisis and below it in a "
+    "calm decade, and `TE p95 / budget` above 1.00 is a fact about the world rather "
+    "than a fault. WHETHER IT RAN THE RISK IT WAS SIZED FOR is the gate. `bias` is "
+    "the standard deviation of each period's active return over the ex-ante TE of "
+    "the book that earned it: 1.00 is a calibrated risk model. The **worst annual** "
+    "reading is what the risk_calibration veto takes; the full-sample reading is "
+    "shown beside it and gates nothing, because it cannot tell a book running twice "
+    "its sized risk for a year from one that is not."
 )
+
+
+def _disclosure_lines(cal: dict[str, Any], budget: float | None = None) -> list[str]:
+    """The plain-language risk disclosure, for a reader who is not an author.
+
+    decisions/0030 made the realised tracking error something the lab states
+    rather than something it hides behind a veto, which only means anything if
+    it is stated somewhere a person reads.
+    """
+    lines: list[str] = []
+    if "te_p95_median" in cal:
+        budget_text = f" against a {budget:.1%} ex-ante budget" if budget else ""
+        lines.append(
+            f"- Trailing-3y tracking error, 95th percentile: median "
+            f"{cal['te_p95_median']:.2%} across base cells, worst "
+            f"{cal['te_p95_max']:.2%}{budget_text}. Reported, not gated."
+        )
+    if "bias_worst_annual_median" in cal:
+        lines.append(
+            f"- Worst single year of risk-model bias: median "
+            f"{cal['bias_worst_annual_median']:.2f}, worst "
+            f"{cal['bias_worst_annual_max']:.2f}. This is what is gated."
+        )
+    if "bias_worst_year_mode" in cal:
+        lines.append(
+            f"- That worst year is {cal['bias_worst_year_mode']} in "
+            f"{cal['bias_worst_year_share']:.0%} of base cells — the overrun is an "
+            f"episode, not a drift."
+        )
+    if "bias_stat_median" in cal:
+        lines.append(
+            f"- Full-sample bias, for contrast: median "
+            f"{cal['bias_stat_median']:.2f}. Averaging over the whole window hides "
+            f"the episode above, which is why it is not the gate."
+        )
+    return lines
 
 
 def _frame(pivot: dict) -> pd.DataFrame:
     return pd.DataFrame(pivot) if pivot else pd.DataFrame()
 
 
-def _md_calibration(cal: dict[str, Any]) -> list[str]:
+def _md_calibration(cal: dict[str, Any], budget: float | None = None) -> list[str]:
     if not cal:
         return []
-    out = ["## Risk calibration — ex ante against realised", "", CALIBRATION_INTRO, ""]
+    out = ["## Risk characteristics — ex ante against realised", "", CALIBRATION_INTRO, ""]
+    disclosure = _disclosure_lines(cal, budget)
+    if disclosure:
+        out += ["### What this book does to risk", ""] + disclosure + [""]
+    if "bias_worst_annual" in cal:
+        out += [
+            "Worst annual bias statistic (what risk_calibration gates on):",
+            "",
+            _md_table(_frame(cal["bias_worst_annual"]), 2, "IC \\ h"),
+            "",
+        ]
     if "bias_stat" in cal:
         band = cal.get("bias_band_median", float("nan"))
         out += [
@@ -404,7 +474,7 @@ def _md_calibration(cal: dict[str, Any]) -> list[str]:
         ]
     if "te_p95_to_budget" in cal:
         out += [
-            "Trailing-3y TE p95 / budget (the veto's reading):",
+            "Trailing-3y TE p95 / budget (disclosed, gates nothing):",
             "",
             _md_table(_frame(cal["te_p95_to_budget"]), 2, "IC \\ h"),
             "",
@@ -412,19 +482,24 @@ def _md_calibration(cal: dict[str, Any]) -> list[str]:
     return out
 
 
-def _html_calibration(cal: dict[str, Any]) -> str:
+def _html_calibration(cal: dict[str, Any], budget: float | None = None) -> str:
     if not cal:
         return ""
     parts = [
-        "<h2>Risk calibration — ex ante against realised</h2>",
-        f"<p class='muted'>{CALIBRATION_INTRO.replace('`', '')}</p>",
+        "<h2>Risk characteristics — ex ante against realised</h2>",
+        f"<p class='muted'>{CALIBRATION_INTRO.replace('`', '').replace('**', '')}</p>",
     ]
+    disclosure = _disclosure_lines(cal, budget)
+    if disclosure:
+        items = "".join(f"<li>{line.lstrip('- ')}</li>" for line in disclosure)
+        parts.append(f"<h3>What this book does to risk</h3><ul>{items}</ul>")
     labels = {
-        "bias_stat": "Bias statistic (approximate 95% band ±"
+        "bias_worst_annual": "Worst annual bias statistic (what risk_calibration gates on)",
+        "bias_stat": "Full-sample bias statistic, which gates nothing (approximate 95% band ±"
         + _fmt(cal.get("bias_band_median", float("nan")), 3)
         + ")",
         "te_realised_to_ex_ante": "Realised active volatility / mean ex-ante TE",
-        "te_p95_to_budget": "Trailing-3y TE p95 / budget",
+        "te_p95_to_budget": "Trailing-3y TE p95 / budget (disclosed, gates nothing)",
     }
     for key, label in labels.items():
         if key in cal:
@@ -541,7 +616,7 @@ def to_html(summary: dict[str, Any], table: pd.DataFrame) -> str:
     ladder_html = _html_table(_pivot(table, "base"), 2, ic_h, target)
     range_html = _html_table(_pivot_range(table, "base"), 2, ic_h)
     oracle_html = _html_table(_pivot(table, "oracle"), 2, ic_h)
-    calibration_html = _html_calibration(summary.get("risk_calibration") or {})
+    calibration_html = _html_calibration(summary.get("risk_calibration") or {}, m.get("te_budget"))
     decisions = ", ".join(f"h={h}: {v:.1f}" for h, v in b["decisions_per_year"].items())
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Ruler audit — {m["run_id"]}</title>
 <style>{css}</style></head><body>
