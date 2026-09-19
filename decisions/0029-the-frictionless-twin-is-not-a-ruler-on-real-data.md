@@ -1,6 +1,17 @@
 # 0029 (PROPOSED) — The frictionless twin is not a ruler on real data
 
-Status: **proposed, 2026-09-17**, from the standardisation probe
+Status: **DECIDED by the owner 2026-09-19 — §1, §3, §4 and §5 taken; §2
+deferred.** §2 asked for a ridge chosen so the frictionless bias sits near 1.00
+on the Bloomberg panel, which is a free parameter tuned to a target on the
+evaluation panel, and this record's own closing section warns against exactly
+that. Until §2 is settled the twin is a diagnostic and not a ruler, and
+empirical breadth is read off the constrained ladder (§4).
+
+Confirmed at ten seeds before the ruling: `A-20260918-201042` put
+`transfer_ratio` between **-4 and +48** and empirical breadth at **0.12 at h4**
+against a formula 151.7. The three-seed caveat is gone.
+
+Proposed 2026-09-17, from the standardisation probe
 `results/audit/_probe/P-20260917-bbg1` (Bloomberg, 10 seeds, 320 frictionless
 cells, 12 base cells, 32 panel diagnostics). Amends `decisions/0027` §3. Owner
 decision required before anything in `params/` or the report changes. Nothing
