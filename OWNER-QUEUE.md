@@ -33,20 +33,6 @@ own closing section warns against exactly that.
 **Blocks:** the Bloomberg report's breadth and price-of-constraints sections
 stay wrong until §1 lands.
 
-### L2. `H-2026-0007` lost both of its pre-registered checks
-0007 states in advance that it is short volatility and that *"the tracking
-error veto and the active drawdown diagnostic are the intended checks on that,
-not the information ratio."* `decisions/0026` removed the first, `decisions/0030`
-removed the second. The successor, `risk_calibration`, asks whether the risk
-model told the truth — not whether losses concentrate in the left tail. A book
-that correctly forecasts its own blow-up passes it.
-
-Neither removal was wrong, but 0007 was registered against a promise that has
-been withdrawn. Either it names a left-tail diagnostic in advance, or 0030
-carries a line acknowledging what a signal registered against the old veto has
-lost. **This is the one item that would be awkward to discover after the search
-opens.** See `claude/hypothesis-registry-review-2026-09-18.md`.
-
 ### L3. Does "phase 3" gate on the loader or on the data?
 SUBSTRATE §16: *"Signal testing may not begin before phase 3,"* and phase 3 is
 the JPMaQS loader. But `H-2026-0007`, `0008` and `0009` need only Bloomberg and
@@ -64,6 +50,28 @@ own final test and it is currently recorded only in these notes. Transcribing
 it into §3 is an owner act.
 
 ---
+
+### L8. The rebalance policy is not decided anywhere
+Owner statement, 2026-09-18: signals observed weekly, positions allowed to
+persist for weeks or up to a year, and skipping a week's rebalance is
+acceptable. Nothing in the repo implements that. The engine re-solves every
+week; `decisions/0024` prices turnover rather than walling it, which is a
+statement about cost, not about whether to trade at all.
+
+Three candidate policies: weekly re-solve (status quo), a no-trade band, or
+partial adjustment toward an aim portfolio (Garleanu-Pedersen). **The band width
+or trade rate must be derived from alpha decay and the cost model, never swept
+against IR** — a tuned threshold is a free parameter the Romano-Wolf stepdown
+never sees.
+
+**Does not change breadth.** `52/h` counts independent information, not trades.
+
+**Changes how TC reads** — see `decisions/proposed/0033` §7a: a book that
+deliberately does not trade sits away from its optimum, so TC falls by design
+and must be reported against both the implemented book and an immediate
+re-solve, or the deliberate cost trade is misdiagnosed as a constraint problem.
+
+**Retired by:** a decision record. This is mandate design, not a measurement.
 
 ## Blocked — waiting on a measurement
 
@@ -148,6 +156,54 @@ directory that gets cloned and archived. Hygiene, owner's call.
 
 ## Closed
 
-Nothing yet. When an item closes, move it here with the decision and its date
-rather than deleting it — the record of how long a question sat is worth
-keeping.
+### L7 — measuring the transfer coefficient. CLOSED 2026-09-19.
+`decisions/proposed/0033`. **All three recommendations taken.** TC gates nothing
+and is a disclosed characteristic; the full-matrix estimator (Clarke-de Silva-
+Thorley 2006 eq. 23) is the reported TC, with the diagonal form alongside for
+comparability and the inversion-free alignment form as a control; `implied_ic`
+prints at both TC = 1 and measured TC rather than silently changing meaning.
+
+Published magnitudes for context: CDT (2006) report **0.671** for a long-only,
+capped, beta-neutral 21-country EAFE book (0.620 diagonal); Ding (2010) cites
+their 2002 simulation range as **0.3 to 0.8**.
+
+The ten-seed audit confirmed why the frictionless twin cannot supply this
+number: transfer ratios of -4 to +48, and empirical breadth of 0.12 at h4
+against 151.7 from the formula.
+
+Implementation is the same migration `decisions/0030` turned out to be — a rule
+exposes `alpha()`, the engine carries it onto the path, a rule that does not
+yields no TC rather than a wrong one.
+
+### L6 — the registry's tickers against the real panel. CLOSED 2026-09-19.
+`decisions/proposed/0032`; map at `data/requests/ticker_resolution.csv`.
+27 of 42 unresolved names were genuine JPMaQS gaps; the rest was bookkeeping.
+
+**Decisions:** the price-only concern is **withdrawn** — the pull is
+`TOT_RETURN_INDEX_GROSS_DVDS` and `decisions/0013` had already settled it; the
+stale `likely_price_only` column leaves the table on `make coverage && make
+universe`. Europe stays **sub-country and sector only**; `MXEU` not pulled, and
+the resulting two-draws-for-Europe asymmetry is accepted and disclosed because
+the UK is a distinct market. `LUALTRUU` and `LT08TRUU` are **fabricated**,
+removed not substituted. `H-2026-0010`'s term spread is **`LT01TRUU` vs
+`LT11TRUU`**, `LT09TRUU` as mid-curve check. `DRTSCILM` joins the FRED request.
+`H-2026-0007` takes **set A**, the six-segment quality ladder, with the Ba/B/Caa
+collinearity disclosed in advance.
+
+The validator gap it uncovered moves to its own record, `0034`.
+
+When an item closes it moves here with the decision and its date rather than
+being deleted — the record of how long a question sat is worth keeping.
+
+### L2 / L5 — the left-tail check `H-2026-0007` lost. CLOSED 2026-09-18.
+**Decision: shape 1.** `L = |q05(z)| / 1.645` is a reported characteristic on
+every cell and is named, in a dated addendum, as `H-2026-0007`'s pre-registered
+check. It gates nothing; no eleventh veto is added. Recorded in
+`decisions/proposed/0031`, which needs promoting out of `proposed/` and the
+addendum writing — both need git, so they queue in `HANDOFF.md` once the running
+audit lands. The threshold stays unset and comes from `scripts/bias_map.py`'s
+simulated null.
+
+L2 was raised 2026-09-18 and closed the same day, before any result existed for
+0007 — which was the whole point of raising it.
+
