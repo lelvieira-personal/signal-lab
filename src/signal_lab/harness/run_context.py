@@ -49,6 +49,10 @@ class RunContext:
     # is no way to ask whether a book ran the risk it was sized for, only how
     # much risk it ran. See decisions/0030.
     te_ex_ante: pd.Series | None = None
+    # The expected active return each book was solved against, dates x
+    # instrument. Nothing gates on it; the transfer coefficient of
+    # decisions/0033 reads it beside the weights.
+    alpha: pd.DataFrame | None = None
 
     # --- data-integrity inputs ---
     signal_availability: pd.DataFrame | None = None  # dates x series, bool

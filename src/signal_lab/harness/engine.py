@@ -81,6 +81,9 @@ class PortfolioPath:
     exposures: pd.DataFrame
     rebalance_day: str = "FRI"
     te_ex_ante: pd.Series | None = None  # annualised, indexed by rebalance date
+    # The expected active return each book was solved against, by rebalance date
+    # and instrument. None for a rule that does not say (decisions/0033).
+    alpha: pd.DataFrame | None = None
     meta: dict[str, Any] = field(default_factory=dict)
 
     # --- derived statistics --------------------------------------------------
@@ -318,6 +321,7 @@ def run_walk_forward(
         exposures=pd.DataFrame(exposure_rows).T.reindex(index),
         rebalance_day=rebalance_day,
         te_ex_ante=_ex_ante_te(weight_rule),
+        alpha=_alpha(weight_rule),
         meta={"periods_per_year": periods_per_year, "n_rebalances": len(index)},
     )
 
@@ -337,6 +341,23 @@ def _ex_ante_te(weight_rule: WeightRule) -> pd.Series | None:
     if series is None or len(series) == 0:
         return None
     return pd.Series(series).sort_index()
+
+
+def _alpha(weight_rule: WeightRule) -> pd.DataFrame | None:
+    """The alpha the rule solved each book against, if it is a rule that knows.
+
+    Read off the rule for the same reason `_ex_ante_te` is: only the rule holds
+    it, and by the time a path exists the solve is over. A rule without the
+    method, or one that returns nothing, leaves the field None, and the transfer
+    coefficient of decisions/0033 is then not evaluated rather than defaulted.
+    """
+    getter = getattr(weight_rule, "alpha", None)
+    if getter is None or not callable(getter):
+        return None
+    frame = getter()
+    if frame is None or len(frame) == 0:
+        return None
+    return pd.DataFrame(frame).sort_index()
 
 
 def run_averaged_over_rebalance_days(
@@ -391,6 +412,7 @@ def run_averaged_over_rebalance_days(
         exposures=primary.exposures,
         rebalance_day="averaged:" + ",".join(days),
         te_ex_ante=primary.te_ex_ante,
+        alpha=primary.alpha,
         meta={
             "averaged_over": days,
             "ir_by_day": {d: p.information_ratio() for d, p in paths.items()},
@@ -415,6 +437,7 @@ def to_run_context(
         te_trailing_3y=path.tracking_error(),
         active_returns=path.active_returns,
         te_ex_ante=path.te_ex_ante,
+        alpha=path.alpha,
         series_meta=panel.meta,
     )
     for key, value in overrides.items():

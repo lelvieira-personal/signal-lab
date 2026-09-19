@@ -38,6 +38,7 @@ from signal_lab.audit.signals import (
     realised_ic,
     signal_autocorrelation,
 )
+from signal_lab.audit.transfer import path_transfer
 from signal_lab.harness.costs import CostModel
 from signal_lab.harness.engine import (
     PortfolioPath,
@@ -335,6 +336,7 @@ class _OptimiserRule:
         self.turnover_log: list[float] = []
         self.repair_turnover = 0.0  # traded to restore mandate compliance, cap or no cap
         self.diagnostics: list[dict[str, Any]] = []
+        self._alpha_rows: dict[pd.Timestamp, pd.Series] = {}
 
     def annual_wall_remaining(self) -> float | None:
         """
@@ -407,6 +409,18 @@ class _OptimiserRule:
         frame = pd.DataFrame(self.diagnostics)
         return frame.set_index("date")["te_ex_ante"]
 
+    def alpha(self) -> pd.DataFrame | None:
+        """The expected active return each book was solved against, by rebalance date.
+
+        The engine reads this to put `alpha` on the path, which is what the
+        transfer coefficient of decisions/0033 needs beside the weights: the rule
+        builds it inside `__call__` and used to discard it. The same shape as
+        `ex_ante_te`, and a rule without the method yields no coefficient.
+        """
+        if not self._alpha_rows:
+            return None
+        return pd.DataFrame(self._alpha_rows).T
+
     def __call__(self, date: pd.Timestamp, _panel: ReturnPanel, drifted: pd.Series | None = None):
         date = pd.Timestamp(date)
         cov = self.u.covariance(date, self.cell.vol_halflife, self.cell.vol_overlay)
@@ -422,6 +436,7 @@ class _OptimiserRule:
         spec = LongOnlySpec.from_params(ids, hold, cash, benchmark, self.params)
 
         alpha = self.signal.alpha.reindex(index=[date], columns=hold).iloc[0].fillna(0.0)
+        self._alpha_rows[date] = alpha
         first = drifted is None
         w0 = pd.Series(0.0, index=hold) if first else drifted.reindex(hold).fillna(0.0)
         cost = self.costs.half_spread_vector(hold)
@@ -534,6 +549,8 @@ def run_cell(
         "n_holdable_mean": float(diag["n_holdable"].mean()),
         "realised_ic_pooled": ic["pooled"],
         "realised_ic_cross_sectional": ic["cross_sectional"],
+        "realised_ic_cross_sectional_pearson": ic["cross_sectional_pearson"],
+        "realised_ic_cross_sectional_demeaned": ic["cross_sectional_demeaned"],
         "signal_phi": signal_autocorrelation(signal.score),
         "te_binding_share": float(diag["te_binding"].mean()),
         "turnover_binding_share": float(diag["turnover_binding"].mean()),
@@ -561,6 +578,7 @@ def run_cell(
             ex_ante_mean=row["te_ex_ante_mean"],
         )
     )
+    row.update(path_transfer(path, universe, cell))
     row.update(portfolio_veto_verdicts(row, params))
     return row, path
 
@@ -568,6 +586,10 @@ def run_cell(
 # Ex-ante TE below this (annual) carries no scale to calibrate against: a blind
 # book hugging the benchmark would divide by rounding.
 _MIN_EX_ANTE_TE = 1e-4
+
+# The 5th percentile of a standard normal. `left_tail_L` divides by it so that a
+# correctly specified risk model reads 1, as the bias statistic does.
+_Z05 = 1.6448536269514722
 
 
 def params_min_obs() -> int:
@@ -623,6 +645,7 @@ def risk_calibration(
     z = active[ok] / (sigma[ok] / np.sqrt(periods_per_year))
     n = int(ok.sum())
     bias = float(z.std()) if n > 1 else float("nan")
+    q05 = float(np.quantile(z, 0.05)) if n > 1 else float("nan")
     band = float(1.96 / np.sqrt(2.0 * n)) if n > 0 else float("nan")
 
     def ratio(num: float, den: float) -> float:
@@ -649,6 +672,8 @@ def risk_calibration(
         "bias_worst_annual": annual[worst_year] if worst_year else float("nan"),
         "bias_worst_year": float(worst_year) if worst_year else float("nan"),
         "bias_years_read": len(annual),
+        "left_tail_q05": q05,
+        "left_tail_L": abs(q05) / _Z05 if np.isfinite(q05) else float("nan"),
     }
 
 
@@ -768,6 +793,8 @@ def run_frictionless(
         "inaccurate_share": float("nan"),
         "realised_ic_pooled": ic["pooled"],
         "realised_ic_cross_sectional": ic["cross_sectional"],
+        "realised_ic_cross_sectional_pearson": ic["cross_sectional_pearson"],
+        "realised_ic_cross_sectional_demeaned": ic["cross_sectional_demeaned"],
         "signal_phi": signal_autocorrelation(signal.score),
         "n_rebalances": int(len(active)),
         "first_date": str(active.index[0].date()),
@@ -813,6 +840,40 @@ def empirical_breadth(table: pd.DataFrame) -> pd.DataFrame:
                 "horizon": int(h),
                 "ir_per_unit_ic": slope,
                 "empirical_breadth": slope**2 if np.isfinite(slope) and slope > 0 else float("nan"),
+                "n_cells": int(len(g)),
+            }
+        )
+    return pd.DataFrame(out)
+
+
+def ladder_breadth(table: pd.DataFrame) -> pd.DataFrame:
+    """
+    Per horizon, the breadth the CONSTRAINED ladder delivered. decisions/0029 s4.
+
+    The frictionless twin measures its own covariance error, so breadth is read
+    off the base cells instead. There IR = TC * IC * sqrt(BR), so the slope of
+    net IR on IC through the origin is TC * sqrt(BR), and dividing by the
+    measured transfer coefficient leaves sqrt(BR). Net IR carries the costs, so
+    this is breadth net of them, and it is NaN where no coefficient was measured
+    rather than a breadth that silently assumes TC = 1.
+    """
+    sub = table[(table["tag"] == "base") & (table["ic"] < 1.0) & (table["ic"] > 0.0)]
+    out = []
+    for h, group in sub.groupby("horizon"):
+        g = group[np.isfinite(group["net_ir"])]
+        denom = float((g["ic"] ** 2).sum())
+        slope = float((g["ic"] * g["net_ir"]).sum() / denom) if denom > 0 else float("nan")
+        tc = float("nan")
+        if "transfer_coefficient" in g.columns:
+            v = pd.to_numeric(g["transfer_coefficient"], errors="coerce").dropna()
+            tc = float(v.median()) if len(v) else float("nan")
+        ok = np.isfinite(slope) and slope > 0 and np.isfinite(tc) and tc > 0
+        out.append(
+            {
+                "horizon": int(h),
+                "ir_per_unit_ic": slope,
+                "transfer_coefficient": tc,
+                "ladder_breadth": (slope / tc) ** 2 if ok else float("nan"),
                 "n_cells": int(len(g)),
             }
         )

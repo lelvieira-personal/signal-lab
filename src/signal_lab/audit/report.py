@@ -23,6 +23,7 @@ from signal_lab.audit.breadth import Breadth
 from signal_lab.audit.ladder import (
     FRICTIONLESS,
     empirical_breadth,
+    ladder_breadth,
     required_ic,
     transfer_ratio,
 )
@@ -70,17 +71,15 @@ def _required(r: dict[str, Any]) -> str:
 
 
 READING_THE_CHAIN = (
-    "Read left to right, it is a chain of three measurements (decisions/0027). "
-    "Formula breadth against empirical breadth: does the fundamental law's count of "
-    "bets describe this universe and this signal construction? Frictionless against "
-    "FLAM: what covariance error and the breadth formula cost with no constraint in "
-    "the way. Ladder against frictionless: the measured price of long-only, the cash "
-    "and position caps and the costs. A ladder that beats its frictionless twin needs "
-    "an explanation before the table is used. There are three candidates: seed noise "
-    "(about 0.25 of IR per cell on this construction); covariance error that the "
-    "long-only constraint was absorbing and the unconstrained book was not "
-    "(Jagannathan and Ma, 2003), which shows as a frictionless bias statistic well "
-    "above one; or a defect in the ruler."
+    "Implied IC is printed twice because its meaning changed (decisions/0033). At "
+    "TC = 1 it is what every earlier audit printed, and assumes the long-only "
+    "constraint, the caps and the shadow cost lose nothing. At the measured TC it "
+    "prices them. Empirical breadth is read off the constrained ladder: net IR per "
+    "unit IC divided by the measured TC, squared, so it is net of costs and blank "
+    "where no TC was measured. The frictionless twin's breadth, its FLAM comparison "
+    "and the base-over-frictionless ratio are not shown (decisions/0029 s1): they "
+    "measure the covariance estimate rather than the constraints. The raw columns "
+    "remain in `cells.csv` and `summary.json`."
 )
 
 
@@ -95,23 +94,102 @@ def _stress_note(summary: dict[str, Any]) -> list[str]:
     ]
 
 
-def _md_frictionless(summary: dict[str, Any]) -> list[str]:
-    fric = _frame(summary.get("frictionless_net_ir") or {})
-    ratio = _frame(summary.get("transfer_ratio") or {})
-    if fric.empty:
-        return []
-    out = [
-        "### Frictionless cells — IR with no constraints and no costs",
-        "",
-        _md_table(fric, 2, "IC \\ h"),
-        "",
-    ]
-    if not ratio.empty:
+COVARIANCE_NOTE = (
+    "The frictionless twin is kept as a diagnostic of the covariance estimate "
+    "(decisions/0029 s3). It inverts the same shrunk covariance the constrained book "
+    "is built from with nothing holding the weights down, so a bias statistic above "
+    "one is estimation error the long-only constraint was absorbing "
+    "(Jagannathan and Ma, 2003), not a price of the constraints."
+)
+
+TC_NOTE = (
+    "Transfer coefficient (decisions/0033), from the alpha each book was solved against "
+    "and the weights it got, with nothing re-solved unconstrained. **Full matrix** is the "
+    "reported TC: a'w / [sqrt(a' Omega^-1 a) sqrt(w' Omega w)] on the active covariance "
+    "(Clarke, de Silva and Thorley 2006, eq. 23). **Diagonal** is the form comparable to "
+    "the published 0.3 to 0.8 range and ignores correlations. **Alignment** is "
+    "corr(a, Omega w), which needs no inverse and is a control, not a level. Omega's "
+    "condition number is printed beside them because the full-matrix form inverts it. "
+    "Published: 0.671 full and 0.620 diagonal for a long-only capped 21-country book "
+    "(Clarke, de Silva and Thorley 2006). It gates nothing."
+)
+
+IC_NOTE = (
+    "Realised IC on the base cells, four readings of the same planted signal. The "
+    "cross-sectional rank reading understates a heavy-tailed signal several-fold "
+    "(decisions/0029 s5), so the per-date Pearson reading is printed beside it."
+)
+
+
+def _by_horizon(table: pd.DataFrame, columns: dict[str, str], tag: str = "base") -> pd.DataFrame:
+    """Median over the cells of each horizon, one named column per reading."""
+    sub = table[table["tag"] == tag] if "tag" in table.columns else table.iloc[0:0]
+    present = {c: label for c, label in columns.items() if c in sub.columns}
+    if sub.empty or not present:
+        return pd.DataFrame()
+    frame = (
+        sub.assign(**{c: pd.to_numeric(sub[c], errors="coerce") for c in present})
+        .groupby("horizon")[list(present)]
+        .median()
+    )
+    return frame.rename(columns=present)
+
+
+def _transfer_frame(table: pd.DataFrame) -> pd.DataFrame:
+    return _by_horizon(
+        table,
+        {
+            "transfer_coefficient": "TC, full matrix (reported)",
+            "transfer_coefficient_diagonal": "TC, diagonal",
+            "transfer_coefficient_alignment": "alignment (control)",
+            "omega_condition_median": "Omega condition number",
+        },
+    )
+
+
+def _ic_frame(table: pd.DataFrame) -> pd.DataFrame:
+    sub = table[table["tag"] == "base"] if "tag" in table.columns else table.iloc[0:0]
+    cols = {
+        "realised_ic_pooled": "pooled",
+        "realised_ic_cross_sectional_pearson": "per-date Pearson",
+        "realised_ic_cross_sectional_demeaned": "per-date demeaned",
+        "realised_ic_cross_sectional": "per-date rank",
+    }
+    present = {c: v for c, v in cols.items() if c in sub.columns}
+    if sub.empty or not present:
+        return pd.DataFrame()
+    frame = sub.groupby(["ic", "horizon"])[list(present)].mean().rename(columns=present)
+    frame.index = [f"{ic:g} / h{int(h)}" for ic, h in frame.index]
+    return frame
+
+
+def _covariance_frame(table: pd.DataFrame) -> pd.DataFrame:
+    """Bias statistic by horizon, constrained book against its frictionless twin."""
+    if "bias_stat" not in table.columns or "tag" not in table.columns:
+        return pd.DataFrame()
+    base = _by_horizon(table, {"bias_stat": "long-only book"}, "base")
+    fric = _by_horizon(table, {"bias_stat": "frictionless twin"}, FRICTIONLESS)
+    if base.empty or fric.empty:
+        return pd.DataFrame()
+    return base.join(fric)
+
+
+def _md_diagnostics(summary: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    tc = _frame(summary.get("transfer_by_horizon") or {})
+    if not tc.empty:
+        out += ["## Transfer coefficient", "", TC_NOTE, "", _md_table(tc, 3, "horizon"), ""]
+    ic = _frame(summary.get("ic_readings") or {})
+    if not ic.empty:
+        out += ["## Realised IC — four readings", "", IC_NOTE, "", _md_table(ic, 3, "IC / h"), ""]
+    cov = _frame(summary.get("covariance_diagnostic") or {})
+    if not cov.empty:
         out += [
-            "Ladder net IR / frictionless IR at the same (IC, horizon, seed) — the measured "
-            "price of the constraints and costs:",
+            "## Covariance-error diagnostic — bias statistic, constrained against frictionless",
             "",
-            _md_table(ratio, 2, "IC \\ h"),
+            COVARIANCE_NOTE,
+            "",
+            _md_table(cov, 2, "horizon"),
             "",
         ]
     return out
@@ -120,6 +198,7 @@ def _md_frictionless(summary: dict[str, Any]) -> list[str]:
 CALIBRATION_COLUMNS = (
     "bias_worst_annual",
     "bias_stat",
+    "left_tail_L",
     "te_realised_to_ex_ante",
     "te_p95_to_budget",
 )
@@ -140,6 +219,13 @@ def _calibration(table: pd.DataFrame) -> dict[str, Any]:
         worst = base["bias_worst_annual"].dropna()
         out["bias_worst_annual_median"] = float(worst.median()) if len(worst) else float("nan")
         out["bias_worst_annual_max"] = float(worst.max()) if len(worst) else float("nan")
+    if "left_tail_L" in base.columns:
+        left = pd.to_numeric(base["left_tail_L"], errors="coerce").dropna()
+        if len(left):
+            out["left_tail_L_median"] = float(left.median())
+            out["left_tail_L_p05"] = float(left.quantile(0.05))
+            out["left_tail_L_p95"] = float(left.quantile(0.95))
+            out["left_tail_L_max"] = float(left.max())
     if "bias_worst_year" in base.columns:
         years = base["bias_worst_year"].dropna()
         if len(years):
@@ -175,8 +261,19 @@ def summarise(
         if "tag" in table.columns and (table["tag"] == FRICTIONLESS).any()
         else pd.DataFrame()
     )
+    ladder = (
+        ladder_breadth(table).set_index("horizon") if "tag" in table.columns else pd.DataFrame()
+    )
     for i, row in req.iterrows():
         h = int(row["horizon"])
+        tc = float(ladder["transfer_coefficient"].get(h, np.nan)) if len(ladder) else np.nan
+        req.loc[i, "transfer_coefficient"] = tc
+        req.loc[i, "implied_ic_measured_tc"] = (
+            breadth.implied_ic(target, h, tc) if np.isfinite(tc) and tc > 0 else np.nan
+        )
+        req.loc[i, "ladder_breadth"] = (
+            float(ladder["ladder_breadth"].get(h, np.nan)) if len(ladder) else np.nan
+        )
         req.loc[i, "flam_implied_ic"] = implied.get(h, float("nan"))
         req.loc[i, "effective_breadth"] = breadth.effective_breadth(h)
         slope = float(empirical["ir_per_unit_ic"].get(h, np.nan)) if len(empirical) else np.nan
@@ -205,6 +302,9 @@ def summarise(
         "oracle_net_ir": _pivot(table, "oracle").to_dict(),
         "required_ic_surviving": req_surviving.to_dict(orient="records"),
         "risk_calibration": _calibration(table),
+        "transfer_by_horizon": _transfer_frame(table).to_dict(),
+        "ic_readings": _ic_frame(table).to_dict(),
+        "covariance_diagnostic": _covariance_frame(table).to_dict(),
         "stress_horizon": stress_h,
         "stress_horizon_requested": requested_h,
         "n_cells_judged": int(len(judged)),
@@ -288,18 +388,21 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
         "",
         "## Required IC to clear the bar",
         "",
-        "| horizon (weeks) | required IC (ladder, net) | required IC (frictionless) "
-        "| FLAM-implied IC (formula breadth) | formula breadth | empirical breadth | note |",
-        "|---|---|---|---|---|---|---|",
+        "| horizon (weeks) | required IC (ladder, net) | implied IC, TC = 1 "
+        "| implied IC, measured TC | measured TC | formula breadth "
+        "| empirical breadth (ladder) | note |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for r in summary["required_ic"]:
         out.append(
-            f"| {r['horizon']} | {_required(r)} | {_fmt(r.get('frictionless_ic'), 3)} "
-            f"| {_fmt(r.get('flam_implied_ic'), 3)} | {_fmt(r.get('effective_breadth'), 1)} "
-            f"| {_fmt(r.get('empirical_breadth'), 1)} | {r['note']} |"
+            f"| {r['horizon']} | {_required(r)} | {_fmt(r.get('flam_implied_ic'), 3)} "
+            f"| {_fmt(r.get('implied_ic_measured_tc'), 3)} "
+            f"| {_fmt(r.get('transfer_coefficient'), 3)} "
+            f"| {_fmt(r.get('effective_breadth'), 1)} "
+            f"| {_fmt(r.get('ladder_breadth'), 1)} | {r['note']} |"
         )
     out += ["", READING_THE_CHAIN, ""]
-    out += _md_frictionless(summary)
+    out += _md_diagnostics(summary)
     out += [
         "",
         "### Required IC among cells that would survive the portfolio vetoes",
@@ -430,6 +533,14 @@ def _disclosure_lines(cal: dict[str, Any], budget: float | None = None) -> list[
             f"{cal['bias_worst_year_share']:.0%} of base cells — the overrun is an "
             f"episode, not a drift."
         )
+    if "left_tail_L_median" in cal:
+        lines.append(
+            f"- Left tail, L = |q05(z)| / 1.645 (1.00 when the risk model is right): "
+            f"median {cal['left_tail_L_median']:.2f} across base cells, 5th to 95th "
+            f"percentile {cal['left_tail_L_p05']:.2f} to {cal['left_tail_L_p95']:.2f}, "
+            f"max {cal['left_tail_L_max']:.2f}. H-2026-0007's pre-registered check "
+            f"(decisions/0031); reported, gates nothing."
+        )
     if "bias_stat_median" in cal:
         lines.append(
             f"- Full-sample bias, for contrast: median "
@@ -465,6 +576,14 @@ def _md_calibration(cal: dict[str, Any], budget: float | None = None) -> list[st
             _md_table(_frame(cal["bias_stat"]), 2, "IC \\ h"),
             "",
         ]
+    if "left_tail_L" in cal:
+        out += [
+            "Left-tail statistic L = |q05(z)| / 1.645 (1.00 is calibrated; "
+            "decisions/0031, gates nothing):",
+            "",
+            _md_table(_frame(cal["left_tail_L"]), 2, "IC \\ h"),
+            "",
+        ]
     if "te_realised_to_ex_ante" in cal:
         out += [
             "Realised active volatility / mean ex-ante TE:",
@@ -480,6 +599,29 @@ def _md_calibration(cal: dict[str, Any], budget: float | None = None) -> list[st
             "",
         ]
     return out
+
+
+def _html_diagnostics(summary: dict[str, Any]) -> str:
+    def plain(text: str) -> str:
+        return text.replace("`", "").replace("**", "")
+
+    parts: list[str] = []
+    tc = _frame(summary.get("transfer_by_horizon") or {})
+    if not tc.empty:
+        parts += ["<h2>Transfer coefficient</h2>", f"<p class='muted'>{plain(TC_NOTE)}</p>"]
+        parts.append(_html_table(tc, 3, "horizon"))
+    ic = _frame(summary.get("ic_readings") or {})
+    if not ic.empty:
+        parts += ["<h2>Realised IC — four readings</h2>", f"<p class='muted'>{IC_NOTE}</p>"]
+        parts.append(_html_table(ic, 3, "IC / h"))
+    cov = _frame(summary.get("covariance_diagnostic") or {})
+    if not cov.empty:
+        parts += [
+            "<h2>Covariance-error diagnostic — bias statistic, constrained against frictionless</h2>",
+            f"<p class='muted'>{COVARIANCE_NOTE}</p>",
+        ]
+        parts.append(_html_table(cov, 2, "horizon"))
+    return "\n".join(parts)
 
 
 def _html_calibration(cal: dict[str, Any], budget: float | None = None) -> str:
@@ -498,6 +640,7 @@ def _html_calibration(cal: dict[str, Any], budget: float | None = None) -> str:
         "bias_stat": "Full-sample bias statistic, which gates nothing (approximate 95% band ±"
         + _fmt(cal.get("bias_band_median", float("nan")), 3)
         + ")",
+        "left_tail_L": "Left-tail statistic L = |q05(z)| / 1.645 (decisions/0031, gates nothing)",
         "te_realised_to_ex_ante": "Realised active volatility / mean ex-ante TE",
         "te_p95_to_budget": "Trailing-3y TE p95 / budget (disclosed, gates nothing)",
     }
@@ -551,28 +694,15 @@ def to_html(summary: dict[str, Any], table: pd.DataFrame) -> str:
     """
     req_rows = "".join(
         f"<tr><th>{r['horizon']}</th><td class='{'hit' if np.isfinite(r['required_ic']) else ''}'>"
-        f"{_required(r)}</td><td>{_fmt(r.get('frictionless_ic'), 3)}</td>"
-        f"<td>{_fmt(r.get('flam_implied_ic'), 3)}</td>"
+        f"{_required(r)}</td><td>{_fmt(r.get('flam_implied_ic'), 3)}</td>"
+        f"<td>{_fmt(r.get('implied_ic_measured_tc'), 3)}</td>"
+        f"<td>{_fmt(r.get('transfer_coefficient'), 3)}</td>"
         f"<td>{_fmt(r.get('effective_breadth'), 1)}</td>"
-        f"<td>{_fmt(r.get('empirical_breadth'), 1)}</td>"
+        f"<td>{_fmt(r.get('ladder_breadth'), 1)}</td>"
         f"<td style='text-align:left'>{r['note']}</td></tr>"
         for r in summary["required_ic"]
     )
-    fric = _frame(summary.get("frictionless_net_ir") or {})
-    ratio = _frame(summary.get("transfer_ratio") or {})
-    frictionless_html = ""
-    if not fric.empty:
-        frictionless_html = (
-            "<h2>Frictionless cells — no constraints, no costs</h2>"
-            + _html_table(fric, 2, "IC \\ h", target)
-            + (
-                "<p class='muted'>Ladder net IR / frictionless IR at the same cell — the "
-                "measured price of the constraints and costs:</p>"
-                + _html_table(ratio, 2, "IC \\ h")
-                if not ratio.empty
-                else ""
-            )
-        )
+    diagnostics_html = _html_diagnostics(summary)
     cost = pd.DataFrame(summary["cost_stress"])
     cost_html = (
         _html_table(
@@ -632,10 +762,10 @@ This page measures the pipeline at the section 4 budget; nothing on it is a resu
  <div class="kpi"><b>{m["n_rebalances"]}</b><span>rebalances {m["first_date"]} → {m["last_date"]}</span></div>
 </div>
 <h2>Required IC to clear the bar</h2>
-<table><thead><tr><th>horizon (weeks)</th><th>required IC (ladder, net)</th><th>required IC (frictionless)</th><th>FLAM-implied IC (formula breadth)</th><th>formula breadth</th><th>empirical breadth</th><th>note</th></tr></thead>
+<table><thead><tr><th>horizon (weeks)</th><th>required IC (ladder, net)</th><th>implied IC, TC = 1</th><th>implied IC, measured TC</th><th>measured TC</th><th>formula breadth</th><th>empirical breadth (ladder)</th><th>note</th></tr></thead>
 <tbody>{req_rows}</tbody></table>
 <p class="muted">Decisions a year by horizon (52/h): {decisions}. {READING_THE_CHAIN}</p>
-{frictionless_html}
+{diagnostics_html}
 <h2>The ladder — mean net IR over seeds</h2>
 {ladder_html}
 <p class="muted">Orange: at or above the bar. Seed range per cell (— where only one seed ran):</p>

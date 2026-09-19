@@ -932,7 +932,7 @@ def test_the_transfer_ratio_pairs_each_base_cell_with_its_own_twin():
 
 
 def test_frictionless_cells_are_reported_but_never_counted_as_veto_failures(params):
-    from signal_lab.audit.report import summarise, to_markdown
+    from signal_lab.audit.report import summarise, to_html, to_markdown
 
     rows = []
     for tag in ("base", "frictionless"):
@@ -980,11 +980,18 @@ def test_frictionless_cells_are_reported_but_never_counted_as_veto_failures(para
     assert summary["n_cells_failing_vetoes"] == 0
     assert summary["n_cells_judged"] == 2
     req = summary["required_ic"][0]
-    # frictionless IR = 6 * IC, so the bar needs IC = 0.30 / 6 = 0.05
+    # frictionless IR = 6 * IC, so the bar needs IC = 0.30 / 6 = 0.05. The raw
+    # numbers stay in the summary: the results store is append-only and they are
+    # evidence about the covariance (decisions/0029 s1).
     assert req["frictionless_ic"] == pytest.approx(0.05)
     assert req["empirical_breadth"] == pytest.approx(36.0)
-    markdown = to_markdown(summary, table)
-    assert "Frictionless cells" in markdown and "empirical breadth" in markdown
+    assert "frictionless_net_ir" in summary and "transfer_ratio" in summary
+    # ...but the report no longer prints what they were never a measure of.
+    for text in (to_markdown(summary, table), to_html(summary, table)):
+        assert "Frictionless cells" not in text
+        assert "required IC (frictionless)" not in text
+        assert "Ladder net IR / frictionless IR" not in text
+        assert "implied IC, TC = 1" in text and "implied IC, measured TC" in text
 
 
 # --- costs: the panel's own buckets ----------------------------------------------
@@ -1072,3 +1079,65 @@ def test_risk_calibration_does_not_read_a_year_too_short_to_judge():
     )
     assert out["bias_worst_year"] == 2011
     assert out["bias_years_read"] == 1
+
+
+# --- decisions/0031 and 0033: what a base cell now reports ---------------------------
+
+
+def test_a_base_cell_reports_the_transfer_coefficient_the_left_tail_and_the_pearson_ic(
+    small_universe,
+):
+    universe, params = small_universe
+    row, path = run_cell(universe, AuditCell(0.20, 4, 0), params, solver="scipy")
+    assert path.alpha is not None, "the rule exposes the alpha it solved against"
+    assert row["transfer_n_dates"] > 100
+    for key in ("transfer_coefficient", "transfer_coefficient_diagonal"):
+        assert -1.0 <= row[key] <= 1.0 + 1e-9, "a cosine in the Omega metric"
+    assert row["transfer_coefficient"] > 0, "a signal with IC 0.20 must not transfer negatively"
+    assert row["omega_condition_max"] >= row["omega_condition_median"] >= 1.0
+    assert np.isfinite(row["left_tail_L"]) and row["left_tail_L"] > 0
+    assert row["left_tail_q05"] < 0
+    assert np.isfinite(row["realised_ic_cross_sectional_pearson"])
+    assert np.isfinite(row["realised_ic_cross_sectional_demeaned"])
+
+
+def test_l_reads_one_for_a_normal_standardised_return():
+    from signal_lab.audit.ladder import risk_calibration
+
+    rng = np.random.default_rng(0)
+    idx = pd.date_range("2005-01-07", periods=4000, freq="W-FRI")
+    sigma = pd.Series(0.06, index=idx)
+    active = pd.Series(rng.normal(0.0, 0.06 / np.sqrt(52), len(idx)), index=idx)
+    out = risk_calibration(
+        active, sigma, 52.0, 0.06, te_p95=0.06, active_vol=0.06, ex_ante_mean=0.06
+    )
+    assert out["left_tail_L"] == pytest.approx(1.0, abs=0.06)
+    assert out["bias_stat"] == pytest.approx(1.0, abs=0.05)
+
+
+def test_l_sees_a_left_tail_the_bias_statistic_does_not():
+    """
+    The same returns and their mirror image have the same spread, so the same
+    bias statistic, and opposite tails. L tells them apart: it is the failure
+    0031 exists to catch, a book whose losses are worse than its gains.
+    """
+    from signal_lab.audit.ladder import risk_calibration
+
+    rng = np.random.default_rng(1)
+    n = 4000
+    idx = pd.date_range("2005-01-07", periods=n, freq="W-FRI")
+    z = rng.normal(0.0, 1.0, n)
+    hit = rng.random(n) < 0.10
+    z[hit] = -np.abs(z[hit]) * 2.0 - 1.0  # a heavy left tail on a tenth of the weeks
+    z = (z - z.mean()) / z.std()
+    sigma = pd.Series(0.06, index=idx)
+
+    def read(series: np.ndarray) -> dict:
+        active = pd.Series(series * 0.06 / np.sqrt(52), index=idx)
+        return risk_calibration(
+            active, sigma, 52.0, 0.06, te_p95=0.06, active_vol=0.06, ex_ante_mean=0.06
+        )
+
+    left, mirror = read(z), read(-z)
+    assert left["bias_stat"] == pytest.approx(mirror["bias_stat"])
+    assert left["left_tail_L"] > 1.25 * mirror["left_tail_L"]
