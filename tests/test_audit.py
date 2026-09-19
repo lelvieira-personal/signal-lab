@@ -428,19 +428,34 @@ def test_an_early_over_trade_does_not_block_a_later_one(small_universe):
     The evidence is that the second half of the path still trades at the scale
     the first half did.
 
-    The first recorded session is left out of the comparison. It is start-up,
-    not an over-trade: on this panel a series completes its covariance window
-    one week after the first rebalance and enters at over 40% of the book, a
-    0.9 session that no later week can or should match. Comparing against it
-    measured universe entry, and the test flipped when the synthetic panel
-    started being costed at its own buckets (decisions/0027).
+    Universe entry is left out of the comparison, by what it is rather than by
+    how big it is. On a ragged panel a series completes its covariance window
+    some weeks after the first rebalance and enters the book, and the sessions
+    that admit new names are not over-trades: they are the book meeting its
+    universe. So the comparison runs over the path after the last rebalance at
+    which any series is held for the first time. Skipping the largest early
+    session instead would remove exactly the over-trade this test is about, and
+    it could then never fail for its own reason.
+
+    This is the second time the test has flipped on an unrelated panel change:
+    first when the synthetic panel started being costed at its own buckets
+    (decisions/0027), then when the coverage table was rebuilt from the Index
+    Map (d0ee0b6) and moved the ragged starts. Both times it was coupled to
+    where the panel happened to admit its names.
     """
     universe, params = small_universe
     row, path = run_cell(universe, AuditCell(0.20, 4, 0), params, solver="scipy")
     assert row["turnover_cap"] is None, "no annual wall on a base cell"
-    half = len(path.turnover) // 2
-    early = path.turnover.iloc[1:half]
-    late = path.turnover.iloc[half:]
+    ever_held = (path.weights.abs() > 1e-6).cummax()
+    admitted = np.flatnonzero(np.diff(ever_held.sum(axis=1).to_numpy()) > 0) + 1
+    settled = path.turnover.iloc[(admitted[-1] + 1 if len(admitted) else 1) :]
+    assert len(settled) >= 20, (
+        f"only {len(settled)} rebalances remain after universe entry; a panel that admits "
+        "names throughout leaves nothing to compare, and passing on nothing is worse than failing"
+    )
+    half = len(settled) // 2
+    early = settled.iloc[:half]
+    late = settled.iloc[half:]
     assert late.max() > 0.5 * early.max(), (
         "the second half of the path must still be able to trade at scale"
     )
