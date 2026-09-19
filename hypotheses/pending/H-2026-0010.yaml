@@ -35,7 +35,12 @@ data_required:
   - USD_GB10YXGB_NSA
   - EUR_GB10YXGB_NSA
   - LT01TRUU Index|INDEX_YIELD_TO_WORST
-  - LT08TRUU Index|INDEX_YIELD_TO_WORST
+  - LT11TRUU Index|INDEX_YIELD_TO_WORST
 notes: >
+  The term spread is LT01TRUU (1-3y) against LT11TRUU (20+y), owner ruling
+  2026-09-19, decisions/0032; LT09TRUU (7-10y) is available as a mid-curve
+  check. The phase-0 name LT08TRUU does not exist and was removed.
+  Amended 2026-09-19 under decisions/0032 (owner ruling the same day); the
+  phase-0 names are in git history.
   Fast block, though the underlying curve shape moves slowly. Risk
   decomposition must show whether this is a tilt or a single factor bet.

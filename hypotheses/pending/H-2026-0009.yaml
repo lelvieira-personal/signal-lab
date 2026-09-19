@@ -30,13 +30,24 @@ proposed_by: owner
 provenance: adaptation
 reference: null
 data_required:
-  - MXUS
-  - MXEU
-  - MXJP
-  - MXEF
-  - MXWO
-  - LEGATRUU
+  - SPXT
+  - MXEUG
+  - NDDUUK
+  - NDDUJN
+  - M1EF
   - LUACTRUU
 notes: >
+  Tickers corrected 2026-09-19 under decisions/0032: SPXT for MXUS, NDDUJN for
+  MXJP, M1EF for MXEF. MXWO and LEGATRUU were the benchmark legs; they live in
+  params/constraints.yaml and are not requested here. Europe enters at the
+  sub-country level by owner ruling the same day -- MXEUG (ex-UK) and NDDUUK
+  (UK, USD) -- so Europe has two slots where the US and Japan have one, which
+  the risk decomposition must disclose rather than leave to be inferred from the
+  count. NDDLUK is the local-currency UK series and is deliberately excluded: one
+  cross-section holding both would be an FX view wearing a region label. The
+  region set is held to the four registered in phase 0 (US, Europe, Japan, EM);
+  NDDUPXJ is available and adding it would be a scope change, not a correction.
+  Amended 2026-09-19 under decisions/0032 (owner ruling the same day); the
+  phase-0 names are in git history.
   Fast block. Doubles as a harness control: a null result here is evidence
   about the engine before it is evidence about markets.

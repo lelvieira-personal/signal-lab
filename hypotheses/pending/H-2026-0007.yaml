@@ -15,7 +15,14 @@ rationale: >
   high yield against its own, never one against the other, because their
   unconditional levels differ by a multiple and a pooled z-score would simply
   be a permanent high-yield overweight wearing a signal's clothing. Expressed
-  cross-sectionally across credit segments it is fully long-only. The horizon
+  cross-sectionally across credit segments it is fully long-only. The segments
+  are US investment grade, US agency MBS, and the US high yield quality ladder
+  at Ba, B and Caa, plus the EM USD aggregate: six, at one level of granularity,
+  because holding an index and its own components in the same cross-section
+  double-counts rather than diversifies. Stated in advance: Ba, B and Caa are
+  highly correlated with one another, so six segments are not six bets but one
+  credit-beta factor plus a quality tilt, and the risk decomposition must say so
+  rather than let the count imply otherwise. The horizon
   is one quarter, the observed half-life of spread deviations outside crisis
   periods. The risk stated in advance is that this signal is short volatility:
   it buys widening spreads, so it adds exposure into precisely the episodes
@@ -30,12 +37,24 @@ provenance: adaptation
 reference: null
 data_required:
   - LUACTRUU Index|INDEX_OAS_TSY
-  - LF98TRUU Index|INDEX_OAS_TSY
-  - LUALTRUU Index|INDEX_OAS_TSY
+  - LUMSTRUU Index|INDEX_OAS_TSY
+  - I00183US Index|INDEX_OAS_TSY
+  - I00185US Index|INDEX_OAS_TSY
+  - I00188US Index|INDEX_OAS_TSY
   - EMUSTRUU Index|INDEX_OAS_TSY
   - LUACTRUU
-  - LF98TRUU
+  - LUMSTRUU
+  - I00183US
+  - I00185US
+  - I00188US
+  - EMUSTRUU
 notes: >
+  Cross-section expanded from four segments to six (set A) by owner ruling
+  2026-09-19, decisions/0032, BEFORE any result for this hypothesis exists. The
+  phase-0 fourth segment, LUALTRUU, does not exist and was removed rather than
+  substituted. LF98TRUU is not held alongside the Ba/B/Caa ladder it aggregates.
+  Amended 2026-09-19 under decisions/0032 (owner ruling the same day); the
+  phase-0 names are in git history.
   Fast block, daily. Turnover is expected to concentrate here and is charged
   accordingly (SUBSTRATE section 6). Spreads come from Bloomberg, not FRED
   (SUBSTRATE section 5.4).

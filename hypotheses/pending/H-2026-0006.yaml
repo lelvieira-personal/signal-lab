@@ -35,8 +35,9 @@ data_required:
   - ZAR_CTOT_NSA_P1M1ML12
   - DCOILWTICO
   - DCOILBRENTEU
-  - MXEF
+  - M1EF
   - MXCA
 notes: >
+  M1EF replaces the phase-0 name MXEF (decisions/0032).
   Slow block. The FX-versus-equity attribution must be decomposed before this
   is claimed as a regional equity signal.

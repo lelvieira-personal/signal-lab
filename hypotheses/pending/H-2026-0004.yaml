@@ -35,7 +35,9 @@ data_required:
   - DRTSCILM
   - LF98TRUU
   - LUACTRUU
-  - LUALTRUU
 notes: >
+  LUALTRUU was in the phase-0 list and does not exist; removed, not
+  substituted (decisions/0032). DRTSCILM is a real FRED series absent from the
+  current pull and is on the FRED request.
   Slow block, quarterly release. Effective sample size in macro cycles must be
   reported alongside any result (SUBSTRATE section 9).

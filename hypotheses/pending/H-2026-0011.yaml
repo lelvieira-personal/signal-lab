@@ -32,11 +32,21 @@ reference: null
 data_required:
   - USD_EQCRR_NSA
   - EUR_EQCRR_NSA
+  - GBP_EQCRR_NSA
   - JPY_EQCRR_NSA
   - DFII10
-  - MXUS
-  - MXEU
-  - MXJP
+  - SPXT
+  - MXEUG
+  - NDDUUK
+  - NDDUJN
 notes: >
+  Tickers corrected 2026-09-19 under decisions/0032. Europe enters at the
+  sub-country level by owner ruling the same day, so the UK is its own market
+  and GBP_EQCRR_NSA is added to keep the pairing country-matched: this signal
+  compares an equity market with ITS OWN bond market, so a UK equity leg without
+  a UK real yield would be comparing two different economies. GBP_EQCRR_NSA is a
+  JPMaQS series and a phase-3 gap like its three peers.
+  Amended 2026-09-19 under decisions/0032 (owner ruling the same day); the
+  phase-0 names are in git history.
   Slow block, longest horizon in the registry. Effective sample size in macro
   cycles is the number to read first on any result here.
