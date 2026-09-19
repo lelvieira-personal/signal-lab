@@ -19,20 +19,6 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L1. `decisions/proposed/0029` — conditioning the frictionless covariance
-Proposed 2026-09-17, committed in `1b6babf`, untouched since. The probe showed
-the frictionless twin measures its own covariance error, not the layer it was
-built to price: bias 1.40–1.42, condition number 6e4–2e5, and everything
-derived from it in `A-20260917-020949` should be struck.
-
-**Recommendation on file:** take §1, §3, §4 and §5. **Defer §2** — it asks for
-a ridge chosen so the frictionless bias sits near 1.00 on the Bloomberg panel,
-which is a free parameter tuned to a target on the evaluation panel, and 0029's
-own closing section warns against exactly that.
-
-**Blocks:** the Bloomberg report's breadth and price-of-constraints sections
-stay wrong until §1 lands.
-
 ### L3. Does "phase 3" gate on the loader or on the data?
 SUBSTRATE §16: *"Signal testing may not begin before phase 3,"* and phase 3 is
 the JPMaQS loader. But `H-2026-0007`, `0008` and `0009` need only Bloomberg and
@@ -50,28 +36,6 @@ own final test and it is currently recorded only in these notes. Transcribing
 it into §3 is an owner act.
 
 ---
-
-### L8. The rebalance policy is not decided anywhere
-Owner statement, 2026-09-18: signals observed weekly, positions allowed to
-persist for weeks or up to a year, and skipping a week's rebalance is
-acceptable. Nothing in the repo implements that. The engine re-solves every
-week; `decisions/0024` prices turnover rather than walling it, which is a
-statement about cost, not about whether to trade at all.
-
-Three candidate policies: weekly re-solve (status quo), a no-trade band, or
-partial adjustment toward an aim portfolio (Garleanu-Pedersen). **The band width
-or trade rate must be derived from alpha decay and the cost model, never swept
-against IR** — a tuned threshold is a free parameter the Romano-Wolf stepdown
-never sees.
-
-**Does not change breadth.** `52/h` counts independent information, not trades.
-
-**Changes how TC reads** — see `decisions/proposed/0033` §7a: a book that
-deliberately does not trade sits away from its optimum, so TC falls by design
-and must be reported against both the implemented book and an immediate
-re-solve, or the deliberate cost trade is misdiagnosed as a constraint problem.
-
-**Retired by:** a decision record. This is mandate design, not a measurement.
 
 ## Blocked — waiting on a measurement
 
@@ -155,6 +119,41 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L1 — conditioning the frictionless covariance. CLOSED 2026-09-19.
+`decisions/0029`. **§1, §3, §4 and §5 taken; §2 deferred.** The frictionless
+twin is struck from the report as a ruler and kept as a covariance-error
+diagnostic; empirical breadth is read off the constrained ladder; per-date
+Pearson IC is reported beside rank IC.
+
+§2 -- a ridge or eigenvalue floor chosen so the frictionless bias sits near 1.00
+on the Bloomberg panel -- stays deferred, because that is a free parameter tuned
+to a target on the evaluation panel and 0029's own closing section warns against
+it.
+
+The ten-seed audit confirmed the finding without the three-seed caveat:
+`transfer_ratio` between -4 and +48, empirical breadth 0.12 at h4 against a
+formula 151.7. The same reasoning is why `decisions/0033` measures the transfer
+coefficient from the constrained book's own weights rather than from a twin.
+
+**Wakes when:** someone proposes a conditioning that can be justified as a
+measurement device rather than tuned until the ladder looks right.
+
+### L8 — the rebalance policy. CLOSED 2026-09-19.
+**Decided: weekly re-solve stays; no no-trade band, no partial adjustment.**
+Recorded as a dated addendum to `decisions/0024`, following the 0013 precedent
+rather than amending a decided record in place.
+
+The ten-seed audit settled it: total cost drag across the whole grid is 17-35 bp
+a year, about 0.06 of IR at the 6% budget, and that is the entire prize. Capping
+turnover at 50% at IC 0.20 saved 12 bp and cost 0.033 of net IR. The persistence
+the owner asked for already falls out of a cost-priced objective — 2% annual
+turnover at h13, IC 0.02, under forced weekly re-solve.
+
+Raised 2026-09-18 as a gap in the machinery; closed 2026-09-19 as a gap in the
+documentation.
+
+**Wakes when:** the cost model is revised, not when something is measured.
 
 ### L7 — measuring the transfer coefficient. CLOSED 2026-09-19.
 `decisions/proposed/0033`. **All three recommendations taken.** TC gates nothing

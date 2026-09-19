@@ -106,3 +106,50 @@ This is the reading `audit.ladder.portfolio_veto_verdicts` already used, so the
 audit's verdicts and the live veto set now agree at the boundary; they did not
 before, and a cell sitting exactly on a threshold could have been judged
 differently by the two.
+
+## Resolved: the rebalance policy is weekly re-solve, deliberately (2026-09-19, Leo)
+
+0024 priced turnover rather than walling it. What it never said is whether the
+book re-solves every week at all, and nothing else in the repo said it either:
+the engine re-solves unconditionally and no record explains that this is a
+choice. The owner raised the question on 2026-09-18 — signals observed weekly,
+positions allowed to persist for weeks or up to a year, skipping a week's
+rebalance acceptable — and three policies were on the table: weekly re-solve, a
+no-trade band, or partial adjustment toward an aim portfolio
+(Garleanu and Pedersen 2013).
+
+**Decided: weekly re-solve stays, and the alternatives are not built.** The
+ten-seed audit `A-20260918-201042` settled it on the numbers.
+
+The whole prize a trade-reducing policy competes for is the cost actually paid,
+and across the entire grid that is **17 to 35 bp a year** — 17 bp at IC 0.02 and
+2% annual turnover, 35 bp at IC 0.20 and 172%. At the 6% TE budget of
+`decisions/0025`, 35 bp is about 0.06 of information ratio, and a band can
+recover only part of it.
+
+Against that, a band costs transfer coefficient by construction: a book that
+deliberately does not trade sits away from its own optimum, and TC is the linear
+term in `IR = TC x IC x sqrt(BR)` where breadth is under a square root
+(`decisions/0033` §7a, which states the measurement consequence and stands as
+written — its condition is now known not to hold).
+
+The turnover-cap ladder is the direct test. At IC 0.20, capping annual traded
+notional at 50% saved 12 bp of cost and cost **0.033 of net IR** (0.323 against
+0.356 uncapped). Restricting trade lost more alpha than it saved.
+
+And the persistence the owner asked for is already what this objective produces
+when the signal is slow: at h13 and IC 0.02 the book turns over **2% a year**
+under forced weekly re-solve. No new mechanism was needed to deliver it.
+
+**What would wake this.** Not a measurement — a cost-model revision. The buckets
+in `params/costs.yaml` are 5/10/20 bp half-spread plus 5/15/35 bp fee. If real
+execution proves several times worse, the prize scales with it and the
+arithmetic above changes sign.
+
+**Read with care.** The cost drag figures are accounting numbers — basis points
+actually paid — and are reliable. The net IR differences beside them are not:
+per-cell seed range on that run is 0.26 to 1.42 IR, and the cost stress at
+IC 0.20 is non-monotone (0.356, 0.277, 0.421), which reads as a defect rather
+than a result. The decision rests on the drag, not on the IR deltas. The cells
+are also planted synthetic signals on the Bloomberg panel, so this is evidence
+about the machinery and not a forecast for any registered hypothesis.
