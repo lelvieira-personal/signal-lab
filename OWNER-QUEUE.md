@@ -19,6 +19,81 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
+### L9. Re-deriving the bar — from what, and what it drags with it
+Restated 2026-09-20 after the owner's decision. `decisions/0036` §6.
+
+**Decided 2026-09-20:** the bar is **re-derived**, not kept at 0.30 on the new
+metric and not split into two bars. `params/audit.yaml: target_net_ir` stays at
+0.30 until a derivation exists.
+
+**Why 0.30-on-excess was refused:** it would require 18% / 30% / 34% / 69% of a
+*perfect* forecast's excess at h4 / h13 / h26 / h52 — a realised IC between 0.18
+and 2.31 depending on the response shape assumed, against real macro signals at
+IC 0.02 to 0.10, with several readings above 1.00. The best excess any of the 484
+judged cells achieved over its own floor was +0.083.
+
+#### LIVE — what the derivation takes as its input
+
+**`0023` did not derive 0.30.** It records a quotation — *"0.3 net IR is a good
+target"* — and `params/audit.yaml` line 11 carries that quotation as the comment
+above the value. `0027` did not touch it. So there is no prior derivation to
+repeat, and one has to start from an input the owner supplies, the way
+`decisions/0025` could not produce a TE budget until the drawdown tolerance was
+given. Candidates, none chosen: a target active return over the benchmark at the
+5-6% budget; an external reference for what a multi-asset overlay should deliver
+net of the §8 costs; or the measured floor plus a stated margin, which is the
+most direct but is circular unless the margin is argued from something.
+
+**This half needs no measurement.** It is the judgement that unblocks the rest.
+
+#### LIVE — and it does not stop at the bar
+
+`decisions/0025` derives the **tracking-error budget from the target IR**: *"at
+the lab's own target of net IR 0.30, the implied budget is 5.91%"*, against a
+32%-at-p95 drawdown tolerance. The arrow runs from the bar to the budget, so
+**re-deriving the bar propagates into the constraint set every audit has run
+under**, and a re-run at a moved budget is a fresh 13.3 hours.
+
+One trap to carry into that: 0025's input is the IR an investor *experiences*,
+because drawdown is experienced on the level, not on the excess. If the new bar
+is an excess bar, the level it implies is `excess + floor`, and the floor is
+0.311 on this window. Feeding an excess number into a formula expecting a level
+moves the budget the wrong way.
+
+#### BLOCKED — the number itself
+
+**Retired by tasks 18 and 20.** The required-IC arithmetic that any derivation
+has to sanity-check against spans an order of magnitude — IC 0.18 to 2.31 at
+h13-and-neighbours — purely because the response shape between IC 0.20 and
+IC 1.00 is unmeasured. Task 20 measures it; task 18 decides whether 20 is worth
+running. **Do not set a number before them.**
+
+Whatever is chosen, the excess carries SE ≈ 0.053 per cell (pairing buys the
+constrained book only 1.55x against the level's 0.082), so read as a lower bound
+a 0.30-style bar needs a point estimate near 0.41 before `SUBSTRATE` §9's
+Romano-Wolf stepdown applies on top.
+
+### L10. The `seed_stability` veto is unreachable as written
+Added 2026-09-20 by Cowork.
+
+`params/vetoes.yaml` sets `seed_stability.max_ir_range = 0.15`. Observed
+per-cell seed range in `A-20260919-155557` is **0.26 to 1.42**, and at the
+per-seed sd of 0.26 that `decisions/0028` already records, the expected range
+over ten seeds is about 0.78. The sd is not a simulation artefact: `1/sqrt(16.0
+years) = 0.250` is the sampling error of an IR over the development window.
+
+A threshold of 0.15 would require a near-deterministic IR, which 16 years cannot
+deliver. It is not applied to audit cells, so nothing has failed on it — but it
+would fail every real hypothesis it was ever applied to, and SUBSTRATE §10 is
+explicit that a veto whose input is absent **fails**.
+
+Either the threshold is re-derived from the estimator's own sampling error, or
+the statistic changes (a range is the worst-behaved summary of ten draws; a
+standard error is not), or the veto is retired with its reasoning recorded.
+`vetoes/` and `params/` are owner-only.
+
+**Cannot be retired by measuring.** The distribution is in hand.
+
 ### L3. Does "phase 3" gate on the loader or on the data?
 SUBSTRATE §16: *"Signal testing may not begin before phase 3,"* and phase 3 is
 the JPMaQS loader. But `H-2026-0007`, `0008` and `0009` need only Bloomberg and
