@@ -37,213 +37,294 @@ running; they compete and the loser dies with `Error 143`.
 
 ## Queue
 
-Tasks **0-4 are complete**; their receipts are in `## Done` and the text as
-issued is in git history (`033897e`, `7acd0a8`). The queue below starts at 5.
+Tasks **0-11 are complete**; receipts are in `## Done` and the text as issued is
+in git history. The queue below starts at 12.
 
-### 5. Commit the decision records and the resolution map
+**Read first:** `decisions/0036` (decided 2026-09-20) and the Cowork project doc
+`claude/dose-response-step1-2026-09-20.md`. `decisions/proposed/0035` and
+`claude/dose-response-probe-plan.md` are still live context; the probe plan's
+steps 2 and 3 have been superseded by 0036 and by the withdrawal notice below.
 
-Four records and a map written by Cowork on 2026-09-18/19, plus the
-`OWNER-QUEUE.md` and `HANDOFF.md` updates that carry the owner's rulings. All
-untracked or modified, none in an owner-only path.
+**Run order: 12, 15, 16, 17, 18, 19, 20.** 21 is hygiene, any time. Tasks 13 and 14 are withdrawn — read
+the notice, do not run them. 18 is gated on 17's `make check`, 19 on 18, and 20
+on what 18 finds; each says so. One `scripts/unattended.sh` at a time.
 
-    git add decisions/proposed/0031-a-left-tail-check-for-h-2026-0007.md \
-            decisions/proposed/0032-the-registry-tickers-against-the-real-panel.md \
-            decisions/proposed/0033-measuring-the-transfer-coefficient.md \
-            decisions/proposed/0034-a-data-required-name-must-resolve.md \
-            data/requests/ticker_resolution.csv HANDOFF.md OWNER-QUEUE.md
-    git commit -m "decisions: 0031-0034 and the ticker resolution map
+### 12. Commit the Cowork write-up from 2026-09-20
 
-0031 a left-tail calibration check for H-2026-0007, which lost both of the
-checks it was registered against when 0026 dropped the active-drawdown gate and
-0030 dropped the tracking-error veto. Decided: L = |q05(z)| / 1.645 is a
-reported characteristic, not an eleventh veto.
+`decisions/proposed/0035` is the only new repo file; the probe plan and the
+rewritten state of play are Cowork project docs and are not in the repo.
 
-0032 the registry's data_required against the panel that actually exists. 27 of
-42 unresolved names are genuine JPMaQS gaps; the rest was bookkeeping. Two
-tickers -- LUALTRUU and LT08TRUU -- do not exist and were removed rather than
-substituted. The price-only concern raised in the first draft is withdrawn:
-decisions/0013 had already settled it.
+    git add decisions/proposed/0035-the-transfer-coefficient-measures-the-benchmark-not-the-tilt.md HANDOFF.md
+    git commit -m "decisions: 0035 proposed -- the transfer coefficient measures the benchmark
 
-0033 measuring the transfer coefficient without rebuilding the frictionless
-twin. breadth.implied_ic() has taken a transfer argument since it was written
-and nothing has ever estimated it.
+A-20260919-155557 read a median transfer coefficient of 0.018 against a
+published range of 0.3-0.8. transfer_n_dates is healthy at 782-830 of 834
+rebalances, so the alpha reaches the estimator and the conditioning is not
+dropping dates: the number is what was computed.
 
-0034 a data_required name must resolve at registration -- the validator refuses
-a fabricated citation and accepts a fabricated instrument. Proposed, not
-decided.
+It is not what 0033 intended. The oracle cells at IC = 1 -- a perfect forecast
+-- read 0.039 to 0.042, and a constructed book holding no view at all reads
+-0.017. The estimator cannot distinguish a book with a view from one without.
 
-data/requests/ticker_resolution.csv is the machine-readable map behind 0032."
+The benchmark legs are not holdable, so the book replicates the benchmark out
+of the holdable universe and tilts away from it. active_covariance is right and
+w' Omega w really is the active variance, but the numerator a'w and the
+diagonal correlation take the whole fully-invested book, which is dominated by
+replication and uncorrelated with alpha by construction.
+
+0035 proposes computing all three estimators on w - w_baseline, and persisting
+weights and alpha per run: results/artifacts/ is empty, which is why correcting
+a column costs 13.3 hours instead of minutes."
 
 **Receipt should say:** the commit hash.
 
-### 6. Promote the three decided records out of `proposed/`
+### 13 and 14 — WITHDRAWN 2026-09-20. Do not run them.
 
-0031, 0032 and 0033 were decided by the owner on 2026-09-18/19; the rulings are
-recorded in each file's header and in `OWNER-QUEUE.md`'s `## Closed`. **0034
-stays in `proposed/`** -- it has not been decided.
+Superseded by `decisions/0036` (decided 2026-09-20) and by the Cowork project doc
+`claude/dose-response-step1-2026-09-20.md`. The task text below is left intact
+as issued; nothing in it is authorised.
 
-    git mv decisions/proposed/0031-a-left-tail-check-for-h-2026-0007.md decisions/
-    git mv decisions/proposed/0032-the-registry-tickers-against-the-real-panel.md decisions/
-    git mv decisions/proposed/0033-measuring-the-transfer-coefficient.md decisions/
-    git commit -m "decisions: 0031, 0032 and 0033 decided
+**Why 13 is withdrawn.** It cannot test the hypothesis it was written for.
+`audit/signals.py` gives `alpha = ic * sigma * score / sqrt(h)`, so at `ic = 0`
+the alpha is identically zero — the task is right about that. But
+`portfolio/long_only.py` then resolves a zero alpha to the **minimum-tracking-
+error book**, and says so in its own comment, naming "the IC = 0 rung of the
+ruler audit". The live book runs 4.4-5.6% ex-ante TE; that one runs the least it
+can. It is not the same book, so it is not a control for it.
 
-0031: shape 1 -- L is a reported characteristic named in a dated addendum as
-H-2026-0007's pre-registered check, gating nothing.
+**And the control was already in the grid.** At IC 0.02 the score is
+`0.02*truth + 0.9998*noise` — the truth is 0.04% of its variance. That rung
+reads **net IR 0.311** (SE 0.075 clustered on seed) while running 4.55% ex-ante
+TE. Explaining it from its own 0.016 of realised IC would need a slope of 19.4
+IR per unit IC, against every slope the lab has measured (0.13 to 1.03). The
+no-information floor is measured, and `decisions/0023`'s bar is 0.30.
 
-0032: price-only withdrawn; Europe stays sub-country and sector only; LUALTRUU
-and LT08TRUU are fabricated and removed; H-2026-0010's term spread is LT01TRUU
-against LT11TRUU; DRTSCILM joins the FRED request; H-2026-0007 takes the
-six-segment quality ladder.
+**Why 14 is withdrawn as queued, not cancelled.** Its purpose stands and it is
+still the test for noise dominance, but it is now gated on the baseline grid
+rather than on 13, and its power needs stating before two hours are spent: at
+ten seeds the h13 MDE is **0.166 IR**, so it discriminates a steeply convex
+response from a linear one and will not resolve anything shallower. It is
+re-queued under "Not queued yet" below.
 
-0033: TC gates nothing; the full-matrix estimator is the reported TC with the
-diagonal and alignment forms alongside; implied_ic prints at both TC = 1 and
-measured TC."
+### 13. The IC = 0 control — the missing cell
 
-**Receipt should say:** the commit hash and that 0034 is still in `proposed/`.
+`claude/dose-response-probe-plan.md` step 2, and the cheapest decisive
+experiment available. The grid's rungs start at IC 0.02, and 0.02 is already
+statistically indistinguishable from 0.20. **There is no zero-information
+control**, so nothing in either Bloomberg audit establishes that the ladder
+responds to signal at all.
 
-### 7. Rebuild the coverage tables, so the stale column leaves
+Run ten seeds at four horizons with a pure-noise signal. About 40 cells at
+roughly 100 s, so about **70 minutes** — not an overnight job.
 
-`decisions/0013` (2026-09-09) established that `likely_price_only` in
-`bbg_index_coverage.csv` is a false positive from a naming heuristic, and asked
-for it to be dropped at the next rebuild. `scripts/build_coverage.py` no longer
-emits it and its docstring says so -- but the table on disk still carries the
-column, because it has not been rebuilt since. It misled a Cowork session on
-2026-09-18 into raising a decision that did not exist.
+How to express IC = 0 is yours to judge from the code; `plant()` with an IC of
+zero should give an alpha that is identically zero, which is the no-view book.
+If that path is not reachable without a code change, **stop and report** rather
+than approximating it with a very small IC: a 0.001 rung answers a different
+question.
 
-    make coverage
-    make universe
-    git diff --ignore-cr-at-eol --stat data/universe/
+**Expect `transfer_n_dates = 0` and a NaN transfer coefficient on every one of
+these cells.** Alpha is identically zero, so there is no view to transfer. That
+is the estimator behaving correctly, not a failure, and it is not a reason to
+stop.
 
-**Expect:** `bbg_index_coverage.csv` loses the `likely_price_only` column.
-`investable_universe.csv` should be **unchanged in substance** -- the same 102
-rows, the same 95 investable, the same tiers and cost buckets.
+**Receipt should say:** rc, runtime, the run id, and the net IR by horizon with
+its seed range. Nothing else — the interpretation is Cowork's and the owner's,
+and the hypotheses it discriminates are in the probe plan.
 
-**STOP AND REPORT if the investable set, a tier or a cost bucket moves.** That
-would mean the rebuild changed the universe rather than dropping a column, which
-is a `decisions/0022` matter and not something to commit past. A test asserts
-the committed table is what `build_universe` produces (`5501f54`), so `make
-check` will catch it too -- but the diff is the cheaper read.
+### 14. Intermediate IC rungs — only if 13 shows no floor
 
-If the diff is clean:
+Step 3 of the probe plan. Rungs at **0.35, 0.50 and 0.70**, ten seeds, **h13
+only**. About two hours. Do not start it if task 13 showed a floor; in that case
+the question has changed and Cowork will requeue.
 
-    git add data/universe/
-    git commit -m "data: rebuild the coverage table without likely_price_only
+**Receipt should say:** rc, runtime, run id, net IR by rung with seed ranges.
 
-decisions/0013 resolved the column as a false positive from the coverage
-script's naming heuristic and asked for it to be dropped at the next rebuild.
-build_coverage.py stopped emitting it; the table on disk kept it, and a stale
-artefact outlived the decision that retired it."
+### 15. Commit 0036 and this queue rewrite
 
-Then verify:
+`decisions/0036` is new and **decided by the owner 2026-09-20** — it was never
+committed while in `proposed/`, so it lands straight at its decided path.
+`HANDOFF.md` and `OWNER-QUEUE.md` are modified.
+
+**Run task 12 first.** Both tasks `git add HANDOFF.md`; whichever runs first
+commits it and the other finds nothing to add for that path, which is expected
+and not a failure. Note also that task 12's message says 0035 is "the only new
+repo file" — true of untracked files when it was written, and 0036 has since
+joined it. 12's add list is still correct; do not edit it.
+
+    git add decisions/0036-the-bar-is-excess-over-a-no-information-baseline.md HANDOFF.md OWNER-QUEUE.md
+    git commit -m "decisions: 0036 -- the bar is excess over a no-information baseline
+
+decisions/0023 set the bar at net IR 0.30. On the development window a book
+holding no usable information reads 0.311.
+
+The control was already in A-20260919-155557 and had not been read as one. At
+the IC 0.02 rung the planted score is 0.02*truth + 0.9998*noise, so the truth is
+0.04% of its variance. That rung runs 4.55% ex-ante TE and earns 0.3106 net IR,
+SE 0.075 clustered on seed. Explaining it from its own 0.016 of realised IC
+needs a slope of 19.4 IR per unit IC; the frictionless twin measures 0.13 to
+0.39 and the oracle-anchored linear slope is 1.03.
+
+Every required_ic and surviving-cell count in both Bloomberg audits is therefore
+read against a bar the floor already clears.
+
+0036 reports net_ir_excess against a seed-matched, magnitude-matched
+baseline with the information destroyed by a block shuffle -- the one
+construction that also generalises to a real hypothesis, and the machinery
+SUBSTRATE section 9 already requires for the search null and Romano-Wolf, which
+src/signal_lab/stats/ does not have.
+
+DECIDED by the owner 2026-09-20: sections 3, 4a and 6 taken. The metric is
+excess over a block-shuffled baseline; section 4b pins the implementation.
+Section 6 takes position 2 -- the bar is RE-DERIVED rather than carried across at
+0.30 or split in two -- but the number itself is not set: params/audit.yaml
+target_net_ir stays 0.30 and decisions/0023 is untouched until a derivation
+exists. What that derivation takes as its input, and the fact that decisions/0025
+derives the TE budget FROM the bar, are OWNER-QUEUE L9."
+
+**Receipt should say:** the commit hash.
+
+### 16. Six `data/requests/*.yaml` are modified and nothing commits them
+
+`H-2026-0004`, `0006`, `0007`, `0009`, `0010`, `0011` carry real uncommitted
+changes (confirmed with `git diff --ignore-cr-at-eol`; the rest of the tree's
+`M` flags are CRLF phantoms). Task 12's `git add` list does not include them and
+its message says 0035 is "the only new repo file" — true of untracked files,
+not of modified ones.
+
+They look like the ticker-resolution corrections of `decisions/0032` applied to
+the request files — e.g. `H-2026-0009` moves `MXUS -> SPXT`, `MXEU -> MXEUG`,
+`MXJP -> NDDUJN`, `MXEF -> M1EF` and drops `MXWO` and `LEGATRUU`. **Verify that
+before committing**, because I have not established what produced them:
+
+1. Check whether a target regenerates them (`make requests`, or whatever
+   `scripts/` writes `data/requests/`), and if so, run it in a clean worktree
+   and diff against the working tree.
+2. If they match a regeneration, commit citing `decisions/0032`.
+3. **If they do not match, stop and report.** Hand-edited pre-registration
+   artefacts are exactly what `decisions/proposed/0034` exists about.
+
+**Receipt should say:** rc, whether a regeneration reproduced them, and the
+commit hash or the reason for stopping.
+
+### 17. Implement the block-shuffled baseline — `decisions/0036` §4(a) and §4b
+
+**Implement from the record, not from this task.** `0036` §4b pins five things
+that the code makes non-obvious; read it before writing anything. In summary:
+shuffle whole date-rows in contiguous 52-row blocks with one permutation shared
+across instruments, before standardisation; **re-apply the original NaN mask**
+afterwards or you breach the `frequency` veto on a ragged panel; draw the
+permutation from a **stream independent of the noise RNG** or the seed-matching
+the baseline exists for is destroyed; **encode the baseline in `AuditCell.key()`**
+or it collides with its live twin in an append-only store; and build the grid
+selector in `ladder.py` / `scripts/run_audit.py` / `build.mk` /
+`scripts/unattended.sh`, **not** in `params/audit.yaml`, which is owner-only and
+not authorised by this record.
+
+Put the shuffle itself in **`src/signal_lab/stats/`**, not in `audit/`. It is
+SUBSTRATE §9's block-bootstrap machinery — the same primitive the search null and
+the Romano-Wolf stepdown need, and that package is currently one line.
+
+`0036` §5's five acceptance tests are **tests**, not a one-off check. The fourth
+one matters most for what follows: the shuffle switched off must reproduce
+today's `net_ir` **bit for bit**, because tasks 18 and 19 pair new baseline cells
+against the *existing* `A-20260919-155557` live cells rather than re-running
+them.
+
+Interface to build, so tasks 18 and 19 have a command:
+
+    make audit-baseline-pilot   ->  run_audit.py --source bloomberg --grid baseline-pilot
+    make audit-baseline         ->  run_audit.py --source bloomberg --grid baseline
+    scripts/unattended.sh audit-baseline-pilot | audit-baseline   (extend the whitelist)
+
+`baseline-pilot` is h13 only, the four `audit.ic_grid` rungs, all ten seeds — 40
+cells. `baseline` is all four horizons — 160 cells. Both read the grid values
+from `params/audit.yaml`; neither adds a key to it.
+
+Then:
 
     scripts/unattended.sh check --digest
 
-**Receipt should say:** the commit hash, whether anything but the column moved
-in `investable_universe.csv`, and the check's rc, runtime and test count.
+**Receipt should say:** rc, test count, runtime, the commit hash, and
+explicitly whether the bit-for-bit reproduction test passes. **Stop and report
+if it does not** — everything downstream depends on it.
 
----
+### 18. The baseline pilot — 40 cells, about 50 minutes
 
-### 8. Commit the registry corrections (`decisions/0032`)
+Only after 17 is committed and `make check` is rc=0.
 
-**The edits are already in the tree.** Cowork made them on 2026-09-19 in
-`hypotheses/pending/`; nothing here needs authoring, only committing. Six files
-changed, every change cited in the file's own `notes:` block:
+    scripts/unattended.sh audit-baseline-pilot --digest
 
-| file | change |
-|---|---|
-| 0004 | `LUALTRUU` removed — does not exist |
-| 0006 | `MXEF` → `M1EF` |
-| 0007 | cross-section expanded to set A: `LUACTRUU`, `LUMSTRUU`, `I00183US`, `I00185US`, `I00188US`, `EMUSTRUU`, each with `INDEX_OAS_TSY` and its return series. `LUALTRUU` removed; `LF98TRUU` dropped, since it aggregates the Ba/B/Caa ladder |
-| 0009 | `SPXT`, `MXEUG`, `NDDUUK`, `NDDUJN`, `M1EF`, `LUACTRUU`. Benchmark legs dropped — they live in `params/constraints.yaml` |
-| 0010 | `LT08TRUU` → `LT11TRUU` (20+y), against `LT01TRUU` |
-| 0011 | same regional correction, plus `GBP_EQCRR_NSA` so the UK equity leg has a UK real yield |
+**What it answers.** The live book runs 4.42% active vol at IC 0.02 and 5.58% at
+IC 0.20. The question is whether the no-information floor grows with the risk the
+book takes. **If the baseline at the IC 0.20 rung also reads about 0.31, every
+rung on the ladder is floor** and task 20 is pointless — this run can cancel the
+next one.
 
-Verified by Cowork before handover: all 12 parse through `parse_hypothesis`,
-`tests/test_hypotheses.py` is 33 passed, and every `data_required` entry now
-resolves against the coverage tables except the 27 JPMaQS gaps and `DRTSCILM`,
-which is real and joins the FRED request.
+**Before taking any contrast, check that the new run's `panel_hash` and
+`params_hash` in `summary.json` match `A-20260919-155557`'s**
+(`dfbf5c5a68a399d90babe84b757f7f849c4f75fbe6babff5b2db646b66575793` and
+`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c`). If either
+differs, the pairing is across panels and the contrast is not valid — **stop and
+report** rather than reporting the number.
 
-**Do not hand-edit `data/requests/*.yaml`.** `write_data_request()` generates
-them from the registry; they regenerate on the next run against a manifest.
+**Receipt should say:** rc, runtime, the run id, whether both hashes match, and
+the baseline `net_ir` by IC rung with its seed range. Nothing else — the
+interpretation is Cowork's and the owner's.
 
-    git add hypotheses/pending/
-    git commit -m "hypotheses: data_required against the panel that exists (decisions/0032)
+### 19. The full baseline grid — 160 cells, about 3.3 hours
 
-The registry was written in phase 0 against plausible ticker names; the workbook
-was mapped in phase 2 and carries different ones. 27 of 42 unresolved names are
-genuine JPMaQS gaps. The rest was bookkeeping, and two names -- LUALTRUU and
-LT08TRUU -- do not exist at all and are removed rather than substituted.
+Only if 18 is clean and the hashes matched. Do not start it if 18 stopped.
 
-H-2026-0007's cross-section goes from four segments to six, at one level of
-granularity, by owner ruling 2026-09-19 and before any result for it exists.
-H-2026-0009 and H-2026-0011 take Europe at the sub-country level, so Europe has
-two slots where the US and Japan have one; the risk decomposition discloses it.
+    scripts/unattended.sh audit-baseline --digest
 
-The phase-0 names stay visible in history."
+**Receipt should say:** rc, runtime, run id, baseline `net_ir` by IC rung and
+horizon with seed ranges.
 
-**Receipt should say:** the commit hash and the test count if you ran more than
-the hypothesis module.
+### 20. Intermediate IC rungs — the old task 14, re-queued
 
-### 9. Implement `L` (0031) and the transfer coefficient (0033) — one series
+Rungs at **0.35, 0.50 and 0.70**, ten seeds, **h13 only**, about two hours.
+Gated on task 18, not on the withdrawn task 13: **do not start it if the pilot
+showed the floor at the IC 0.20 scale is the same as at IC 0.02.** In that case
+the ladder has never measured signal and Cowork will requeue.
 
-**Write the code yourself; do not wait for a patch from Cowork.** The usual
-route was Cowork building a verified series in its own sandbox. That sandbox is
-gone: this Cowork session reaches the repo through a shell on Leo's machine with
-a 180 s ceiling per call, and the suite takes longer than that, so Cowork can
-verify a single test module in seconds but cannot prove a full series green.
-Implementing from the spec here is strictly faster than a blind patch plus a
-round trip. The specs are `decisions/0031` and `decisions/0033`, both decided.
+Know its power before spending the two hours: at ten seeds the h13 MDE is
+**0.166 IR**. It discriminates a steeply convex response from a linear one and
+will not resolve anything shallower.
 
-**`L`, from 0031.** `L = |q05(z)| / 1.645` on the same standardised active
-return `bias_worst_annual` already uses, `z_t = r_t / (sigma_ex_ante(t-1)/sqrt(52))`.
-Reported per cell as a characteristic. **It gates nothing** — no eleventh veto.
-The threshold comes from `scripts/bias_map.py`'s simulated null at the measured
-kurtosis, at p99, and is not needed for this task.
+**Receipt should say:** rc, runtime, run id, net IR by rung with seed ranges.
 
-**TC, from 0033.** Three estimators per cell: the full-matrix form
-(`a'w / [sqrt(a' Omega^-1 a) sqrt(w' Omega w)]`, Clarke-de Silva-Thorley 2006
-eq. 23) as the reported TC, the diagonal form for comparability, and
-`corr(a, Omega w)` as the inversion-free control. Report the condition number of
-`Omega` beside them. `implied_ic` prints at **both** TC = 1 and measured TC —
-every prior audit printed the TC = 1 version and a silent change of meaning in
-an append-only report is worse than a wider table.
+### 21. Remove the parked lock file Cowork left in `.git`
 
-**The migration that makes TC possible**, and the real work: only the weight
-rule knows its own alpha. `audit/ladder.py` builds it inside the rule's
-`__call__` and discards it. Follow the `RunContext.te_ex_ante` precedent from
-the 0030 series exactly — a rule MAY expose `alpha()`, the engine reads it off
-by `getattr` and carries it onto the path, and **a rule that does not expose it
-yields no TC rather than a wrong one.**
+Not blocking and not urgent — order does not matter. On 2026-09-20 a Cowork
+`git status` refreshed the index and created `.git/index.lock`, which the Cowork
+mount cannot delete (`Operation not permitted`). It was renamed out of the way
+rather than left in place:
 
-No owner-only path is touched: `src/`, `tests/` only. `make check` is the
-definition of done.
+    rm -f .git/index.lock.stale-cowork-20260920
 
-**Receipt should say:** the commit hashes, the test count, and confirmation that
-a rule without `alpha()` leaves TC unevaluated rather than defaulting it.
+Git ignores the parked name, so nothing is currently blocked; this is hygiene.
+Do not remove `.git/index.lock` itself if one exists without first checking that
+no git process is running — the 2026-09-18 receipt in `## Done` records a stale
+lock that vanished on its own.
 
-### 10. Rerun the audit once, after 9 lands
-
-    scripts/unattended.sh audit --digest
-
-`A-20260918-201042` took 50,572 s. `L` and `transfer_coefficient` are both new
-per-cell measurements, so each needs a run to populate it — **which is why 9 is
-one series and not two.** Do not start this until 9 is committed and green.
-
-Follow the `Routine, unattended work` section of `CLAUDE.md` for the digest, and
-add the new columns: `L` against the cells' own distribution, `transfer_coefficient`
-in all three forms against the published range (Clarke-de Silva-Thorley report
-0.671 for a long-only capped 21-country book; Ding cites their simulation range
-as 0.3-0.8), and `implied_ic` at both TC = 1 and measured TC.
-
-**Receipt should say:** rc, runtime, the run id, and the three new columns' medians.
+**Receipt should say:** rc, and whether the file was there.
 
 ---
 
 ## Not queued yet, and what each is waiting on
 
-The registry corrections, `L` and the transfer coefficient moved into the queue
-above on 2026-09-19. What is left here is not waiting on a patch; it is waiting
-on the owner.
+What is left here is waiting on the owner, not on a patch.
+
+**The baseline work is now queued** as tasks 17-20 above; `decisions/0036` §4(a)
+and §4b are decided and carry the spec.
+
+**The corrected transfer coefficient (`decisions/proposed/0035` §4).** Not
+decided, and deliberately not queued: it costs a 13.3 h re-run and the probe
+plan may want a different grid anyway. Sequence it after task 13.
+
+**Persisting weights and alpha (`0035` §5).** Not decided. It is what would make
+the next measurement bug a re-derivation instead of a re-run.
 
 **The validator (0034).** Not decided by the owner. Do not build it.
 
@@ -260,11 +341,9 @@ run would have said.
 - **Turning the volatility overlay on.** It is opt-in code with no parameter
   reading it, tested at one horizon, two IC rungs and one halflife. Switching
   it on is an owner decision that does not exist yet.
-- **`decisions/proposed/0029`.** Awaiting the owner, and now overtaken by
-  evidence: the ten-seed audit put `transfer_ratio` between -4 and +48 and
-  empirical breadth at 0.12 against a formula 151.7, so the frictionless-derived
-  numbers in the report are worse than stale. The recommendation on file is
-  still to take §1/§3/§4/§5 and defer §2.
+- **`decisions/0029` §2 only.** §1, §3, §4 and §5 were decided 2026-09-19 and
+  are in task 9. **§2 -- conditioning the frictionless covariance -- stays
+  deferred**; do not add a ridge or eigenvalue floor on your own initiative.
 - **`decisions/proposed/0034`.** Proposed, not decided. Do not build it.
 - **Anything in `params/`, `vetoes/` or `SUBSTRATE.md` not arriving as a cited
   patch.** Refuse and say so.
@@ -330,4 +409,122 @@ Tasks 3 and 4 not started.
 - Max per-cell turnover 349%, under the 400% backstop. Max `inaccurate_share`
   0.24%.
 - No `report.md` in the run dir; the digest read `summary.json` and the log.
+
+
+### 2026-09-19 — tasks 5 and 6, and a stop at 7 (Claude Code, Sonnet 5)
+
+**5. Commit the decision records and the resolution map** — rc=0.
+- `6db3404` decisions: 0031-0034 and the ticker resolution map.
+
+**6. Promote the three decided records** — rc=0.
+- `c8b2070` decisions: 0031, 0032 and 0033 decided. **0034 is still in
+  `decisions/proposed/`.**
+
+**7. Rebuild the coverage tables — STOPPED, not committed.** `make coverage`
+and `make universe` both rc=0. The task says to stop if a tier moves; four did:
+- `M1EAMVOL` and `M1EFMVOL` (both investable): `second` -> `backbone`.
+- `H09122US` and `H12823US` (both `investable: false`, hedged): `tradable-only`
+  -> `second`.
+- Not moved: the investable set (95 before and after, same 102 tickers), and
+  every cost bucket.
+- Also beyond the task's expectation: 65 `first_daily` dates changed (median
+  -63 days, range -275 to +29) and `bbg_index_coverage.csv` gained
+  `sparse_era_obs` and `frequency_flag` as well as losing `likely_price_only`.
+- The rebuilt `bbg_index_coverage.csv` and `investable_universe.csv` are in the
+  working tree, uncommitted. Tasks 8-10 not started, per the stop rule.
+
+### 2026-09-19 — task 7a, and a stop on the check (Claude Code, Sonnet 5)
+
+**7a. Task 7 re-issued** — commit done, **verification FAILED**.
+- `d0ee0b6` data: rebuild the coverage table from the Index Map. Verified
+  before committing against `decisions/0022`: the four tier moves, census
+  **77/12/8**, investable set **95**, and no cost bucket moved.
+- `scripts/unattended.sh check --digest` at `d0ee0b6`: **rc=2, 238 s, 445
+  passed, 1 failed** (`results/audit/_unattended/20260919-102337-check/`).
+  Governance OK; ruff clean.
+- Failure: `tests/test_audit.py::test_an_early_over_trade_does_not_block_a_later_one`
+  — `0.374 > 0.5 * 0.954` is false. Deterministic (fails alone, 21 s).
+- **Cause, established by running the same test in a worktree at `c8b2070`
+  (passes):** `loaders/synthetic.py` draws the synthetic panel's ragged starts
+  from `bbg_index_coverage.csv`, so the rebuild changed the synthetic panel
+  the test runs on. The real panel is untouched. The test's baseline is one
+  session at 0.954 (2017-01-20), i.e. the start-up entry its own docstring says
+  it excludes, but which now sits at index 1..half instead of index 0.
+- Not fixed, per the stop rule: no test edited, nothing worked around. Tasks
+  8-11 not started. Needs Cowork/owner: whether the test's start-up exclusion
+  should be made robust to the panel, and whether any synthetic-panel result
+  (planted-IC ladder) is affected by the changed starts.
+
+### 2026-09-19 — tasks 7a, 7b, 8, 9 and 11 (Claude Code, Sonnet 5)
+
+**7a. Coverage rebuild** — `d0ee0b6` data: rebuild the coverage table from the
+Index Map. Checked against `decisions/0022` before committing: four tier moves,
+census **77/12/8**, investable set **95**, no cost bucket moved.
+
+**7b. The failing test** — `24b3b9c` tests: exclude universe entry by what it
+is. Entry is the last rebalance at which any series is held for the first time,
+read off `PortfolioPath.weights` (entry completes at rebalance 23 of 155; same
+result at weight tolerances 1e-9, 1e-6 and 1e-4); the comparison runs over what
+follows and asserts at least 20 rebalances remain. `check` at `24b3b9c`:
+**rc=0, 446 tests, 279 s**. **Frozen snapshot: `build_snapshot.py --verify`
+(default id `synthetic-v1`) printed `OK hash matches (da3a96990f56)`, rc=0** --
+the freeze held, only freshly built panels moved.
+
+**8. Registry corrections** — `af3717e` hypotheses: data_required against the
+panel that exists (decisions/0032). `tests/test_hypotheses.py` 33 passed.
+
+**9. `L`, the transfer coefficient and 0029** — `3eff1b7` audit: the transfer
+coefficient, the left tail, and a report that stops printing the twin;
+`dd9e4fb` decisions: 0029 decided. `check` at `dd9e4fb`: **rc=0, 461 tests,
+369 s** (446 + 15 new), governance OK.
+- A rule without `alpha()` leaves TC unevaluated: NaN columns and
+  `transfer_n_dates = 0`, tested (`tests/test_transfer.py`). A non-callable
+  attribute named `alpha` is not mistaken for the method.
+- 0029 is out of `proposed/`; **no ridge or eigenvalue floor was added** to the
+  frictionless covariance (s2 deferred).
+- New per-cell columns: `transfer_coefficient` (full matrix),
+  `transfer_coefficient_diagonal`, `transfer_coefficient_alignment`,
+  `omega_condition_median`, `omega_condition_max`, `transfer_n_dates`,
+  `left_tail_L`, `left_tail_q05`, `realised_ic_cross_sectional_pearson`,
+  `realised_ic_cross_sectional_demeaned`.
+- Judgement calls the spec left open: Omega is the covariance of the holdable
+  series in EXCESS of the benchmark (so `w' Omega w` is exactly the active
+  variance the solver constrains, tested), not the raw ids covariance. Empirical
+  breadth off the ladder is `(slope / TC)^2` per horizon, blank where no TC was
+  measured. The existing report test asserted the old frictionless section and
+  was updated to assert its absence (it is the behaviour 0029 s1 retires).
+- Rendered against `A-20260918-201042`'s `cells.csv`, the new report prints
+  dashes for the columns that run predates and no frictionless section.
+
+**11. Rebalance-policy resolution** -- `8ef03bc` decisions: 0024 -- weekly re-solve stays, deliberately.
+
+**10. Rerun the audit** -- rc=0, at `8ef03bc`. `make check` 349 s, `make audit`
+**47908 s (13.3 h)**, run **`A-20260919-155557`**, 644 cells, 10 seeds
+(`results/audit/_unattended/20260919-115007-audit/`). Figures below are from
+`cells.csv`, not the digest; the digest's medians agree.
+- Engine untouched: **`net_ir` is identical in all 644 cells** to
+  `A-20260918-201042`. 100 of 484 judged cells still fail, all `risk_calibration`.
+- Base-cell medians of the new columns (160 cells): `transfer_coefficient`
+  (full matrix, reported) **0.0205** (range -0.008 to 0.085); diagonal **0.0598**
+  (-0.038 to 0.241); alignment **0.0365**; `left_tail_L` **0.934** (0.776 to
+  1.147; digest: p05 0.85, p95 1.03).
+- `omega_condition_median` **91,153** and max 289,324 in every base cell -- the
+  same in each, because it depends on the date's covariance and not on the cell.
+- `implied_ic` at TC = 1: 0.024 / 0.044 / 0.062 / 0.088 for h4/13/26/52. At the
+  measured TC: 1.09 / 1.62 / 1.97 / 6.14. Ladder empirical breadth 5,900 to
+  22,000 against formula 12 to 152.
+- **The TC values are not usable as measured, and I have not decided why.**
+  Published range is 0.3-0.8 (CDT 0.671 full, 0.620 diagonal). Here TC rises
+  with IC (full: 0.003 at IC 0.02, 0.061 at IC 0.20) and the **oracle cells
+  (IC = 1) read 0.039 to 0.042 full and -0.003 to 0.029 diagonal**, so a perfect
+  signal transfers about 4%. Alignment (the inversion-free control) is also
+  0.01-0.07, so this is not only the ill-conditioned inverse in the full form.
+  Candidate: `w` is the whole fully-invested book, and in excess-return space the
+  benchmark-replicating baseline (`w' Omega w` is tiny for it) is not separated
+  from the tilt, so A and B correlate alpha with mostly-baseline weights. That
+  is a definition question for `decisions/0033` (what "active weight" means when
+  the benchmark legs are not holdable), not something I changed.
+- `ruler.md` (there is no `report.md`) no longer has the frictionless tables or
+  the base-over-frictionless ratio; its one "frictionless cells" mention is the
+  veto sentence. Frictionless rows carry no TC by construction (no alpha exposed).
 
