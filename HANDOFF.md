@@ -557,3 +557,23 @@ HANDOFF.md had already gone in with 12, as anticipated; nothing extra to add.
 **16 (continued, same day).** Owner said to commit the six request files and
 HANDOFF.md as they stand. Regeneration match still unestablished; committed on
 the owner's instruction, citing decisions/0032.
+
+**17. The block-shuffled baseline** — `da214c0` audit: the block-shuffled
+baseline. `scripts/unattended.sh check --digest` at `a874b5f` + the working
+tree: **rc=0, 294 s, 479 tests** (461 + 18 new in `tests/test_baseline.py`),
+governance OK, ruff clean (`20260920-112220-check`). A first check at 9 s failed
+`ruff format` on my own files; formatted and rerun.
+- **The bit-for-bit reproduction test PASSES.** Golden values (score hash
+  `3c56e07462d30d6d`, net IR `-0.8793457503233992` on the small synthetic
+  cell) were taken from `HEAD` in a clean worktree, and the working tree
+  reproduces both.
+- Shuffle is in `src/signal_lab/stats/blocks.py`. Targets `audit-baseline-pilot`
+  and `audit-baseline` exist and the unattended whitelist is extended; nothing
+  in `params/` changed.
+- Two judgement calls beyond 0036: (1) a baseline-only run writes `cells.csv` and
+  a `summary.json` (panel/params hashes, net IR by rung with min/max) instead of
+  the ruler report, which raises `KeyError: 'horizon'` without base cells;
+  (2) cells that were live but received a NaN row in the shuffle are set to zero,
+  so availability equals the live cell's exactly rather than shrinking.
+- Not run end to end on real data. A full synthetic pilot exceeded 15 min, so
+  plumbing was checked on a 2-cell table through `_write_baseline_run`.
