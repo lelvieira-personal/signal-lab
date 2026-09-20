@@ -528,3 +528,32 @@ coefficient, the left tail, and a report that stops printing the twin;
   the base-over-frictionless ratio; its one "frictionless cells" mention is the
   veto sentence. Frictionless rows carry no TC by construction (no alpha exposed).
 
+
+### 2026-09-20 — tasks 12 and 15, and a stop at 16 (Claude Code, Sonnet 5)
+
+**12. Commit the 0035 write-up** — rc=0. `37491a9` decisions: 0035 proposed.
+
+**15. Commit 0036 and the queue rewrite** — rc=0. `d2f2c4b` decisions: 0036.
+HANDOFF.md had already gone in with 12, as anticipated; nothing extra to add.
+
+**16. `data/requests/*.yaml` — STOPPED, not committed.** rc=n/a.
+- No `make` target or script regenerates them. The only writer is
+  `HypothesisRegistry.triage()` -> `write_data_request()`, reached through
+  `scripts/nightly_cycle.py --snapshot <id>`, which also writes to the real
+  results store and the real `data/requests/`.
+- A faithful regeneration needs the manifest of the snapshot the files were
+  produced against. The only target that builds one is `synthetic-v1`, which
+  would list nearly every series as absent and would not reproduce the changes.
+  I did not identify or list the Bloomberg snapshot (`data/snapshots/` is
+  off-limits to me), so I could not run triage against it into a scratch dir.
+- The six diffs are real (`git diff --ignore-cr-at-eol`); H-2026-0009 shows the
+  0032 corrections (MXUS->SPXT, MXEU->MXEUG, MXJP->NDDUUK/NDDUJN, MXEF->M1EF,
+  MXWO and LEGATRUU dropped, count 7->6), but the match to a regeneration is
+  unestablished, so per the task they are not committed.
+- Needs Cowork/owner: name the snapshot id to triage against (or run the triage
+  themselves), or decide these are acceptable as hand edits citing 0032.
+- Tasks 17-21 not started, per the stop rule.
+
+**16 (continued, same day).** Owner said to commit the six request files and
+HANDOFF.md as they stand. Regeneration match still unestablished; committed on
+the owner's instruction, citing decisions/0032.

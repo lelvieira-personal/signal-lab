@@ -28,7 +28,7 @@ series:
   source: bloomberg
   fields:
   - INDEX_YIELD_TO_WORST
-- id: LT08TRUU Index|INDEX_YIELD_TO_WORST
+- id: LT11TRUU Index|INDEX_YIELD_TO_WORST
   source: bloomberg
   fields:
   - INDEX_YIELD_TO_WORST

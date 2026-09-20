@@ -4,27 +4,23 @@ family: trend
 requested_by: owner
 status: awaiting_owner
 series:
-- id: MXUS
+- id: SPXT
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: MXEU
+- id: MXEUG
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: MXJP
+- id: NDDUUK
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: MXEF
+- id: NDDUJN
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: MXWO
-  source: bloomberg
-  fields:
-  - TOT_RETURN_INDEX_GROSS_DVDS
-- id: LEGATRUU
+- id: M1EF
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
@@ -32,6 +28,6 @@ series:
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-reason: H-2026-0009 requires 7 series absent from the snapshot. The hypothesis is
+reason: H-2026-0009 requires 6 series absent from the snapshot. The hypothesis is
   blocked:data rather than run on a substitute.
 available_already: []

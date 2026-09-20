@@ -24,10 +24,6 @@ series:
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: LUALTRUU
-  source: bloomberg
-  fields:
-  - TOT_RETURN_INDEX_GROSS_DVDS
-reason: H-2026-0004 requires 6 series absent from the snapshot. The hypothesis is
+reason: H-2026-0004 requires 5 series absent from the snapshot. The hypothesis is
   blocked:data rather than run on a substitute.
 available_already: []

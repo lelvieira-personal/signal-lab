@@ -28,7 +28,7 @@ series:
   source: fred
   fields:
   - value
-- id: MXEF
+- id: M1EF
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS

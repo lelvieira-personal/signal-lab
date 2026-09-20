@@ -8,11 +8,19 @@ series:
   source: bloomberg
   fields:
   - INDEX_OAS_TSY
-- id: LF98TRUU Index|INDEX_OAS_TSY
+- id: LUMSTRUU Index|INDEX_OAS_TSY
   source: bloomberg
   fields:
   - INDEX_OAS_TSY
-- id: LUALTRUU Index|INDEX_OAS_TSY
+- id: I00183US Index|INDEX_OAS_TSY
+  source: bloomberg
+  fields:
+  - INDEX_OAS_TSY
+- id: I00185US Index|INDEX_OAS_TSY
+  source: bloomberg
+  fields:
+  - INDEX_OAS_TSY
+- id: I00188US Index|INDEX_OAS_TSY
   source: bloomberg
   fields:
   - INDEX_OAS_TSY
@@ -24,10 +32,26 @@ series:
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: LF98TRUU
+- id: LUMSTRUU
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-reason: H-2026-0007 requires 6 series absent from the snapshot. The hypothesis is
+- id: I00183US
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: I00185US
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: I00188US
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+- id: EMUSTRUU
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+reason: H-2026-0007 requires 12 series absent from the snapshot. The hypothesis is
   blocked:data rather than run on a substitute.
 available_already: []

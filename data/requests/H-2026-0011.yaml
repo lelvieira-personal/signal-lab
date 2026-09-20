@@ -12,6 +12,10 @@ series:
   source: jpmaqs
   fields:
   - value
+- id: GBP_EQCRR_NSA
+  source: jpmaqs
+  fields:
+  - value
 - id: JPY_EQCRR_NSA
   source: jpmaqs
   fields:
@@ -20,18 +24,22 @@ series:
   source: fred
   fields:
   - value
-- id: MXUS
+- id: SPXT
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: MXEU
+- id: MXEUG
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-- id: MXJP
+- id: NDDUUK
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-reason: H-2026-0011 requires 7 series absent from the snapshot. The hypothesis is
+- id: NDDUJN
+  source: bloomberg
+  fields:
+  - TOT_RETURN_INDEX_GROSS_DVDS
+reason: H-2026-0011 requires 9 series absent from the snapshot. The hypothesis is
   blocked:data rather than run on a substitute.
 available_already: []
