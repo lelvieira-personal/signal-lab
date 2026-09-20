@@ -55,6 +55,7 @@ BENCHMARK_SECTION_PREFIX = "18."
 
 # The cell family that calibrates the ruler itself (decisions/0027).
 FRICTIONLESS = "frictionless"
+BASELINE = "baseline"
 
 
 # --- the universe the audit runs on ---------------------------------------
@@ -264,6 +265,9 @@ class AuditCell:
     # the composition too; `scalar` moves only the risk level. Ignored when
     # `vol_halflife` is None.
     vol_overlay: str = "per_series"
+    # decisions/0036 section 4b: the score is blended from a block-shuffled truth.
+    # Everything else about the cell is its live twin's, so the key must say so.
+    baseline: bool = False
 
     def key(self) -> str:
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
@@ -278,6 +282,8 @@ class AuditCell:
             key = f"{key}_vhl{self.vol_halflife:g}"
             if self.vol_overlay != "per_series":
                 key = f"{key}{self.vol_overlay}"
+        if self.baseline:
+            key = f"{key}_baseline"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -521,6 +527,7 @@ def run_cell(
     row = {
         "tag": cell.tag,
         "key": cell.key(),
+        "baseline": cell.baseline,
         "ic": cell.ic,
         "horizon": cell.horizon,
         "seed": cell.seed,
@@ -686,6 +693,7 @@ def _plant(universe: AuditUniverse, cell: AuditCell) -> PlantedSignal:
         seed=cell.seed,
         vol_window=universe.window,
         standardise=cell.standardise,
+        baseline=cell.baseline,
     )
 
 
@@ -1072,6 +1080,68 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
             for s in seeds:
                 cells.append(AuditCell(ic, stress_h, s, 1.0, None, value, "per_rebalance"))
     return cells
+
+
+BASELINE_GRIDS = ("baseline-pilot", "baseline")
+
+
+def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list[AuditCell]:
+    """
+    The block-shuffled baseline cells of decisions/0036, and only those.
+
+    `baseline-pilot` is h13 only; `baseline` is every horizon. Both take the IC
+    rungs, horizons and seeds from `params/audit.yaml` and add nothing to it: a
+    standing `audit.include_baseline` would be an owner-only params change that
+    the record does not authorise (section 4b.5). The cells match the base
+    cells' constraints and costs, so each has a live twin in the standing grid.
+    """
+    if grid not in BASELINE_GRIDS:
+        raise ValueError(f"grid must be one of {BASELINE_GRIDS}, got {grid!r}")
+    params = params or get_params()
+    ics = [float(x) for x in params.require("audit.ic_grid")]
+    horizons = [int(x) for x in params.require("audit.horizon_weeks")]
+    seeds = list(range(int(params.require("audit.seeds"))))
+    if grid == "baseline-pilot":
+        horizons = [13]
+    default_per = params.get("audit.per_rebalance_cap_default", None)
+    default_per = None if default_per is None else float(default_per)
+    return [
+        AuditCell(ic, h, s, 1.0, None, default_per, BASELINE, baseline=True)
+        for h in horizons
+        for ic in ics
+        for s in seeds
+    ]
+
+
+def net_ir_excess(table: pd.DataFrame) -> pd.Series:
+    """
+    Per row, net IR less the net IR of its seed-matched block-shuffled baseline.
+
+    Rows pair on (ic, horizon, seed, cost_multiplier, turnover_cap,
+    per_rebalance_cap). A baseline row is its own baseline, so its excess is
+    zero by construction; a row with no baseline in the table is NaN, never
+    zero. Oracle and frictionless rows pair like any other and are NaN unless a
+    baseline at their own coordinates was run.
+    """
+    keys = ["ic", "horizon", "seed", "cost_multiplier", "turnover_cap", "per_rebalance_cap"]
+    is_base = (
+        table["baseline"].astype(bool)
+        if "baseline" in table.columns
+        else pd.Series(False, index=table.index)
+    )
+    frame = table[keys].astype(float)
+    # NaN never matches NaN in a join, and "no cap" is a coordinate, not a gap.
+    frame[["turnover_cap", "per_rebalance_cap"]] = frame[
+        ["turnover_cap", "per_rebalance_cap"]
+    ].fillna(-1.0)
+    baselines = (
+        pd.concat([frame[is_base], table.loc[is_base, ["net_ir"]]], axis=1)
+        .drop_duplicates(keys)
+        .set_index(keys)["net_ir"]
+    )
+    index = pd.MultiIndex.from_frame(frame)
+    floor = pd.Series(baselines.reindex(index).to_numpy(), index=table.index)
+    return table["net_ir"] - floor
 
 
 def run_grid(

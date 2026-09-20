@@ -61,9 +61,14 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from signal_lab.stats.blocks import baseline_rng, block_shuffle_rows
+
 POOLED = "pooled"
 CROSS_SECTIONAL = "cross_sectional"
 STANDARDISATIONS = (POOLED, CROSS_SECTIONAL)
+# Block length, in rows, of the baseline's shuffle: the longest signal horizon on
+# the grid, which is what SUBSTRATE section 9 asks of a block length.
+BASELINE_BLOCK = 52
 
 
 @dataclass(frozen=True)
@@ -76,6 +81,7 @@ class PlantedSignal:
     alpha: pd.DataFrame  # dates x ids, per-period expected active return
     sigma: pd.DataFrame  # dates x ids, trailing per-period volatility used
     standardise: str = POOLED  # how the truth was standardised; see the module docstring
+    baseline: bool = False  # score built from a block-shuffled truth; `truth` stays the real one
 
     @property
     def persistence(self) -> float:
@@ -142,12 +148,19 @@ def plant_signal(
     seed: int,
     vol_window: int,
     standardise: str = POOLED,
+    baseline: bool = False,
 ) -> PlantedSignal:
     """
     Build the planted signal on `weekly` (periods x ids) against `benchmark`
     (periods). `ic` in [0, 1]; 1 is the oracle. `standardise` is `pooled` (the
     default, and what every audit run before 2026-09-17 used) or
     `cross_sectional`; see the module docstring.
+
+    `baseline` (decisions/0036 section 4b) blends the score from a block-shuffled
+    copy of the truth instead of the truth: same `ic`, same noise draw, same
+    availability, same magnitude, and the alignment with the forward return
+    destroyed. `PlantedSignal.truth` stays the REAL truth, so `realised_ic`
+    reads what the score actually carries about the future.
     """
     if not 0.0 <= ic <= 1.0:
         raise ValueError(f"ic must be in [0, 1], got {ic}")
@@ -158,6 +171,18 @@ def plant_signal(
     # Pooled, not per date, keeps the directional component; cross-sectional
     # removes it. Either way the IC is the pooled correlation.
     truth_z = _standardise_truth(truth, standardise)
+    # The panel the score is blended from. Live cells use the truth itself, on
+    # the untouched code path, so the shuffle switched off is bit for bit today.
+    blend_truth = truth_z
+    if baseline:
+        # Whole date-rows, contiguous blocks, one permutation for every column;
+        # then the original availability is re-imposed so no series acquires a
+        # value before its true daily start (`frequency` veto). Cells that were
+        # available but received a NaN row are set to zero -- the standardised
+        # truth's mean -- so the score keeps its noise term there and the
+        # baseline's availability is exactly the live cell's.
+        shuffled = block_shuffle_rows(truth_z, BASELINE_BLOCK, baseline_rng(seed))
+        blend_truth = shuffled.where(truth_z.notna()).fillna(0.0).where(truth_z.notna())
 
     rng = np.random.default_rng(seed)
     phi = (horizon - 1) / horizon
@@ -168,16 +193,16 @@ def plant_signal(
 
     # Make the noise exactly orthogonal to the truth, then restandardise, so the
     # blend's correlation with the truth is `ic` by construction.
-    mask = truth_z.notna() & noise.notna()
-    y = truth_z.values[mask.values]
+    mask = blend_truth.notna() & noise.notna()
+    y = blend_truth.values[mask.values]
     e = noise.values[mask.values]
     if len(y) > 2 and np.dot(y, y) > 0:
-        noise = noise - truth_z * float(np.dot(e, y) / np.dot(y, y))
+        noise = noise - blend_truth * float(np.dot(e, y) / np.dot(y, y))
         residual_sd = float(np.nanstd(noise.values[mask.values]))
         if residual_sd > 0:
             noise = noise / residual_sd
 
-    score = ic * truth_z + np.sqrt(1.0 - ic * ic) * noise
+    score = ic * blend_truth + np.sqrt(1.0 - ic * ic) * noise
     alpha = ic * sigma * score / np.sqrt(horizon)
     return PlantedSignal(
         ic=ic,
@@ -188,6 +213,7 @@ def plant_signal(
         alpha=alpha,
         sigma=sigma,
         standardise=standardise,
+        baseline=baseline,
     )
 
 

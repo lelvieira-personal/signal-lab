@@ -20,11 +20,59 @@ import time
 import _bootstrap  # noqa: F401
 
 
+def _write_baseline_run(args, params, universe, table, run_id, out_root, started) -> int:
+    """
+    A baseline-only run has no base cells, oracle or twin, so the ruler report has
+    nothing to say and would fail on it. Write what the run is FOR: the cells, the
+    hashes that decide whether a contrast against A-20260919-155557 is valid, and
+    the baseline net IR by rung with its seed range (decisions/0036).
+    """
+    import json
+    from pathlib import Path
+
+    out = Path(out_root) / run_id
+    out.mkdir(parents=True, exist_ok=True)
+    table.to_csv(out / "cells.csv", index=False)
+    by_rung = (
+        table.groupby(["horizon", "ic"])["net_ir"]
+        .agg(mean="mean", min="min", max="max", n="count")
+        .reset_index()
+    )
+    summary = {
+        "run_id": run_id,
+        "kind": "baseline",
+        "grid": args.grid,
+        "source": args.source,
+        "snapshot_id": universe.panel.snapshot_id,
+        "panel_hash": universe.panel_hash(),
+        "params_version": params.params_version,
+        "params_hash": params.params_hash,
+        "generated_at": pd_now(),
+        "n_cells": len(table),
+        "solver": str(table["solver"].iloc[0]),
+        "seconds": round(time.time() - started, 1),
+        "baseline_net_ir_by_rung": by_rung.to_dict(orient="records"),
+    }
+    (out / "summary.json").write_text(
+        json.dumps(summary, indent=2, default=float), encoding="utf-8"
+    )
+    if not args.quiet:
+        print(by_rung.to_string(index=False))
+        print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
+    return 0
+
+
+def pd_now() -> str:
+    import pandas as pd
+
+    return pd.Timestamp.now("UTC").isoformat(timespec="seconds")
+
+
 def main(argv=None) -> int:
     import pandas as pd
 
     from signal_lab.audit.breadth import effective_breadth
-    from signal_lab.audit.ladder import grid_cells, run_cell
+    from signal_lab.audit.ladder import BASELINE_GRIDS, baseline_cells, grid_cells, run_cell
     from signal_lab.audit.report import run_id_now, write_outputs
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
@@ -35,6 +83,13 @@ def main(argv=None) -> int:
         "--lean",
         action="store_true",
         help="two ICs, two horizons, one seed, no stress cells -- shape and runtime, not the bar",
+    )
+    parser.add_argument(
+        "--grid",
+        default=None,
+        choices=list(BASELINE_GRIDS),
+        help="run only the block-shuffled baseline cells of decisions/0036: "
+        "baseline-pilot (h13) or baseline (every horizon)",
     )
     parser.add_argument("--solver", default=None, help="auto | cvxpy | scipy (default: params)")
     parser.add_argument("--run-id", default=None)
@@ -51,7 +106,7 @@ def main(argv=None) -> int:
 
     started = time.time()
     universe = get_universe(args.source, params, **kwargs)
-    cells = grid_cells(params, args.lean)
+    cells = baseline_cells(params, args.grid) if args.grid else grid_cells(params, args.lean)
     if not args.quiet:
         print(
             f"ruler audit {run_id}: {args.source}, {len(universe.holdable)} holdable series, "
@@ -72,6 +127,9 @@ def main(argv=None) -> int:
                 flush=True,
             )
     table = pd.DataFrame(rows)
+
+    if args.grid:
+        return _write_baseline_run(args, params, universe, table, run_id, out_root, started)
 
     phi = table.groupby("horizon")["signal_phi"].mean().to_dict()
     breadth = effective_breadth(

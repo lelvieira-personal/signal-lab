@@ -18,6 +18,7 @@
 #   make cycle      build a synthetic snapshot and run one cycle
 #   make audit      the ruler audit on real data (decisions/0023, phase 2.5)
 #   make audit-lean the same, two ICs and one seed -- shape and runtime only
+#   make audit-baseline-pilot / audit-baseline   the block-shuffled baseline cells (decisions/0036)
 #   make governance SUBSTRATE section 2, checked mechanically
 #
 # uv manages Python 3.12 and the locked dependency set; nothing is installed
@@ -44,7 +45,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -84,6 +85,12 @@ report: ## render the synthetic report to leaderboard.html
 
 audit-lean: ## the ruler audit on the SYNTHETIC panel, small grid (validation)
 	$(PY) --group dev python scripts/run_audit.py --source synthetic --lean
+
+audit-baseline-pilot: ## block-shuffled baseline, h13 only, 40 cells (decisions/0036)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid baseline-pilot
+
+audit-baseline: ## block-shuffled baseline, every horizon, 160 cells (decisions/0036)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid baseline
 
 audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not minutes
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg
