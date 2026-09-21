@@ -1,11 +1,15 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.4, 2026-09-10. Owner: Leo. This document is the constitution of
+Status: v0.5, 2026-09-21. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
 decision in the commit, and the owner reviews the diff. The agent may hold the
 pen, never the argument.
+
+v0.5 amended §3 and §10, transcribing `decisions/0036` §6, decided by the owner
+on 2026-09-21: the objective becomes two bars rather than one metric. The v0.4
+text is in git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -64,11 +68,37 @@ short note explaining why, not a workaround.
 
 ## 3. The objective, pre-registered
 
-Primary metric: **net information ratio** of the strategy's active return
-versus the 50/50 benchmark over the development window, after the cost
-model in §8 and an ETF fee-and-tracking drag per instrument.
+**Two bars, and a candidate must clear both** (`decisions/0036` §6, owner,
+2026-09-21). They answer different questions and a single number was answering
+neither.
 
-Gross IR is recorded and never used for ranking.
+**Bar 1 — the product bar. Net information ratio ≥ `target_net_ir`,** of the
+strategy's active return versus the 50/50 benchmark over the development window,
+after the cost model in §8 and an ETF fee-and-tracking drag per instrument. It
+asks *is this worth running*. The threshold is **0.30** (`decisions/0023`,
+`params/audit.yaml`), derived from the owner's stated appetite of **150 bp of
+active return** at the §4 tracking-error budget: `150 / 500 = 0.30`. This
+remains the metric the leaderboard is sorted by (§12), and it is the IR
+`decisions/0025` inverts to derive that budget, because drawdown is experienced
+on the level.
+
+**Bar 2 — the evidence bar. Net IR in excess of a no-information baseline,
+`net_ir_excess`,** must be positive and must survive the `multiple_testing` veto
+of §10 with the excess as its test statistic. It asks *is this signal, or is it
+the sample's beta*. The baseline is the same book on the same seed with the
+information destroyed by a block shuffle (§9), so it matches in constraints, in
+costs and in alpha magnitude and differs only in whether the signal is aligned
+with the future.
+
+**Bar 2 carries no threshold, deliberately.** On the development window a book
+holding no usable information read a net IR of 0.311 — the mean of a 420 bp-wide
+distribution across arbitrary tilts on a single history, one tilt in eight
+negative (`decisions/0036` §1). A number subtracted from that inherits its noise.
+Whether the excess is *distinguishable* from a book with no information is
+answerable at this precision; whether it exceeds some margin is not.
+
+Gross IR is recorded and never used for ranking. `net_ir_excess` is reported
+beside `net_ir` on every run, never instead of it.
 
 Development window: `DEV_START` to `DEV_END` (params; v0.2: 2001-01-05 to
 2019-12-27). Holdout: `HOLDOUT_START` = **2020-01-01** onward, locked. It is opened once, by the owner, on the
@@ -407,7 +437,7 @@ statistic is shown. Failing any one kills the run with the reason logged.
 | lookahead | bitemporal check passes: no observation used before its knowledge date, and no estimated parameter fitted on data unavailable when it is used |
 | frequency | no series contributes returns before its true daily start |
 | seed_stability | IR range across resampling seeds ≤ 0.15 |
-| multiple_testing | survives Romano-Wolf stepdown at FWER α (family level, then within family) |
+| multiple_testing | `net_ir_excess` > 0 **and** survives Romano-Wolf stepdown at FWER α (family level, then within family). The statistic is the excess of §3's bar 2, not the level (`decisions/0036` §6) |
 | direction | realised sign matches pre-registered direction |
 
 Ten vetoes (`decisions/0026` removed `active_drawdown`; `decisions/0030`
