@@ -45,9 +45,95 @@ in git history. The queue below starts at 12.
 `claude/dose-response-probe-plan.md` are still live context; the probe plan's
 steps 2 and 3 have been superseded by 0036 and by the withdrawal notice below.
 
-**Run order: 12, 15, 16, 17, 18, 19, 20.** 21 is hygiene, any time. Tasks 13 and 14 are withdrawn — read
+**Run order: 24 first, then 18, 22, 19, 20.** Tasks 12, 15, 16 and 17 are
+done — their receipts are in `## Done`. 21 is hygiene, any time.
+**22 must land before 19** and need not block 18 — the task says why.
+**23 is independent of all of them** and can run whenever. Tasks 13 and 14 are withdrawn — read
 the notice, do not run them. 18 is gated on 17's `make check`, 19 on 18, and 20
 on what 18 finds; each says so. One `scripts/unattended.sh` at a time.
+
+### 24. Commit the records, then the constitution — DO THIS FIRST
+
+**Two commits, in this order.** `SUBSTRATE.md` is amended, so the authorising
+record must be in history before the amendment that cites it — the
+`decisions/0030` precedent, where the decision landed in one commit and
+`substrate: sections 4 and 10` in the next. The `commit-msg` hook
+(`.githooks/commit-msg` -> `scripts/check_governance.py`) refuses an owner-only
+change whose message does not cite an existing `decisions/` id.
+
+Nothing in the queue commits any of this. Tasks 21-23, the amendment to 18 and
+the run-order line were written after task 15 had already committed
+`HANDOFF.md`. `decisions/0036` **is** already committed, at `d2f2c4b` by task
+15; what is uncommitted are its §1 and §6 amendments of 2026-09-21.
+`decisions/0035` was promoted out of `proposed/` after task 15 ran, so its move
+is uncommitted entirely.
+
+**Commit A — the records.** `0035` is a move out of `proposed/`; git shows the
+old path deleted and the new one untracked, so `git add -A` on both records it
+as a rename.
+
+    git add -A decisions/0035-the-transfer-coefficient-measures-the-benchmark-not-the-tilt.md decisions/proposed/0035-the-transfer-coefficient-measures-the-benchmark-not-the-tilt.md
+    git add decisions/0036-the-bar-is-excess-over-a-no-information-baseline.md HANDOFF.md OWNER-QUEUE.md
+    git commit -m "decisions: 0035 decided, and 0036 amended -- active-weight TC, and two bars
+
+0035, DECIDED 2026-09-21: section 4 option (a) and section 5 both taken. All
+three transfer-coefficient estimators are computed on w - w_baseline with the
+long-only NNLS tracking portfolio as the baseline, and weights, alpha and the
+rebalance-date index are persisted per run. Section 4a is added: covariance.py
+already computes r2 and residual_variance per benchmark leg and nothing reads
+them, so the quality of the baseline the corrected TC is measured against is
+unmeasured; surfacing both, with a test asserting a floor on r2, is now a
+requirement.
+
+0036 was committed at d2f2c4b with sections 3, 4a and 4b decided. This amends
+it. Section 6, DECIDED 2026-09-21, takes position 3 -- two bars. Bar 1 is the product bar, net IR >= 0.30, unchanged in
+value and derived for the first time from the owner's stated 150 bp appetite at
+the section 4 budget. Bar 2 is the evidence bar on net_ir_excess against a
+block-shuffled baseline, with no threshold: it is the existing multiple_testing
+veto, run on the excess. params/audit.yaml does not change and decisions/0025's
+tracking-error budget is unmoved, because 0025 inverts the level and the level
+is still 0.30.
+
+Section 1 is amended with the dispersion the first draft omitted: the
+no-information floor of 0.311 is the mean of a 420 bp-wide distribution across
+arbitrary tilts on a single history, -141 to +280 bp, one tilt in eight
+negative. 1.5% of alpha is hard; 1.5% from concentrated risk-premium exposure
+over 2004-2019 is not, and the latter is what this is.
+
+OWNER-QUEUE L9 closes. L10 and L11 are added. Queue: 22 implements 0035 and must
+land before task 19; 23 is the JPMaQS catalogue check, metadata only."
+
+**Commit B — the constitution.** `SUBSTRATE.md` only, so the owner reviews one
+small diff, as §2 requires. v0.4 -> v0.5.
+
+    git add SUBSTRATE.md
+    git commit -m "substrate: sections 3 and 10 -- the objective is two bars (decisions/0036)
+
+Transcribes decisions/0036 section 6, decided by the owner 2026-09-21. Section 3
+replaces the single primary metric with two bars a candidate must both clear:
+bar 1, net IR >= target_net_ir, the product bar, still 0.30 and still what the
+leaderboard sorts by and what decisions/0025 inverts for the TE budget; bar 2,
+net_ir_excess against a no-information baseline, positive and surviving the
+multiple_testing veto, with no threshold and the reasoning for why a threshold
+is the wrong instrument at this precision. Section 10's multiple_testing row
+names the excess as the statistic it tests.
+
+No agent originated this. The wording is transcribed from a decision the owner
+made and recorded."
+
+**Do not commit** `data/universe/raw_meta.json`, `raw_structure.json`,
+`results/audit-bloomberg.log` or `results/audit/` — regenerable, and SUBSTRATE
+§11 keeps them out of git. Everything else `git status` flags is a CRLF phantom;
+confirm with `git diff --ignore-cr-at-eol` before adding.
+
+**Then verify the governance check accepts the constitution change:**
+
+    scripts/unattended.sh check --digest
+
+**Receipt should say:** both commit hashes, that git recorded the 0035 move as a
+rename rather than a delete plus an add, and the `governance` line from the
+check. **Stop and report if governance does not pass** — an uncited owner-only
+change is the one failure that must never be worked around.
 
 ### 12. Commit the Cowork write-up from 2026-09-20
 
@@ -272,6 +358,28 @@ report** rather than reporting the number.
 the baseline `net_ir` by IC rung with its seed range. Nothing else — the
 interpretation is Cowork's and the owner's.
 
+**Amendment, 2026-09-20, after reviewing task 17's receipt.** Task 17 imputes the
+standardised truth's mean (0.0) at cells that were live but drew a NaN row in the
+shuffle, so the baseline's availability matches its live twin exactly. Cowork has
+checked this and it is the right call — `_standardise_truth` leaves `truth_z`
+with pooled mean exactly zero, so the fill is neutral mean-imputation and not an
+injected tilt, and the second-order shrinkage of the blend's dispersion moves the
+alpha magnitude by well under 1% in standard deviation even at a large imputed
+share. **No change is asked for.** But the share is unmeasured and the panel is
+ragged — late-starting series can reach a quarter of their own rows — so it
+should be disclosed rather than assumed.
+
+**Add to the receipt:** the share of live cells that were mean-imputed in the
+shuffle, overall and for the worst single instrument, as counts and percentages.
+A count is not a vendor value and is reportable under `CLAUDE.md`. If it exceeds
+roughly 25% overall, say so and **stop before task 19** — that would mean the
+baseline is a materially less dispersed signal than its twin and 0036 §4(a)'s
+magnitude-matching claim needs revisiting.
+
+**Also note:** `make audit-baseline-pilot` has never run to completion. Task 17
+checked `_write_baseline_run` on a two-cell table only, so this is the first real
+exercise of that path and may surface plumbing before it surfaces a number.
+
 ### 19. The full baseline grid — 160 cells, about 3.3 hours
 
 Only if 18 is clean and the hashes matched. Do not start it if 18 stopped.
@@ -309,6 +417,130 @@ no git process is running — the 2026-09-18 receipt in `## Done` records a stal
 lock that vanished on its own.
 
 **Receipt should say:** rc, and whether the file was there.
+
+### 22. `decisions/0035` §4(a), §4a and §5 — BEFORE task 19
+
+**Decided by the owner 2026-09-21.** `0035` is out of `proposed/` and carries
+the spec; read it, not this summary.
+
+**Why it is sequenced here.** Task 19 is a 3.3-hour, 160-cell grid. If it
+persists nothing, any later question about those cells costs another 3.3 hours —
+which is precisely the hole `0035` §5 was written about, and the lab is one run
+away from digging it again. This must land before 19. It need **not** block task
+18: the pilot is 40 cells and 50 minutes, cheap to re-run once this exists.
+
+Three pieces:
+
+1. **§5 — persist per run.** `weights`, `alpha` and the rebalance-date index, as
+   parquet under `results/artifacts/<run_id>/`, which `STATUS.md` already claims
+   exists and which is empty. Base cells at minimum; say in the receipt what the
+   disk cost per run turned out to be.
+
+2. **§4(a) — the corrected transfer coefficient.** All three estimators computed
+   on `w - w_baseline`, the baseline being the long-only NNLS tracking portfolio
+   the lab already builds in `portfolio/covariance.py`. `Omega` and `w' Omega w`
+   are unchanged; only the numerator and the correlations move. `0035` §4's
+   acceptance test is required and is a **test**, not a check: an IC = 1 oracle
+   cell must read a TC near its achievable ceiling, and a no-view book must read
+   near zero. Both read wrong today (0.039-0.042 and -0.017).
+
+3. **§4a — surface the replication quality.** `covariance.py` already computes
+   `r2` and `residual_variance` per benchmark leg into its `diagnostics` dict and
+   **nothing reads them.** The corrected TC is now measured against that
+   baseline, so its quality has to be visible: report both per leg wherever TC is
+   reported, and assert a floor on `r2` in a test so a degraded replication fails
+   loudly instead of quietly re-basing the coefficient.
+
+Then:
+
+    scripts/unattended.sh check --digest
+
+**Receipt should say:** rc, test count, runtime, commit hash, the persisted
+artifact size per run, and **the NNLS `r2` per benchmark leg** — that number has
+never been looked at and the owner asked for it directly. **Stop and report if
+`r2` on either leg is below 0.90**; that would mean the baseline is a poor
+replication and `0035` §4's definition needs revisiting before any corrected TC
+is reported.
+
+**No re-run of `A-20260919-155557` is authorised here.** Its artifacts do not
+exist, so its TC column stays as it is; `0035` §6 says whether to spend the 13.3
+hours is a separate decision.
+
+### 23. JPMaQS catalogue check — metadata only, no vintage data
+
+**Independent of 18, 22, 19 and 20.** Different data, different code path,
+different gate; run it whenever. Owner authorised 2026-09-21.
+
+**What it is for.** The registry's 27 JPMaQS names have never been checked
+against the vendor's catalogue. `decisions/proposed/0034` exists because two
+*Bloomberg* names in the pre-registered registry turned out not to exist and were
+found by hand. This checks the JPMaQS half before a pull is built on it. **It
+does not retire 0034**, which is a standing validator across every source; it
+retires the risk for these 27 names, once.
+
+**This call is authorised under SUBSTRATE §2** — `jpmaqs` is listed in
+`params/data_sources.yaml` with `enabled: true` and credentials supplied
+2026-09-09. It is the lab's first vendor API call.
+
+#### Hard limits
+
+- **Metadata only.** `JPMaQSDownload.get_catalogue(...)` and/or
+  `filter_expressions_from_catalogue(expressions, ...)`. **Do not call
+  `download()`.** No vintage data, no `value`/`grading`/`eop_lag` pull.
+- **Do not touch `params/data.yaml: jpmaqs.status`.** It stays
+  `credentials_supplied`. A catalogue is not the macro block, `search_is_open()`
+  must stay shut, and `params/` is owner-only regardless.
+- **Do not implement `load_macro`.** It stays `LoaderNotImplemented`; that is
+  task 24 and is not queued.
+- **Never read, print or commit `.env` or anything key-shaped.** Use the existing
+  `JPMaQSLoader.credentials()` and `.proxies()`.
+- The proxy is `enabled: false` by config — the corporate host does not resolve
+  on this machine. **If the call fails on network or auth, report and stop.** Do
+  not vary the proxy setting, and do not retry with alternate hosts.
+
+#### Steps
+
+1. **Install the extra.** `make install` is `uv sync --group dev` and the
+   `jpmaqs` extra is not in it, so `macrosynergy` is absent from the venv:
+
+       uv sync --group dev --extra jpmaqs
+
+   This changes the venv. Confirm `make check` is still rc=0 afterwards and say
+   so in the receipt.
+
+2. **Add a `make jpmaqs-catalogue` target** wrapping a new
+   `scripts/jpmaqs_catalogue_check.py`, so the flags live in `build.mk` like
+   every other script. Construct the client with `check_connection=True` for a
+   clean early failure.
+
+3. **Check the 27 named tickers** tagged `genuine phase-3 gap` in
+   `data/requests/ticker_resolution.csv` — **the 27 named, not the 96 the cross
+   product returns.** They are 8 cids x 12 xcats; `cross_product_size()` already
+   exists for that arithmetic and the receipt should confirm the 96.
+
+4. **Cache the raw catalogue** under `data/raw/` (git-ignored, and off-limits to
+   print or summarise per `CLAUDE.md`). It is the offline resolver 0034 would
+   need, so it is worth keeping.
+
+5. **Write the findings** to `data/requests/jpmaqs_catalogue_check.csv`:
+   hypothesis, ticker, cid, xcat, resolves. Ticker names are not vendor values.
+
+#### Stop rule
+
+**If any of the 27 does not resolve, STOP.** Report the list and do not
+substitute, do not guess a near-miss name, and do not drop it. Substitutions are
+the owner's call — that is the `decisions/0032` precedent, where `LUALTRUU` and
+`LT08TRUU` were removed rather than replaced, and SUBSTRATE §7 makes a silent
+substitution a `coverage` veto failure.
+
+**Only if all 27 resolve**, write `data/jpmaqs/request.txt` with them. SUBSTRATE
+§5.6 names that file as the pull list and it does not exist — the directory holds
+only `.keep`. Note in it that the download returns the cross product and the
+loader must filter back to the named tickers.
+
+**Receipt should say:** rc, whether `make check` still passes after the sync, the
+catalogue size **as a count**, how many of the 27 resolve, the names of any that
+do not, and whether `request.txt` was written.
 
 ---
 

@@ -1,7 +1,10 @@
 # 0035 — The transfer coefficient measures the benchmark, not the tilt
 
-Proposed 2026-09-20 by Cowork. Status: **proposed**. Owner decision required on
-§4 and §5. Amends `decisions/0033`, which is otherwise unchanged. Evidence:
+Proposed 2026-09-20 by Cowork. **DECIDED by the owner 2026-09-21: §4 option (a)
+and §5 both taken.** All three estimators are computed on `w - w_baseline` with
+the long-only NNLS tracking portfolio as the baseline; weights, alpha and the
+rebalance-date index are persisted per run. §4a below is added with the
+implementation spec and one measurement the owner's question exposed as missing. Amends `decisions/0033`, which is otherwise unchanged. Evidence:
 `A-20260919-155557` (644 cells, 13.3 h, rc=0).
 
 ## 1. What the first measurement said
@@ -85,6 +88,43 @@ Under either, the acceptance test is the one this record used: **an IC = 1
 oracle cell must read a TC near its achievable ceiling, and a no-view book must
 read near zero.** Both are cheap and neither exists today. They should be tests,
 not a one-off check.
+
+## 4a. Implementation spec, and the replication quality nobody has measured
+
+Added 2026-09-21, after the owner asked whether the NNLS tracking portfolio is
+"basically the same as holding the benchmark".
+
+**It is the intent, and it is not the same thing.** `portfolio/covariance.py`
+builds it by regressing each benchmark leg's returns on the holdable
+instruments with `scipy.optimize.nnls`, weights constrained non-negative and
+sum-to-one imposed softly as a heavily weighted extra row. So it is the closest
+long-only holdable approximation to the benchmark, which is exactly what §4
+wants. Three differences matter for what the corrected TC will mean:
+
+1. **It is a fitted replication with a residual.** The same function already
+   computes `residual_variance` and `r2` per leg and stores them in its
+   `diagnostics` dict — and **nothing surfaces them.** No run report, no
+   `summary.json` key, no test asserts a floor. So the quality of the baseline
+   that the corrected transfer coefficient will now be measured against is
+   **unmeasured**. If `r2` is around 0.97 the owner's intuition holds; if it is
+   0.80 the baseline carries a large idiosyncratic lump and every corrected TC
+   inherits it.
+2. **It moves.** The fit runs on the covariance window, so the baseline is a
+   time-varying replication, not a fixed benchmark holding. `w - w_baseline` is
+   therefore "active against this week's replication", which is the right
+   definition for a book that must hold the benchmark synthetically, but it is
+   not "active against the benchmark" in the textbook sense.
+3. **It is not the minimum-active-variance book.** §3 records why that matters:
+   `Omega w` is constant for the min-variance portfolio and not for NNLS, so the
+   alignment estimator is immune to the former and not to the latter. Taking
+   option (a) keeps alignment contaminated in principle — correctly now, because
+   it is contaminated by the book the strategy actually holds.
+
+**Therefore, added to this record as a requirement, not a suggestion:** surface
+`r2` and `residual_variance` per benchmark leg wherever the corrected TC is
+reported, and assert a floor on `r2` in a test so a degraded replication fails
+loudly rather than quietly re-basing the transfer coefficient. The numbers are
+already computed; only the plumbing is missing.
 
 ## 5. Persist the weights and the alpha — owner decision 2
 

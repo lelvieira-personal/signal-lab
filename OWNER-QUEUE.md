@@ -19,60 +19,6 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L9. Re-deriving the bar — from what, and what it drags with it
-Restated 2026-09-20 after the owner's decision. `decisions/0036` §6.
-
-**Decided 2026-09-20:** the bar is **re-derived**, not kept at 0.30 on the new
-metric and not split into two bars. `params/audit.yaml: target_net_ir` stays at
-0.30 until a derivation exists.
-
-**Why 0.30-on-excess was refused:** it would require 18% / 30% / 34% / 69% of a
-*perfect* forecast's excess at h4 / h13 / h26 / h52 — a realised IC between 0.18
-and 2.31 depending on the response shape assumed, against real macro signals at
-IC 0.02 to 0.10, with several readings above 1.00. The best excess any of the 484
-judged cells achieved over its own floor was +0.083.
-
-#### LIVE — what the derivation takes as its input
-
-**`0023` did not derive 0.30.** It records a quotation — *"0.3 net IR is a good
-target"* — and `params/audit.yaml` line 11 carries that quotation as the comment
-above the value. `0027` did not touch it. So there is no prior derivation to
-repeat, and one has to start from an input the owner supplies, the way
-`decisions/0025` could not produce a TE budget until the drawdown tolerance was
-given. Candidates, none chosen: a target active return over the benchmark at the
-5-6% budget; an external reference for what a multi-asset overlay should deliver
-net of the §8 costs; or the measured floor plus a stated margin, which is the
-most direct but is circular unless the margin is argued from something.
-
-**This half needs no measurement.** It is the judgement that unblocks the rest.
-
-#### LIVE — and it does not stop at the bar
-
-`decisions/0025` derives the **tracking-error budget from the target IR**: *"at
-the lab's own target of net IR 0.30, the implied budget is 5.91%"*, against a
-32%-at-p95 drawdown tolerance. The arrow runs from the bar to the budget, so
-**re-deriving the bar propagates into the constraint set every audit has run
-under**, and a re-run at a moved budget is a fresh 13.3 hours.
-
-One trap to carry into that: 0025's input is the IR an investor *experiences*,
-because drawdown is experienced on the level, not on the excess. If the new bar
-is an excess bar, the level it implies is `excess + floor`, and the floor is
-0.311 on this window. Feeding an excess number into a formula expecting a level
-moves the budget the wrong way.
-
-#### BLOCKED — the number itself
-
-**Retired by tasks 18 and 20.** The required-IC arithmetic that any derivation
-has to sanity-check against spans an order of magnitude — IC 0.18 to 2.31 at
-h13-and-neighbours — purely because the response shape between IC 0.20 and
-IC 1.00 is unmeasured. Task 20 measures it; task 18 decides whether 20 is worth
-running. **Do not set a number before them.**
-
-Whatever is chosen, the excess carries SE ≈ 0.053 per cell (pairing buys the
-constrained book only 1.55x against the level's 0.082), so read as a lower bound
-a 0.30-style bar needs a point estimate near 0.41 before `SUBSTRATE` §9's
-Romano-Wolf stepdown applies on top.
-
 ### L10. The `seed_stability` veto is unreachable as written
 Added 2026-09-20 by Cowork.
 
@@ -194,6 +140,60 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L11 — SUBSTRATE §3 and the second bar. CLOSED 2026-09-21.
+**Decided and transcribed the same day.** SUBSTRATE is at **v0.5**: §3 replaces
+the single primary metric with the two bars of `decisions/0036` §6, and §10's
+`multiple_testing` row names `net_ir_excess` as the statistic it tests. The
+owner instructed the amendment; Cowork held the pen and originated nothing, per
+§2. The commit cites `decisions/0036` and is its own diff for review, following
+the `decisions/0030` precedent.
+
+Nothing in `params/` or `vetoes/` moved: bar 1 keeps `target_net_ir: 0.30` and
+bar 2 is the `multiple_testing` veto that `params/vetoes.yaml` already
+configures at `fwer_alpha: 0.05`.
+
+### L9 — the bar, after the no-information floor. CLOSED 2026-09-21.
+**Decided: two bars.**
+
+**Bar 1, the product bar, on the level: net IR >= 0.30.** Unchanged in value and
+derived for the first time. The owner's appetite is 150 bp of active return, and
+at the 5-6% budget `150 / 500 = 0.30`. `decisions/0023` carried that number on a
+quotation alone; it now has a derivation. **`params/audit.yaml` does not change,
+and `decisions/0025`'s tracking-error budget is unmoved** — 0025 derives the
+budget from the IR an investor experiences, which is the level, and the level is
+still 0.30. The coupling this item warned about does not fire.
+
+**Bar 2, the evidence bar, on the excess: no number, a significance test.**
+`net_ir_excess > 0` and survival of Romano-Wolf at FWER 5% with the excess as
+the test statistic. A threshold is the wrong instrument: `decisions/0036` §1
+shows the floor is the mean of a **420 bp-wide** distribution (-141 to +280 bp,
+12% of tilts negative) on a **single history**, so any number subtracted from it
+inherits that noise. **The gate already exists** — SUBSTRATE §10 lists
+`multiple_testing` and `params/vetoes.yaml` already sets `romano_wolf`,
+`fwer_alpha: 0.05`, `family_then_within`. It has simply never been
+implementable, because `src/signal_lab/stats/` was one line until 0036 §4(a)'s
+block shuffle landed.
+
+**The owner's reasoning, in his words:** 150 bp is satisfactory, "but I also
+don't want to arrive at it simply because I reached an arbitrary combination of
+betas that already tends to achieve that 150 bps in the sample period we are
+analyzing." Two questions, two bars. A candidate clearing bar 1 but not bar 2 is
+beta available more cheaply; one clearing bar 2 but not bar 1 is a real signal
+not worth the operational cost.
+
+**Why this closed rather than staying blocked.** The half of this item that
+waited on tasks 18 and 20 was the *number*, whose required-IC arithmetic depends
+on the response shape between IC 0.20 and IC 1.00. Neither bar needs that shape:
+bar 1 is a product statement at a given risk level, bar 2 is a test. Tasks 18
+and 20 remain worth running — they measure whether this lab can *detect* a
+signal that clears bar 2 — but they are off the bar's critical path.
+
+**One owner act still outstanding, tracked as L11:** naming the excess statistic
+in SUBSTRATE §3 and saying there that `multiple_testing` runs on it.
+
+Raised 2026-09-20 when the floor was measured at 0.311 against a 0.30 bar;
+closed 2026-09-21.
 
 ### L1 — conditioning the frictionless covariance. CLOSED 2026-09-19.
 `decisions/0029`. **§1, §3, §4 and §5 taken; §2 deferred.** The frictionless

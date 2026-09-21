@@ -2,10 +2,12 @@
 
 Proposed 2026-09-20 by Cowork. **DECIDED by the owner 2026-09-20: §3 and §4(a)
 taken — the metric is reported as excess over a block-shuffled, seed- and
-magnitude-matched baseline. §6: the owner chose
-**position 2 — re-derive the number** (2026-09-20). The number itself is NOT
-set; `decisions/0023` and `params/audit.yaml: target_net_ir` are untouched and
-stay at 0.30 until it is. See §6 and `OWNER-QUEUE` L9.** §4(b), the `alpha_scale` knob, is not
+magnitude-matched baseline. §6: **position 3 — two bars**
+(owner, 2026-09-21, superseding a same-week reading of position 2). A product
+bar on the level, derived from a stated 150 bp appetite, and an evidence bar on
+the excess that is a significance test rather than a threshold.
+`params/audit.yaml: target_net_ir` stays 0.30 — now derived rather than
+asserted — and `decisions/0025`'s tracking-error budget is unmoved. See §6.** §4(b), the `alpha_scale` knob, is not
 taken here and survives only as the separate magnitude-vs-information probe §4
 describes. Evidence: `A-20260919-155557` and the Cowork project doc
 `claude/dose-response-step1-2026-09-20.md`. Bears on `decisions/0023` (the bar),
@@ -41,6 +43,36 @@ per unit IC**. Every slope this lab has measured is two orders below it:
 
 Between 1% and 7% of the 0.311 is attributable to the rung's information. The
 rest is the long-only constraint set meeting this particular 16-year path.
+
+**What the "no-information book" actually is, and how much it varies.** Added
+2026-09-21 after the owner asked whether such a book really generates 1.5% a
+year. It is not a benchmark-like portfolio with a small tilt. It holds
+**10.8 instruments on average out of 85.4 holdable** (cap 30), long-only, fully
+invested, cash 1.4%, re-solved weekly, measured against a 50/50 global
+benchmark. Eleven lines cannot replicate a global 50/50, so the book is a
+**concentrated, essentially arbitrary risk-premium portfolio**. It carries no
+forecasting information; it carries a great deal of exposure.
+
+And the 144 bp is a mean over a wide distribution, on **one history**:
+
+| across the 40 IC 0.02 cells | |
+|---|---:|
+| active return, mean | **+144 bp** |
+| active return, range | **−141 to +280 bp** |
+| net IR, mean / sd | 0.311 / **0.255** |
+| cells with negative net IR | **12%** |
+| max active drawdown | 16.5% |
+
+The ten seeds average over **tilts, not over paths**. All 40 cells run on the
+same 2004-2019 history, so this is not evidence that an arbitrary tilt earns
+144 bp in expectation — only that on this path, the average one did, while one
+in eight lost money and the spread was 420 bp wide.
+
+This matters for how the finding is stated. **1.5% of alpha is hard; 1.5% from
+concentrated risk-premium exposure over 2004-2019 is unremarkable**, and the
+latter is what this is. `bias_worst_year` is 2008 in 420 of 484 judged cells —
+the floor is a crisis-exposed beta tilt, and it is paid for in the one year that
+tilt does not work.
 
 **Scope, stated precisely.** The ten seeds average over *tilts*, not over
 *paths*. A single macro window can systematically reward long-only deviations
@@ -209,53 +241,76 @@ and it applies harder here, because this number would gate.
 
 ## 6. Owner decision 2 — what happens to 0.30
 
-**DECIDED 2026-09-20: position 2 — re-derive the number.** Positions 1 (keep
-0.30 on the excess metric) and 3 (two bars) are not taken. Recorded here; the
-number is not set and `params/audit.yaml` is unchanged.
+**DECIDED 2026-09-21: position 3 — two bars.** The owner's reasoning, in his own
+framing: 150 bp of active return is a satisfactory outcome, *and* he does not
+want to arrive at it "simply because I reached an arbitrary combination of betas
+that already tends to achieve that 150 bps in the sample period we are
+analyzing." Those are two different questions and they get two different bars.
 
-Why position 1 was refused, for the record. Keeping 0.30 on excess would require
-**18% / 30% / 34% / 69%** of a *perfect* forecast's excess at h4 / h13 / h26 /
-h52, which translates to a realised IC between **0.18 and 2.31** depending on
-which response shape is assumed — against real macro signals at IC 0.02 to 0.10,
-and with several readings above 1.00, which is impossible. The largest excess any
-of the 484 judged cells produced over its own floor was **+0.083**. It would be a
-bar nothing could clear.
+*(A position-2 reading — re-derive a single number — was taken on 2026-09-20 and
+superseded the next day once §1's dispersion was stated properly. The record of
+the intermediate step is kept rather than erased.)*
 
-### Two things the word "re-derive" has to confront
+### Bar 1 — the product bar, on the level. **net IR ≥ 0.30. Unchanged, and now derived.**
 
-**1. There is nothing to re-derive it *the way 0023 did*, because 0023 did not
-derive it.** `decisions/0023` records the bar as a quotation — *"0.3 net IR is a
-good target"* — and `params/audit.yaml` line 11 carries that quotation as the
-comment above `target_net_ir`. It was stated, not computed. `0027` did not touch
-it either; its recalibration was of the breadth dimension.
+"Is this worth running?" At the 5-6% tracking-error budget, 150 bp of active
+return is `150 / 500 = 0.30`. That is the number `decisions/0023` already
+carries, which until now rested on a quotation — *"0.3 net IR is a good
+target"* — and nothing else. **`params/audit.yaml: target_net_ir` does not
+change**; it acquires a derivation.
 
-So a derivation needs a **new input the owner supplies**, exactly as
-`decisions/0025` needed the drawdown tolerance before it could produce a TE
-budget. Three candidate inputs, none chosen here:
+Two consequences worth recording:
 
-- a target **active return** over the 50/50 benchmark at the 5-6% budget, from
-  which the IR falls out;
-- an external reference — what an institutional multi-asset overlay is expected
-  to deliver net of the §8 cost model;
-- **the measured floor plus a stated margin**, which is the most direct reading
-  of this record but is circular unless the margin itself is argued from
-  something.
+- **`decisions/0025` is unmoved.** It derives the tracking-error budget from the
+  IR an investor *experiences*, which is the level, and the level is still 0.30.
+  The 5.91%-against-a-6%-mandate result stands, and the coupling this record
+  worried about does not fire.
+- The precision caveat of §9 still applies to this bar: a cell mean over ten
+  seeds carries SE 0.082, so "clears 0.30" read as a lower bound rather than a
+  point estimate wants roughly 0.46.
 
-**2. The bar and the tracking-error budget are coupled, and the arrow runs from
-the bar.** `decisions/0025` derives the TE budget *from* the target IR —
-*"at the lab's own target of net IR 0.30, the implied budget is 5.91%"*, against
-a 32%-at-p95 drawdown tolerance. **Changing the bar therefore propagates into the
-constraint set every audit has run under.**
+### Bar 2 — the evidence bar, on the excess. **No number. A significance test.**
 
-One subtlety that decides how far it propagates: 0025's input is the IR an
-investor *experiences*, because drawdown is experienced on the level and not on
-the excess. If the re-derived bar is an excess bar, the level implied by it is
-`excess + floor`, and the floor is 0.311 on this window. A re-derivation that
-forgets this would feed an excess number into a formula expecting a level and
-move the budget the wrong way.
+"Is it signal, or is it this sample's beta?" §1 shows why a threshold is the
+wrong instrument here: the floor is the mean of a 420 bp-wide distribution on a
+single history, so any number subtracted from it inherits that noise. The right
+gate is not *how large* the excess is but *whether it is distinguishable from a
+book with the information destroyed*.
 
-**Neither of these is settled here, and the number remains blocked on tasks 18
-and 20**, which pin the response shape the required-IC arithmetic depends on.
+**That gate already exists and has never been implementable.** SUBSTRATE §10
+lists `multiple_testing`, and `params/vetoes.yaml` already sets
+`procedure: romano_wolf`, `fwer_alpha: 0.05`, `level: family_then_within`. §9
+already requires the block bootstrap it runs on. What has been missing is
+`src/signal_lab/stats/`, which was one line until §4(a)'s block shuffle landed.
+
+So bar 2 is: **`net_ir_excess > 0` and the hypothesis survives Romano-Wolf at
+FWER 5% with the excess as the test statistic.** No new veto, no new threshold,
+no new parameter — the excess becomes what the existing veto tests, and the
+existing α is the bar.
+
+### Why this unblocks L9
+
+The half of `OWNER-QUEUE` L9 that was blocked on tasks 18 and 20 was *the
+number*, because the required-IC arithmetic depends on the response shape
+between IC 0.20 and IC 1.00. **Neither bar needs that shape.** Bar 1 is a
+product statement at a given risk level; bar 2 is a test. **L9 closes.**
+
+Tasks 18 and 20 remain worth running — they measure whether this lab can ever
+*detect* a signal that clears bar 2, which is the science. They are no longer
+on the critical path of the bar.
+
+### Both must be cleared, and both are disclosed
+
+A candidate clearing bar 1 but not bar 2 is beta that could be bought more
+cheaply. A candidate clearing bar 2 but not bar 1 is a real signal not worth the
+operational cost. Reporting both says which, where one number said neither.
+
+### What this still needs from the owner
+
+Naming the excess statistic in SUBSTRATE §3, and saying there that
+`multiple_testing` runs on it, is an **owner act** under §2. It is not queued and
+no agent may originate it. Until it is written, this record is the authority and
+`params/` is untouched.
 
 ## 7. What is NOT proposed
 
