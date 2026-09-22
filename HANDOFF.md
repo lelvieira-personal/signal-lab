@@ -1070,3 +1070,23 @@ own stop rule -- not a code failure.**
   `DQ_CLIENT_SECRET`) are being rejected by the vendor's token endpoint --
   worth checking whether they are current, correctly paired, or need
   reissuing, before task 23 is retried.
+
+### 2026-09-22 — task 23, the 401 explained (owner's own test, not run here)
+
+Not a Claude Code run -- the owner tested the same `DQ_CLIENT_ID`/
+`DQ_CLIENT_SECRET` from a work machine, outside this session, and got a
+clean auth success (`check_connection=True`, no proxy). This resolves the
+open question from the two receipts above:
+- **The credentials are valid.** The 401 this session saw was not a bad or
+  expired client_id/secret.
+- **It is network-origin, not proxy-credential.** The owner's successful
+  test also used `proxy=None` -- so the difference between the two attempts
+  is which network the request originated from, not whether it went through
+  Itaú's authenticated proxy. DataQuery's auth endpoint appears to only
+  accept these credentials from Itaú's network.
+- **This session cannot finish task 23.** It runs on the same personal
+  machine that got the 401, and nothing here can route it onto the
+  corporate network. The vendor call (`make jpmaqs-catalogue`) needs to run
+  from a machine on that network, with `.env` present there. Once it is, the
+  script and target already exist and are unchanged from the earlier
+  receipts (`bb4db0b`).
