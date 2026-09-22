@@ -1011,3 +1011,34 @@ horizons, ten seeds (`results/audit/_unattended/20260921-233203-audit-baseline/`
 - Every rung's mean sits in the 0.23-0.47 band, in line with the h13 rungs
   task 18 and task 20 already measured; no horizon shows the floor collapsing
   or escaping that range.
+
+### 2026-09-22 — task 23, STOPPED before the vendor call (Claude Code, Sonnet 5)
+
+**23. JPMaQS catalogue check** — rc=1 (stopped, not a failure of the code).
+`bb4db0b` scripts: the JPMaQS catalogue check.
+- **Step 1, the extra:** `uv sync --group dev --extra jpmaqs` installed
+  `macrosynergy==1.8.1` and its deps into the shared venv. `pyproject.toml`
+  already declared the `jpmaqs` extra, so nothing else changed (`uv.lock`,
+  `pyproject.toml` both untouched). `make check` afterward: **rc=0, 483
+  tests, 317.5 s**, governance OK.
+- **Step 2, the script and target:** `make jpmaqs-catalogue` wraps
+  `scripts/jpmaqs_catalogue_check.py`, constructed with
+  `check_connection=True` as specified.
+- **Step 3, confirmed before any call:** the 27 rows tagged `genuine
+  phase-3 gap` in `data/requests/ticker_resolution.csv` are 8 cids x 12
+  xcats; `cross_product_size()` confirms the cross product is **96**, as
+  expected.
+- **Stopped at credentials.** `DQ_CLIENT_ID` and `DQ_CLIENT_SECRET` are not
+  set in this session's shell (`env | grep -c DQ_CLIENT` reads 0 -- a count,
+  not a value, and `.env` itself was never opened, per the task's own hard
+  limit). `JPMaQSLoader.credentials()` raised before any network call was
+  attempted, so this is a credentials gap in this session, not a rejection
+  from the vendor. Per the task's stop rule for a network/auth failure, this
+  stops and reports rather than sourcing `.env`, exporting the values myself,
+  or working around the check.
+- **Not obtained:** the catalogue size, how many of the 27 resolve, and
+  whether `request.txt` was written. `data/raw/jpmaqs_catalogue.json` and
+  `data/requests/jpmaqs_catalogue_check.csv` do not exist.
+- Needs Cowork/owner: either export `DQ_CLIENT_ID`/`DQ_CLIENT_SECRET` in the
+  shell this session runs in, or run `make jpmaqs-catalogue` directly where
+  the credentials are already exported.
