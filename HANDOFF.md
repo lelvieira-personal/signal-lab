@@ -1042,3 +1042,31 @@ horizons, ten seeds (`results/audit/_unattended/20260921-233203-audit-baseline/`
 - Needs Cowork/owner: either export `DQ_CLIENT_ID`/`DQ_CLIENT_SECRET` in the
   shell this session runs in, or run `make jpmaqs-catalogue` directly where
   the credentials are already exported.
+
+### 2026-09-22 — task 23, continued: the vendor call itself (Claude Code, Sonnet 5)
+
+**23, continued.** Credentials were exported by the owner directly into a
+single shell invocation (`source .env` immediately before the script, never
+read by me) and the check was run for real. **rc=1, stopped by the script's
+own stop rule -- not a code failure.**
+- First attempt used a bare `uv run --python 3.12 --group dev ...` (my
+  mistake) rather than `make jpmaqs-catalogue`, so `UV_PROJECT_ENVIRONMENT`
+  was unset and it fell back to a fresh local venv without `macrosynergy` --
+  exactly the bare-`uv run` failure mode CLAUDE.md warns about. Corrected to
+  `make jpmaqs-catalogue`, which sets it via `build.mk`.
+- With the right venv: connected, confirmed **27 named tickers, cross
+  product 96**, then `JPMaQSDownload(check_connection=True)` failed:
+  **`AuthenticationError: 401 Client Error: Unauthorized for url:
+  https://authe.jpmchase.com/as/token.oauth2`**.
+- This reached the vendor's own auth host directly (no proxy, matching
+  `params/data_sources.yaml`'s `proxy.enabled: false` for a personal
+  machine) and got a real response, so it is a credentials rejection, not a
+  network/resolution problem. Per the task's stop rule, the proxy setting
+  was not varied and no alternate host was tried.
+- **Nothing was written.** No catalogue cache, no
+  `jpmaqs_catalogue_check.csv`, no `request.txt`; `git status` confirms no
+  new files from this attempt.
+- Needs Cowork/owner: the credentials in `.env` (`DQ_CLIENT_ID` /
+  `DQ_CLIENT_SECRET`) are being rejected by the vendor's token endpoint --
+  worth checking whether they are current, correctly paired, or need
+  reissuing, before task 23 is retried.
