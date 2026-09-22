@@ -45,12 +45,18 @@ in git history. The queue below starts at 12.
 `claude/dose-response-probe-plan.md` are still live context; the probe plan's
 steps 2 and 3 have been superseded by 0036 and by the withdrawal notice below.
 
-**Run order: 24 first, then 18, 22, 19, 20.** Tasks 12, 15, 16 and 17 are
-done — their receipts are in `## Done`. 21 is hygiene, any time.
-**22 must land before 19** and need not block 18 — the task says why.
-**23 is independent of all of them** and can run whenever. Tasks 13 and 14 are withdrawn — read
-the notice, do not run them. 18 is gated on 17's `make check`, 19 on 18, and 20
-on what 18 finds; each says so. One `scripts/unattended.sh` at a time.
+**Run order, as of 2026-09-21: 20, 22, 19, 23, 21.** Tasks 12, 15, 16, 17, 18
+and 24 are done — receipts are in `## Done`.
+
+- **20** — gate released by the owner and the task **re-specified**; read its
+  AMENDMENT, not the text above it. Commits the outstanding receipts first.
+- **22 must land before 19.** 19 is a 3.3 h grid that would otherwise persist
+  nothing, which is the hole `decisions/0035` §5 exists to close.
+- **23** is independent of all of them and can run whenever.
+- **21** is hygiene, any time.
+- Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
+
+One `scripts/unattended.sh` at a time.
 
 ### 24. Commit the records, then the constitution — DO THIS FIRST
 
@@ -225,6 +231,7 @@ only**. About two hours. Do not start it if task 13 showed a floor; in that case
 the question has changed and Cowork will requeue.
 
 **Receipt should say:** rc, runtime, run id, net IR by rung with seed ranges.
+
 
 ### 15. Commit 0036 and this queue rewrite
 
@@ -401,6 +408,57 @@ Know its power before spending the two hours: at ten seeds the h13 MDE is
 will not resolve anything shallower.
 
 **Receipt should say:** rc, runtime, run id, net IR by rung with seed ranges.
+---
+
+**AMENDMENT, 2026-09-21 — the gate is released and the task is re-specified.
+Read this, not the text above.**
+
+**The stop rule above has fired and the owner has released it.** Task 18 showed
+the floor at the IC 0.20 alpha scale (0.346) matching its live twin (0.356) and
+the floor at IC 0.02 (0.290), so by the letter of task 18 this task should not
+start. That rule was written before the baseline existed and is now the wrong
+call: it was aimed at "is there signal in the tested range" — answered, no — and
+this task asks a different question the pilot does not touch, **where the
+response begins between IC 0.20 and IC 1.00.** The oracle reads 1.297 at h13
+against a floor of 0.290, so a large response exists somewhere. Owner released
+the gate 2026-09-21.
+
+**And the baseline nearly doubles its power.** The warning above about an h13
+MDE of 0.166 was for the **level**. On the **excess** the pilot measured SE
+0.032 at IC 0.20, so the MDE is **≈0.09** — sharp enough to resolve a shallow
+response, which the level was not.
+
+**0. Commit first.** Task 18's receipt and the queue changes since are
+uncommitted (`git diff --ignore-cr-at-eol` shows `HANDOFF.md` and
+`OWNER-QUEUE.md`). Commit them before running, so the receipt lands against a
+committed baseline.
+
+**1. Build a `knee` grid — in `ladder.py`, not in `params/`.** The rungs
+**0.35, 0.50, 0.70** are not in `audit.ic_grid`, and `params/audit.yaml` is
+owner-only and not authorised by any record here. `baseline_cells()` reads its
+rungs from params by design (`decisions/0036` §4b.5) and emits baseline cells
+only, so neither serves. Add a third grid whose rungs are a module constant and
+which emits **both** a live cell and its matched baseline at each rung:
+
+    h13 only, ten seeds, 3 rungs x 2 = 60 cells
+
+**`params/audit.yaml` must not change.** `params_hash` stays
+`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c`, or the
+pairing against `A-20260919-155557` and `A-20260921-202607` breaks for every
+future run.
+
+**2. Do not re-run IC 0.20.** It exists live in `A-20260919-155557` and baseline
+in `A-20260921-202607`, both at the same hashes. Pair it from those as the
+anchor.
+
+**3. Run.** At the pilot's measured **58 s a cell**, 60 cells is about an hour;
+live cells at high IC trade more, so budget 60-90 minutes.
+
+**Receipt should say:** rc, runtime, run id, and per rung **the live net IR, the
+baseline net IR, and the seed-paired excess with its standard error** — the
+excess is the statistic now (SUBSTRATE §3 bar 2), not the level. Confirm both
+hashes match before reporting any contrast, as task 18 did, and **stop and
+report if either differs.**
 
 ### 21. Remove the parked lock file Cowork left in `.git`
 
@@ -809,3 +867,48 @@ governance OK, ruff clean (`20260920-112220-check`). A first check at 9 s failed
   so availability equals the live cell's exactly rather than shrinking.
 - Not run end to end on real data. A full synthetic pilot exceeded 15 min, so
   plumbing was checked on a 2-cell table through `_write_baseline_run`.
+
+### 2026-09-21 — task 24 (Claude Code, Sonnet 5)
+
+**24. Commit the records, then the constitution** — rc=0.
+- Commit A `40ff9df` decisions: 0035 decided, and 0036 amended. Git recorded the
+  0035 move out of `proposed/` as a **rename**, not a delete plus an add.
+- Commit B `d012c37` substrate: sections 3 and 10 (decisions/0036). The
+  `commit-msg` hook accepted it. My own attempts to commit `SUBSTRATE.md` were
+  refused twice by the permission classifier; the owner committed it by hand.
+  The message is the subject line only, without the task's explanatory body.
+- `scripts/unattended.sh check --digest` at `d012c37`: **rc=0, 404 s, 479 tests**
+  (`results/audit/_unattended/20260921-161337-check/`). Governance line: "OK. No
+  uncited owner-only change since `85694662`. Commit hook is installed." Ruff
+  clean, holdout lock 15 of 15.
+- Not committed, as instructed: `raw_meta.json`, `raw_structure.json`,
+  `results/audit-bloomberg.log`, `results/audit/`.
+
+### 2026-09-21 — task 18 (Claude Code, Sonnet 5)
+
+**18. The baseline pilot** — rc=0. `scripts/unattended.sh audit-baseline-pilot
+--digest` at `d012c37`: check rc=0 (303 s), audit rc=0 (**2325 s**), run
+**`A-20260921-202607`**, 40 cells, h13, ten seeds
+(`results/audit/_unattended/20260921-162103-audit-baseline-pilot/`).
+- **Hashes match `A-20260919-155557`**: `panel_hash` `dfbf5c5a…5793` and
+  `params_hash` `ebdfb70e…b77c`, both identical. The pairing is valid.
+- Baseline `net_ir` by rung (mean, seed min to max, n=10):
+  - IC 0.02: 0.290 (-0.369 to 0.589)
+  - IC 0.05: 0.321 (-0.605 to 0.798)
+  - IC 0.10: 0.277 (-0.101 to 0.677)
+  - IC 0.20: 0.346 (0.044 to 0.679)
+- **Mean-imputed share** (live cells that drew a NaN row in the shuffle and were
+  set to 0.0), measured by replaying the shuffle on the real weekly panel with a
+  scratch script that prints counts only: 69,175 live cells (990 rows x 95
+  holdables). Per seed 7,866 to 16,150, i.e. **10.4% to 23.4%, mean 19.5%**.
+  Below the ~25% stop line for every seed, but the top of the range is close.
+- **Worst single instrument: 100%.** One series (column index 10, 332 live rows of
+  990) has every live row imputed under at least one seed, so at that seed its
+  baseline carries no shuffled truth, only noise. Not a stop condition as written
+  (the line is on the overall share), but it says the late-starting series are
+  where the baseline departs most from its live twin.
+- Plumbing: `_write_baseline_run` ran end to end on real data for the first time
+  and wrote `cells.csv` and `summary.json` without error. Neither digest step
+  nor the run surfaced any problem; the digest's own summary is in `digest.md`.
+- The imputation share is not persisted by the run; the scratch script is in the
+  session scratchpad, not the repo.

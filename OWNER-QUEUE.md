@@ -19,6 +19,46 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
+### L12. Is the registry the right shape, now that the stepdown is the bar?
+Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
+SUBSTRATE §9 and §13, and on what is bought from Macrosynergy.
+
+SUBSTRATE v0.5 made the `multiple_testing` veto — Romano-Wolf at FWER 5%, family
+level then within family — **bar 2, how a signal is judged**. It used to be a
+footnote at the end of a pipeline nobody had run. It is now the gate.
+
+The registry was written before that was true, and it does not sit well against
+it. **`effective_bets_active` is 11.67 across 95 series.** Of twelve
+hypotheses, **five target `region` and four target `credit`.** A stepdown learns
+dependence from the block bootstrap, so correlated tests do not pay full
+multiplicity — but they do not buy twelve independent shots either. Twelve
+registrations concentrated on two axes over roughly twelve effective bets means
+the **family definitions do most of the work**, and nobody has chosen them
+against this constraint.
+
+Two decisions inside it:
+
+- **How families are defined.** SUBSTRATE §6 lists eleven, and the stepdown runs
+  at family level first. Whether `region` with five entrants and `credit` with
+  four are one family each, or should be split or merged, decides most of what
+  survives.
+- **How many hypotheses per family per cycle.** `params/agents.yaml` already
+  carries the knob (`max proposals per family per cycle`). It was sized as a
+  cost lever (`decisions/0007`); it is now also a statistical one.
+
+**And it is live now because of procurement.** 27 JPMaQS tickers are being
+bought for nine hypotheses. If those nine collapse to two or three effective
+tests under the stepdown, that is a different purchase, and task 23's catalogue
+check is already queued.
+
+**Cannot be retired by measuring — yet.** The correlation structure of the
+twelve signals cannot be estimated because `src/signal_lab/signals/` is empty,
+so nothing builds a signal from a hypothesis file. This is a design judgement
+today. **It becomes measurable once signals exist**, at which point the honest
+version is to estimate the joint distribution and read the effective number of
+independent tests off it rather than guess — and the owner has asked that it be
+revisited then.
+
 ### L10. The `seed_stability` veto is unreachable as written
 Added 2026-09-20 by Cowork.
 
@@ -39,16 +79,6 @@ standard error is not), or the veto is retired with its reasoning recorded.
 `vetoes/` and `params/` are owner-only.
 
 **Cannot be retired by measuring.** The distribution is in hand.
-
-### L3. Does "phase 3" gate on the loader or on the data?
-SUBSTRATE §16: *"Signal testing may not begin before phase 3,"* and phase 3 is
-the JPMaQS loader. But `H-2026-0007`, `0008` and `0009` need only Bloomberg and
-FRED series the lab already holds. Reading §16 as *the data this hypothesis
-needs exists* would let three run now; reading it as *the loader exists* keeps
-the clean separation between building and searching.
-
-Either reading is defensible. Changing it is a SUBSTRATE amendment, not a
-shortcut, and the conservative reading costs only time.
 
 ### L4. Holdout power belongs in SUBSTRATE §3
 ~350 weeks gives t ≈ 0.8 at a true IR of 0.30, so the holdout can only ever
@@ -111,6 +141,29 @@ candidate. Listed here because a hypothesis already depends on it.
 ---
 
 ## Dormant — deferred on purpose, with the trigger that wakes them
+
+### D6. Does "phase 3" gate on the loader or on the data?
+Moved from Live to Dormant by the owner, 2026-09-21, without being answered —
+because on the evidence it does not bind either way.
+
+SUBSTRATE §16 says *"Signal testing may not begin before phase 3,"* and phase 3
+is the JPMaQS loader. Four registered hypotheses need no JPMaQS at all:
+`H-2026-0007` (12 Bloomberg OAS series), `0008` (MOVE plus four FRED), `0009`
+(six Bloomberg, post-`0032`) and `0012` (**zero** series — it is the conviction
+measurement question). So the permissive reading would let four run today.
+
+**It buys nothing.** `src/signal_lab/signals/` is empty — `__init__.py` at 44
+bytes and a `.keep` — so no code turns a hypothesis file into a signal.
+`src/signal_lab/stats/` holds only `blocks.py`, the block shuffle: no
+Romano-Wolf stepdown, no HAC, no search null, no deflated IR. And since
+SUBSTRATE v0.5 the `multiple_testing` veto **is** §3's evidence bar, so a
+hypothesis run today fails bar 2 by construction — §10 is explicit that a veto
+whose input is absent fails. Vetoed before it is judged, whichever reading of
+§16 applies.
+
+**Wakes when:** `src/signal_lab/signals/` can build a signal from a hypothesis
+file **and** the Romano-Wolf stepdown exists. At that point the question becomes
+real and should be re-raised as a Live item.
 
 ### D1. The two tracking-error penalty coefficients
 `decisions/0100` open questions: SUBSTRATE §4's asymmetric TE penalty has two
