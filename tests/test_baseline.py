@@ -20,10 +20,12 @@ import pytest
 import signal_lab.audit.signals as signals_mod
 from signal_lab.audit.ladder import (
     BASELINE,
+    KNEE_IC_RUNGS,
     AuditCell,
     baseline_cells,
     build_universe,
     grid_cells,
+    knee_cells,
     net_ir_excess,
     run_cell,
 )
@@ -170,6 +172,23 @@ def test_the_baseline_grids_read_the_ladder_from_params_and_add_nothing_to_it(pa
     assert len({c.key() for c in full}) == len(full)
     with pytest.raises(ValueError):
         baseline_cells(params, "everything")
+
+
+def test_the_knee_grid_pairs_a_live_cell_with_its_baseline_at_rungs_outside_params(params):
+    cells = knee_cells(params)
+    seeds = int(params.require("audit.seeds"))
+    assert len(cells) == len(KNEE_IC_RUNGS) * seeds * 2 == 60
+    assert {c.horizon for c in cells} == {13}
+    assert {c.ic for c in cells} == {0.35, 0.50, 0.70}
+    assert not {c.ic for c in cells} & {float(x) for x in params.require("audit.ic_grid")}, (
+        "the knee rungs are not in params/audit.yaml, and must not be added there"
+    )
+    assert sum(c.baseline for c in cells) == sum(not c.baseline for c in cells)
+    assert len({c.key() for c in cells}) == len(cells), "a live cell and its twin never collide"
+    # Every live cell has its baseline at the same coordinates, so the excess is defined.
+    live = {(c.ic, c.seed) for c in cells if not c.baseline}
+    twin = {(c.ic, c.seed) for c in cells if c.baseline}
+    assert live == twin
 
 
 # --- section 5 --------------------------------------------------------------

@@ -1084,6 +1084,16 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
 
 BASELINE_GRIDS = ("baseline-pilot", "baseline")
 
+# The `knee` grid (HANDOFF task 20): where the response begins between IC 0.20,
+# which the ladder already measured, and the oracle at 1.0. The rungs live here
+# and not in `params/audit.yaml`, which is owner-only and not authorised to grow
+# a key by any record; the grid values the ladder shares with it are still read
+# from params, so `params_hash` is unmoved and the pairing against earlier runs holds.
+KNEE_IC_RUNGS = (0.35, 0.50, 0.70)
+KNEE_HORIZON = 13
+KNEE_GRID = "knee"
+AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID)
+
 
 def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list[AuditCell]:
     """
@@ -1111,6 +1121,26 @@ def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list
         for ic in ics
         for s in seeds
     ]
+
+
+def knee_cells(params: Params | None = None) -> list[AuditCell]:
+    """
+    Both halves of each knee rung: a live base cell and its block-shuffled twin,
+    at `KNEE_HORIZON` only, over every seed. Constraints and costs match the base
+    cells, so the pair differs only in whether the score is aligned with the future.
+    """
+    params = params or get_params()
+    seeds = list(range(int(params.require("audit.seeds"))))
+    default_per = params.get("audit.per_rebalance_cap_default", None)
+    default_per = None if default_per is None else float(default_per)
+    cells: list[AuditCell] = []
+    for ic in KNEE_IC_RUNGS:
+        for s in seeds:
+            cells.append(AuditCell(ic, KNEE_HORIZON, s, 1.0, None, default_per, "base"))
+            cells.append(
+                AuditCell(ic, KNEE_HORIZON, s, 1.0, None, default_per, BASELINE, baseline=True)
+            )
+    return cells
 
 
 def net_ir_excess(table: pd.DataFrame) -> pd.Series:

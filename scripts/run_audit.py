@@ -33,11 +33,27 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
     out = Path(out_root) / run_id
     out.mkdir(parents=True, exist_ok=True)
     table.to_csv(out / "cells.csv", index=False)
+    is_base = table["baseline"].astype(bool)
     by_rung = (
-        table.groupby(["horizon", "ic"])["net_ir"]
+        table[is_base]
+        .groupby(["horizon", "ic"])["net_ir"]
         .agg(mean="mean", min="min", max="max", n="count")
         .reset_index()
     )
+    paired = None
+    if (~is_base).any():
+        # A run with live cells beside their baselines (the knee grid): the
+        # statistic is the seed-paired excess, not either level (SUBSTRATE s3, bar 2).
+        from signal_lab.audit.ladder import net_ir_excess
+
+        live = table[~is_base].assign(excess=lambda t: net_ir_excess(table)[t.index])
+        grouped = live.groupby(["horizon", "ic"])
+        paired = grouped["net_ir"].agg(live_mean="mean", live_min="min", live_max="max")
+        paired["baseline_mean"] = by_rung.set_index(["horizon", "ic"])["mean"]
+        paired["excess_mean"] = grouped["excess"].mean()
+        paired["excess_se"] = grouped["excess"].std(ddof=1) / grouped["excess"].count() ** 0.5
+        paired["n"] = grouped["excess"].count()
+        paired = paired.reset_index()
     summary = {
         "run_id": run_id,
         "kind": "baseline",
@@ -53,11 +69,15 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
         "seconds": round(time.time() - started, 1),
         "baseline_net_ir_by_rung": by_rung.to_dict(orient="records"),
     }
+    if paired is not None:
+        summary["paired_by_rung"] = paired.to_dict(orient="records")
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, default=float), encoding="utf-8"
     )
     if not args.quiet:
         print(by_rung.to_string(index=False))
+        if paired is not None:
+            print(paired.to_string(index=False))
         print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
     return 0
 
@@ -72,7 +92,14 @@ def main(argv=None) -> int:
     import pandas as pd
 
     from signal_lab.audit.breadth import effective_breadth
-    from signal_lab.audit.ladder import BASELINE_GRIDS, baseline_cells, grid_cells, run_cell
+    from signal_lab.audit.ladder import (
+        AUDIT_GRIDS,
+        KNEE_GRID,
+        baseline_cells,
+        grid_cells,
+        knee_cells,
+        run_cell,
+    )
     from signal_lab.audit.report import run_id_now, write_outputs
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
@@ -87,9 +114,10 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--grid",
         default=None,
-        choices=list(BASELINE_GRIDS),
+        choices=list(AUDIT_GRIDS),
         help="run only the block-shuffled baseline cells of decisions/0036: "
-        "baseline-pilot (h13) or baseline (every horizon)",
+        "baseline-pilot (h13) or baseline (every horizon); or knee, the live and "
+        "baseline cells at the IC rungs between 0.20 and the oracle (h13)",
     )
     parser.add_argument("--solver", default=None, help="auto | cvxpy | scipy (default: params)")
     parser.add_argument("--run-id", default=None)
@@ -106,7 +134,12 @@ def main(argv=None) -> int:
 
     started = time.time()
     universe = get_universe(args.source, params, **kwargs)
-    cells = baseline_cells(params, args.grid) if args.grid else grid_cells(params, args.lean)
+    if args.grid == KNEE_GRID:
+        cells = knee_cells(params)
+    elif args.grid:
+        cells = baseline_cells(params, args.grid)
+    else:
+        cells = grid_cells(params, args.lean)
     if not args.quiet:
         print(
             f"ruler audit {run_id}: {args.source}, {len(universe.holdable)} holdable series, "
