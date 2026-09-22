@@ -1090,3 +1090,9 @@ open question from the two receipts above:
   from a machine on that network, with `.env` present there. Once it is, the
   script and target already exist and are unchanged from the earlier
   receipts (`bb4db0b`).
+
+### 2026-09-22 — task 21 (Claude Code, Sonnet 5)
+
+**21. Remove the parked lock file** — rc=0. `.git/index.lock.stale-cowork-20260920`
+was present (0 bytes, from 2026-09-20). Confirmed `.git/index.lock` itself did
+not exist and no git process was running before removing. Deleted.
