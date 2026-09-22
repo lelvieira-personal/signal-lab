@@ -912,3 +912,72 @@ governance OK, ruff clean (`20260920-112220-check`). A first check at 9 s failed
   nor the run surfaced any problem; the digest's own summary is in `digest.md`.
 - The imputation share is not persisted by the run; the scratch script is in the
   session scratchpad, not the repo.
+
+### 2026-09-21 — task 20, re-specified as the knee grid (Claude Code, Sonnet 5)
+
+**20. Live + baseline at IC 0.35, 0.50, 0.70** — rc=0. `457b5e8` audit: the
+knee grid. `scripts/unattended.sh audit-knee --digest` at `457b5e8`: check
+rc=0 (274 s), audit rc=0 (**3205 s, ~53 min**), run **`A-20260922-005316`**, 60
+cells, h13, ten seeds (`results/audit/_unattended/20260921-204838-audit-knee/`).
+- **Both hashes match** `A-20260919-155557` and `A-20260921-202607`:
+  `panel_hash` `dfbf5c5a…5793`, `params_hash` `ebdfb70e…b77c`. The pairing is
+  valid.
+- Per rung (live mean, baseline mean, excess mean, excess SE, n=10 seeds):
+  - IC 0.35: live 0.390, baseline 0.295, **excess 0.095, SE 0.035**
+  - IC 0.50: live 0.473, baseline 0.361, **excess 0.111, SE 0.016**
+  - IC 0.70: live 0.535, baseline 0.326, **excess 0.209, SE 0.018**
+- Excess is positive and several SE from zero at every rung, growing with IC.
+- Not asked for, flagged anyway: `risk_calibration` fails on 28 of 60 cells
+  (`bias_worst_annual` 1.726-2.036 against the 1.72 ceiling), concentrated in
+  seeds 0, 1, 3, 5, 6, 7 across all three rungs, live and baseline both. Net IR
+  and the excess above are unaffected by this veto (it's ex-post risk
+  calibration, not a return figure), but it is the one ex-post gate in
+  SUBSTRATE and it is failing on nearly half this grid.
+- `params/audit.yaml` untouched; `params_hash` unmoved confirms it.
+
+### 2026-09-21 — task 22 (Claude Code, Sonnet 5)
+
+**22. `decisions/0035` s4(a), s4a and s5** — rc=0. `d8f70ef` audit: the
+corrected transfer coefficient and its baseline. `scripts/unattended.sh check
+--digest` at `457b5e8` + the working tree: **rc=0, 350.7 s, 483 tests** (479 +
+4 new: `baseline_weights`, the corrected-TC acceptance test, the r2-floor
+test), governance OK, ruff clean, holdout lock 15/15
+(`results/audit/_unattended/20260921-215621-check/`).
+- **s4, the corrected estimator.** All three estimators now compute on
+  `w - w_baseline` (`w_baseline` = the leg-weighted sum of each benchmark leg's
+  NNLS tracking portfolio, `portfolio/covariance.py`'s existing `.legs[leg]`
+  diagnostics). `w_active` substitutes for `w` everywhere `coefficients()` used
+  it, not just the numerator, since a partial substitution still divides by
+  the replication-dominated total variance. **Acceptance test, as specified:**
+  a book built from `w_baseline` plus the unconstrained optimum's own tilt
+  reads TC **1.0** (to 1e-6, `pytest.approx`); a book tilted orthogonal to its
+  own alpha reads **0.0** (to 1e-6). Both run on a real NNLS-embedded synthetic
+  universe (trimmed, 14 series), not hand-built matrices.
+- **s4a, the NNLS r2.** Surfaced as `nnls_r2_<leg>` / `nnls_residual_variance_<leg>`
+  on every cell and in `ruler.md`/`ruler.html`'s transfer-coefficient section.
+  **On a real Bloomberg base cell (IC 0.10, h13, seed 0), r2 is 0.9998601801189837
+  for NDUEACWF and 0.9996685999818131 for LEGATRUU — both far above the 0.90
+  floor.** Not a stop condition. A test asserts a 0.90 floor on the synthetic
+  legs (spannable by construction, so a breach there is a real regression).
+- **s5, persistence.** Weights, alpha and the rebalance-date index for every
+  base cell, as parquet under `results/artifacts/<run_id>/<cell key>/`.
+  **Measured disk cost: 0.86 MB for one real Bloomberg base cell** (94
+  holdable series, 834 dates; two files, weights + alpha). The standard grid
+  has 160 base cells, so a full run's artifacts are **roughly 137 MB**,
+  extrapolated from one cell, not measured on a full run. Not committed to
+  git (results/artifacts/ is regenerable, per SUBSTRATE section 11); confirmed
+  via a scratch smoke test on the synthetic lean grid (4 base cells, 3.6 MB)
+  and the one real cell above.
+- **Beyond the stop rule, an open finding, not a stop condition:** the real
+  IC = 1 oracle cell's corrected TC does **not** read near ceiling (full
+  0.022, diagonal 0.029 -- close to the OLD estimator's 0.039-0.042), even
+  though the estimator recovers 1.0 exactly on the constructed acceptance
+  case. Traced one date: the solved book `w` and its NNLS baseline
+  `w_baseline` are nearly orthogonal in raw weight space (cos 0.011), and
+  `alignment` barely moves under the correction (8th decimal), consistent
+  with `w_baseline` sitting close to the min-active-variance portfolio in
+  Omega's own metric -- 0035 s3's subtlety, now observed rather than argued.
+  This is the open question 0035 s7 already named ("the two are the same
+  investigation and neither settles first"); it does not block this task, and
+  no re-run of `A-20260919-155557` was authorised or attempted.
+- `params/` untouched.
