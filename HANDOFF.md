@@ -981,3 +981,33 @@ test), governance OK, ruff clean, holdout lock 15/15
   investigation and neither settles first"); it does not block this task, and
   no re-run of `A-20260919-155557` was authorised or attempted.
 - `params/` untouched.
+
+### 2026-09-22 — task 19 (Claude Code, Sonnet 5)
+
+**19. The full baseline grid** — rc=0. `scripts/unattended.sh audit-baseline
+--digest` at `941a799`: check rc=0 (283 s), audit rc=0 (**32912 s of reported
+elapsed time, but see below**), run **`A-20260922-033647`**, 160 cells, four
+horizons, ten seeds (`results/audit/_unattended/20260921-233203-audit-baseline/`).
+- **Both hashes match** `A-20260919-155557`, `A-20260921-202607` and
+  `A-20260922-005316`: `panel_hash` `dfbf5c5a…5793`, `params_hash`
+  `ebdfb70e…b77c`.
+- **Not actually 9.1 hours of audit compute.** The log shows 160 cells at the
+  usual 40-90s each, except cell 121 (`ic0.02_h52_s0`), which reports
+  **23,625.1s (6h 34m)** on its own. The machine (or WSL) slept overnight
+  between cells 120 and 121; the process resumed and finished normally, and
+  every cell before and after ran at the expected pace. True audit compute is
+  close to task 18's per-cell rate (~50-70s), i.e. roughly **2.5-3 hours**, not
+  the 9.1 hours the wall clock reports. Net IR is unaffected -- this is only a
+  timing artifact.
+- Baseline `net_ir` by horizon and IC rung (mean, seed min-max, n=10):
+
+  | h | IC 0.02 | IC 0.05 | IC 0.10 | IC 0.20 |
+  |---|---|---|---|---|
+  | 4  | 0.299 (-0.200 to 0.620) | 0.306 (-0.062 to 0.669) | 0.228 (-0.036 to 0.500) | 0.314 (-0.025 to 0.525) |
+  | 13 | 0.290 (-0.369 to 0.589) | 0.321 (-0.605 to 0.798) | 0.277 (-0.101 to 0.677) | 0.346 (0.044 to 0.679) |
+  | 26 | 0.304 (-0.345 to 0.668) | 0.304 (-0.402 to 0.806) | 0.467 (-0.076 to 0.820) | 0.295 (-0.087 to 0.511) |
+  | 52 | 0.363 (-0.164 to 0.619) | 0.348 (-0.168 to 0.618) | 0.321 (-0.269 to 0.967) | 0.250 (-0.162 to 0.710) |
+
+- Every rung's mean sits in the 0.23-0.47 band, in line with the h13 rungs
+  task 18 and task 20 already measured; no horizon shows the floor collapsing
+  or escaping that range.
