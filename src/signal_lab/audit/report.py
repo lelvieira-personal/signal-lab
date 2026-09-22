@@ -103,15 +103,21 @@ COVARIANCE_NOTE = (
 )
 
 TC_NOTE = (
-    "Transfer coefficient (decisions/0033), from the alpha each book was solved against "
-    "and the weights it got, with nothing re-solved unconstrained. **Full matrix** is the "
-    "reported TC: a'w / [sqrt(a' Omega^-1 a) sqrt(w' Omega w)] on the active covariance "
-    "(Clarke, de Silva and Thorley 2006, eq. 23). **Diagonal** is the form comparable to "
-    "the published 0.3 to 0.8 range and ignores correlations. **Alignment** is "
-    "corr(a, Omega w), which needs no inverse and is a control, not a level. Omega's "
-    "condition number is printed beside them because the full-matrix form inverts it. "
-    "Published: 0.671 full and 0.620 diagonal for a long-only capped 21-country book "
-    "(Clarke, de Silva and Thorley 2006). It gates nothing."
+    "Transfer coefficient (decisions/0033, corrected by decisions/0035 s4), from the "
+    "alpha each book was solved against and its ACTIVE weight, `w - w_baseline`, with "
+    "nothing re-solved unconstrained. `w_baseline` is the long-only NNLS tracking "
+    "portfolio for the benchmark (s4a) -- the book with no view -- because the "
+    "benchmark legs are not holdable and `w` itself is dominated by replicating them. "
+    "**Full matrix** is the reported TC: a'w_active / [sqrt(a' Omega^-1 a) "
+    "sqrt(w_active' Omega w_active)] on the active covariance (Clarke, de Silva and "
+    "Thorley 2006, eq. 23, with w_active in place of w throughout). **Diagonal** is the "
+    "form comparable to the published 0.3 to 0.8 range and ignores correlations. "
+    "**Alignment** is corr(a, Omega w_active), which needs no inverse and is a control, "
+    "not a level. Omega's condition number is printed beside them because the "
+    "full-matrix form inverts it. Published: 0.671 full and 0.620 diagonal for a "
+    "long-only capped 21-country book (Clarke, de Silva and Thorley 2006). It gates "
+    "nothing. NNLS r2 per leg (s4a) is the replication quality w_baseline is built on; "
+    "a degraded r2 means the corrected TC is measured against a poor baseline."
 )
 
 IC_NOTE = (
@@ -136,13 +142,20 @@ def _by_horizon(table: pd.DataFrame, columns: dict[str, str], tag: str = "base")
 
 
 def _transfer_frame(table: pd.DataFrame) -> pd.DataFrame:
+    # decisions/0035 s4a: the NNLS replication quality the corrected TC is now
+    # measured against, per leg. Column names carry the leg id, which varies by
+    # universe, so they are found rather than named.
+    leg_cols = {
+        c: f"NNLS r2 ({c[len('nnls_r2_') :]})" for c in table.columns if c.startswith("nnls_r2_")
+    }
     return _by_horizon(
         table,
         {
-            "transfer_coefficient": "TC, full matrix (reported)",
+            "transfer_coefficient": "TC, full matrix (reported), active weight",
             "transfer_coefficient_diagonal": "TC, diagonal",
             "transfer_coefficient_alignment": "alignment (control)",
             "omega_condition_median": "Omega condition number",
+            **leg_cols,
         },
     )
 

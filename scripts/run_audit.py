@@ -88,6 +88,29 @@ def pd_now() -> str:
     return pd.Timestamp.now("UTC").isoformat(timespec="seconds")
 
 
+def _write_cell_artifacts(artifacts_root, run_id: str, cell, path) -> int:
+    """
+    Weights, alpha and the rebalance-date index for one cell, as parquet
+    (decisions/0035 s5). `results/artifacts/` is where `STATUS.md` already
+    says these live and where the results store's own `write_artifact` puts
+    them; the audit writes here directly since it does not go through the
+    store. Returns the bytes written, so the caller can report the disk cost.
+    """
+    from pathlib import Path
+
+    out = Path(artifacts_root) / run_id / cell.key()
+    out.mkdir(parents=True, exist_ok=True)
+    written = 0
+    weights = path.weights.reset_index(names="date")
+    weights.to_parquet(out / "weights.parquet", index=False)
+    written += (out / "weights.parquet").stat().st_size
+    if path.alpha is not None and len(path.alpha):
+        alpha = path.alpha.reset_index(names="date")
+        alpha.to_parquet(out / "alpha.parquet", index=False)
+        written += (out / "alpha.parquet").stat().st_size
+    return written
+
+
 def main(argv=None) -> int:
     import pandas as pd
 
@@ -148,10 +171,18 @@ def main(argv=None) -> int:
             flush=True,
         )
 
+    from pathlib import Path
+
+    artifacts_root = Path(out_root).parent / "artifacts"
+    artifact_bytes = 0
     rows = []
     for i, cell in enumerate(cells, start=1):
-        row, _ = run_cell(universe, cell, params, args.solver)
+        row, path = run_cell(universe, cell, params, args.solver)
         rows.append(row)
+        if cell.tag == "base":
+            # decisions/0035 s5: base cells at minimum, so the next measurement
+            # bug is a re-derivation instead of another multi-hour re-run.
+            artifact_bytes += _write_cell_artifacts(artifacts_root, run_id, cell, path)
         if not args.quiet:
             print(
                 f"  [{i:>3}/{len(cells)}] {cell.key():<34} net IR {row['net_ir']:+.3f}  "
@@ -160,6 +191,8 @@ def main(argv=None) -> int:
                 flush=True,
             )
     table = pd.DataFrame(rows)
+    if artifact_bytes and not args.quiet:
+        print(f"artifacts: {artifact_bytes / 1e6:.1f} MB under {artifacts_root}/{run_id}/")
 
     if args.grid:
         return _write_baseline_run(args, params, universe, table, run_id, out_root, started)

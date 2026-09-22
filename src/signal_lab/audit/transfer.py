@@ -56,11 +56,33 @@ ROW_KEYS = (
 )
 
 
-def empty_row() -> dict[str, float]:
+def empty_row(legs: list[str] | None = None) -> dict[str, float]:
     """What a cell reports when its rule did not say what alpha it solved against."""
     row = {k: _NAN for k in ROW_KEYS}
     row["transfer_n_dates"] = 0
+    for leg in legs or []:
+        row[f"nnls_r2_{leg}"] = _NAN
+        row[f"nnls_residual_variance_{leg}"] = _NAN
     return row
+
+
+def baseline_weights(
+    cov: Any, hold: list[str], legs: list[str], leg_weights: pd.Series
+) -> np.ndarray:
+    """
+    The long-only NNLS tracking portfolio the book would hold with no view
+    (decisions/0035 s4): the benchmark's leg weights applied to each leg's own
+    tracking portfolio (`ShrunkCovariance.legs[leg]["weights"]`, s4a), summed.
+    `hold` may be a subset of a leg's own tracking weights when the covariance
+    window drops a series this date; the rest of that leg's replication is
+    carried by series outside `hold` and is not this book's to hold either, so
+    it is dropped rather than imputed.
+    """
+    total = pd.Series(0.0, index=hold)
+    for leg in legs:
+        beta = cov.legs[leg]["weights"].reindex(hold).fillna(0.0)
+        total = total + float(leg_weights[leg]) * beta
+    return total.to_numpy(dtype=float)
 
 
 def active_covariance(
@@ -111,31 +133,51 @@ def path_transfer(path: Any, universe: Any, cell: Any) -> dict[str, float]:
 
     A path whose rule did not expose its alpha yields no reading -- NaN columns
     and `transfer_n_dates = 0` -- rather than a coefficient built on a guess.
+
+    decisions/0035 s4: all three estimators are computed on the ACTIVE weight,
+    `w - w_baseline`, `w_baseline` being the long-only NNLS tracking portfolio
+    the book would hold with no view. Omega keeps its own definition (the
+    active covariance of the real, fully-invested book, s3) and `w_active` is
+    substituted for `w` wherever `coefficients()` used it -- numerator,
+    denominator and both correlations -- because a partial substitution would
+    still divide by the replication-dominated total variance and read the same
+    near-zero coefficient s1 and s2 measured. s4a: the replication quality that
+    baseline is measured against is surfaced alongside it, per leg, since
+    nothing else in the pipeline reads it.
     """
     alpha = getattr(path, "alpha", None)
+    legs = getattr(universe, "leg_ids", [])
     if alpha is None or len(alpha) == 0:
-        return empty_row()
-    legs = universe.leg_ids
+        return empty_row(legs)
     rows = []
+    leg_rows = []
     for date in path.weights.index.intersection(alpha.index):
         cov = universe.covariance(date, cell.vol_halflife, cell.vol_overlay)
         hold = [h for h in alpha.columns if h in cov.ids]
-        if not hold:
+        if not hold or not all(leg in cov.legs for leg in legs):
             continue
         omega = active_covariance(cov.matrix, hold, legs, universe.leg_weights)
         a = alpha.loc[date, hold].fillna(0.0).to_numpy(dtype=float)
         w = path.weights.loc[date].reindex(hold).fillna(0.0).to_numpy(dtype=float)
-        rows.append(coefficients(a, w, omega))
+        w_active = w - baseline_weights(cov, hold, legs, universe.leg_weights)
+        rows.append(coefficients(a, w_active, omega))
+        leg_rows.append({leg: cov.legs[leg]["r2"] for leg in legs})
+        leg_rows[-1].update({f"{leg}__resid": cov.legs[leg]["residual_variance"] for leg in legs})
     if not rows:
-        return empty_row()
+        return empty_row(legs)
     frame = pd.DataFrame(rows)
+    leg_frame = pd.DataFrame(leg_rows)
 
     def mean(col: str) -> float:
         v = frame[col].dropna()
         return float(v.mean()) if len(v) else _NAN
 
+    def leg_mean(col: str) -> float:
+        v = leg_frame[col].dropna()
+        return float(v.mean()) if len(v) else _NAN
+
     cond = frame["condition"].dropna()
-    return {
+    out = {
         "transfer_coefficient": mean("full"),
         "transfer_coefficient_diagonal": mean("diagonal"),
         "transfer_coefficient_alignment": mean("alignment"),
@@ -143,3 +185,7 @@ def path_transfer(path: Any, universe: Any, cell: Any) -> dict[str, float]:
         "omega_condition_max": float(cond.max()) if len(cond) else _NAN,
         "transfer_n_dates": int(frame["full"].notna().sum()),
     }
+    for leg in legs:
+        out[f"nnls_r2_{leg}"] = leg_mean(leg)
+        out[f"nnls_residual_variance_{leg}"] = leg_mean(f"{leg}__resid")
+    return out

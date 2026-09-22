@@ -76,6 +76,116 @@ def test_a_singular_omega_is_reported_not_inverted():
     assert got["condition"] > 1e12 or not np.isfinite(got["condition"])
 
 
+# --- decisions/0035 s4: the corrected estimator, on the active weight ------------
+
+
+@pytest.fixture(scope="module")
+def small_universe(params, panel):
+    """A trimmed synthetic universe, real legs and real NNLS tracking portfolios."""
+    import dataclasses
+
+    from signal_lab.audit.ladder import build_universe
+    from signal_lab.audit.universe import synthetic_universe
+    from signal_lab.loaders.base import ReturnPanel
+
+    audit = dict(params.audit)
+    audit["covariance"] = {"estimator": "ledoit_wolf", "window_periods": 52}
+    slim = dataclasses.replace(params, audit=audit)
+    universe = synthetic_universe(slim, start="2016-01-01")
+    keep = universe.holdable[:14]
+    trimmed = ReturnPanel(
+        levels=universe.panel.levels[keep],
+        returns=universe.panel.returns[keep],
+        meta={s: universe.panel.meta[s] for s in keep},
+        snapshot_id=universe.panel.snapshot_id,
+        source=universe.panel.source,
+    )
+    return build_universe(trimmed, universe.legs, universe.leg_weights, slim)
+
+
+def test_baseline_weights_is_the_benchmarks_leg_weights_applied_to_each_legs_tracking_portfolio(
+    small_universe,
+):
+    universe = small_universe
+    date = universe.audit_dates()[-1]
+    cov = universe.covariance(date)
+    legs = universe.leg_ids
+    hold = [h for h in universe.holdable if h in cov.ids]
+    got = tr.baseline_weights(cov, hold, legs, universe.leg_weights)
+    want = sum(
+        float(universe.leg_weights[leg]) * cov.legs[leg]["weights"].reindex(hold).fillna(0.0)
+        for leg in legs
+    )
+    np.testing.assert_allclose(got, want.to_numpy())
+
+
+def test_the_corrected_tc_reads_near_ceiling_for_a_book_aligned_with_its_alpha_and_near_zero_for_one_that_is_not(
+    small_universe,
+):
+    """decisions/0035 s4's acceptance test, through `path_transfer` end to end: a
+    book that replicates the benchmark (the NNLS tracking portfolio) and tilts in
+    the unconstrained optimum's direction transfers close to fully, once the
+    replication is stripped out of its weight; a book that tilts in a direction
+    uncorrelated with its own alpha transfers close to nothing. Both read wrong
+    before this record -- 0.039 to 0.042 and -0.017 -- because the old estimator
+    read the total weight, dominated by the same replication in both books.
+    """
+    universe = small_universe
+    date = universe.audit_dates()[-1]
+    cov = universe.covariance(date)
+    legs = universe.leg_ids
+    hold = [h for h in universe.holdable if h in cov.ids]
+    omega = tr.active_covariance(cov.matrix, hold, legs, universe.leg_weights)
+    w_baseline = tr.baseline_weights(cov, hold, legs, universe.leg_weights)
+
+    rng = np.random.default_rng(13)
+    a = rng.normal(size=len(hold))
+    w_star = np.linalg.solve(omega, a)  # the unconstrained optimum's active tilt
+    noise = rng.normal(size=len(hold))
+    noise -= a * (a @ noise) / (a @ a)  # orthogonalised against alpha: a tilt with no view
+
+    def path_for(w_active):
+        w = pd.Series(w_baseline + w_active, index=hold)
+        return SimpleNamespace(
+            weights=pd.DataFrame([w], index=[date]),
+            alpha=pd.DataFrame([pd.Series(a, index=hold)], index=[date]),
+        )
+
+    cell = SimpleNamespace(vol_halflife=None, vol_overlay="per_series")
+    aligned = tr.path_transfer(path_for(0.01 * w_star), universe, cell)
+    unaligned = tr.path_transfer(path_for(0.05 * noise), universe, cell)
+    assert aligned["transfer_coefficient"] == pytest.approx(1.0, abs=1e-6)
+    assert abs(unaligned["transfer_coefficient"]) < 1e-6
+
+
+def test_the_nnls_r2_per_leg_is_surfaced_and_floored(small_universe):
+    """decisions/0035 s4a: the replication quality nobody read. The synthetic
+    legs are equal-weighted averages of panel sections, spannable by
+    construction (`universe.py` module docstring), so a degraded r2 here is a
+    real regression, not the ordinary noise of a real benchmark."""
+    universe = small_universe
+    date = universe.audit_dates()[-1]
+    cov = universe.covariance(date)
+    legs = universe.leg_ids
+    hold = [h for h in universe.holdable if h in cov.ids]
+    for leg in legs:
+        assert cov.legs[leg]["r2"] > 0.9, f"{leg} replication degraded below the floor"
+
+    a = np.random.default_rng(14).normal(size=len(hold))
+    path = SimpleNamespace(
+        weights=pd.DataFrame([pd.Series(0.0, index=hold)], index=[date]),
+        alpha=pd.DataFrame([pd.Series(a, index=hold)], index=[date]),
+    )
+    row = tr.path_transfer(
+        path, universe, SimpleNamespace(vol_halflife=None, vol_overlay="per_series")
+    )
+    for leg in legs:
+        assert row[f"nnls_r2_{leg}"] == pytest.approx(cov.legs[leg]["r2"])
+        assert row[f"nnls_residual_variance_{leg}"] == pytest.approx(
+            cov.legs[leg]["residual_variance"]
+        )
+
+
 # --- the migration: a rule MAY expose alpha() -------------------------------------
 
 
