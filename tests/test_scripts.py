@@ -20,6 +20,25 @@ from signal_lab.harness.snapshot import (  # noqa: E402
 )
 
 
+def _requests(tmp_path: Path) -> list[str]:
+    """
+    Point the cycle's data requests at `tmp_path`. Without it triage writes the
+    tracked `data/requests/*.yaml` from a synthetic snapshot on every `make
+    check` (HANDOFF task 28).
+    """
+    return ["--requests-dir", str(tmp_path / "requests")]
+
+
+def _tree_state(root: Path) -> dict[str, tuple[int, str]]:
+    import hashlib
+
+    return {
+        str(p.relative_to(root)): (p.stat().st_mtime_ns, hashlib.sha256(p.read_bytes()).hexdigest())
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+    }
+
+
 @pytest.fixture(scope="module")
 def snapshot(tmp_path_factory):
     from signal_lab.params import get_params
@@ -95,7 +114,10 @@ def test_nightly_cycle_records_blocked_not_a_fake_veto_failure(tmp_path, capsys)
     params = get_params()
     build_snapshot("cyc-v1", "synthetic", params, snapshots_dir=tmp_path)
     db = tmp_path / "runs.db"
-    rc = cycle.main(["--snapshot", "cyc-v1", "--db", str(db), "--snapshots-dir", str(tmp_path)])
+    rc = cycle.main(
+        ["--snapshot", "cyc-v1", "--db", str(db), "--snapshots-dir", str(tmp_path)]
+        + _requests(tmp_path)
+    )
     assert rc == 0
     out = capsys.readouterr().out
     assert "search gate: CLOSED" in out, "the section 5.6 gate must be visible"
@@ -124,6 +146,7 @@ def test_nightly_cycle_refuses_a_tampered_snapshot(tmp_path, capsys):
     (tmp_path / "tamp-v1" / "returns.parquet").write_bytes(b"tampered")
     rc = cycle.main(
         ["--snapshot", "tamp-v1", "--db", str(tmp_path / "r.db"), "--snapshots-dir", str(tmp_path)]
+        + _requests(tmp_path)
     )
     assert rc == 1
     assert "does not match its manifest" in capsys.readouterr().out
@@ -153,7 +176,10 @@ def test_the_cycle_records_the_specific_blocked_reason(tmp_path, capsys):
     params = get_params()
     build_snapshot("blk-v1", "synthetic", params, snapshots_dir=tmp_path)
     db = tmp_path / "runs.db"
-    rc = cycle.main(["--snapshot", "blk-v1", "--db", str(db), "--snapshots-dir", str(tmp_path)])
+    rc = cycle.main(
+        ["--snapshot", "blk-v1", "--db", str(db), "--snapshots-dir", str(tmp_path)]
+        + _requests(tmp_path)
+    )
     assert rc == 0
     runs = ResultsStore(db).list_runs()
     assert set(runs["status"]) <= {"blocked:data", "blocked:no_signal_module"}
@@ -181,6 +207,7 @@ def test_the_validation_run_is_recorded_and_tagged(tmp_path, capsys):
             "--snapshots-dir",
             str(tmp_path),
             "--validate",
+            *_requests(tmp_path),
         ]
     )
     assert rc == 0
@@ -256,3 +283,34 @@ def test_the_committed_universe_is_what_build_universe_produces():
             )
     assert committed["SPBDALB"]["investable"] == "False"
     assert sum(r["investable"] == "True" for r in committed.values()) == 95
+
+
+def test_a_cycle_run_by_a_test_leaves_the_real_registry_and_requests_untouched(tmp_path, capsys):
+    """
+    The guard for task 28: a cycle run with `--requests-dir` writes nothing under
+    `data/requests/` or `hypotheses/`, neither a request nor a moved registration.
+    """
+    import nightly_cycle as cycle
+
+    from signal_lab.params import get_params
+
+    watched = [REPO_ROOT / "data" / "requests", REPO_ROOT / "hypotheses"]
+    before = [_tree_state(root) for root in watched]
+
+    build_snapshot("grd-v1", "synthetic", get_params(), snapshots_dir=tmp_path)
+    rc = cycle.main(
+        [
+            "--snapshot",
+            "grd-v1",
+            "--db",
+            str(tmp_path / "runs.db"),
+            "--snapshots-dir",
+            str(tmp_path),
+        ]
+        + _requests(tmp_path)
+    )
+    assert rc == 0
+    assert any((tmp_path / "requests").glob("*.yaml")), "triage wrote its requests to tmp_path"
+    after = [_tree_state(root) for root in watched]
+    for root, b, a in zip(watched, before, after, strict=True):
+        assert a == b, f"a test run of the cycle changed {root.relative_to(REPO_ROOT)}"

@@ -57,7 +57,7 @@ def main(argv=None) -> int:
         run_experiment,
         validate_pipeline,
     )
-    from signal_lab.harness.hypotheses import HypothesisRegistry
+    from signal_lab.harness.hypotheses import REQUESTS_DIR, HypothesisRegistry
     from signal_lab.harness.snapshot import load_snapshot, verify_snapshot
     from signal_lab.loaders.jpmaqs import search_is_open
     from signal_lab.params import get_params
@@ -69,6 +69,11 @@ def main(argv=None) -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--snapshots-dir", default=None, help="override data/snapshots/")
     parser.add_argument("--db", default=None)
+    parser.add_argument(
+        "--requests-dir",
+        default=None,
+        help="override data/requests/, where triage writes a blocked hypothesis's request",
+    )
     parser.add_argument("--dry-run", action="store_true", help="triage only, record nothing")
     parser.add_argument(
         "--validate",
@@ -108,7 +113,9 @@ def main(argv=None) -> int:
     print("  deterministic steps (load, validate, veto, record) proceed regardless")
 
     # --- triage -------------------------------------------------------------
-    registry = HypothesisRegistry(store=store, params=params)
+    registry = HypothesisRegistry(
+        store=store, params=params, requests_dir=args.requests_dir or REQUESTS_DIR
+    )
     triage = registry.triage(snapshot.available_ids())
     print(
         f"pending: {len(triage['ready'])} ready, {len(triage['blocked'])} blocked:data, "
