@@ -56,12 +56,13 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-23: tasks 18-24 are done** (23 completed from the owner's
-machine once two credential faults were fixed -- a trailing `\r` on the client
-id from a CRLF `.env`, and a wrong secret; the "network origin" receipt above it
-is superseded). **Runnable, in this order: 26, 27, 25.** 26 and 27 are small and
-touch no audit; 25 is 80 minutes of compute. Read
-`claude/detection-threshold-review-2026-09-22.md` before 25.
+**As of 2026-09-23: tasks 18-24 are done.** Task 23 completed from the owner's
+machine once two credential faults were fixed: a trailing `\r` on the client id
+from a CRLF `.env`, and a wrong secret. The "network origin" receipt above it
+is superseded. **Runnable, in this order: 28, then 26 and 27, then 25.** 26
+and 27 are built but uncommitted, and they wait on 28's check. 25 takes 80
+minutes of compute. Read `claude/detection-threshold-review-2026-09-22.md`
+before 25.
 
 One `scripts/unattended.sh` at a time.
 
@@ -750,6 +751,63 @@ the stem match, the relaxed fallback and the empty row.
 **Receipt should say:** rc, commit hash, and per requested ticker the count of
 candidates and its `match` level. Not the candidate names themselves — they are
 in the CSV.
+
+### 28. The cycle tests write into the real `data/requests/` — isolate them
+
+Added 2026-09-23 by Cowork, from the task 26-27 receipt. **Run this first; it
+unblocks 26 and 27.** Claude Code's diagnosis is right and Cowork has confirmed
+it in the code:
+
+- `scripts/nightly_cycle.py` has no `--requests-dir`. It builds
+  `HypothesisRegistry` with the default `requests_dir=REQUESTS_DIR`, which is
+  `REPO_ROOT / "data" / "requests"` (`harness/hypotheses.py:35`).
+- The three cycle tests in `tests/test_scripts.py`
+  (`test_nightly_cycle_records_blocked_not_a_fake_veto_failure`,
+  `test_the_cycle_records_the_specific_blocked_reason` and
+  `test_the_validation_run_is_recorded_and_tagged`) isolate the snapshot and the
+  store in `tmp_path`, but not the requests. So every `make check` rewrites the
+  tracked `data/requests/H-2026-00xx.yaml` from a synthetic snapshot.
+- That write, on `/mnt/c`, is what hit `EINVAL`: something on the Windows side
+  held the file open. Isolating the write removes that exposure, and an
+  intermittent test failure then points at a real problem instead of a
+  Windows file lock.
+
+**Build.**
+
+1. Add `--requests-dir` to `nightly_cycle.py`, defaulting to the current
+   `REQUESTS_DIR`, and pass it to `HypothesisRegistry(requests_dir=...)`.
+   Nothing changes for a real cycle run.
+2. Pass `--requests-dir str(tmp_path / "requests")` in every test that calls
+   `cycle.main` without `--dry-run`. Grep for all of them rather than trusting the
+   three names above.
+3. **Add a guard test.** It records the mtimes and hashes of everything under
+   `data/requests/` and `hypotheses/`, runs one cycle through `cycle.main` with
+   the new flag, and asserts both trees are byte-identical and untouched. The
+   cycle can also `shutil.move` hypothesis files between states
+   (`hypotheses.py:572`), so this is the guard against any future test that
+   forgets the flag.
+4. Do not change what triage writes, or where a real run writes.
+
+**Then re-run the check once, with tasks 26 and 27 in the working tree:**
+
+    scripts/unattended.sh check --digest
+
+- **rc=0:** commit in three parts: 28 alone, then 26, then 27. Then run
+  `make jpmaqs-candidates` (task 27's last step) and continue to task 25.
+- **rc=2 again:** stop and report the failing test ids. Do not re-run hoping it
+  clears.
+
+**Receipt should say:** rc, test count, runtime, the three commit hashes,
+whether the guard test passes, and task 27's per-ticker candidate counts and
+match levels as that task asks.
+
+**One question for the receipt, not for fixing.** Task 16 (2026-09-20) stopped
+because six `data/requests/*.yaml` had changed and nothing seemed to regenerate
+them. It concluded that a synthetic triage "would not reproduce the changes".
+This finding suggests `make check` may have been what wrote them. Say whether
+the files these tests produce in `tmp_path` match the committed ones
+byte-for-byte (`diff`, names only, no values involved). If they match, task 16's
+"hand-edited?" question has its answer.
 
 ---
 
