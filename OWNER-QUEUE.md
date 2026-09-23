@@ -19,6 +19,30 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
+### L13. `risk_calibration` vetoes a quarter to a half of every grid, on 2008
+Added 2026-09-22 by Cowork. Bears on B1, B4, `decisions/0030` and SUBSTRATE §10.
+
+Share of cells with `bias_worst_annual` > 1.72, from each run's `cells.csv`:
+`A-20260919-155557` base 23% (frictionless 100%); knee 47%, live and baseline
+alike; full baseline grid 26%; baseline pilot 30%. **2008 is the worst year in
+every failure of the three newer runs and in 240 of 260 run-wide in the first.**
+A correctly specified model at the p99 fails about 1%. Kurtosis (B4) does not
+rescue it: at the κ = 4 threshold of 1.92, 3-8% still fail. Live and baseline
+fail together, so it is the risk model in 2008, not the signal.
+
+`decisions/0030` foresaw it: 5 of 17 base cells failed without the volatility
+overlay, 0 of 11 with it.
+
+**Why it is live.** Under SUBSTRATE v0.5 every real hypothesis carries roughly a
+25-45% chance of dying on 2008 whatever its signal. The overlay (B1) is opt-in,
+tested at one halflife and one horizon, and a standing refusal in `HANDOFF.md`.
+
+**The decision:** queue B1's halflife sweep now as critical-path work, or accept
+and disclose the veto's 2008 behaviour. `vetoes/` and `params/` are owner-only.
+
+**Partly retirable by measuring:** the sweep shows whether an overlay brings the
+fail rate near 1%. Adopting it stays the owner's call.
+
 ### L12. Is the registry the right shape, now that the stepdown is the bar?
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
 SUBSTRATE §9 and §13, and on what is bought from Macrosynergy.

@@ -56,6 +56,11 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
+**As of 2026-09-22: tasks 18-22 and 24 are done; 23 is blocked on network — it
+must run from a machine on Itaú's network, which only the owner can do. Task 25
+is the only runnable task.** Read `claude/detection-threshold-review-2026-09-22.md`
+before it.
+
 One `scripts/unattended.sh` at a time.
 
 ### 24. Commit the records, then the constitution — DO THIS FIRST
@@ -602,19 +607,89 @@ do not, and whether `request.txt` was written.
 
 ---
 
+### 25. Bar 2's power on a single history — shuffle the whole score
+
+Added 2026-09-22 by Cowork. **Read `claude/detection-threshold-review-2026-09-22.md`
+§1 first** (Cowork project doc).
+
+**Why.** Task 17's baseline keeps its live twin's noise draw and shuffles **only
+the truth**. That is the right control for the engine's dose-response — live and
+baseline net IR correlate 0.85-1.00 across seeds, so the paired excess is sharp.
+It is **not** the null a real hypothesis meets. A real signal has no separate
+noise term: bar 2 puts one live IR against the block-shuffle distribution of the
+**whole** signal, on one history. This task measures that distribution for
+planted signals of known information content, so bar 2's actual power is read
+rather than assumed.
+
+**0. Commit first.** `HANDOFF.md` and `OWNER-QUEUE.md` carry this task and
+OWNER-QUEUE L13, uncommitted. Commit them before building, so the receipt lands
+against a committed queue.
+
+**Build a second shuffle mode, `score`.** Shuffle the fully blended score
+(truth and noise together) rather than the truth alone:
+
+1. Build the live score exactly as today, then shuffle its date-rows with
+   `block_shuffle_rows` — same 52-row blocks, one permutation shared across
+   instruments, as `decisions/0036` §4b.
+2. Re-apply the live NaN mask, with the same neutral fill task 17 uses for cells
+   that were live but drew a NaN row.
+3. Recompute `alpha = ic * sigma * score / sqrt(horizon)` from the shuffled
+   score. **`sigma` is not shuffled** — it is the risk model's input, not the
+   signal.
+4. Each permutation `perm` in 0..19 draws from its own stream, independent of
+   the noise RNG **and** of today's `baseline_rng(seed)`. Extend `baseline_rng`
+   (or add a sibling) so that the **existing call reproduces today's stream
+   exactly** — the bit-for-bit test below depends on it.
+5. Add the mode and `perm` to `AuditCell` with defaults that leave every existing
+   key unchanged, and append them to `key()` only when non-default (e.g.
+   `_baseline_score_p07`), so nothing collides in the append-only store.
+
+**Tests, not checks:** task 17's bit-for-bit reproduction test still passes;
+existing live and truth-shuffle keys are unchanged; different `perm` give
+different permutations and the same `perm` is deterministic.
+
+**Grid `power`, in `ladder.py`,** rungs as a module constant like `KNEE_IC_RUNGS`
+— nothing in `params/`. h13, IC **0.35** and **0.70**, live seeds **0** and
+**1**, 20 permutations each: 2 x 2 x 20 = **80 cells**, about 80 minutes at 58 s
+a cell. Score-shuffle cells only; the live twins exist in `A-20260922-005316` —
+do not re-run them. Add `make audit-power` and extend the `scripts/unattended.sh`
+whitelist.
+
+**`params/` must not change.** `params_hash` stays
+`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c`.
+
+    scripts/unattended.sh check --digest
+    scripts/unattended.sh audit-power --digest
+
+**Receipt should say:** rc, runtime, run id, commit hash; whether both hashes
+match `A-20260922-005316` (**stop and report if either differs**); whether the
+bit-for-bit test passes (**stop and report if not**); and for each (IC, seed) the
+live net IR, the mean and sd of its 20 shuffled net IRs, and the live IR's rank
+among the 21. Nothing else — the interpretation is Cowork's and the owner's.
+
+---
+
 ## Not queued yet, and what each is waiting on
 
-What is left here is waiting on the owner, not on a patch.
+Rewritten 2026-09-22 by Cowork; the earlier text predated `decisions/0035` being
+decided and is in git history.
 
-**The baseline work is now queued** as tasks 17-20 above; `decisions/0036` §4(a)
-and §4b are decided and carry the spec.
+**Landed since the last rewrite:** the block-shuffled baseline (tasks 17-19), the
+knee grid (20), and `0035` §4, §4a and §5 — the corrected TC, the NNLS replication
+quality, per-run persistence of weights and alpha (22).
 
-**The corrected transfer coefficient (`decisions/proposed/0035` §4).** Not
-decided, and deliberately not queued: it costs a 13.3 h re-run and the probe
-plan may want a different grid anyway. Sequence it after task 13.
+**Exposure-space planting** (design B in
+`claude/detection-threshold-review-2026-09-22.md`). Not designed. It plants noise
+per SUBSTRATE §6 axis rather than per instrument, to test whether iid noise across
+a collinear universe is what depresses transfer. Waits on task 25: if bar 2 is out
+of reach on a single history regardless, that changes what B is for.
 
-**Persisting weights and alpha (`0035` §5).** Not decided. It is what would make
-the next measurement bug a re-derivation instead of a re-run.
+**`0035` §7 — the transfer coefficient.** Open. The oracle's corrected TC reads
+0.022 against an acceptance case of 1.0, with `w` and `w_baseline` nearly
+orthogonal (cos 0.011). No task until a hypothesis for it is written.
+
+**The volatility overlay halflife sweep (OWNER-QUEUE B1).** Not queued; see L13.
+It stays a standing refusal below until the owner decides.
 
 **The validator (0034).** Not decided by the owner. Do not build it.
 
@@ -1096,3 +1171,34 @@ open question from the two receipts above:
 **21. Remove the parked lock file** — rc=0. `.git/index.lock.stale-cowork-20260920`
 was present (0 bytes, from 2026-09-20). Confirmed `.git/index.lock` itself did
 not exist and no git process was running before removing. Deleted.
+
+### 2026-09-23 — task 23, completed (Claude Code, Sonnet 5)
+
+**23. JPMaQS catalogue check — a real result.** rc=1 (the script's own stop
+rule, not a failure). Owner ran `set -a; source .env; set +a; make
+jpmaqs-catalogue` directly, with a corrected `DQ_CLIENT_SECRET` (the two
+earlier stops in this file -- credentials not present, then a 401 -- are
+superseded; the 401 really was a bad secret, not the network-origin
+explanation offered in between, since the fix alone made this machine
+succeed).
+- **Auth succeeded** (no proxy, this machine, the one that gave the earlier
+  401). Downloaded the JPMAQS catalogue: **31,728 tickers**, cached at
+  `data/raw/jpmaqs_catalogue.json` (git-ignored, not committed).
+- **27 named tickers, cross product 96** (8 cids x 12 xcats), confirmed
+  before the call, as before.
+- **12 of 27 did NOT resolve:**
+  `USD_INTRGDP_NSA_P1M1ML12_D1M1ML3`, `EUR_INTRGDP_NSA_P1M1ML12_D1M1ML3`,
+  `JPY_INTRGDP_NSA_P1M1ML12_D1M1ML3`, `GBP_INTRGDP_NSA_P1M1ML12_D1M1ML3`,
+  `USD_UNEMPLRATE_SA_D1Q1QL4`, `USD_BLSDCLN_SA_D1Q1QL1`,
+  `EUR_BLSDCLN_SA_D1Q1QL1`, `USD_MBASEGDP_SA_D1M1ML12`,
+  `USD_RM1GDP_SA_D1M1ML12`, `EUR_RM3GDP_SA_D1M1ML12`,
+  `USD_GB10YXGB_NSA`, `EUR_GB10YXGB_NSA`.
+- **Per the stop rule: not substituted, not guessed, not dropped.**
+  `data/requests/jpmaqs_catalogue_check.csv` was written (27 rows, all
+  findings). `data/jpmaqs/request.txt` was **not** written -- confirmed by
+  `git status` (no such file) -- since not all 27 resolved.
+- Needs the owner: the same `decisions/0032` precedent this task's stop rule
+  cites -- these 12 xcats or cid/xcat combinations are either misnamed
+  (worth a hand check against the JPMaQS documentation) or genuinely absent
+  from the vendor's catalogue, and only the owner decides whether to drop,
+  rename or wait on them.
