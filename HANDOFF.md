@@ -1422,3 +1422,24 @@ USD/EUR 4 each, **relaxed**. `USD_MBASEGDP_SA_D1M1ML12` 4, stem.
 `USD_RM1GDP_SA_D1M1ML12` **0, none**. `EUR_RM3GDP_SA_D1M1ML12` **0, none**.
 `USD_GB10YXGB_NSA` 8, **relaxed**. `EUR_GB10YXGB_NSA` **0, none**. Nothing
 ranked or chosen.
+
+### 2026-09-23 — task 25 built; the audit not yet run (Claude Code, Opus 5.5)
+
+**Build done, audit pending.** `61c53a0` adds the `score` shuffle mode,
+`score_shuffle_rng(seed, perm)`, `AuditCell.shuffle`/`perm` (key suffix
+`_baseline_score_pNN` only for score cells), the `power` grid (80 cells),
+`make audit-power` and the `unattended.sh` whitelist. `params/` is untouched.
+The review doc `claude/detection-threshold-review-2026-09-22.md` is a Cowork
+project doc and not in the repo, so it was not read.
+- `scripts/unattended.sh check --digest`: **rc=0, 1012 s, 506 passed**
+  (`results/audit/_unattended/20260923-180524-check/`).
+- **The bit-for-bit test passes.** New golden tests pin the truth shuffle's
+  score hash and `baseline_rng` stream as recorded before the change, and both
+  pass.
+- A smoke run of the new summary against `A-20260922-005316`, using fake shuffled
+  IRs, found all four live twins and **both hashes matching**. The real match is
+  re-checked by the audit itself.
+- `audit-power` was launched at 18:23 and **stopped by hand during its opening
+  `make check`**, before any cell ran, because the owner needed to put the machine
+  to sleep. Nothing was written to `results/audit/` by it. **Next:**
+  `scripts/unattended.sh audit-power --digest`, then the receipt task 25 asks for.
