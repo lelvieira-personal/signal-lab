@@ -33,6 +33,9 @@ import pandas as pd
 
 from signal_lab.audit.signals import (
     POOLED,
+    SCORE_SHUFFLE,
+    SHUFFLES,
+    TRUTH_SHUFFLE,
     PlantedSignal,
     plant_signal,
     realised_ic,
@@ -268,6 +271,19 @@ class AuditCell:
     # decisions/0036 section 4b: the score is blended from a block-shuffled truth.
     # Everything else about the cell is its live twin's, so the key must say so.
     baseline: bool = False
+    # HANDOFF task 25: what the baseline shuffles -- the truth alone (the
+    # default, and every baseline before it) or the whole score -- and, for the
+    # score shuffle, which permutation. The defaults leave every existing key as it was.
+    shuffle: str = TRUTH_SHUFFLE
+    perm: int = 0
+
+    def __post_init__(self) -> None:
+        if self.shuffle not in SHUFFLES:
+            raise ValueError(f"shuffle must be one of {SHUFFLES}, got {self.shuffle!r}")
+        if self.shuffle == SCORE_SHUFFLE and not self.baseline:
+            raise ValueError("a score shuffle is a baseline; set baseline=True")
+        if self.shuffle == TRUTH_SHUFFLE and self.perm != 0:
+            raise ValueError("perm indexes the score shuffle only")
 
     def key(self) -> str:
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
@@ -284,6 +300,8 @@ class AuditCell:
                 key = f"{key}{self.vol_overlay}"
         if self.baseline:
             key = f"{key}_baseline"
+            if self.shuffle != TRUTH_SHUFFLE:
+                key = f"{key}_{self.shuffle}_p{self.perm:02d}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -528,6 +546,8 @@ def run_cell(
         "tag": cell.tag,
         "key": cell.key(),
         "baseline": cell.baseline,
+        "shuffle": cell.shuffle if cell.baseline else "",
+        "perm": cell.perm,
         "ic": cell.ic,
         "horizon": cell.horizon,
         "seed": cell.seed,
@@ -694,6 +714,8 @@ def _plant(universe: AuditUniverse, cell: AuditCell) -> PlantedSignal:
         vol_window=universe.window,
         standardise=cell.standardise,
         baseline=cell.baseline,
+        shuffle=cell.shuffle,
+        perm=cell.perm,
     )
 
 
@@ -1092,7 +1114,17 @@ BASELINE_GRIDS = ("baseline-pilot", "baseline")
 KNEE_IC_RUNGS = (0.35, 0.50, 0.70)
 KNEE_HORIZON = 13
 KNEE_GRID = "knee"
-AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID)
+
+# The `power` grid (HANDOFF task 25): bar 2's power on a single history. Score-
+# shuffle cells only, at two knee rungs and two seeds; their live twins are the
+# knee run's base cells and are not re-run. Constants here, like the knee rungs,
+# because params/ is owner-only.
+POWER_GRID = "power"
+POWER_IC_RUNGS = (0.35, 0.70)
+POWER_SEEDS = (0, 1)
+POWER_PERMS = 20
+POWER_LIVE_RUN = "A-20260922-005316"
+AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID, POWER_GRID)
 
 
 def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list[AuditCell]:
@@ -1143,6 +1175,35 @@ def knee_cells(params: Params | None = None) -> list[AuditCell]:
     return cells
 
 
+def power_cells(params: Params | None = None) -> list[AuditCell]:
+    """
+    Score-shuffle baselines at `KNEE_HORIZON`: every IC in `POWER_IC_RUNGS`, every
+    seed in `POWER_SEEDS`, `POWER_PERMS` permutations each. Constraints and costs
+    match the knee grid's cells, so each set of 20 sits beside a live twin in
+    `POWER_LIVE_RUN`.
+    """
+    params = params or get_params()
+    default_per = params.get("audit.per_rebalance_cap_default", None)
+    default_per = None if default_per is None else float(default_per)
+    return [
+        AuditCell(
+            ic,
+            KNEE_HORIZON,
+            s,
+            1.0,
+            None,
+            default_per,
+            BASELINE,
+            baseline=True,
+            shuffle=SCORE_SHUFFLE,
+            perm=p,
+        )
+        for ic in POWER_IC_RUNGS
+        for s in POWER_SEEDS
+        for p in range(POWER_PERMS)
+    ]
+
+
 def net_ir_excess(table: pd.DataFrame) -> pd.Series:
     """
     Per row, net IR less the net IR of its seed-matched block-shuffled baseline.
@@ -1159,6 +1220,10 @@ def net_ir_excess(table: pd.DataFrame) -> pd.Series:
         if "baseline" in table.columns
         else pd.Series(False, index=table.index)
     )
+    # The paired floor is the truth shuffle; a score-shuffle row is a draw from a
+    # null, not a seed-matched twin (HANDOFF task 25).
+    if "shuffle" in table.columns:
+        is_base = is_base & table["shuffle"].fillna(TRUTH_SHUFFLE).isin([TRUTH_SHUFFLE, ""])
     frame = table[keys].astype(float)
     # NaN never matches NaN in a join, and "no cap" is a coordinate, not a gap.
     frame[["turnover_cap", "per_rebalance_cap"]] = frame[

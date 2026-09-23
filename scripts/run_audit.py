@@ -20,6 +20,58 @@ import time
 import _bootstrap  # noqa: F401
 
 
+def _power_by_cell(table, universe, params, out_root):
+    """
+    HANDOFF task 25: per (horizon, ic, seed), the live net IR from the knee run,
+    the mean and sd of the score-shuffled net IRs, and the live IR's rank among
+    all of them (1 = highest). The live run's hashes are compared with this
+    run's, because a rank against a live IR from another panel or other params
+    means nothing.
+    """
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    live_dir = Path(out_root) / POWER_LIVE_RUN
+    hashes = {"live_run": POWER_LIVE_RUN, "found": live_dir.exists()}
+    live = None
+    if live_dir.exists():
+        live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
+        hashes["panel_hash_match"] = live_summary.get("panel_hash") == universe.panel_hash()
+        hashes["params_hash_match"] = live_summary.get("params_hash") == params.params_hash
+        cells = pd.read_csv(live_dir / "cells.csv")
+        live = cells[~cells["baseline"].astype(bool) & (cells["tag"] == "base")]
+    rows = []
+    for (h, ic, seed), grp in table.groupby(["horizon", "ic", "seed"]):
+        shuffled = grp["net_ir"].astype(float)
+        row = {
+            "horizon": int(h),
+            "ic": float(ic),
+            "seed": int(seed),
+            "n_perms": int(len(shuffled)),
+            "shuffled_mean": float(shuffled.mean()),
+            "shuffled_sd": float(shuffled.std(ddof=1)),
+            "live_net_ir": float("nan"),
+            "live_rank": None,
+            "of": int(len(shuffled)) + 1,
+        }
+        if live is not None:
+            match = live[
+                (live["horizon"] == h)
+                & (live["ic"].round(6) == round(float(ic), 6))
+                & (live["seed"] == seed)
+            ]
+            if len(match) == 1:
+                value = float(match["net_ir"].iloc[0])
+                row["live_net_ir"] = value
+                row["live_rank"] = 1 + int((shuffled > value).sum())
+        rows.append(row)
+    return hashes, pd.DataFrame(rows)
+
+
 def _write_baseline_run(args, params, universe, table, run_id, out_root, started) -> int:
     """
     A baseline-only run has no base cells, oracle or twin, so the ruler report has
@@ -71,6 +123,11 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
     }
     if paired is not None:
         summary["paired_by_rung"] = paired.to_dict(orient="records")
+    power = None
+    if args.grid == "power":
+        hashes, power = _power_by_cell(table, universe, params, out_root)
+        summary["power_live_run"] = hashes
+        summary["power_by_cell"] = power.to_dict(orient="records")
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, default=float), encoding="utf-8"
     )
@@ -78,6 +135,9 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
         print(by_rung.to_string(index=False))
         if paired is not None:
             print(paired.to_string(index=False))
+        if power is not None:
+            print(summary["power_live_run"])
+            print(power.to_string(index=False))
         print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
     return 0
 
@@ -118,9 +178,11 @@ def main(argv=None) -> int:
     from signal_lab.audit.ladder import (
         AUDIT_GRIDS,
         KNEE_GRID,
+        POWER_GRID,
         baseline_cells,
         grid_cells,
         knee_cells,
+        power_cells,
         run_cell,
     )
     from signal_lab.audit.report import run_id_now, write_outputs
@@ -140,7 +202,8 @@ def main(argv=None) -> int:
         choices=list(AUDIT_GRIDS),
         help="run only the block-shuffled baseline cells of decisions/0036: "
         "baseline-pilot (h13) or baseline (every horizon); or knee, the live and "
-        "baseline cells at the IC rungs between 0.20 and the oracle (h13)",
+        "baseline cells at the IC rungs between 0.20 and the oracle (h13); or power, "
+        "20 score-shuffle baselines per knee rung and seed (HANDOFF task 25)",
     )
     parser.add_argument("--solver", default=None, help="auto | cvxpy | scipy (default: params)")
     parser.add_argument("--run-id", default=None)
@@ -159,6 +222,8 @@ def main(argv=None) -> int:
     universe = get_universe(args.source, params, **kwargs)
     if args.grid == KNEE_GRID:
         cells = knee_cells(params)
+    elif args.grid == POWER_GRID:
+        cells = power_cells(params)
     elif args.grid:
         cells = baseline_cells(params, args.grid)
     else:

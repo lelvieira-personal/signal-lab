@@ -21,6 +21,9 @@ import pandas as pd
 # the permutation from the noise generator would advance it and unpair a
 # baseline cell from its live twin.
 BASELINE_STREAM = 0x5EED_B10C
+# The score shuffle's streams (HANDOFF task 25): one per permutation `perm`,
+# independent of the noise stream and of the truth shuffle's `baseline_rng`.
+SCORE_STREAM = 0x5C0_5EED
 
 
 def block_permutation(n: int, block: int, rng: np.random.Generator) -> np.ndarray:
@@ -53,3 +56,13 @@ def block_shuffle_rows(panel: pd.DataFrame, block: int, rng: np.random.Generator
 def baseline_rng(seed: int) -> np.random.Generator:
     """The permutation stream for `seed`, independent of `default_rng(seed)`."""
     return np.random.default_rng([int(seed), BASELINE_STREAM])
+
+
+def score_shuffle_rng(seed: int, perm: int) -> np.random.Generator:
+    """
+    Permutation stream `perm` for `seed`, for the whole-score shuffle.
+
+    A sibling rather than an argument to `baseline_rng`, so the truth shuffle's
+    call and stream stay exactly what every baseline cell before it drew.
+    """
+    return np.random.default_rng([int(seed), SCORE_STREAM, int(perm)])

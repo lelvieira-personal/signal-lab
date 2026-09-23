@@ -20,6 +20,7 @@
 #   make audit-lean the same, two ICs and one seed -- shape and runtime only
 #   make audit-baseline-pilot / audit-baseline   the block-shuffled baseline cells (decisions/0036)
 #   make audit-knee                              live + baseline at IC 0.35/0.50/0.70, h13 (60 cells)
+#   make audit-power                             score-shuffle baselines, IC 0.35/0.70 x seeds 0/1 x 20 perms, h13 (80 cells)
 #   make jpmaqs-catalogue                        the 27 registered JPMaQS tickers against the vendor catalogue
 #   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make governance SUBSTRATE section 2, checked mechanically
@@ -48,7 +49,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee jpmaqs-catalogue jpmaqs-candidates
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power jpmaqs-catalogue jpmaqs-candidates
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -97,6 +98,9 @@ audit-baseline: ## block-shuffled baseline, every horizon, 160 cells (decisions/
 
 audit-knee: ## live + baseline at IC 0.35/0.50/0.70, h13 only, 60 cells (HANDOFF task 20)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid knee
+
+audit-power: ## score-shuffle baselines, IC 0.35/0.70, seeds 0/1, 20 perms, h13 -- 80 cells (HANDOFF task 25)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid power
 
 audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not minutes
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg

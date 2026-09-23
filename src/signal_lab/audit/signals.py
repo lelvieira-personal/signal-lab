@@ -61,7 +61,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from signal_lab.stats.blocks import baseline_rng, block_shuffle_rows
+from signal_lab.stats.blocks import baseline_rng, block_shuffle_rows, score_shuffle_rng
 
 POOLED = "pooled"
 CROSS_SECTIONAL = "cross_sectional"
@@ -69,6 +69,13 @@ STANDARDISATIONS = (POOLED, CROSS_SECTIONAL)
 # Block length, in rows, of the baseline's shuffle: the longest signal horizon on
 # the grid, which is what SUBSTRATE section 9 asks of a block length.
 BASELINE_BLOCK = 52
+# What a baseline shuffles. `truth` (decisions/0036 section 4b) shuffles the truth
+# and keeps the live noise draw: the paired control for the engine's
+# dose-response. `score` (HANDOFF task 25) shuffles the fully blended score,
+# truth and noise together: the null a real signal meets under bar 2.
+TRUTH_SHUFFLE = "truth"
+SCORE_SHUFFLE = "score"
+SHUFFLES = (TRUTH_SHUFFLE, SCORE_SHUFFLE)
 
 
 @dataclass(frozen=True)
@@ -82,6 +89,8 @@ class PlantedSignal:
     sigma: pd.DataFrame  # dates x ids, trailing per-period volatility used
     standardise: str = POOLED  # how the truth was standardised; see the module docstring
     baseline: bool = False  # score built from a block-shuffled truth; `truth` stays the real one
+    shuffle: str = TRUTH_SHUFFLE  # what the baseline shuffled; see SHUFFLES
+    perm: int = 0  # the score shuffle's permutation index
 
     @property
     def persistence(self) -> float:
@@ -149,6 +158,8 @@ def plant_signal(
     vol_window: int,
     standardise: str = POOLED,
     baseline: bool = False,
+    shuffle: str = TRUTH_SHUFFLE,
+    perm: int = 0,
 ) -> PlantedSignal:
     """
     Build the planted signal on `weekly` (periods x ids) against `benchmark`
@@ -161,9 +172,19 @@ def plant_signal(
     availability, same magnitude, and the alignment with the forward return
     destroyed. `PlantedSignal.truth` stays the REAL truth, so `realised_ic`
     reads what the score actually carries about the future.
+
+    `shuffle="score"` (HANDOFF task 25) builds the live score, then shuffles its
+    date-rows with permutation stream `perm`: truth and noise move together, so
+    the baseline is the whole signal's block-shuffle null. `sigma` is the risk
+    model's input and is not shuffled.
     """
     if not 0.0 <= ic <= 1.0:
         raise ValueError(f"ic must be in [0, 1], got {ic}")
+    if shuffle not in SHUFFLES:
+        raise ValueError(f"shuffle must be one of {SHUFFLES}, got {shuffle!r}")
+    if shuffle == SCORE_SHUFFLE and not baseline:
+        raise ValueError("a score shuffle is a baseline; pass baseline=True")
+    score_shuffle = baseline and shuffle == SCORE_SHUFFLE
     sigma = trailing_volatility(weekly, vol_window)
     fwd = forward_active_return(weekly, benchmark, horizon)
     truth = fwd / (sigma * np.sqrt(horizon))
@@ -174,7 +195,7 @@ def plant_signal(
     # The panel the score is blended from. Live cells use the truth itself, on
     # the untouched code path, so the shuffle switched off is bit for bit today.
     blend_truth = truth_z
-    if baseline:
+    if baseline and not score_shuffle:
         # Whole date-rows, contiguous blocks, one permutation for every column;
         # then the original availability is re-imposed so no series acquires a
         # value before its true daily start (`frequency` veto). Cells that were
@@ -203,6 +224,12 @@ def plant_signal(
             noise = noise / residual_sd
 
     score = ic * blend_truth + np.sqrt(1.0 - ic * ic) * noise
+    if score_shuffle:
+        # Same blocks and one permutation for every column, as the truth shuffle;
+        # then the live NaN mask, with the same neutral fill for cells that were
+        # live but drew a NaN row.
+        shuffled = block_shuffle_rows(score, BASELINE_BLOCK, score_shuffle_rng(seed, perm))
+        score = shuffled.where(score.notna()).fillna(0.0).where(score.notna())
     alpha = ic * sigma * score / np.sqrt(horizon)
     return PlantedSignal(
         ic=ic,
@@ -214,6 +241,8 @@ def plant_signal(
         sigma=sigma,
         standardise=standardise,
         baseline=baseline,
+        shuffle=shuffle,
+        perm=perm,
     )
 
 
