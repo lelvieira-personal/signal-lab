@@ -21,6 +21,7 @@
 #   make audit-baseline-pilot / audit-baseline   the block-shuffled baseline cells (decisions/0036)
 #   make audit-knee                              live + baseline at IC 0.35/0.50/0.70, h13 (60 cells)
 #   make jpmaqs-catalogue                        the 27 registered JPMaQS tickers against the vendor catalogue
+#   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make governance SUBSTRATE section 2, checked mechanically
 #
 # uv manages Python 3.12 and the locked dependency set; nothing is installed
@@ -47,7 +48,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee jpmaqs-catalogue
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee jpmaqs-catalogue jpmaqs-candidates
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -102,6 +103,9 @@ audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not
 
 jpmaqs-catalogue: ## the 27 registered JPMaQS tickers against the vendor catalogue -- metadata only (HANDOFF task 23)
 	$(PY) --group dev python scripts/jpmaqs_catalogue_check.py
+
+jpmaqs-candidates: ## catalogue names sharing each unresolved JPMaQS ticker's cid and xcat stem -- names only, no choice (HANDOFF task 27)
+	$(PY) --group dev python scripts/jpmaqs_candidates.py
 
 coverage: ## rebuild bbg_index_coverage.csv from the Index Map (decisions/0022)
 	$(PY) --group dev python scripts/build_coverage.py
