@@ -1286,3 +1286,46 @@ succeed).
   (worth a hand check against the JPMaQS documentation) or genuinely absent
   from the vendor's catalogue, and only the owner decides whether to drop,
   rename or wait on them.
+
+### 2026-09-23 — tasks 26 and 27 built, STOPPED on the check (Claude Code, Opus 5.5)
+
+**Step 0 done:** `19c16be` commits Cowork's queue (tasks 26-27, run-order note,
+OWNER-QUEUE L14). **Nothing else is committed.** Tasks 26 and 27 stay in the
+queue because the check did not pass.
+
+**What is built (uncommitted, in the working tree):**
+- **26:** new `src/signal_lab/loaders/env.py` (`check_secret`) **refuses**
+  leading or trailing whitespace, CR/LF, and control characters (`ord < 32`,
+  127). The error names the variable and the defect only. Used by
+  `JPMaQSLoader.credentials()`, by `JPMaQSLoader.proxies()` (`PROXY_PWD`) and by
+  `FredLoader.api_key()`. New `tests/test_jpmaqs_credentials.py` has 8 tests, and
+  they pass on their own.
+- **27:** new `scripts/jpmaqs_candidates.py`, `make jpmaqs-candidates` in
+  `build.mk`, and `tests/test_jpmaqs_candidates.py` (7 tests, hand-written
+  fixture), passing on their own. **Not run against the cache yet**, so
+  `data/requests/jpmaqs_candidates.csv` does not exist.
+
+**The check, run twice:**
+- `20260923-172023-check`: **rc=2, 52 s**, lint only. `ruff format` read
+  `scripts/jpmaqs_candidates.py` while this session was still writing it. My
+  own race; the file was formatted before the second run.
+- `20260923-172145-check`: **rc=2, 829 s, 496 passed, 2 failed.** Governance
+  OK and ruff clean. Both failures are in `tests/test_scripts.py`
+  (`test_nightly_cycle_records_blocked_not_a_fake_veto_failure`,
+  `test_the_cycle_records_the_specific_blocked_reason`):
+  `OSError: [Errno 22] Invalid argument: .../data/requests/H-2026-0011.yaml`
+  from `write_data_request` (`harness/hypotheses.py:411`). **Both pass when
+  run alone** (2 passed, 6 s), so the failure is intermittent. EINVAL on a
+  `/mnt/c` write usually means something on the Windows side had the file
+  open.
+- **The real defect it exposes:** these two tests pass `tmp_path` for the
+  snapshot and the store, but `triage` writes data requests to the **real**
+  `data/requests/`, so every `make check` rewrites the tracked
+  `H-2026-00xx.yaml` files. Contents are unchanged this time (`git status`
+  clean for `data/requests/`), but the tests are not isolated from the repo.
+  Neither failure is in code tasks 26 or 27 touch.
+
+**Needs Cowork:** either a task to point those tests' requests directory at
+`tmp_path` (my suggestion, since it removes the exposure), or an
+instruction to re-run the check as-is. Task 25 is not started. I read it and
+planned the change, but nothing is edited.
