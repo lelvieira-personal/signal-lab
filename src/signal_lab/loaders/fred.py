@@ -20,6 +20,7 @@ import os
 
 from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
 from signal_lab.loaders.bloomberg import LoaderNotImplemented
+from signal_lab.loaders.env import check_secret
 from signal_lab.params import Params, get_params
 
 
@@ -37,7 +38,7 @@ class FredLoader:
                 "FRED_API_KEY is not set. Secrets come from environment variables "
                 "only; nothing key-shaped is committed."
             )
-        return key
+        return check_secret("FRED_API_KEY", key)
 
     def excluded_prefixes(self) -> list[str]:
         return list(self.params.get("data.fred.exclude_series_prefixes", []))

@@ -33,6 +33,7 @@ import re
 
 from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
 from signal_lab.loaders.bloomberg import LoaderNotImplemented
+from signal_lab.loaders.env import check_secret
 from signal_lab.params import Params, get_params
 
 # cid is exactly three characters, then the xcat. Anchored so a Bloomberg
@@ -102,6 +103,8 @@ class JPMaQSLoader:
                 f"{missing} not set. Secrets come from environment variables only; "
                 f"nothing key-shaped is committed."
             )
+        for k, v in zip(keys, values, strict=True):
+            check_secret(k, v)
         return values[0], values[1]
 
     def proxies(self) -> dict[str, str] | None:
@@ -121,6 +124,7 @@ class JPMaQSLoader:
         pwd = os.environ.get(cfg.get("password_env", "PROXY_PWD"))
         if not pwd:
             raise RuntimeError(f"{cfg.get('password_env')} not set but proxy.enabled is true")
+        check_secret(cfg.get("password_env", "PROXY_PWD"), pwd)
         user = os.getlogin()
         url = f"http://{user}:{pwd}@{cfg['host']}:{cfg.get('port', 8080)}"
         return {"http": url, "https": url}
