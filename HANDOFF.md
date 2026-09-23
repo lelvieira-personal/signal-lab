@@ -1387,3 +1387,38 @@ queue because the check did not pass.
 `tmp_path` (my suggestion, since it removes the exposure), or an
 instruction to re-run the check as-is. Task 25 is not started. I read it and
 planned the change, but nothing is edited.
+
+### 2026-09-23 — tasks 28, 26 and 27 (Claude Code, Opus 5.5)
+
+**Check:** `scripts/unattended.sh check --digest` with all three in the tree:
+**rc=0, 733 s, 499 passed** (`results/audit/_unattended/20260923-174720-check/`).
+One run, no retry.
+
+**28. Cycle tests isolated.** Committed as `2aebc87`. `nightly_cycle.py --requests-dir`
+defaults to `data/requests/`, so a real run is unchanged. Grepping found four
+`cycle.main` calls, and all four now pass it, including the tampered-snapshot
+test. Triage writes requests **even under `--dry-run`**, so the rule "only
+calls without `--dry-run`" would have missed some. The new
+`test_a_cycle_run_by_a_test_leaves_the_real_registry_and_requests_untouched`
+passes: it compares mtimes and hashes of `data/requests/` and `hypotheses/`
+before and after. The `test_hypotheses.py` registry tests on the real root only
+read, so they were not changed.
+- **Task 16's question:** a synthetic `--dry-run` triage into a temp dir writes
+  11 request files, and **all 11 are byte-identical to the committed `HEAD`
+  blobs**. So a synthetic triage does reproduce them, which points to `make
+  check` as what rewrote the six files task 16 found. Hand edits are unlikely.
+
+**26. Malformed secrets refused.** Committed as `46c4969`. The loaders using
+`check_secret` (`loaders/env.py`) are JPMaQS `credentials()`, JPMaQS
+`proxies()` (`PROXY_PWD`) and FRED `api_key()`.
+`tests/test_jpmaqs_credentials.py` has 8 tests.
+
+**27. Candidate names.** Committed as `a6a0218`; the CSV is committed with this
+receipt. `make jpmaqs-candidates` rc=0 wrote 69 rows to
+`data/requests/jpmaqs_candidates.csv`. **No ticker hit the 40 cap.** Candidate
+counts and match levels: `INTRGDP_NSA_P1M1ML12_D1M1ML3` x USD/EUR/JPY/GBP 5
+each, stem. `USD_UNEMPLRATE_SA_D1Q1QL4` 26, stem. `BLSDCLN_SA_D1Q1QL1` x
+USD/EUR 4 each, **relaxed**. `USD_MBASEGDP_SA_D1M1ML12` 4, stem.
+`USD_RM1GDP_SA_D1M1ML12` **0, none**. `EUR_RM3GDP_SA_D1M1ML12` **0, none**.
+`USD_GB10YXGB_NSA` 8, **relaxed**. `EUR_GB10YXGB_NSA` **0, none**. Nothing
+ranked or chosen.
