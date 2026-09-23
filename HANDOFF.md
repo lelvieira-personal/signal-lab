@@ -56,10 +56,12 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-22: tasks 18-22 and 24 are done; 23 is blocked on network — it
-must run from a machine on Itaú's network, which only the owner can do. Task 25
-is the only runnable task.** Read `claude/detection-threshold-review-2026-09-22.md`
-before it.
+**As of 2026-09-23: tasks 18-24 are done** (23 completed from the owner's
+machine once two credential faults were fixed -- a trailing `\r` on the client
+id from a CRLF `.env`, and a wrong secret; the "network origin" receipt above it
+is superseded). **Runnable, in this order: 26, 27, 25.** 26 and 27 are small and
+touch no audit; 25 is 80 minutes of compute. Read
+`claude/detection-threshold-review-2026-09-22.md` before 25.
 
 One `scripts/unattended.sh` at a time.
 
@@ -666,6 +668,88 @@ match `A-20260922-005316` (**stop and report if either differs**); whether the
 bit-for-bit test passes (**stop and report if not**); and for each (IC, seed) the
 live net IR, the mean and sd of its 20 shuffled net IRs, and the live IR's rank
 among the 21. Nothing else — the interpretation is Cowork's and the owner's.
+
+---
+
+### 26. `credentials()` refuses a malformed secret — loudly, without printing it
+
+Added 2026-09-23 by Cowork. Independent of every other task.
+
+**0. Commit first.** `HANDOFF.md` (tasks 26-27, the run-order note) and
+`OWNER-QUEUE.md` (L14) are uncommitted. Commit them before building. Task 25's own
+step 0 will then find nothing to add, which is expected and not a failure.
+
+**Why.** Task 23 lost a day to a `401` that was two credential faults, one of
+them a trailing `\r` on `DQ_CLIENT_ID` from a CRLF `.env` sourced in WSL.
+`JPMaQSLoader.credentials()` (`src/signal_lab/loaders/jpmaqs.py`) passes
+environment values through untouched, so a malformed value reaches the vendor
+and comes back as an authentication error that points everywhere but here.
+
+**Build.** In `credentials()`, after the missing-key check, **refuse** — do not
+strip — any value that has leading or trailing whitespace or contains a control
+character (`\r`, `\n`, `\t`, or anything with `ord < 32` or `== 127`). Raise
+`RuntimeError` naming **the variable and the defect only** ("DQ_CLIENT_ID has a
+trailing carriage return -- is .env CRLF? run: sed -i 's/\r$//' .env").
+**Never include the value, its length, or any slice of it** in the message.
+Refusal rather than stripping is deliberate: SUBSTRATE §10's fail-loud rule, and a
+silently repaired secret hides which file is wrong.
+
+If `FREDLoader` (or any other loader) reads a key from the environment the same
+way, apply the same check there through one shared helper; say in the receipt
+whether it did.
+
+**Tests** (new `tests/test_jpmaqs_credentials.py`, `monkeypatch.setenv` with
+dummy values only): a clean pair passes; a trailing `\r`, a trailing space, an
+embedded `\n` and a leading tab each raise; the raised message contains the
+variable name and does **not** contain the dummy value. No network, no
+`macrosynergy` import needed.
+
+    scripts/unattended.sh check --digest
+
+**Receipt should say:** rc, test count, runtime, commit hash, which loaders now
+use the helper.
+
+### 27. Candidate names for the 12 unresolved JPMaQS tickers — names only, no choice
+
+Added 2026-09-23 by Cowork. **Needs the cached catalogue from task 23**
+(`data/raw/jpmaqs_catalogue.json`, a JSON list of ticker strings). **No vendor
+call** — work from the cache.
+
+**Why.** 12 of 27 registered tickers do not resolve (task 23 receipt;
+`data/requests/jpmaqs_catalogue_check.csv`). Every failure is at the xcat: each
+cid resolves elsewhere. OWNER-QUEUE L14 asks the owner to rename, drop or wait
+on each. This task gives him a short list to choose from instead of the vendor
+documentation. **It chooses nothing.**
+
+**Build `scripts/jpmaqs_candidates.py` and `make jpmaqs-candidates`.** For each
+row of `jpmaqs_catalogue_check.csv` with `resolves == False`:
+
+1. Take the xcat's **stem** — the leading token before the first `_`
+   (`INTRGDP`, `UNEMPLRATE`, `BLSDCLN`, `MBASEGDP`, `RM1GDP`, `RM3GDP`,
+   `GB10YXGB`).
+2. List every catalogue ticker with the **same cid** whose xcat starts with that
+   stem. If there are none, relax to the first four characters of the stem and
+   mark the row `relaxed`. If still none, write one row with `candidate` empty.
+3. Write `data/requests/jpmaqs_candidates.csv`: `hypothesis, requested,
+   cid, stem, match (stem | relaxed | none), candidate`. Sort by requested, then
+   candidate. Cap at 40 candidates per requested ticker and say in the receipt
+   if any hit the cap.
+
+**Hard limits.** Ticker **names** only — they are not vendor values and are
+reportable; nothing else from the catalogue leaves `data/raw/`. **Do not edit**
+`ticker_resolution.csv`, any hypothesis file, `data/requests/H-*.yaml`, or write
+`data/jpmaqs/request.txt`. **Do not rank or recommend** — no "best match"
+column; the choice is the owner's under the `decisions/0032` precedent.
+
+**Test:** a small fixture catalogue (hand-written names, not vendor data) checks
+the stem match, the relaxed fallback and the empty row.
+
+    scripts/unattended.sh check --digest
+    make jpmaqs-candidates
+
+**Receipt should say:** rc, commit hash, and per requested ticker the count of
+candidates and its `match` level. Not the candidate names themselves — they are
+in the CSV.
 
 ---
 

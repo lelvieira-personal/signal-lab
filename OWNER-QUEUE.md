@@ -19,6 +19,33 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
+### L14. Twelve registered JPMaQS tickers do not exist as named
+Added 2026-09-23 by Cowork, from task 23. Bears on L12, `decisions/0032` and what
+is bought.
+
+The vendor catalogue (31,728 tickers) resolves **15 of the 27** registered names.
+Every failure is at the xcat — the cid resolves elsewhere in the list — so these
+look misnamed or absent, not a coverage gap.
+
+| hypothesis | unresolved | effect |
+|---|---|---|
+| H-2026-0001 | `INTRGDP_NSA_P1M1ML12_D1M1ML3` x USD/EUR/JPY/GBP, `USD_UNEMPLRATE_SA_D1Q1QL4` | 2 of 7 left (`MBCSCORE_SA`) |
+| H-2026-0004 | `BLSDCLN_SA_D1Q1QL1` x USD/EUR | **fully blocked** |
+| H-2026-0005 | `USD_MBASEGDP_SA_D1M1ML12`, `USD_RM1GDP_SA_D1M1ML12`, `EUR_RM3GDP_SA_D1M1ML12` | **fully blocked** |
+| H-2026-0010 | `GB10YXGB_NSA` x USD/EUR | JPMaQS leg blocked |
+
+**The decision, per ticker:** rename to a catalogue name, drop it (the 0032
+precedent for `LUALTRUU`/`LT08TRUU`), or hold the hypothesis. A rename changes a
+pre-registered hypothesis, so it should be recorded as a dated addendum, not a
+silent edit — the thing `decisions/proposed/0034` exists about.
+
+**Partly retirable by measuring:** task 27 lists catalogue names sharing each
+cid and xcat stem. The list informs the choice; it does not make it.
+
+**Also outstanding before any vintage pull** (not the catalogue): the
+colleague's confirmation that JPMaQS may be pulled into a personal environment
+should be recorded in `decisions/`.
+
 ### L13. `risk_calibration` vetoes a quarter to a half of every grid, on 2008
 Added 2026-09-22 by Cowork. Bears on B1, B4, `decisions/0030` and SUBSTRATE §10.
 
