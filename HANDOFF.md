@@ -1443,3 +1443,28 @@ project doc and not in the repo, so it was not read.
   `make check`**, before any cell ran, because the owner needed to put the machine
   to sleep. Nothing was written to `results/audit/` by it. **Next:**
   `scripts/unattended.sh audit-power --digest`, then the receipt task 25 asks for.
+
+### 2026-09-24 — task 25, the power audit (Claude Code, Opus 5.5)
+
+**25. `scripts/unattended.sh audit-power --digest`: rc=0.** Opening `make check`
+rc=0 in 718 s. The audit took **9580 s**, against 80 minutes estimated: most cells
+took about 105 s, and 7 took 300-450 s. Run **`A-20260924-194115`**, 80 cells,
+all `score` shuffle, at commit **`61c53a0`**. Logs are in
+`results/audit/_unattended/20260924-152915-audit-power/`.
+- **Hashes: both match `A-20260922-005316`.** `panel_hash` `dfbf5c5a...`,
+  `params_hash` `ebdfb70e...` (unchanged).
+- **The bit-for-bit test passes** (part of the opening check, and of
+  `20260923-180524-check`).
+- The live twins are that run's base cells `ic{0.35,0.70}_h13_s{0,1}_c1.0_tnone_rnone`,
+  checked by hand against its `cells.csv`.
+
+| IC | seed | live net IR | shuffled mean | shuffled sd | live rank of 21 |
+|---|---|---|---|---|---|
+| 0.35 | 0 | -0.021 | 0.264 | 0.144 | 20 |
+| 0.35 | 1 | 0.500 | 0.384 | 0.192 | 6 |
+| 0.70 | 0 | 0.091 | 0.301 | 0.203 | 20 |
+| 0.70 | 1 | 0.722 | 0.386 | 0.148 | 1 |
+
+Rank 1 is the highest. The full rows are `power_by_cell` in the run's
+`summary.json`. Interpretation is left to Cowork and the owner. The unattended
+digest has further observations, not repeated here.
