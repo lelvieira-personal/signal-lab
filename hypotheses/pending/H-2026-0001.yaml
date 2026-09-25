@@ -31,13 +31,25 @@ proposed_by: agent
 provenance: adaptation
 reference: null
 data_required:
-  - USD_INTRGDP_NSA_P1M1ML12_D1M1ML3
-  - EUR_INTRGDP_NSA_P1M1ML12_D1M1ML3
-  - JPY_INTRGDP_NSA_P1M1ML12_D1M1ML3
-  - GBP_INTRGDP_NSA_P1M1ML12_D1M1ML3
+  - USD_INTRGDP_NSA_P1M1ML12_D3M3ML3
+  - EUR_INTRGDP_NSA_P1M1ML12_D3M3ML3
+  - JPY_INTRGDP_NSA_P1M1ML12_D3M3ML3
+  - GBP_INTRGDP_NSA_P1M1ML12_D3M3ML3
   - USD_MBCSCORE_SA
   - EUR_MBCSCORE_SA
-  - USD_UNEMPLRATE_SA_D1Q1QL4
+  - USD_UNEMPLRATE_SA_3MMAV5YMA
 notes: >
+  Amended 2026-09-24 by owner ruling (OWNER-QUEUE L14, recorded as an addendum
+  to decisions/0032): the phase-0 JPMaQS names did not exist in the vendor
+  catalogue and are replaced by catalogue names carrying the same intent.
+  INTRGDP ..._D1M1ML3 (1m vs 3m ago) becomes ..._D3M3ML3 (last 3m vs prior 3m),
+  so growth still enters already differenced. USD_UNEMPLRATE_SA_D1Q1QL4 becomes
+  USD_UNEMPLRATE_SA_3MMAV5YMA, the unemployment gap the rationale names (rate,
+  3mma, vs its 5-year average); it enters the composite with a NEGATIVE sign,
+  since a wider gap is weaker growth. MBCSCORE_SA and the gap are levels, which
+  the signal differences against their three-month trend per the rationale; the
+  phase-0 unemployment name was itself a 4-quarter change, so this is the one
+  change of transformation, not only of name. The phase-0 names are in git
+  history.
   Slow block. Held constant between releases at its vintage value; weekly
   rebalancing does not resample it (SUBSTRATE section 6).

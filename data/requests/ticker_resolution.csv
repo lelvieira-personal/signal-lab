@@ -1,11 +1,11 @@
 hypothesis,requested,status,resolves_to,source,note
-H-2026-0001,USD_INTRGDP_NSA_P1M1ML12_D1M1ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0001,EUR_INTRGDP_NSA_P1M1ML12_D1M1ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0001,JPY_INTRGDP_NSA_P1M1ML12_D1M1ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0001,GBP_INTRGDP_NSA_P1M1ML12_D1M1ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0001,USD_INTRGDP_NSA_P1M1ML12_D3M3ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0001,EUR_INTRGDP_NSA_P1M1ML12_D3M3ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0001,JPY_INTRGDP_NSA_P1M1ML12_D3M3ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0001,GBP_INTRGDP_NSA_P1M1ML12_D3M3ML3,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0001,USD_MBCSCORE_SA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0001,EUR_MBCSCORE_SA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0001,USD_UNEMPLRATE_SA_D1Q1QL4,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0001,USD_UNEMPLRATE_SA_3MMAV5YMA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0002,USD_CPIC_SJA_P6M6ML6AR,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0002,EUR_CPIC_SJA_P6M6ML6AR,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0002,T10YIE,ok,T10YIE,fred,

@@ -211,3 +211,31 @@ retained above as the statement of the problem this record found.
 No silent edits to `hypotheses/pending/*.yaml`. On approval the corrections and
 the 0007 amendment land as a patch citing this record, the request files
 regenerate from the map, and the phase-0 names stay visible in git history.
+
+## Addendum, 2026-09-24 — `H-2026-0001`'s JPMaQS names (OWNER-QUEUE L14)
+
+**Owner ruling, 2026-09-24:** apply the resolved renames. The vendor catalogue
+check (HANDOFF task 23) found 12 of the 27 genuine-gap names absent. Task 27
+listed catalogue names sharing each stem. The Macrosynergy *Macro-Quantimental
+Investment Handbook* (2025), Appendix 4, fixed the meaning of the suffixes
+(`D3M3ML3` = "change q/q", last 3 months vs the prior 3; `3MMAv5YMA` =
+"difference vs 5-year moving average") and names `UNEMPLRATE_SA_3MMAv5YMA` as
+the unemployment-gap factor.
+
+| phase-0 name | now | why |
+|---|---|---|
+| `{USD,EUR,JPY,GBP}_INTRGDP_NSA_P1M1ML12_D1M1ML3` | `..._P1M1ML12_D3M3ML3` | same 3-month change of intuitive GDP growth, the form the catalogue carries |
+| `USD_UNEMPLRATE_SA_D1Q1QL4` | `USD_UNEMPLRATE_SA_3MMAV5YMA` | the rationale says "unemployment gap"; the phase-0 name was a 4-quarter change of a monthly series. Enters with a negative sign |
+
+The hypothesis's direction, horizon, target and rationale are unchanged.
+`ticker_resolution.csv` carries the new names under the same tag, so
+`jpmaqs_catalogue_check` verifies them on its next run.
+`jpmaqs_catalogue_check.csv` still shows the old names until then.
+
+**Not decided here, still open under L14:**
+- `H-2026-0004`: the only catalogue matches (`BLSDSCORE`) look like loan
+  *demand*, not lending *standards*. A rename would change the hypothesis.
+- `H-2026-0005`: nothing for real broad money. Neither the handbook's
+  `INTLIQGDP` nor `XPCREDITBN` is broad money, so this needs re-specifying or
+  holding.
+- `H-2026-0010`: `USD_GB10YCRY_NSA` is a lead, and EUR needs a `DEM_` search.

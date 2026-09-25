@@ -29,7 +29,7 @@ look misnamed or absent, not a coverage gap.
 
 | hypothesis | unresolved | effect |
 |---|---|---|
-| H-2026-0001 | `INTRGDP_NSA_P1M1ML12_D1M1ML3` x USD/EUR/JPY/GBP, `USD_UNEMPLRATE_SA_D1Q1QL4` | 2 of 7 left (`MBCSCORE_SA`) |
+| H-2026-0001 | ~~`INTRGDP_NSA_P1M1ML12_D1M1ML3` x USD/EUR/JPY/GBP, `USD_UNEMPLRATE_SA_D1Q1QL4`~~ | **renamed 2026-09-24** (owner), `decisions/0032` addendum: `..._D3M3ML3`, `USD_UNEMPLRATE_SA_3MMAV5YMA`. 7 of 7 named, pending the catalogue re-check |
 | H-2026-0004 | `BLSDCLN_SA_D1Q1QL1` x USD/EUR | **fully blocked** |
 | H-2026-0005 | `USD_MBASEGDP_SA_D1M1ML12`, `USD_RM1GDP_SA_D1M1ML12`, `EUR_RM3GDP_SA_D1M1ML12` | **fully blocked** |
 | H-2026-0010 | `GB10YXGB_NSA` x USD/EUR | JPMaQS leg blocked |
@@ -42,9 +42,21 @@ silent edit — the thing `decisions/proposed/0034` exists about.
 **Partly retirable by measuring:** task 27 lists catalogue names sharing each
 cid and xcat stem. The list informs the choice; it does not make it.
 
-**Also outstanding before any vintage pull** (not the catalogue): the
-colleague's confirmation that JPMaQS may be pulled into a personal environment
-should be recorded in `decisions/`.
+**Restated 2026-09-24 (Claude Code), after the Macrosynergy handbook's
+Appendix 4.** Still open, with what the evidence says:
+- **0004:** task 27's only matches are `BLSDSCORE_NSA_*`, which reads as loan
+  *demand*. The hypothesis is about lending *standards*. Renaming to it would
+  test a different hypothesis. A names-only catalogue search for a `BLSC*` stem
+  would retire the doubt.
+- **0005:** nothing for real broad money. The handbook's money and credit
+  factors are `INTLIQGDP` (intervention liquidity) and `XPCREDITBN` (private
+  credit), and neither is broad money. The choice is to re-specify or hold.
+- **0010:** `USD_GB10YCRY_NSA`, 10y government bond carry, is closer to the
+  rationale ("yield plus roll-down") than the registered spread. EUR has no
+  euro-area curve; a `DEM_` search is needed.
+
+**Done 2026-09-24:** the colleague's confirmation that JPMaQS may be pulled into
+a personal environment is recorded in `decisions/0037`, as the owner stated it.
 
 ### L13. `risk_calibration` vetoes a quarter to a half of every grid, on 2008
 Added 2026-09-22 by Cowork. Bears on B1, B4, `decisions/0030` and SUBSTRATE §10.

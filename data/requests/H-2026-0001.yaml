@@ -4,19 +4,19 @@ family: growth
 requested_by: agent
 status: awaiting_owner
 series:
-- id: USD_INTRGDP_NSA_P1M1ML12_D1M1ML3
+- id: USD_INTRGDP_NSA_P1M1ML12_D3M3ML3
   source: jpmaqs
   fields:
   - value
-- id: EUR_INTRGDP_NSA_P1M1ML12_D1M1ML3
+- id: EUR_INTRGDP_NSA_P1M1ML12_D3M3ML3
   source: jpmaqs
   fields:
   - value
-- id: JPY_INTRGDP_NSA_P1M1ML12_D1M1ML3
+- id: JPY_INTRGDP_NSA_P1M1ML12_D3M3ML3
   source: jpmaqs
   fields:
   - value
-- id: GBP_INTRGDP_NSA_P1M1ML12_D1M1ML3
+- id: GBP_INTRGDP_NSA_P1M1ML12_D3M3ML3
   source: jpmaqs
   fields:
   - value
@@ -28,7 +28,7 @@ series:
   source: jpmaqs
   fields:
   - value
-- id: USD_UNEMPLRATE_SA_D1Q1QL4
+- id: USD_UNEMPLRATE_SA_3MMAV5YMA
   source: jpmaqs
   fields:
   - value
