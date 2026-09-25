@@ -56,13 +56,16 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-23: tasks 18-24 are done.** Task 23 completed from the owner's
-machine once two credential faults were fixed: a trailing `\r` on the client id
-from a CRLF `.env`, and a wrong secret. The "network origin" receipt above it
-is superseded. **Runnable, in this order: 28, then 26 and 27, then 25.** 26
-and 27 are built but uncommitted, and they wait on 28's check. 25 takes 80
-minutes of compute. Read `claude/detection-threshold-review-2026-09-22.md`
-before 25.
+**As of 2026-09-24, tasks 0-28 are done. One task is queued: 29** (a names-only
+catalogue search for H-2026-0004, 0005 and 0010, no compute). Receipts are in
+`## Done`. Task 25's power audit is `A-20260924-194115`, read in
+`results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`. H-2026-0001's
+JPMaQS names were renamed 2026-09-24 (`33b84f4`).
+
+**Cowork's project docs, readable here:** Claude Code cannot see the claude.ai
+Project. Read-only copies of the docs that tasks cite are in
+`Claude outputs/project-mirror/` (git-ignored). Start with `state-of-play.md`.
+When a task names `claude/<name>.md`, read `Claude outputs/project-mirror/<name>.md`.
 
 One `scripts/unattended.sh` at a time.
 
@@ -808,6 +811,69 @@ This finding suggests `make check` may have been what wrote them. Say whether
 the files these tests produce in `tmp_path` match the committed ones
 byte-for-byte (`diff`, names only, no values involved). If they match, task 16's
 "hand-edited?" question has its answer.
+
+### 29. Search the cached catalogue by name for H-2026-0004, 0005 and 0010 — names only, no choice
+
+Added 2026-09-24 by Cowork's request through the owner, after the Macrosynergy
+handbook (Appendix 4) and `decisions/0032`'s 2026-09-24 addendum. **Sonnet-sized
+work: no compute, no vendor call, about 20 minutes.** Works from the cache,
+`data/raw/jpmaqs_catalogue.json`, exactly as task 27 did.
+
+**Why.** Task 27's matcher only looks at xcats sharing a stem with the registered
+name, so it could not find a differently named series. Three hypotheses are still
+blocked on names, and the handbook did not settle them:
+- **0004** wants bank lending **standards**. Task 27's only matches are
+  `BLSDSCORE_NSA_*`, which reads as loan **demand**, so a rename would test a
+  different hypothesis. Is there a standards series (a `BLSC*` or similar stem)?
+- **0010** wants government bond carry across markets. `USD_GB10YCRY_NSA` exists.
+  Is there a euro-area equivalent under a legacy prefix (SUBSTRATE §5.6:
+  `DEM_`, `FRF_`, `ITL_`, `ESP_`, `NLG_`), and how many cids carry it?
+- **0005** wants **real broad money** growth. Task 27 found only `USD_MBASEGDP_SA`.
+  Is there any broad-money or credit-aggregate stem under USD or EUR?
+
+**Build `scripts/jpmaqs_name_search.py` and `make jpmaqs-name-search`.** It takes
+patterns from a small table in the script and writes
+`data/requests/jpmaqs_name_search.csv` with columns `hypothesis, cids, xcat_prefix,
+n_matches, ticker` (one row per matching ticker, or one row with `ticker` empty and
+`n_matches` 0). Sort by hypothesis, then ticker. Cap at 60 tickers per pattern and
+say in the receipt if any hit it. The table:
+
+| hypothesis | cids | xcat prefixes |
+|---|---|---|
+| H-2026-0004 | USD, EUR | `BLS` (everything starting BLS, so both demand and standards show) |
+| H-2026-0010 | DEM, FRF, ITL, ESP, NLG, EUR, USD | `GB10Y` |
+| H-2026-0010 | every cid | `GB10YCRY` (report the cid list, count only if over 30) |
+| H-2026-0005 | USD, EUR | `MBASE`, `MBROAD`, `MNARROW`, `M1`, `M2`, `M3`, `RM`, `INTLIQ`, `PCREDIT` |
+
+**Also, in the same run, verify the H-2026-0001 renames** against the cache. The
+five new names must each be a member of the catalogue exactly (case-insensitive,
+as `jpmaqs_catalogue_check` compares):
+`{USD,EUR,JPY,GBP}_INTRGDP_NSA_P1M1ML12_D3M3ML3` and
+`USD_UNEMPLRATE_SA_3MMAV5YMA`, plus the two that already resolved,
+`USD_MBCSCORE_SA` and `EUR_MBCSCORE_SA`. Print `7 of 7 resolve` or list the
+failures. **This is a cache membership test, not the vendor check** and does not
+replace re-running `make jpmaqs-catalogue`, which is a vendor call and is not part
+of this task.
+
+**Hard limits.** Ticker **names** only, as in task 27: they are not vendor
+values and are reportable; nothing else from the catalogue leaves `data/raw/`.
+**Do not edit** `ticker_resolution.csv`, any hypothesis file,
+`data/requests/H-*.yaml`, `jpmaqs_catalogue_check.csv` or `jpmaqs_candidates.csv`,
+and **do not write `data/jpmaqs/request.txt`**. **Do not rank, recommend or say a
+series "is" the one a hypothesis needs.** What a stem measures is the owner's
+reading of the vendor documentation, not a name pattern's. Report what exists.
+
+**Test:** a small hand-written fixture catalogue (invented names, not vendor
+data) checks prefix matching, the cid filter, the cap, the empty row, and the
+membership test.
+
+    scripts/unattended.sh check --digest
+    make jpmaqs-name-search
+
+**Receipt should say:** rc, commit hash, `7 of 7 resolve` or the failures, and per
+row of the table the `n_matches` and whether the cap was hit. Not the ticker names
+themselves; they are in the CSV. Then **stop.** Renaming, dropping or holding
+0004, 0005 and 0010 is OWNER-QUEUE L14, and it stays the owner's.
 
 ---
 
