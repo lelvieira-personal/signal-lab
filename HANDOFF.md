@@ -56,8 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-24, tasks 0-28 are done. Task 29 is done** (a names-only
-catalogue search for H-2026-0004, 0005 and 0010, no compute). Receipts are in
+**As of 2026-09-25, tasks 0-29 are done. One task is queued: 30** (fix the
+score shuffle's span, then a 10-seed power grid, ~6 h; owner-approved
+2026-09-25, OWNER-QUEUE L15 option A). Receipts are in
 `## Done`. Task 25's power audit is `A-20260924-194115`, read in
 `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`. H-2026-0001's
 JPMaQS names were renamed 2026-09-24 (`33b84f4`).
@@ -811,6 +812,90 @@ This finding suggests `make check` may have been what wrote them. Say whether
 the files these tests produce in `tmp_path` match the committed ones
 byte-for-byte (`diff`, names only, no values involved). If they match, task 16's
 "hand-edited?" question has its answer.
+
+### 30. Fix the score shuffle's span, then the 10-seed power grid at IC 0.70
+
+Added 2026-09-25 by Cowork. **Owner-approved 2026-09-25: OWNER-QUEUE L15,
+option A.** Read `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`
+§4 and "Compute not queued" first; this task is that recommendation. **About
+6 h of compute.**
+
+**0. Commit first.** `HANDOFF.md` and `OWNER-QUEUE.md` carry this task, L15 and
+the 2026-09-25 restatements of L13, L14, B2 and B3, uncommitted. Commit them
+alone (`queue: task 30, L15, owner rulings 2026-09-25`) before building.
+
+**Why.** Task 25's score shuffle permutes all ~991 dev-window rows, but the
+score is NaN in every column for the first 155 rows and the last 13. After the
+live mask is re-applied, each column keeps only ~80% of its static tilt (35-60%
+for late starters). Bar 2 is meant to give a pure static tilt zero excess; the
+leaked remainder biases it toward passing beta. Measuring power against that
+null would bake the leak in.
+
+**Build a new shuffle mode, `score_span`. Leave `score` exactly as it is.**
+Task 25's 80 cells are keyed `_baseline_score_pNN` in the append-only store;
+changing `score` in place would put different results under old keys.
+
+1. Build the live score exactly as today.
+2. Take the rows where **any** column of the score is non-NaN, in date order.
+   Permute **only those rows**, in the same 52-row blocks, with one permutation
+   shared by every column (`decisions/0036` §4b). Rows outside that set are not
+   moved and stay NaN.
+3. Re-apply the live NaN mask with the same neutral fill as `score`, then
+   recompute `alpha` from the shuffled score. **`sigma` is not shuffled.**
+4. Each `perm` draws from its own stream: a new sibling of
+   `score_shuffle_rng` with its own stream constant, so the `score`,
+   truth-shuffle and noise streams are untouched.
+5. Add the mode to `SHUFFLES` and key it like `score`, e.g.
+   `_baseline_scorespan_pNN`. Existing keys must not change.
+
+**Do not change the truth shuffle** (task 17, the engine's paired baseline).
+It has the same re-masking by construction. Say so in one line in the receipt,
+and change nothing.
+
+**Tests:**
+- On a synthetic panel (no vendor data), every **full-history** column's
+  time-mean of the score is preserved **exactly** (to 1e-12) under
+  `score_span`, for several `perm`.
+- `score` mode is bit-for-bit unchanged. Task 17's bit-for-bit test still
+  passes, and live, truth-shuffle and `score` keys are unchanged.
+- The same `perm` is deterministic, and different `perm` differ.
+- No shuffled row lands on or after `HOLDOUT_START`.
+
+**Diagnostic, in the receipt.** Re-run the power doc's §4 synthetic slope
+measurement (shuffled column means on live column means, 4 (IC, seed) x 20
+perms, the same synthetic panel) for `score` and `score_span` side by side:
+full-history and late-starting slope, range and corr.
+
+**Grid `power10`, in `ladder.py`,** as module constants like `POWER_*`, with
+nothing in `params/`. h13, IC **0.70**, seeds **0-9**, 20 perms, mode
+`score_span`: **200 cells**, ~100 s each (task 25's median was 91 s). The
+live and truth-shuffle twins for all ten seeds are the knee run's
+`A-20260922-005316` cells, so don't re-run them. **Stop and report** if any seed
+0-9 at IC 0.70 is missing there. Point `_power_by_cell`, or a sibling, at that
+run for this grid. Add `make audit-power10` and extend the
+`scripts/unattended.sh` whitelist.
+
+**`params/` must not change.** `params_hash` stays
+`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c`.
+
+    scripts/unattended.sh check --digest
+    scripts/unattended.sh audit-power10 --digest
+
+**Receipt should say:**
+- rc, runtime, run id and commit hash.
+- Whether both hashes match `A-20260922-005316`. **Stop and report if either
+  differs.**
+- The slope table, `score` against `score_span`.
+- Per seed: live net IR, truth-twin net IR, the `score_span` mean and sd of 20,
+  and the live rank of 21.
+- The pooled sd across seeds, and how many seeds rank 1 of 21.
+- The shuffled cells' pooled realised IC over the planted IC (it was ~0.12
+  under `score`).
+- **Turnover, for the owner (OWNER-QUEUE B3):** across the 200 shuffled cells
+  and the 10 live twins, the count above 400% and the median and max, for both
+  annual and rolling-one-year traded notional. Report them; judge nothing.
+
+The interpretation is Cowork's and the owner's. **Then stop.**
 
 ---
 

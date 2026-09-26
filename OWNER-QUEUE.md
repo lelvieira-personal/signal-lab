@@ -29,7 +29,7 @@ look misnamed or absent, not a coverage gap.
 
 | hypothesis | unresolved | effect |
 |---|---|---|
-| H-2026-0001 | ~~`INTRGDP_NSA_P1M1ML12_D1M1ML3` x USD/EUR/JPY/GBP, `USD_UNEMPLRATE_SA_D1Q1QL4`~~ | **renamed 2026-09-24** (owner), `decisions/0032` addendum: `..._D3M3ML3`, `USD_UNEMPLRATE_SA_3MMAV5YMA`. 7 of 7 named, pending the catalogue re-check |
+| H-2026-0001 | ~~`INTRGDP_NSA_P1M1ML12_D1M1ML3` x USD/EUR/JPY/GBP, `USD_UNEMPLRATE_SA_D1Q1QL4`~~ | **renamed 2026-09-24** (owner), `decisions/0032` addendum: `..._D3M3ML3`, `USD_UNEMPLRATE_SA_3MMAV5YMA`. 7 of 7 named; **7 of 7 in the cached catalogue** (task 29, cache membership, not a vendor pull) |
 | H-2026-0004 | `BLSDCLN_SA_D1Q1QL1` x USD/EUR | **fully blocked** |
 | H-2026-0005 | `USD_MBASEGDP_SA_D1M1ML12`, `USD_RM1GDP_SA_D1M1ML12`, `EUR_RM3GDP_SA_D1M1ML12` | **fully blocked** |
 | H-2026-0010 | `GB10YXGB_NSA` x USD/EUR | JPMaQS leg blocked |
@@ -43,7 +43,8 @@ silent edit — the thing `decisions/proposed/0034` exists about.
 cid and xcat stem. The list informs the choice; it does not make it.
 
 **Restated 2026-09-24 (Claude Code), after the Macrosynergy handbook's
-Appendix 4.** Still open, with what the evidence says:
+Appendix 4.** *Superseded for 0004 and 0005 by the 2026-09-25 restatement
+below.* Still open, with what the evidence said then:
 - **0004:** task 27's only matches are `BLSDSCORE_NSA_*`, which reads as loan
   *demand*. The hypothesis is about lending *standards*. Renaming to it would
   test a different hypothesis. A names-only catalogue search for a `BLSC*` stem
@@ -55,8 +56,88 @@ Appendix 4.** Still open, with what the evidence says:
   rationale ("yield plus roll-down") than the registered spread. EUR has no
   euro-area curve; a `DEM_` search is needed.
 
+**Restated 2026-09-25 (Cowork), after task 29's names-only search
+(`data/requests/jpmaqs_name_search.csv`) and Macrosynergy's Academy notebooks
+for each category.** The search retires the doubts it was asked about; the
+choices stay the owner's.
+- **0004 — a standards series exists.** `BLSCSCORE_NSA` with `_D1Q1QL1`,
+  `_D2Q2QL2` and `_D1Q1QL4`, for USD and EUR. Macrosynergy defines it as
+  "Bank lending survey, credit supply (easing standards) z-score", *positive =
+  easing*; `BLSDSCORE` is credit *demand*, so it is not a candidate. Three
+  things a rename has to state: **(a)** which change — the registered name is a
+  1-quarter change, the signal is named "2q change", and both exist; **(b)**
+  **the sign flips**: the registry's "−" on tightening becomes "+" on an
+  easing-positive score; **(c)** NSA z-score, not an SA net-percentage balance.
+- **0005 — real money growth exists; "nothing for real broad money" was
+  wrong.** `RMBROAD_SJA_P1M1ML12` and `RMNARROW_SJA_P1M1ML12` exist for USD and
+  EUR (also `_D1M1ML3`, `P3M3ML3AR`, `P6M6ML6AR`): money deflated by headline
+  CPI, % over a year ago. `RMBROAD_SJA_P1M1ML12` is literally the hypothesis's
+  title. Caveats: these are growth rates, not "% of GDP" as registered; USD
+  "broad" is **M2**, not M3 (Macrosynergy's note); that USD "narrow" is M1 is
+  **unconfirmed**. `MBASEGDP` has only `_SA` and 1/3/6-month changes for USD
+  and EUR — **no 12-month change**. Choice for that leg: drop it, use `_D1M1ML6`,
+  or derive a 12-month change from the `_SA` level (which mixes vintages).
+- **0010 — no `GB10YXGB`, and no term-spread category.** Nothing named `XGB`
+  exists and Macrosynergy documents no curve/spread category. What exists:
+  `GB10YYLD_NSA`, `GB10YCRY_NSA/_VT10`, `GB10YXR_*` for USD and for `DEM`,
+  `FRF`, `ITL`, `ESP`; **no `EUR_GB10Y*`** (euro-area bonds are by country).
+  Choice: re-specify as 10y carry (`GB10YCRY`, closer to "yield plus
+  roll-down"), derive a spread, or drop the JPMaQS leg (the request already
+  carries FRED `DGS2/DGS10/DGS30` for the US curve).
+  **Retirable by measuring:** a derived 10y−2y spread needs `GB02YYLD_NSA`,
+  which task 29 did not search (prefix `GB10Y` only). A names-only check for
+  `USD_`/`DEM_GB02YYLD_NSA` belongs in `HANDOFF.md`.
+
 **Done 2026-09-24:** the colleague's confirmation that JPMaQS may be pulled into
 a personal environment is recorded in `decisions/0037`, as the owner stated it.
+
+### L15. Bar 2 has 14–33% power on one history — what is the lab for?
+Added 2026-09-25 by Cowork, from Claude Code's read of task 25
+(`results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`).
+Bears on L4, L12, SUBSTRATE §3 and §9, `decisions/0036`.
+
+**The measurement.** The score-shuffle null's sd is 0.174 pooled (0.144–0.203
+by cell), narrower than the 0.25 assumed. A single one-sided 5% test rejects at
+an excess of about 0.29 and needs about 0.43 expected excess for 80% power.
+Against the knee grid's measured excess, **single-test power is about 14% at
+IC 0.35, 16% at 0.50 and 33% at 0.70**, before Romano-Wolf lowers it further.
+Cowork re-derived these three figures from the stated sd and excesses (normal
+approximation); they check. The grid behind the sd is only 2 independent noise
+draws.
+
+**Why.** Each signal's non-informative component gets one draw of timing luck
+on this history, worth −0.39 to +0.11 here — as large as the null's sd — while
+information adds 0.00–0.23. More history shrinks both by `1/√years` and leaves
+the ratio unchanged; breadth raises the information term; FDR moves the
+critical value, not the luck.
+
+**Two defects the read found in bar 2 itself:**
+- **The shuffle leaks static tilt.** It is meant to keep each signal's static
+  tilt so that beta earns no excess, but it keeps ~80% for full-history series
+  and 35–60% for late starters (re-masking 168 of ~991 rows). The rest of an
+  in-sample tilt's payoff leaks into `net_ir_excess`, **biasing bar 2 toward
+  passing beta** — small for planted signals, possibly large for persistent
+  tilts such as carry (0010). Also unmatched: the live book binds TE harder
+  and is more persistent than its shuffles. Unmeasured how much either moves
+  net IR.
+- **k = 20 permutations cannot reject under a stepdown** (smallest p = 1/21 =
+  0.048). A real bar-2 run needs k in the hundreds.
+
+**The decisions:**
+1. **What the lab is for,** given this power: more breadth (design B), a
+   different evidence bar (FDR, SUBSTRATE §9), or accept that it **screens
+   rather than confirms** — which is where the numbers point. More history
+   alone does not help (see above).
+2. **Approve compute (none queued).** A: fix the shuffle to permute only rows
+   where the score exists, add a test, then a power grid at IC 0.70, seeds
+   0–9, 20 perms — 200 cells, ~6 h. B: same without the fix, ~5.5 h. C: design
+   B first, no compute. Claude Code recommends **A** (measuring power against a
+   leaky null bakes the leak in). The fix touches the audit, not `params/`, but
+   it changes what bar 2 means, so it is listed here.
+
+**Owner, 2026-09-25: option A approved** — fix the shuffle, then the 10-seed
+grid. Queued as `HANDOFF.md` task 30 (new mode `score_span`; task 25's `score`
+cells stay as they are). Decision 1 stays open until task 30 reports.
 
 ### L13. `risk_calibration` vetoes a quarter to a half of every grid, on 2008
 Added 2026-09-22 by Cowork. Bears on B1, B4, `decisions/0030` and SUBSTRATE §10.
@@ -75,6 +156,9 @@ overlay, 0 of 11 with it.
 **Why it is live.** Under SUBSTRATE v0.5 every real hypothesis carries roughly a
 25-45% chance of dying on 2008 whatever its signal. The overlay (B1) is opt-in,
 tested at one halflife and one horizon, and a standing refusal in `HANDOFF.md`.
+
+**Update 2026-09-25:** task 25's power grid fails `risk_calibration` in 32 of
+80 shuffles and 3 of 4 live twins — the same pattern, live and null together.
 
 **The decision:** queue B1's halflife sweep now as critical-path work, or accept
 and disclose the veto's 2008 behaviour. `vetoes/` and `params/` are owner-only.
@@ -167,19 +251,37 @@ variance. Once the book de-risks through its covariance, 0008 must be measured
 as incremental to that, not against a never-de-risks baseline, or it gets
 credited for what the risk model did.
 
-### B2. The per-session turnover cap
-`decisions/0024` left it unvalued; the sweep is `[0.10, 0.25, 0.50, none]`.
-The 3-seed audit put it inside noise (mean net IR 0.27/0.27/0.27 at IC 0.02,
-0.41/0.40/0.39 at IC 0.20).
-
-**Retired by:** the ten-seed Bloomberg audit. Cannot be chosen from a lean run.
-
 ### B3. The 400% turnover backstop vs fast, strong signals
 A small-universe cell ran 414% annual traded notional on realistic costs in the
 synthetic grid. The Bloomberg grid's worst was 342%, inside the backstop.
 
 **Retired by:** the ten-seed audit's turnover column at high IC and short
 horizon. If nothing approaches 400%, the question closes itself.
+
+**Update 2026-09-25 — now partly a wording question.** In task 25's power grid,
+**rolling one-year turnover exceeds 400% in 68 of 80 cells** (peak ~631%) while
+annual turnover passes everywhere. SUBSTRATE §10 says "annualised traded
+notional" without saying which window. Which measure the backstop reads is an
+owner call; the measurement no longer settles B3 on its own.
+
+**Owner's stance, 2026-09-25:** turnover is restrained by friction, not by
+limits. If a book still trades heavily after friction, the owner reviews the
+result for practicality to an investor. It may still show what is valuable,
+and it may prompt a run with higher friction to see how results respond.
+**Still open:**
+- **(a) Is the 400% `vetoes.turnover.max_annualised` still a veto?** Today it
+  fails a cell outright, so the owner never sees the result. The stance reads
+  as "disclose, then judge", like `decisions/0030` did for TE. That would be a
+  `vetoes/` change and needs a `decisions/` record.
+- **(b) If it stays, which window:** annual or rolling one-year.
+- **(c) "More friction" has two dials, and they differ.** The shadow cost
+  (`constraints.turnover.penalty.coefficient`, 10 bp at 150%) shapes weights
+  and never enters net IR. The real half-spreads (`costs.yaml`, 5/10/20 bp)
+  do. Raising the shadow cost tests whether the alpha survives slower trading.
+  Raising spreads above reality understates performance. Cowork recommends
+  the shadow coefficient for the owner's experiment, e.g. a sweep of 10/20/40.
+Task 30 reports both turnover measures for its 210 cells, as input to (a)
+and (b).
 
 ### B4. `decisions/0030`'s threshold sensitivity to kurtosis
 The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
@@ -256,6 +358,13 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### B2 — the per-session (per-rebalance) turnover cap. CLOSED 2026-09-25.
+**Owner:** no per-rebalance turnover cap. Turnover is restrained by friction,
+the costs and the shadow cost of `decisions/0024`. This is already the state
+of `params/audit.yaml` (`per_rebalance_cap_default: null`), so no params
+change. The `per_rebalance_caps` sweep stays a diagnostic. It should be
+recorded in `decisions/` with B3's answer.
 
 ### L11 — SUBSTRATE §3 and the second bar. CLOSED 2026-09-21.
 **Decided and transcribed the same day.** SUBSTRATE is at **v0.5**: §3 replaces
