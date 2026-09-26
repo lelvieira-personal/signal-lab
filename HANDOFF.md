@@ -56,9 +56,7 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-25, tasks 0-29 are done. One task is queued: 30** (fix the
-score shuffle's span, then a 10-seed power grid, ~6 h; owner-approved
-2026-09-25, OWNER-QUEUE L15 option A). Receipts are in
+**As of 2026-09-26, tasks 0-30 are done. Nothing is queued.** Receipts are in
 `## Done`. Task 25's power audit is `A-20260924-194115`, read in
 `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`. H-2026-0001's
 JPMaQS names were renamed 2026-09-24 (`33b84f4`).
@@ -813,90 +811,6 @@ the files these tests produce in `tmp_path` match the committed ones
 byte-for-byte (`diff`, names only, no values involved). If they match, task 16's
 "hand-edited?" question has its answer.
 
-### 30. Fix the score shuffle's span, then the 10-seed power grid at IC 0.70
-
-Added 2026-09-25 by Cowork. **Owner-approved 2026-09-25: OWNER-QUEUE L15,
-option A.** Read `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`
-§4 and "Compute not queued" first; this task is that recommendation. **About
-6 h of compute.**
-
-**0. Commit first.** `HANDOFF.md` and `OWNER-QUEUE.md` carry this task, L15 and
-the 2026-09-25 restatements of L13, L14, B2 and B3, uncommitted. Commit them
-alone (`queue: task 30, L15, owner rulings 2026-09-25`) before building.
-
-**Why.** Task 25's score shuffle permutes all ~991 dev-window rows, but the
-score is NaN in every column for the first 155 rows and the last 13. After the
-live mask is re-applied, each column keeps only ~80% of its static tilt (35-60%
-for late starters). Bar 2 is meant to give a pure static tilt zero excess; the
-leaked remainder biases it toward passing beta. Measuring power against that
-null would bake the leak in.
-
-**Build a new shuffle mode, `score_span`. Leave `score` exactly as it is.**
-Task 25's 80 cells are keyed `_baseline_score_pNN` in the append-only store;
-changing `score` in place would put different results under old keys.
-
-1. Build the live score exactly as today.
-2. Take the rows where **any** column of the score is non-NaN, in date order.
-   Permute **only those rows**, in the same 52-row blocks, with one permutation
-   shared by every column (`decisions/0036` §4b). Rows outside that set are not
-   moved and stay NaN.
-3. Re-apply the live NaN mask with the same neutral fill as `score`, then
-   recompute `alpha` from the shuffled score. **`sigma` is not shuffled.**
-4. Each `perm` draws from its own stream: a new sibling of
-   `score_shuffle_rng` with its own stream constant, so the `score`,
-   truth-shuffle and noise streams are untouched.
-5. Add the mode to `SHUFFLES` and key it like `score`, e.g.
-   `_baseline_scorespan_pNN`. Existing keys must not change.
-
-**Do not change the truth shuffle** (task 17, the engine's paired baseline).
-It has the same re-masking by construction. Say so in one line in the receipt,
-and change nothing.
-
-**Tests:**
-- On a synthetic panel (no vendor data), every **full-history** column's
-  time-mean of the score is preserved **exactly** (to 1e-12) under
-  `score_span`, for several `perm`.
-- `score` mode is bit-for-bit unchanged. Task 17's bit-for-bit test still
-  passes, and live, truth-shuffle and `score` keys are unchanged.
-- The same `perm` is deterministic, and different `perm` differ.
-- No shuffled row lands on or after `HOLDOUT_START`.
-
-**Diagnostic, in the receipt.** Re-run the power doc's §4 synthetic slope
-measurement (shuffled column means on live column means, 4 (IC, seed) x 20
-perms, the same synthetic panel) for `score` and `score_span` side by side:
-full-history and late-starting slope, range and corr.
-
-**Grid `power10`, in `ladder.py`,** as module constants like `POWER_*`, with
-nothing in `params/`. h13, IC **0.70**, seeds **0-9**, 20 perms, mode
-`score_span`: **200 cells**, ~100 s each (task 25's median was 91 s). The
-live and truth-shuffle twins for all ten seeds are the knee run's
-`A-20260922-005316` cells, so don't re-run them. **Stop and report** if any seed
-0-9 at IC 0.70 is missing there. Point `_power_by_cell`, or a sibling, at that
-run for this grid. Add `make audit-power10` and extend the
-`scripts/unattended.sh` whitelist.
-
-**`params/` must not change.** `params_hash` stays
-`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c`.
-
-    scripts/unattended.sh check --digest
-    scripts/unattended.sh audit-power10 --digest
-
-**Receipt should say:**
-- rc, runtime, run id and commit hash.
-- Whether both hashes match `A-20260922-005316`. **Stop and report if either
-  differs.**
-- The slope table, `score` against `score_span`.
-- Per seed: live net IR, truth-twin net IR, the `score_span` mean and sd of 20,
-  and the live rank of 21.
-- The pooled sd across seeds, and how many seeds rank 1 of 21.
-- The shuffled cells' pooled realised IC over the planted IC (it was ~0.12
-  under `score`).
-- **Turnover, for the owner (OWNER-QUEUE B3):** across the 200 shuffled cells
-  and the 10 live twins, the count above 400% and the median and max, for both
-  annual and rolling-one-year traded notional. Report them; judge nothing.
-
-The interpretation is Cowork's and the owner's. **Then stop.**
-
 ---
 
 ## Not queued yet, and what each is waiting on
@@ -1564,3 +1478,19 @@ digest has further observations, not repeated here.
 - H-2026-0001 cache membership: **7 of 7 resolve** (cache test, not the vendor check).
 - `n_matches`, cap (60) not hit anywhere: 0004 USD|EUR `BLS` 16; 0010 `GB10Y` (DEM,FRF,ITL,ESP,NLG,EUR,USD) 40; 0010 `GB10YCRY` all cids 28, on 14 cids (ATS AUD BEF DEM ESP FIM FRF GBP IEP ITL JPY NZD PTE USD); 0005 USD|EUR: `MBASE` 8, `MBROAD` 8, `MNARROW` 8, `M1` 0, `M2` 0, `M3` 0, `RM` 16, `INTLIQ` 6, `PCREDIT` 18.
 - Nothing ranked or recommended; renaming/dropping/holding is OWNER-QUEUE L14. Commit hash: see `git log` (message `handoff: task 29`).
+
+### 2026-09-26 — task 30 (Claude Code, Sonnet 5)
+
+**30. `score_span` and the 10-seed power grid** — rc=0. Run **`A-20260926-161749`**, 200 cells, 20019 s of wall clock (one cell took 4867 s: the machine slept; the ~95 s cells are the real cost).
+- Commits: queue `21ab064`; `score_span` + `power10` `a7f92db`; preflight fix `84cc804`. `scripts/unattended.sh audit-power10 --digest` at `84cc804`: check **rc=0, 426 s**. A first attempt at `a7f92db` stopped at my own preflight (`KeyError: 'shuffle'`, the knee run's `cells.csv` predates that column) **before any cell**; fixed, tested, relaunched.
+- **Hashes match** `A-20260922-005316`: panel `dfbf5c5a...5793`, params `ebdfb70e...b77c`. All ten seeds' live and truth-twin cells were present (checked before any cell ran). `params/` unchanged.
+- Bit-for-bit: `score` mode reproduces its pre-change hash and RNG stream; live, truth-shuffle and `score` keys unchanged; new key `_baseline_scorespan_pNN`. Tests: 34 in `tests/test_baseline.py`, all passing. **The truth shuffle has the same re-masking by construction and was left unchanged.**
+- **Slope diagnostic** (synthetic 991 x 95, 20 late starters, 4 (IC, seed) x 20 perms; slope of shuffled column means on live, mean (min-max), corr): full-history `score` 0.81 (0.71-0.91) corr 0.93 -> `score_span` **1.00 (1.00-1.00) corr 1.00**; late-starting `score` 0.58 (0.36-0.91) corr 0.76 -> `score_span` 0.76 (0.48-0.96) corr 0.86. Alpha-mean slopes: full 0.80 -> 0.98, late 0.61 -> 0.77. The script is not in the repo (scratchpad).
+- **Per seed (IC 0.70, h13):** live net IR / truth-twin / `score_span` mean +- sd of 20 / live rank of 21:
+  s0 0.091 / -0.086 / 0.241 +- 0.151 / 17; s1 0.722 / 0.491 / 0.328 +- 0.139 / 1; s2 0.633 / 0.445 / 0.286 +- 0.143 / 1; s3 0.558 / 0.346 / 0.315 +- 0.168 / 3; s4 0.548 / 0.425 / 0.359 +- 0.173 / 5; s5 0.436 / 0.130 / 0.296 +- 0.146 / 4; s6 0.325 / 0.192 / 0.234 +- 0.167 / 7; s7 0.679 / 0.445 / 0.297 +- 0.200 / 2; s8 0.597 / 0.395 / 0.155 +- 0.212 / 1; s9 0.760 / 0.480 / 0.289 +- 0.166 / 1.
+- **Pooled sd** across seeds 0.168 (rms of per-seed sd; sd of all 200 cells 0.173). **Seeds ranking 1 of 21: 4 of 10** (5 of 10 within the top 2).
+- **Shuffled cells' pooled realised IC:** 0.065 on average = **0.093 x the planted 0.70** (was ~0.12 under `score`); live twins 0.700.
+- **Turnover, for OWNER-QUEUE B3 (reported, not judged):**
+  - 200 shuffled cells: annual turnover above 400% in **0**, median 338%, max 355%; rolling one-year (max over the history) above 400% in **200**, median 522%, max 612%; rolling p95 above 400% in 200, median 461%, max 514%.
+  - 10 live twins: annual above 400% in **0**, median 318%, max 331%; rolling max above 400% in **10**, median 498%, max 546%; rolling p95 above 400% in 10, median 437%, max 475%.
+- Also seen: `risk_calibration` fails 67 of 200 shuffled cells and 4 of 10 live twins.
