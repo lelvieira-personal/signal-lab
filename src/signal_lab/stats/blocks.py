@@ -24,6 +24,9 @@ BASELINE_STREAM = 0x5EED_B10C
 # The score shuffle's streams (HANDOFF task 25): one per permutation `perm`,
 # independent of the noise stream and of the truth shuffle's `baseline_rng`.
 SCORE_STREAM = 0x5C0_5EED
+# The span-limited score shuffle's streams (HANDOFF task 30): its own constant, so
+# `score`, the truth shuffle and the noise draw are untouched.
+SPAN_STREAM = 0x5C0_5BA4
 
 
 def block_permutation(n: int, block: int, rng: np.random.Generator) -> np.ndarray:
@@ -53,6 +56,29 @@ def block_shuffle_rows(panel: pd.DataFrame, block: int, rng: np.random.Generator
     return pd.DataFrame(panel.to_numpy()[order], index=panel.index, columns=panel.columns)
 
 
+def block_shuffle_span(
+    panel: pd.DataFrame, block: int, rng: np.random.Generator, rows: np.ndarray
+) -> pd.DataFrame:
+    """
+    `panel` with only the rows flagged in the boolean vector `rows` permuted, in
+    blocks and among themselves, one permutation for every column. Rows outside
+    the flag are not moved. The index and columns are those of the input.
+
+    For a score that is NaN in every column outside a span (a warm-up before it
+    and a forward window after it), permuting the whole panel drags real rows into
+    the empty span, where the caller's mask then discards them, and so shrinks
+    each column's time-mean. Permuting the span alone keeps that mean exactly for
+    every column that is present throughout it.
+    """
+    rows = np.asarray(rows, dtype=bool)
+    if rows.shape != (len(panel),):
+        raise ValueError("rows must be one boolean per row of the panel")
+    values = panel.to_numpy().copy()
+    at = np.flatnonzero(rows)
+    values[at] = panel.to_numpy()[at[block_permutation(len(at), block, rng)]]
+    return pd.DataFrame(values, index=panel.index, columns=panel.columns)
+
+
 def baseline_rng(seed: int) -> np.random.Generator:
     """The permutation stream for `seed`, independent of `default_rng(seed)`."""
     return np.random.default_rng([int(seed), BASELINE_STREAM])
@@ -66,3 +92,8 @@ def score_shuffle_rng(seed: int, perm: int) -> np.random.Generator:
     call and stream stay exactly what every baseline cell before it drew.
     """
     return np.random.default_rng([int(seed), SCORE_STREAM, int(perm)])
+
+
+def score_span_rng(seed: int, perm: int) -> np.random.Generator:
+    """Permutation stream `perm` for `seed`, for the span-limited score shuffle."""
+    return np.random.default_rng([int(seed), SPAN_STREAM, int(perm)])

@@ -21,6 +21,9 @@ import signal_lab.audit.signals as signals_mod
 from signal_lab.audit.ladder import (
     BASELINE,
     KNEE_IC_RUNGS,
+    POWER10_IC_RUNGS,
+    POWER10_PERMS,
+    POWER10_SEEDS,
     POWER_IC_RUNGS,
     POWER_PERMS,
     POWER_SEEDS,
@@ -30,12 +33,14 @@ from signal_lab.audit.ladder import (
     grid_cells,
     knee_cells,
     net_ir_excess,
+    power10_cells,
     power_cells,
     run_cell,
 )
 from signal_lab.audit.signals import (
     BASELINE_BLOCK,
     SCORE_SHUFFLE,
+    SPAN_SHUFFLE,
     plant_signal,
     realised_ic,
 )
@@ -46,6 +51,7 @@ from signal_lab.stats.blocks import (
     block_permutation,
     block_shuffle_rows,
     score_shuffle_rng,
+    score_span_rng,
 )
 
 WEEKS = 260
@@ -60,6 +66,9 @@ GOLDEN_NET_IR = -0.8793457503233992
 # baseline call to reproduce today's stream exactly.
 GOLDEN_TRUTH_BASELINE_HASH = "654969df17ddcd1a"
 GOLDEN_BASELINE_RNG_1 = [308728382, 18655402, 1802871816]
+# The task 25 `score` shuffle's score, recorded before `score_span` was added
+# (HEAD 21ab064): HANDOFF task 30 leaves that mode exactly as it was.
+GOLDEN_SCORE_SHUFFLE_HASH = "b40b2106fad807c4"
 
 
 @pytest.fixture(scope="module")
@@ -357,3 +366,80 @@ def test_a_score_row_is_never_taken_as_the_paired_truth_baseline():
         }
     )
     assert net_ir_excess(table).iloc[0] == pytest.approx(0.20)
+
+
+# --- HANDOFF task 30: the span-limited score shuffle ------------------------
+
+
+def _span_kw():
+    return dict(ic=0.35, horizon=13, seed=1, vol_window=52, baseline=True)
+
+
+def test_the_score_mode_is_bit_for_bit_unchanged_by_score_span(ragged, benchmark):
+    sig = plant_signal(ragged, benchmark, **_span_kw(), shuffle=SCORE_SHUFFLE, perm=3)
+    digest = hashlib.sha256(np.ascontiguousarray(sig.score.to_numpy()).tobytes()).hexdigest()
+    assert digest[:16] == GOLDEN_SCORE_SHUFFLE_HASH
+
+
+def test_a_span_cell_is_keyed_apart_and_existing_keys_are_unchanged():
+    truth = AuditCell(0.70, 13, 0, 1.0, None, 0.25, BASELINE, baseline=True)
+    assert truth.key() == "ic0.70_h13_s0_c1.0_tnone_r0.25_baseline"
+    assert (
+        dataclasses.replace(truth, shuffle=SCORE_SHUFFLE, perm=7).key()
+        == "ic0.70_h13_s0_c1.0_tnone_r0.25_baseline_score_p07"
+    )
+    assert (
+        dataclasses.replace(truth, shuffle=SPAN_SHUFFLE, perm=7).key()
+        == "ic0.70_h13_s0_c1.0_tnone_r0.25_baseline_scorespan_p07"
+    )
+    with pytest.raises(ValueError, match="baseline"):
+        AuditCell(0.70, 13, 0, shuffle=SPAN_SHUFFLE)
+
+
+def test_span_permutations_are_deterministic_distinct_and_their_own_stream():
+    draw = lambda g: g.integers(0, 2**31, 8).tolist()  # noqa: E731
+    assert draw(score_span_rng(1, 4)) == draw(score_span_rng(1, 4))
+    assert draw(score_span_rng(1, 4)) != draw(score_span_rng(1, 5))
+    for other in (score_shuffle_rng(1, 4), baseline_rng(1), np.random.default_rng(1)):
+        assert draw(score_span_rng(1, 4)) != draw(other)
+
+
+def test_the_span_shuffle_keeps_full_history_column_means_exactly(ragged, benchmark):
+    live = plant_signal(ragged, benchmark, **{**_span_kw(), "baseline": False})
+    full = [c for c in ragged.columns if ragged[c].notna().all()]
+    assert full and len(full) < ragged.shape[1]
+    for perm in range(4):
+        sh = plant_signal(ragged, benchmark, **_span_kw(), shuffle=SPAN_SHUFFLE, perm=perm)
+        np.testing.assert_allclose(sh.score[full].mean(), live.score[full].mean(), atol=1e-12)
+        assert sh.score.notna().equals(live.score.notna()), "availability is the live cell's"
+        assert sh.sigma.equals(live.sigma)
+        pd.testing.assert_frame_equal(sh.alpha, 0.35 * sh.sigma * sh.score / np.sqrt(13))
+
+
+def test_the_span_shuffle_is_deterministic_moves_only_the_span_and_stays_in_dev(ragged, benchmark):
+    from signal_lab.loaders.holdout import enforce_holdout
+
+    live = plant_signal(ragged, benchmark, **{**_span_kw(), "baseline": False})
+    a = plant_signal(ragged, benchmark, **_span_kw(), shuffle=SPAN_SHUFFLE, perm=0)
+    b = plant_signal(ragged, benchmark, **_span_kw(), shuffle=SPAN_SHUFFLE, perm=1)
+    again = plant_signal(ragged, benchmark, **_span_kw(), shuffle=SPAN_SHUFFLE, perm=0)
+    assert a.score.equals(again.score)
+    assert not a.score.equals(b.score)
+    empty = ~live.score.notna().any(axis=1)
+    assert empty.any() and a.score[empty].isna().all().all(), "no value enters the empty rows"
+    assert a.score.index.equals(live.score.index)
+    enforce_holdout(a.score.dropna(how="all").index)
+
+
+def test_the_power10_grid_is_200_span_cells_outside_params(params):
+    cells = power10_cells(params)
+    assert len(cells) == len(POWER10_IC_RUNGS) * len(POWER10_SEEDS) * POWER10_PERMS == 200
+    assert all(c.baseline and c.shuffle == SPAN_SHUFFLE and c.horizon == 13 for c in cells)
+    assert {c.ic for c in cells} == {0.70} and {c.seed for c in cells} == set(range(10))
+    assert len({c.key() for c in cells}) == 200
+    other = {c.key() for c in [*knee_cells(params), *power_cells(params)]}
+    assert not other & {c.key() for c in cells}, "nothing collides with the knee or power runs"
+    knee = next(c for c in knee_cells(params) if not c.baseline)
+    assert {(c.cost_multiplier, c.turnover_cap, c.per_rebalance_cap) for c in cells} == {
+        (knee.cost_multiplier, knee.turnover_cap, knee.per_rebalance_cap)
+    }

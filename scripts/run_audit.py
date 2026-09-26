@@ -44,6 +44,9 @@ def _power_by_cell(table, universe, params, out_root):
         hashes["params_hash_match"] = live_summary.get("params_hash") == params.params_hash
         cells = pd.read_csv(live_dir / "cells.csv")
         live = cells[~cells["baseline"].astype(bool) & (cells["tag"] == "base")]
+        truth_twin = cells[
+            cells["baseline"].astype(bool) & cells["shuffle"].fillna("").isin(["", "truth"])
+        ]
     rows = []
     for (h, ic, seed), grp in table.groupby(["horizon", "ic", "seed"]):
         shuffled = grp["net_ir"].astype(float)
@@ -55,6 +58,7 @@ def _power_by_cell(table, universe, params, out_root):
             "shuffled_mean": float(shuffled.mean()),
             "shuffled_sd": float(shuffled.std(ddof=1)),
             "live_net_ir": float("nan"),
+            "truth_twin_net_ir": float("nan"),
             "live_rank": None,
             "of": int(len(shuffled)) + 1,
         }
@@ -68,8 +72,51 @@ def _power_by_cell(table, universe, params, out_root):
                 value = float(match["net_ir"].iloc[0])
                 row["live_net_ir"] = value
                 row["live_rank"] = 1 + int((shuffled > value).sum())
+            twin = truth_twin[
+                (truth_twin["horizon"] == h)
+                & (truth_twin["ic"].round(6) == round(float(ic), 6))
+                & (truth_twin["seed"] == seed)
+            ]
+            if len(twin) == 1:
+                row["truth_twin_net_ir"] = float(twin["net_ir"].iloc[0])
         rows.append(row)
     return hashes, pd.DataFrame(rows)
+
+
+def _power10_preflight(cells, universe, params, out_root):
+    """
+    HANDOFF task 30: the grid's live and truth-shuffle twins are the knee run's, so
+    every seed and rung must be there and its hashes must match this run's. Checked
+    before any cell so a mismatch costs seconds, not six hours. Returns the reason
+    to stop, or None.
+    """
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    live_dir = Path(out_root) / POWER_LIVE_RUN
+    if not live_dir.exists():
+        return f"{live_dir} not found"
+    live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
+    if live_summary.get("panel_hash") != universe.panel_hash():
+        return f"panel_hash differs from {POWER_LIVE_RUN}"
+    if live_summary.get("params_hash") != params.params_hash:
+        return f"params_hash differs from {POWER_LIVE_RUN}"
+    table = pd.read_csv(live_dir / "cells.csv")
+    for ic, seed in sorted({(c.ic, c.seed) for c in cells}):
+        at = (
+            (table["horizon"] == 13)
+            & (table["ic"].round(6) == round(ic, 6))
+            & (table["seed"] == seed)
+        )
+        live = at & ~table["baseline"].astype(bool) & (table["tag"] == "base")
+        twin = at & table["baseline"].astype(bool) & table["shuffle"].fillna("").isin(["", "truth"])
+        if live.sum() != 1 or twin.sum() != 1:
+            return f"{POWER_LIVE_RUN} lacks the live or truth-twin cell at ic={ic}, seed={seed}"
+    return None
 
 
 def _write_baseline_run(args, params, universe, table, run_id, out_root, started) -> int:
@@ -124,7 +171,7 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
     if paired is not None:
         summary["paired_by_rung"] = paired.to_dict(orient="records")
     power = None
-    if args.grid == "power":
+    if args.grid in ("power", "power10"):
         hashes, power = _power_by_cell(table, universe, params, out_root)
         summary["power_live_run"] = hashes
         summary["power_by_cell"] = power.to_dict(orient="records")
@@ -178,10 +225,12 @@ def main(argv=None) -> int:
     from signal_lab.audit.ladder import (
         AUDIT_GRIDS,
         KNEE_GRID,
+        POWER10_GRID,
         POWER_GRID,
         baseline_cells,
         grid_cells,
         knee_cells,
+        power10_cells,
         power_cells,
         run_cell,
     )
@@ -203,7 +252,8 @@ def main(argv=None) -> int:
         help="run only the block-shuffled baseline cells of decisions/0036: "
         "baseline-pilot (h13) or baseline (every horizon); or knee, the live and "
         "baseline cells at the IC rungs between 0.20 and the oracle (h13); or power, "
-        "20 score-shuffle baselines per knee rung and seed (HANDOFF task 25)",
+        "20 score-shuffle baselines per knee rung and seed (HANDOFF task 25); or "
+        "power10, 20 span-limited score shuffles at IC 0.70 for seeds 0-9 (task 30)",
     )
     parser.add_argument("--solver", default=None, help="auto | cvxpy | scipy (default: params)")
     parser.add_argument("--run-id", default=None)
@@ -224,6 +274,14 @@ def main(argv=None) -> int:
         cells = knee_cells(params)
     elif args.grid == POWER_GRID:
         cells = power_cells(params)
+    elif args.grid == POWER10_GRID:
+        cells = power10_cells(params)
+        problem = _power10_preflight(
+            cells, universe, params, args.out or params.get("audit.output_dir", "results/audit")
+        )
+        if problem:
+            print(f"power10 STOPPED before any cell: {problem}", file=sys.stderr)
+            return 2
     elif args.grid:
         cells = baseline_cells(params, args.grid)
     else:

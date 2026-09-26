@@ -61,7 +61,13 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from signal_lab.stats.blocks import baseline_rng, block_shuffle_rows, score_shuffle_rng
+from signal_lab.stats.blocks import (
+    baseline_rng,
+    block_shuffle_rows,
+    block_shuffle_span,
+    score_shuffle_rng,
+    score_span_rng,
+)
 
 POOLED = "pooled"
 CROSS_SECTIONAL = "cross_sectional"
@@ -75,7 +81,12 @@ BASELINE_BLOCK = 52
 # truth and noise together: the null a real signal meets under bar 2.
 TRUTH_SHUFFLE = "truth"
 SCORE_SHUFFLE = "score"
-SHUFFLES = (TRUTH_SHUFFLE, SCORE_SHUFFLE)
+# `score_span` (HANDOFF task 30) is `score` with the permutation confined to the rows
+# where any column of the score exists, so the warm-up and forward-window rows
+# stay empty and each full-history column keeps its time-mean exactly.
+SPAN_SHUFFLE = "score_span"
+SCORE_SHUFFLES = (SCORE_SHUFFLE, SPAN_SHUFFLE)
+SHUFFLES = (TRUTH_SHUFFLE, SCORE_SHUFFLE, SPAN_SHUFFLE)
 
 
 @dataclass(frozen=True)
@@ -176,15 +187,16 @@ def plant_signal(
     `shuffle="score"` (HANDOFF task 25) builds the live score, then shuffles its
     date-rows with permutation stream `perm`: truth and noise move together, so
     the baseline is the whole signal's block-shuffle null. `sigma` is the risk
-    model's input and is not shuffled.
+    model's input and is not shuffled. `shuffle="score_span"` (HANDOFF task 30)
+    is the same with the permutation confined to the rows where the score exists.
     """
     if not 0.0 <= ic <= 1.0:
         raise ValueError(f"ic must be in [0, 1], got {ic}")
     if shuffle not in SHUFFLES:
         raise ValueError(f"shuffle must be one of {SHUFFLES}, got {shuffle!r}")
-    if shuffle == SCORE_SHUFFLE and not baseline:
+    if shuffle in SCORE_SHUFFLES and not baseline:
         raise ValueError("a score shuffle is a baseline; pass baseline=True")
-    score_shuffle = baseline and shuffle == SCORE_SHUFFLE
+    score_shuffle = baseline and shuffle in SCORE_SHUFFLES
     sigma = trailing_volatility(weekly, vol_window)
     fwd = forward_active_return(weekly, benchmark, horizon)
     truth = fwd / (sigma * np.sqrt(horizon))
@@ -228,7 +240,15 @@ def plant_signal(
         # Same blocks and one permutation for every column, as the truth shuffle;
         # then the live NaN mask, with the same neutral fill for cells that were
         # live but drew a NaN row.
-        shuffled = block_shuffle_rows(score, BASELINE_BLOCK, score_shuffle_rng(seed, perm))
+        if shuffle == SPAN_SHUFFLE:
+            shuffled = block_shuffle_span(
+                score,
+                BASELINE_BLOCK,
+                score_span_rng(seed, perm),
+                score.notna().any(axis=1).to_numpy(),
+            )
+        else:
+            shuffled = block_shuffle_rows(score, BASELINE_BLOCK, score_shuffle_rng(seed, perm))
         score = shuffled.where(score.notna()).fillna(0.0).where(score.notna())
     alpha = ic * sigma * score / np.sqrt(horizon)
     return PlantedSignal(

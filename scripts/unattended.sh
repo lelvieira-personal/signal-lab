@@ -6,6 +6,7 @@
 #   scripts/unattended.sh audit-baseline-pilot | audit-baseline   the decisions/0036 baseline cells
 #   scripts/unattended.sh audit-knee         the live + baseline knee rungs, h13 (HANDOFF task 20)
 #   scripts/unattended.sh audit-power        score-shuffle baselines at two knee rungs (HANDOFF task 25)
+#   scripts/unattended.sh audit-power10      span-limited score shuffles, IC 0.70, ten seeds (HANDOFF task 30)
 #   scripts/unattended.sh audit --digest     make check, then the Bloomberg audit,
 #                                            then ask Claude Code for a digest
 #
@@ -18,8 +19,8 @@ cd "$(dirname "$0")/.."
 target="${1:-check}"
 digest="${2:-}"
 case "$target" in
-  check|audit-lean|audit|audit-baseline-pilot|audit-baseline|audit-knee|audit-power) ;;
-  *) echo "unknown target: $target (check | audit-lean | audit | audit-baseline-pilot | audit-baseline | audit-knee | audit-power)" >&2; exit 2 ;;
+  check|audit-lean|audit|audit-baseline-pilot|audit-baseline|audit-knee|audit-power|audit-power10) ;;
+  *) echo "unknown target: $target (check | audit-lean | audit | audit-baseline-pilot | audit-baseline | audit-knee | audit-power | audit-power10)" >&2; exit 2 ;;
 esac
 
 export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$HOME/.venvs/signal-lab}"

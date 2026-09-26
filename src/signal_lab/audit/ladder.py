@@ -34,7 +34,9 @@ import pandas as pd
 from signal_lab.audit.signals import (
     POOLED,
     SCORE_SHUFFLE,
+    SCORE_SHUFFLES,
     SHUFFLES,
+    SPAN_SHUFFLE,
     TRUTH_SHUFFLE,
     PlantedSignal,
     plant_signal,
@@ -280,7 +282,7 @@ class AuditCell:
     def __post_init__(self) -> None:
         if self.shuffle not in SHUFFLES:
             raise ValueError(f"shuffle must be one of {SHUFFLES}, got {self.shuffle!r}")
-        if self.shuffle == SCORE_SHUFFLE and not self.baseline:
+        if self.shuffle in SCORE_SHUFFLES and not self.baseline:
             raise ValueError("a score shuffle is a baseline; set baseline=True")
         if self.shuffle == TRUTH_SHUFFLE and self.perm != 0:
             raise ValueError("perm indexes the score shuffle only")
@@ -301,7 +303,7 @@ class AuditCell:
         if self.baseline:
             key = f"{key}_baseline"
             if self.shuffle != TRUTH_SHUFFLE:
-                key = f"{key}_{self.shuffle}_p{self.perm:02d}"
+                key = f"{key}_{self.shuffle.replace('_', '')}_p{self.perm:02d}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -1124,7 +1126,14 @@ POWER_IC_RUNGS = (0.35, 0.70)
 POWER_SEEDS = (0, 1)
 POWER_PERMS = 20
 POWER_LIVE_RUN = "A-20260922-005316"
-AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID, POWER_GRID)
+# The `power10` grid (HANDOFF task 30): the same measurement at ten seeds, with the
+# span-limited score shuffle, at one rung. Live and truth-shuffle twins for every
+# seed are the knee run's cells, `POWER_LIVE_RUN`.
+POWER10_GRID = "power10"
+POWER10_IC_RUNGS = (0.70,)
+POWER10_SEEDS = tuple(range(10))
+POWER10_PERMS = 20
+AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID, POWER_GRID, POWER10_GRID)
 
 
 def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list[AuditCell]:
@@ -1201,6 +1210,35 @@ def power_cells(params: Params | None = None) -> list[AuditCell]:
         for ic in POWER_IC_RUNGS
         for s in POWER_SEEDS
         for p in range(POWER_PERMS)
+    ]
+
+
+def power10_cells(params: Params | None = None) -> list[AuditCell]:
+    """
+    Span-limited score-shuffle baselines at `KNEE_HORIZON`: every IC in
+    `POWER10_IC_RUNGS`, seeds `POWER10_SEEDS`, `POWER10_PERMS` permutations each.
+    Constraints and costs match the knee cells', so each set of 20 sits beside a
+    live twin and a truth-shuffle twin in `POWER_LIVE_RUN`.
+    """
+    params = params or get_params()
+    default_per = params.get("audit.per_rebalance_cap_default", None)
+    default_per = None if default_per is None else float(default_per)
+    return [
+        AuditCell(
+            ic,
+            KNEE_HORIZON,
+            s,
+            1.0,
+            None,
+            default_per,
+            BASELINE,
+            baseline=True,
+            shuffle=SPAN_SHUFFLE,
+            perm=p,
+        )
+        for ic in POWER10_IC_RUNGS
+        for s in POWER10_SEEDS
+        for p in range(POWER10_PERMS)
     ]
 
 
