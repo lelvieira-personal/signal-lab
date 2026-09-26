@@ -443,3 +443,33 @@ def test_the_power10_grid_is_200_span_cells_outside_params(params):
     assert {(c.cost_multiplier, c.turnover_cap, c.per_rebalance_cap) for c in cells} == {
         (knee.cost_multiplier, knee.turnover_cap, knee.per_rebalance_cap)
     }
+
+
+def test_the_power10_preflight_reads_a_cells_csv_from_before_the_shuffle_column(tmp_path):
+    """The knee run predates `shuffle`; the first attempt at power10 died on that."""
+    import json
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    sys.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts")]
+    import run_audit
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    run = tmp_path / POWER_LIVE_RUN
+    run.mkdir()
+    (run / "summary.json").write_text(json.dumps({"panel_hash": "p", "params_hash": "q"}))
+    rows = [
+        {"tag": "base", "baseline": b, "horizon": 13, "ic": 0.7, "seed": s, "net_ir": 0.1}
+        for s in range(10)
+        for b in (False, True)
+    ]
+    pd.DataFrame(rows).to_csv(run / "cells.csv", index=False)  # no `shuffle` column
+    universe = SimpleNamespace(panel_hash=lambda: "p")
+    params = SimpleNamespace(params_hash="q")
+    cells = [SimpleNamespace(ic=0.7, seed=s) for s in range(10)]
+    assert run_audit._power10_preflight(cells, universe, params, tmp_path) is None
+    pd.DataFrame(rows[:-1]).to_csv(run / "cells.csv", index=False)  # seed 9's twin missing
+    assert "seed=9" in run_audit._power10_preflight(cells, universe, params, tmp_path)
+    assert run_audit._power10_preflight(cells, universe, SimpleNamespace(params_hash="x"), tmp_path)

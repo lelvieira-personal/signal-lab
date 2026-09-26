@@ -20,6 +20,19 @@ import time
 import _bootstrap  # noqa: F401
 
 
+def _read_cells(run_dir):
+    """
+    A run's cells.csv. Runs before HANDOFF task 25 have no `shuffle` column; every
+    baseline in them is a truth shuffle, so the column is filled in as that.
+    """
+    import pandas as pd
+
+    cells = pd.read_csv(run_dir / "cells.csv")
+    if "shuffle" not in cells.columns:
+        cells["shuffle"] = ""
+    return cells
+
+
 def _power_by_cell(table, universe, params, out_root):
     """
     HANDOFF task 25: per (horizon, ic, seed), the live net IR from the knee run,
@@ -42,7 +55,7 @@ def _power_by_cell(table, universe, params, out_root):
         live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
         hashes["panel_hash_match"] = live_summary.get("panel_hash") == universe.panel_hash()
         hashes["params_hash_match"] = live_summary.get("params_hash") == params.params_hash
-        cells = pd.read_csv(live_dir / "cells.csv")
+        cells = _read_cells(live_dir)
         live = cells[~cells["baseline"].astype(bool) & (cells["tag"] == "base")]
         truth_twin = cells[
             cells["baseline"].astype(bool) & cells["shuffle"].fillna("").isin(["", "truth"])
@@ -93,8 +106,6 @@ def _power10_preflight(cells, universe, params, out_root):
     import json
     from pathlib import Path
 
-    import pandas as pd
-
     from signal_lab.audit.ladder import POWER_LIVE_RUN
 
     live_dir = Path(out_root) / POWER_LIVE_RUN
@@ -105,7 +116,7 @@ def _power10_preflight(cells, universe, params, out_root):
         return f"panel_hash differs from {POWER_LIVE_RUN}"
     if live_summary.get("params_hash") != params.params_hash:
         return f"params_hash differs from {POWER_LIVE_RUN}"
-    table = pd.read_csv(live_dir / "cells.csv")
+    table = _read_cells(live_dir)
     for ic, seed in sorted({(c.ic, c.seed) for c in cells}):
         at = (
             (table["horizon"] == 13)
