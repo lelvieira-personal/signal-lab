@@ -56,7 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-26, tasks 0-30 are done. Nothing is queued.** Receipts are in
+**As of 2026-09-27, tasks 0-30 are done. One task is queued: 31** (the owner's
+L14 renames for H-2026-0004, 0005 and 0010, then the vendor names check; no
+compute). Receipts are in
 `## Done`. Task 25's power audit is `A-20260924-194115`, read in
 `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`. H-2026-0001's
 JPMaQS names were renamed 2026-09-24 (`33b84f4`).
@@ -810,6 +812,71 @@ This finding suggests `make check` may have been what wrote them. Say whether
 the files these tests produce in `tmp_path` match the committed ones
 byte-for-byte (`diff`, names only, no values involved). If they match, task 16's
 "hand-edited?" question has its answer.
+
+---
+
+### 31. Apply the owner's L14 renames for H-2026-0004, 0005, 0010, then the vendor check
+
+Added 2026-09-27 by Cowork. **Owner ruling 2026-09-27, OWNER-QUEUE L14:** "recs
+on all". This is the same pattern as `33b84f4` (H-2026-0001). No compute.
+
+**0. Commit first.** `OWNER-QUEUE.md` carries L14's ruling and the 2026-09-26
+task-30 notes under L15 and B3. `HANDOFF.md` carries this task. Commit the
+two alone (`queue: task 31, L14 ruling 2026-09-27`).
+
+**1. Addendum to `decisions/0032`,** `## Addendum, 2026-09-27`, in the same
+form as the 2026-09-24 one. Cite OWNER-QUEUE L14, tasks 27 and 29
+(`data/requests/jpmaqs_name_search.csv`), and Macrosynergy's Academy notebooks
+"Bank survey scores", "Monetary aggregates" and "Government bond yields and
+carry" for what each series measures. The table:
+
+| hypothesis | phase-0 name | now | why |
+|---|---|---|---|
+| 0004 | `{USD,EUR}_BLSDCLN_SA_D1Q1QL1` | `{USD,EUR}_BLSCSCORE_NSA_D2Q2QL2` | lending *standards* z-score (credit supply; positive = easing), 2 quarters over the prior 2, matching the signal's "2q change". **Enters negated**, so the registered direction `negative` (on tightening) is unchanged. NSA z-score, not an SA balance. `BLSDSCORE` is credit *demand* and was not used |
+| 0005 | `EUR_RM3GDP_SA_D1M1ML12` | `EUR_RMBROAD_SJA_P1M1ML12` | real broad money (M3, CPI-deflated), % over a year ago, the hypothesis's title. A growth rate, not "% of GDP" |
+| 0005 | `USD_RM1GDP_SA_D1M1ML12` | `USD_RMBROAD_SJA_P1M1ML12` | as above. **USD broad money is M2**. The narrow-money leg is dropped: the hypothesis is about broad money |
+| 0005 | `USD_MBASEGDP_SA_D1M1ML12` | **dropped** | no 12-month change exists (1/3/6 only); monetary base is a different mechanism; a derived change would mix vintages |
+| 0010 | `USD_GB10YXGB_NSA` | `USD_GB10YCRY_NSA` | no `XGB` series and no term-spread category exist. 10y carry is "yield plus roll-down", the rationale's own words, so the signal is **re-specified from term spread to carry** |
+| 0010 | `EUR_GB10YXGB_NSA` | `DEM_GB10YCRY_NSA` | no euro-area bond cross-section; bonds are by country, and the Bund is the benchmark |
+| 0004 | `DRTSCILM` (FRED) | **dropped** (owner 2026-09-27) | the Fed's own survey of US lending standards duplicates the `USD_BLSCSCORE` leg and runs the opposite sign (positive = tightening). It also withdraws the 2026-09-19 approval to add it to the FRED request (`decisions/0032` §5, OWNER-QUEUE L6) |
+
+Say that direction, horizon, target and rationale are otherwise unchanged. Say
+that the phase-0 names remain in git history. **Also
+record, in one line,** that 0010's declared safeguard (risk decomposition, B5)
+still can't be built. That's a caveat, not a change.
+
+**2. Update the files,** as `33b84f4` did:
+- `hypotheses/pending/H-2026-{0004,0005,0010}.yaml`: `data_required`, plus a
+  dated "Amended 2026-09-27 by owner ruling" note in each, saying what changed
+  and why. Do **not** edit `direction`, `horizon_weeks`, `target_axis` or the
+  rationale.
+- `data/requests/H-2026-{0004,0005,0010}.yaml`: the same series changes.
+  Nothing else.
+- `data/requests/ticker_resolution.csv`: the new names under the same status
+  (`jpmaqs_gap`, "genuine phase-3 gap"). Remove the rows for the two dropped
+  0005 names and for `DRTSCILM`, and give the reasons in the addendum.
+- `src/signal_lab/harness/hypotheses.py` mentions `DRTSCILM`. If that's a
+  request or series list, remove it there too. If it's a test fixture or an
+  example, leave it and say so in the receipt.
+- Don't hand-edit `jpmaqs_catalogue_check.csv` or `jpmaqs_candidates.csv`.
+  The vendor check rewrites the first one.
+
+**3. Vendor names check.** This is a metadata call, the same one task 23 ran
+under `decisions/0037`. It pulls no vintage data.
+
+    scripts/unattended.sh check --digest
+    make jpmaqs-catalogue
+
+**Expect 26 names, all resolving** (27 registered; 0005 goes from 3 names to
+2, since two legs are dropped and one is added): 7 for 0001, 2 for 0002, 4 for
+0003, 2 for 0004, 2 for 0005, 4 for 0006, 2 for 0010 and 3 for 0011. **If any
+name fails to resolve, stop and report it. Don't substitute.** If the vendor
+call fails for auth or network reasons, stop and report it the way task 23
+did. Never print credentials.
+
+**Receipt should say:** rc, commit hashes, the resolve count (or the failures),
+and whether `check` passed. **Then stop.** Implementing `load_macro` and the
+pull itself are not part of this task.
 
 ---
 

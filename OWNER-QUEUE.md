@@ -88,6 +88,21 @@ choices stay the owner's.
   which task 29 did not search (prefix `GB10Y` only). A names-only check for
   `USD_`/`DEM_GB02YYLD_NSA` belongs in `HANDOFF.md`.
 
+**Owner ruling, 2026-09-27: Cowork's recommendations on all three.** Queued
+as `HANDOFF.md` task 31, which records them as an addendum to
+`decisions/0032`. L14 closes when that lands and the vendor check passes.
+- **0004:** `{USD,EUR}_BLSCSCORE_NSA_D2Q2QL2`. It enters **negated**
+  (−easing = tightening), so the registered direction `negative` stays as
+  written, following the precedent of H-0001's unemployment gap.
+- **0005:** `{USD,EUR}_RMBROAD_SJA_P1M1ML12`. The `RM1GDP` and `MBASEGDP`
+  legs are dropped. USD broad money is M2 and EUR is M3. These are growth
+  rates, not "% of GDP".
+- **0010:** `USD_GB10YCRY_NSA` and `DEM_GB10YCRY_NSA`. The signal is
+  re-specified from term spread to 10-year carry (yield plus roll-down).
+- **0004, FRED `DRTSCILM`: dropped** (owner, 2026-09-27). It duplicates the USD
+  leg with the opposite sign. This withdraws its 2026-09-19 FRED-request
+  approval.
+
 **Done 2026-09-24:** the colleague's confirmation that JPMaQS may be pulled into
 a personal environment is recorded in `decisions/0037`, as the owner stated it.
 
@@ -138,6 +153,23 @@ critical value, not the luck.
 **Owner, 2026-09-25: option A approved** — fix the shuffle, then the 10-seed
 grid. Queued as `HANDOFF.md` task 30 (new mode `score_span`; task 25's `score`
 cells stay as they are). Decision 1 stays open until task 30 reports.
+
+**Task 30 reported 2026-09-26** (`A-20260926-161749`, rc=0, hashes match;
+Cowork re-derived the figures below from `cells.csv` and `summary.json`):
+- The fix works: full-history columns keep their mean exactly (slope 1.00,
+  was 0.81); late starters 0.76 (was 0.58).
+- IC 0.70, 10 seeds: live beats all 20 shuffles in **4 of 10** seeds (the
+  only rank that rejects at 5% with k = 20). Mean excess over the null 0.255,
+  sd across seeds 0.193, null sd 0.168 pooled. **Power at IC 0.70 is about
+  35-45%, not 33%**, and the binomial range on 4 of 10 is wide (~12-74%).
+- Noise timing still dominates single histories: seed 0's excess is −0.15
+  while seed 9's is +0.47, at the same planted IC.
+- Unexplained: on seeds 0 and 1 the fixed null's mean is **lower** than the
+  old one (0.24/0.33 vs 0.30/0.39), although it now keeps more tilt. Each gap
+  is about 1.8 standard errors. Cowork's guess, unverified: the kept tilt pays
+  negatively on the planted panel, or the block seams moved.
+**Decision 1 is now live:** the numbers still point to "screens rather than
+confirms" at any realistic IC.
 
 ### L13. `risk_calibration` vetoes a quarter to a half of every grid, on 2008
 Added 2026-09-22 by Cowork. Bears on B1, B4, `decisions/0030` and SUBSTRATE §10.
@@ -280,8 +312,12 @@ and it may prompt a run with higher friction to see how results respond.
   do. Raising the shadow cost tests whether the alpha survives slower trading.
   Raising spreads above reality understates performance. Cowork recommends
   the shadow coefficient for the owner's experiment, e.g. a sweep of 10/20/40.
-Task 30 reports both turnover measures for its 210 cells, as input to (a)
-and (b).
+**Task 30's turnover (210 cells, IC 0.70, h13):** annual above 400% in
+**0** (median 318% live, 338% shuffled; max 355%). Rolling one-year max above
+400% in **all 210** (median ~500-520%, max 612%). So an annual-window veto never
+bites, and a rolling-window veto would fail every cell. Separately, **the
+median book trades 3.2-3.4x a year against a 100% target**, so the shadow cost
+is not holding turnover near its target. That bears on (c).
 
 ### B4. `decisions/0030`'s threshold sensitivity to kurtosis
 The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
