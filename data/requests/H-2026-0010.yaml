@@ -16,11 +16,11 @@ series:
   source: fred
   fields:
   - value
-- id: USD_GB10YXGB_NSA
+- id: USD_GB10YCRY_NSA
   source: jpmaqs
   fields:
   - value
-- id: EUR_GB10YXGB_NSA
+- id: DEM_GB10YCRY_NSA
   source: jpmaqs
   fields:
   - value

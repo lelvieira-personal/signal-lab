@@ -29,12 +29,20 @@ proposed_by: agent
 provenance: adaptation
 reference: null
 data_required:
-  - USD_MBASEGDP_SA_D1M1ML12
-  - USD_RM1GDP_SA_D1M1ML12
-  - EUR_RM3GDP_SA_D1M1ML12
+  - USD_RMBROAD_SJA_P1M1ML12
+  - EUR_RMBROAD_SJA_P1M1ML12
   - NFCI
   - LUACTRUU
   - LF98TRUU
 notes: >
   Slow block. Overlap with the volatility and stress family is expected;
   incremental information over an FCI is part of what is being tested.
+  Amended 2026-09-27 by owner ruling (OWNER-QUEUE L14, decisions/0032
+  addendum): USD_MBASEGDP_SA_D1M1ML12 (monetary base), USD_RM1GDP_SA_D1M1ML12
+  (narrow money) and EUR_RM3GDP_SA_D1M1ML12 (a phase-0 name absent from the
+  catalogue) are replaced by USD_RMBROAD_SJA_P1M1ML12 and
+  EUR_RMBROAD_SJA_P1M1ML12 -- real broad money, % over a year ago, the
+  hypothesis's own title. USD broad money is M2 and EUR broad money is M3.
+  USD_MBASEGDP_SA is dropped outright: it has no 12-month change (only
+  1/3/6-month), monetary base is a different mechanism from broad money, and a
+  derived 12-month change would mix vintages.

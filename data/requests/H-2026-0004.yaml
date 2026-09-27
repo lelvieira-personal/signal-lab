@@ -4,16 +4,12 @@ family: credit_conditions
 requested_by: agent
 status: awaiting_owner
 series:
-- id: USD_BLSDCLN_SA_D1Q1QL1
+- id: USD_BLSCSCORE_NSA_D2Q2QL2
   source: jpmaqs
   fields:
   - value
-- id: EUR_BLSDCLN_SA_D1Q1QL1
+- id: EUR_BLSCSCORE_NSA_D2Q2QL2
   source: jpmaqs
-  fields:
-  - value
-- id: DRTSCILM
-  source: fred
   fields:
   - value
 - id: LF98TRUU
@@ -24,6 +20,6 @@ series:
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-reason: H-2026-0004 requires 5 series absent from the snapshot. The hypothesis is
+reason: H-2026-0004 requires 4 series absent from the snapshot. The hypothesis is
   blocked:data rather than run on a substitute.
 available_already: []

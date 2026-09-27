@@ -32,8 +32,8 @@ data_required:
   - DGS2
   - DGS10
   - DGS30
-  - USD_GB10YXGB_NSA
-  - EUR_GB10YXGB_NSA
+  - USD_GB10YCRY_NSA
+  - DEM_GB10YCRY_NSA
   - LT01TRUU Index|INDEX_YIELD_TO_WORST
   - LT11TRUU Index|INDEX_YIELD_TO_WORST
 notes: >
@@ -44,3 +44,11 @@ notes: >
   phase-0 names are in git history.
   Fast block, though the underlying curve shape moves slowly. Risk
   decomposition must show whether this is a tilt or a single factor bet.
+  Amended 2026-09-27 by owner ruling (OWNER-QUEUE L14, decisions/0032
+  addendum): USD_GB10YXGB_NSA / EUR_GB10YXGB_NSA (no such series, and no
+  term-spread category exists in the catalogue) become USD_GB10YCRY_NSA /
+  DEM_GB10YCRY_NSA -- 10-year carry (yield plus roll-down), the rationale's own
+  words. The JPMaQS leg is re-specified from term spread to carry; euro-area
+  bonds are carried by country, so the euro leg is the Bund (DEM_). The risk
+  decomposition this hypothesis calls for still cannot be built; this
+  amendment does not resolve that.

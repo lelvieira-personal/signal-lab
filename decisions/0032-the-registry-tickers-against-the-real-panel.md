@@ -239,3 +239,32 @@ The hypothesis's direction, horizon, target and rationale are unchanged.
   `INTLIQGDP` nor `XPCREDITBN` is broad money, so this needs re-specifying or
   holding.
 - `H-2026-0010`: `USD_GB10YCRY_NSA` is a lead, and EUR needs a `DEM_` search.
+
+## Addendum, 2026-09-27 — `H-2026-0004`, `0005`, `0010`'s JPMaQS names (OWNER-QUEUE L14)
+
+**Owner ruling, 2026-09-27:** "recs on all". HANDOFF task 27 listed catalogue
+names sharing each unresolved ticker's cid and stem; HANDOFF task 29 (the
+2026-09-24 names-only search, `data/requests/jpmaqs_name_search.csv`) found
+what a stem search alone could not, using Macrosynergy's Academy notebooks
+"Bank survey scores", "Monetary aggregates" and "Government bond yields and
+carry" for what each series measures.
+
+| hypothesis | phase-0 name | now | why |
+|---|---|---|---|
+| 0004 | `{USD,EUR}_BLSDCLN_SA_D1Q1QL1` | `{USD,EUR}_BLSCSCORE_NSA_D2Q2QL2` | lending *standards* z-score (credit supply; positive = easing), 2 quarters over the prior 2, matching the signal's "2q change". **Enters negated**, so the registered direction `negative` (on tightening) is unchanged. NSA z-score, not an SA balance. `BLSDSCORE` is credit *demand* and was not used |
+| 0005 | `EUR_RM3GDP_SA_D1M1ML12` | `EUR_RMBROAD_SJA_P1M1ML12` | real broad money (M3, CPI-deflated), % over a year ago -- the hypothesis's title. A growth rate, not "% of GDP" |
+| 0005 | `USD_RM1GDP_SA_D1M1ML12` | `USD_RMBROAD_SJA_P1M1ML12` | as above. **USD broad money is M2.** The narrow-money leg is dropped: the hypothesis is about broad money |
+| 0005 | `USD_MBASEGDP_SA_D1M1ML12` | **dropped** | no 12-month change exists for it (only 1/3/6-month); monetary base is a different mechanism from broad money; a derived 12-month change would mix vintages |
+| 0010 | `USD_GB10YXGB_NSA` | `USD_GB10YCRY_NSA` | no `XGB` series and no term-spread category exist in the catalogue. 10y carry is "yield plus roll-down", the rationale's own words, so the signal is **re-specified from term spread to carry** |
+| 0010 | `EUR_GB10YXGB_NSA` | `DEM_GB10YCRY_NSA` | no euro-area bond cross-section exists; euro-area government bonds are carried by country in JPMaQS, and the Bund (`DEM_`) is the benchmark curve |
+| 0004 | `DRTSCILM` (FRED, `decisions/0032` §4, approved 2026-09-19, `OWNER-QUEUE` L6) | **dropped** (owner, 2026-09-27) | the Fed's Senior Loan Officer survey duplicates the `USD_BLSCSCORE` leg and runs the opposite sign (positive = tightening, against `BLSCSCORE`'s positive = easing). This withdraws the 2026-09-19 approval to add it to the FRED request |
+
+Direction, horizon, target and rationale are otherwise unchanged for all three
+hypotheses. The phase-0 names remain in git history (this record, and the
+hypothesis files' own prior revisions).
+
+**Caveat, not a change:** `H-2026-0010`'s rationale calls for a risk
+decomposition to show whether cross-sectional carry is a tilt or a single
+term-premium factor wearing its clothes (`decisions/0016`). That decomposition
+still cannot be built; re-specifying the signal from term spread to carry does
+not resolve it.

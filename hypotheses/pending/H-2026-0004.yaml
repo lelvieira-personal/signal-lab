@@ -30,14 +30,20 @@ proposed_by: agent
 provenance: adaptation
 reference: null
 data_required:
-  - USD_BLSDCLN_SA_D1Q1QL1
-  - EUR_BLSDCLN_SA_D1Q1QL1
-  - DRTSCILM
+  - USD_BLSCSCORE_NSA_D2Q2QL2
+  - EUR_BLSCSCORE_NSA_D2Q2QL2
   - LF98TRUU
   - LUACTRUU
 notes: >
   LUALTRUU was in the phase-0 list and does not exist; removed, not
-  substituted (decisions/0032). DRTSCILM is a real FRED series absent from the
-  current pull and is on the FRED request.
+  substituted (decisions/0032).
   Slow block, quarterly release. Effective sample size in macro cycles must be
   reported alongside any result (SUBSTRATE section 9).
+  Amended 2026-09-27 by owner ruling (OWNER-QUEUE L14, decisions/0032
+  addendum): USD_BLSDCLN_SA_D1Q1QL1 / EUR_BLSDCLN_SA_D1Q1QL1 (loan demand)
+  become USD_BLSCSCORE_NSA_D2Q2QL2 / EUR_BLSCSCORE_NSA_D2Q2QL2 (lending
+  standards, a 2-quarter change), because no `BLSDCLN`-stem standards series
+  exists and `BLSDSCORE` is demand, not standards. BLSCSCORE is positive on
+  easing, so it enters negated to keep the registered `negative` direction (on
+  tightening). FRED DRTSCILM is dropped: it duplicates the standards leg with
+  the opposite sign and withdraws the 2026-09-19 FRED-request approval.

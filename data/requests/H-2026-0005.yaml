@@ -4,15 +4,11 @@ family: liquidity
 requested_by: agent
 status: awaiting_owner
 series:
-- id: USD_MBASEGDP_SA_D1M1ML12
+- id: USD_RMBROAD_SJA_P1M1ML12
   source: jpmaqs
   fields:
   - value
-- id: USD_RM1GDP_SA_D1M1ML12
-  source: jpmaqs
-  fields:
-  - value
-- id: EUR_RM3GDP_SA_D1M1ML12
+- id: EUR_RMBROAD_SJA_P1M1ML12
   source: jpmaqs
   fields:
   - value
@@ -28,6 +24,6 @@ series:
   source: bloomberg
   fields:
   - TOT_RETURN_INDEX_GROSS_DVDS
-reason: H-2026-0005 requires 6 series absent from the snapshot. The hypothesis is
+reason: H-2026-0005 requires 5 series absent from the snapshot. The hypothesis is
   blocked:data rather than run on a substitute.
 available_already: []

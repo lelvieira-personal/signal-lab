@@ -21,15 +21,13 @@ H-2026-0003,GBP_RIR_NSA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0003,DFF,ok,DFF,fred,
 H-2026-0003,DGS2,ok,DGS2,fred,
 H-2026-0003,DGS10,ok,DGS10,fred,
-H-2026-0004,USD_BLSDCLN_SA_D1Q1QL1,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0004,EUR_BLSDCLN_SA_D1Q1QL1,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0004,DRTSCILM,fred_gap,,fred,owner 2026-09-19: approved for the FRED request
+H-2026-0004,USD_BLSCSCORE_NSA_D2Q2QL2,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0004,EUR_BLSCSCORE_NSA_D2Q2QL2,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0004,LF98TRUU,ok,LF98TRUU,bloomberg,
 H-2026-0004,LUACTRUU,ok,LUACTRUU,bloomberg,
 H-2026-0004,LUALTRUU,fabricated,,bloomberg,"owner 2026-09-19 does not recognise it; removed, not substituted"
-H-2026-0005,USD_MBASEGDP_SA_D1M1ML12,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0005,USD_RM1GDP_SA_D1M1ML12,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0005,EUR_RM3GDP_SA_D1M1ML12,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0005,USD_RMBROAD_SJA_P1M1ML12,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0005,EUR_RMBROAD_SJA_P1M1ML12,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0005,NFCI,ok,NFCI,fred,weekly
 H-2026-0005,LUACTRUU,ok,LUACTRUU,bloomberg,
 H-2026-0005,LF98TRUU,ok,LF98TRUU,bloomberg,
@@ -63,8 +61,8 @@ H-2026-0009,LUACTRUU,ok,LUACTRUU,bloomberg,
 H-2026-0010,DGS2,ok,DGS2,fred,
 H-2026-0010,DGS10,ok,DGS10,fred,
 H-2026-0010,DGS30,ok,DGS30,fred,
-H-2026-0010,USD_GB10YXGB_NSA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
-H-2026-0010,EUR_GB10YXGB_NSA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0010,USD_GB10YCRY_NSA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
+H-2026-0010,DEM_GB10YCRY_NSA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
 H-2026-0010,LT01TRUU Index|INDEX_YIELD_TO_WORST,ok,LT01TRUU Index|INDEX_YIELD_TO_WORST,bloomberg,1-3y leg
 H-2026-0010,LT08TRUU Index|INDEX_YIELD_TO_WORST,fabricated,LT11TRUU Index|INDEX_YIELD_TO_WORST,bloomberg,owner 2026-09-19 confirmed LT01TRUU vs LT11TRUU; LT09TRUU as mid-curve check
 H-2026-0011,USD_EQCRR_NSA,jpmaqs_gap,,jpmaqs,genuine phase-3 gap
