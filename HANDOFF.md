@@ -56,9 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-27, tasks 0-30 are done. One task is queued: 31** (the owner's
-L14 renames for H-2026-0004, 0005 and 0010, then the vendor names check; no
-compute). Receipts are in
+**As of 2026-09-28, tasks 0-30 are done. Queued, in order: 31** (L14 renames and
+the vendor names check; the renames landed in `acd02f6`, receipt pending), **32**
+(friction sweep, 60 cells), **33** (apply `decisions/0038`: no turnover veto). Receipts are in
 `## Done`. Task 25's power audit is `A-20260924-194115`, read in
 `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`. H-2026-0001's
 JPMaQS names were renamed 2026-09-24 (`33b84f4`).
@@ -877,6 +877,80 @@ did. Never print credentials.
 **Receipt should say:** rc, commit hashes, the resolve count (or the failures),
 and whether `check` passed. **Then stop.** Implementing `load_macro` and the
 pull itself are not part of this task.
+
+---
+
+### 32. The friction sweep: the shadow-cost coefficient at 10, 20 and 40
+
+Added 2026-09-28 by Cowork. **Owner-approved 2026-09-28** (OWNER-QUEUE B3c,
+`decisions/0038`). **Run this before task 33**: its 10 bp arm checks against
+the knee run under today's `params_hash`, which task 33 changes. About 1-1.5 h.
+
+**Why.** Task 30's books trade 3.2-3.4x a year against a 100% target, so the
+shadow cost isn't holding turnover near its target. The owner wants to see
+how results respond to more friction. The shadow cost
+(`constraints.turnover.penalty.coefficient`, 10 bp at 150%) shapes weights and
+never enters net IR. The real costs are unchanged, so net IR stays honest.
+
+**Build.** Add `shadow_coefficient: float | None = None` to `AuditCell`.
+`None` reads `params/` as today, and any other value overrides the coefficient
+for that cell only. Append it to `key()` only when set (e.g. `_shadow20`), so
+existing keys don't change. Add a `friction` grid to `ladder.py` as module
+constants (nothing in `params/`): h13, IC **0.35 and 0.70**, seeds **0-9**,
+coefficient **10, 20, 40**, live cells only. That's **60 cells**, including
+the 10 bp arm. Add `make audit-friction` and extend the `unattended.sh`
+whitelist.
+
+**Test:** a cell with `shadow_coefficient=None` and one with `10.0` give
+identical results. Existing keys are unchanged.
+
+    scripts/unattended.sh check --digest
+    scripts/unattended.sh audit-friction --digest
+
+**Receipt should say:**
+- rc, runtime, run id, commit hash.
+- **The 10 bp arm against the knee run `A-20260922-005316`:** live `net_ir`
+  identical, cell by cell, for all 20 (IC, seed) pairs, and whether the hashes
+  match. **Stop and report if not.**
+- Per (IC, coefficient), median and range over 10 seeds of: net IR, cost drag
+  (gross − net), annual turnover, rolling one-year max turnover, `te_p95`, and
+  realised IC.
+- Paired by seed: net IR at 20 and at 40, minus net IR at 10 (mean, sd, and how
+  many seeds are positive).
+- Counts above **200%** (the new highlight level), annual and rolling max, per
+  arm.
+- `risk_calibration` fails per arm.
+
+Interpretation is Cowork's and the owner's. **Then stop.**
+
+### 33. Apply `decisions/0038`: turnover is disclosed, never vetoed
+
+Added 2026-09-28 by Cowork. **Owner ruling 2026-09-28** (OWNER-QUEUE B2 and
+B3). This touches `SUBSTRATE.md`, `params/` and `vetoes/`, all owner-only.
+**Every commit cites `decisions/0038`**, which is in the working tree,
+uncommitted. **Run after task 32.**
+
+**0.** Commit `decisions/0038-turnover-is-disclosed-not-vetoed.md`,
+`HANDOFF.md` and `OWNER-QUEUE.md` alone (`decisions: 0038 turnover is disclosed,
+not vetoed; queue tasks 32-33`). If task 32 already committed the queue files,
+commit 0038 on its own.
+
+**1. Apply "What changes" 1-5 of 0038 exactly.** Nothing else in `params/`,
+`vetoes/` or `SUBSTRATE.md`. The only params change is to `vetoes.yaml` and one
+new reporting key in `constraints.yaml`. Don't touch `per_rebalance_caps`.
+Bump `params_version` as the repo's convention requires.
+
+**2. Verify past verdicts.** For every `results/audit/A-*/cells.csv`, count the
+cells whose verdict names `turnover`. The expected count on Bloomberg runs is
+zero. List any that aren't.
+
+**3. Record** the old and new `params_hash` in 0038's "Consequences" section,
+as a dated line.
+
+    scripts/unattended.sh check --digest
+
+**Receipt should say:** rc, commit hashes, the old and new `params_hash`, the
+verdict count from step 2, and the tests that changed and why. **Then stop.**
 
 ---
 
