@@ -130,6 +130,136 @@ def _power10_preflight(cells, universe, params, out_root):
     return None
 
 
+def _friction_preflight(cells, universe, params, out_root):
+    """
+    HANDOFF task 32: the 10 bp arm's identity check needs `POWER_LIVE_RUN`'s live
+    cell at every (ic, seed) the friction grid runs. Checked before any cell so a
+    mismatch costs seconds, not the better part of two hours. Returns the reason
+    to stop, or None.
+    """
+    import json
+    from pathlib import Path
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    live_dir = Path(out_root) / POWER_LIVE_RUN
+    if not live_dir.exists():
+        return f"{live_dir} not found"
+    live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
+    if live_summary.get("panel_hash") != universe.panel_hash():
+        return f"panel_hash differs from {POWER_LIVE_RUN}"
+    if live_summary.get("params_hash") != params.params_hash:
+        return f"params_hash differs from {POWER_LIVE_RUN}"
+    table = _read_cells(live_dir)
+    for ic, seed in sorted({(c.ic, c.seed) for c in cells}):
+        at = (
+            (table["horizon"] == 13)
+            & (table["ic"].round(6) == round(ic, 6))
+            & (table["seed"] == seed)
+        )
+        live = at & ~table["baseline"].astype(bool) & (table["tag"] == "base")
+        if live.sum() != 1:
+            return f"{POWER_LIVE_RUN} lacks the live cell at ic={ic}, seed={seed}"
+    return None
+
+
+def _friction_by_cell(table, universe, params, out_root):
+    """
+    HANDOFF task 32. Three pieces: the 10 bp arm checked cell by cell against
+    `POWER_LIVE_RUN`'s live twin; median and range over seeds per (ic,
+    shadow_coefficient); and, paired by seed, the 20 bp and 40 bp arms' net IR
+    less the 10 bp arm's.
+    """
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    live_dir = Path(out_root) / POWER_LIVE_RUN
+    hashes = {"live_run": POWER_LIVE_RUN, "found": live_dir.exists()}
+    ten_bp = None
+    if live_dir.exists():
+        live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
+        hashes["panel_hash_match"] = live_summary.get("panel_hash") == universe.panel_hash()
+        hashes["params_hash_match"] = live_summary.get("params_hash") == params.params_hash
+        cells = _read_cells(live_dir)
+        live = cells[~cells["baseline"].astype(bool) & (cells["tag"] == "base")]
+        rows = []
+        for _, row in table[table["shadow_coefficient"] == 10.0].iterrows():
+            match = live[
+                (live["horizon"] == row["horizon"])
+                & (live["ic"].round(6) == round(float(row["ic"]), 6))
+                & (live["seed"] == row["seed"])
+            ]
+            rows.append(
+                {
+                    "ic": float(row["ic"]),
+                    "seed": int(row["seed"]),
+                    "friction_net_ir": float(row["net_ir"]),
+                    "knee_net_ir": float(match["net_ir"].iloc[0])
+                    if len(match) == 1
+                    else float("nan"),
+                    "found": len(match) == 1,
+                }
+            )
+        ten_bp = pd.DataFrame(rows)
+        ten_bp["diff"] = ten_bp["friction_net_ir"] - ten_bp["knee_net_ir"]
+
+    by_arm = (
+        table.groupby(["ic", "shadow_coefficient"])
+        .agg(
+            n=("seed", "count"),
+            net_ir_median=("net_ir", "median"),
+            net_ir_min=("net_ir", "min"),
+            net_ir_max=("net_ir", "max"),
+            cost_drag_median=("cost_drag_annual", "median"),
+            cost_drag_min=("cost_drag_annual", "min"),
+            cost_drag_max=("cost_drag_annual", "max"),
+            turnover_annual_median=("turnover_annual", "median"),
+            turnover_annual_min=("turnover_annual", "min"),
+            turnover_annual_max=("turnover_annual", "max"),
+            turnover_rolling_median=("turnover_max_rolling_1y", "median"),
+            turnover_rolling_min=("turnover_max_rolling_1y", "min"),
+            turnover_rolling_max=("turnover_max_rolling_1y", "max"),
+            te_p95_median=("te_p95", "median"),
+            te_p95_min=("te_p95", "min"),
+            te_p95_max=("te_p95", "max"),
+            realised_ic_median=("realised_ic_pooled", "median"),
+            realised_ic_min=("realised_ic_pooled", "min"),
+            realised_ic_max=("realised_ic_pooled", "max"),
+            n_annual_above_200=("turnover_annual", lambda s: int((s > 2.0).sum())),
+            n_rolling_above_200=("turnover_max_rolling_1y", lambda s: int((s > 2.0).sum())),
+            n_risk_calibration_fails=(
+                "veto_detail",
+                lambda s: int(s.fillna("").str.contains("risk_calibration").sum()),
+            ),
+        )
+        .reset_index()
+    )
+
+    pivot = table.pivot_table(index=["ic", "seed"], columns="shadow_coefficient", values="net_ir")
+    paired_rows = []
+    for ic, grp in pivot.groupby("ic"):
+        for coef in (20.0, 40.0):
+            if coef not in grp.columns or 10.0 not in grp.columns:
+                continue
+            diff = (grp[coef] - grp[10.0]).dropna()
+            paired_rows.append(
+                {
+                    "ic": float(ic),
+                    "coefficient": coef,
+                    "n": int(len(diff)),
+                    "mean_diff": float(diff.mean()),
+                    "sd_diff": float(diff.std(ddof=1)) if len(diff) > 1 else float("nan"),
+                    "n_positive": int((diff > 0).sum()),
+                }
+            )
+    paired = pd.DataFrame(paired_rows)
+    return hashes, ten_bp, by_arm, paired
+
+
 def _write_baseline_run(args, params, universe, table, run_id, out_root, started) -> int:
     """
     A baseline-only run has no base cells, oracle or twin, so the ruler report has
@@ -151,7 +281,7 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
         .reset_index()
     )
     paired = None
-    if (~is_base).any():
+    if (~is_base).any() and args.grid != "friction":
         # A run with live cells beside their baselines (the knee grid): the
         # statistic is the seed-paired excess, not either level (SUBSTRATE s3, bar 2).
         from signal_lab.audit.ladder import net_ir_excess
@@ -186,16 +316,33 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
         hashes, power = _power_by_cell(table, universe, params, out_root)
         summary["power_live_run"] = hashes
         summary["power_by_cell"] = power.to_dict(orient="records")
+    friction = None
+    if args.grid == "friction":
+        hashes, ten_bp, by_arm, paired_seeds = _friction_by_cell(table, universe, params, out_root)
+        summary["friction_live_run"] = hashes
+        summary["friction_ten_bp_arm"] = ten_bp.to_dict(orient="records")
+        summary["friction_by_arm"] = by_arm.to_dict(orient="records")
+        summary["friction_paired_by_seed"] = paired_seeds.to_dict(orient="records")
+        friction = (ten_bp, by_arm, paired_seeds)
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, default=float), encoding="utf-8"
     )
     if not args.quiet:
-        print(by_rung.to_string(index=False))
+        if args.grid != "friction":
+            print(by_rung.to_string(index=False))
         if paired is not None:
             print(paired.to_string(index=False))
         if power is not None:
             print(summary["power_live_run"])
             print(power.to_string(index=False))
+        if friction is not None:
+            ten_bp, by_arm, paired_seeds = friction
+            print(summary["friction_live_run"])
+            print("10 bp arm vs the knee run's live twin:")
+            print(ten_bp.to_string(index=False))
+            print(f"max |diff| = {ten_bp['diff'].abs().max():.6g}")
+            print(by_arm.to_string(index=False))
+            print(paired_seeds.to_string(index=False))
         print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
     return 0
 
@@ -235,10 +382,12 @@ def main(argv=None) -> int:
     from signal_lab.audit.breadth import effective_breadth
     from signal_lab.audit.ladder import (
         AUDIT_GRIDS,
+        FRICTION_GRID,
         KNEE_GRID,
         POWER10_GRID,
         POWER_GRID,
         baseline_cells,
+        friction_cells,
         grid_cells,
         knee_cells,
         power10_cells,
@@ -264,7 +413,8 @@ def main(argv=None) -> int:
         "baseline-pilot (h13) or baseline (every horizon); or knee, the live and "
         "baseline cells at the IC rungs between 0.20 and the oracle (h13); or power, "
         "20 score-shuffle baselines per knee rung and seed (HANDOFF task 25); or "
-        "power10, 20 span-limited score shuffles at IC 0.70 for seeds 0-9 (task 30)",
+        "power10, 20 span-limited score shuffles at IC 0.70 for seeds 0-9 (task 30); or "
+        "friction, live cells only at the shadow-cost coefficient 10/20/40 bp (task 32)",
     )
     parser.add_argument("--solver", default=None, help="auto | cvxpy | scipy (default: params)")
     parser.add_argument("--run-id", default=None)
@@ -292,6 +442,14 @@ def main(argv=None) -> int:
         )
         if problem:
             print(f"power10 STOPPED before any cell: {problem}", file=sys.stderr)
+            return 2
+    elif args.grid == FRICTION_GRID:
+        cells = friction_cells(params)
+        problem = _friction_preflight(
+            cells, universe, params, args.out or params.get("audit.output_dir", "results/audit")
+        )
+        if problem:
+            print(f"friction STOPPED before any cell: {problem}", file=sys.stderr)
             return 2
     elif args.grid:
         cells = baseline_cells(params, args.grid)

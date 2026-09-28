@@ -20,6 +20,9 @@ import pytest
 import signal_lab.audit.signals as signals_mod
 from signal_lab.audit.ladder import (
     BASELINE,
+    FRICTION_COEFFICIENTS,
+    FRICTION_IC_RUNGS,
+    FRICTION_SEEDS,
     KNEE_IC_RUNGS,
     POWER10_IC_RUNGS,
     POWER10_PERMS,
@@ -30,6 +33,7 @@ from signal_lab.audit.ladder import (
     AuditCell,
     baseline_cells,
     build_universe,
+    friction_cells,
     grid_cells,
     knee_cells,
     net_ir_excess,
@@ -473,3 +477,54 @@ def test_the_power10_preflight_reads_a_cells_csv_from_before_the_shuffle_column(
     pd.DataFrame(rows[:-1]).to_csv(run / "cells.csv", index=False)  # seed 9's twin missing
     assert "seed=9" in run_audit._power10_preflight(cells, universe, params, tmp_path)
     assert run_audit._power10_preflight(cells, universe, SimpleNamespace(params_hash="x"), tmp_path)
+
+
+# --- HANDOFF task 32: the shadow-cost override -------------------------------
+
+
+def test_shadow_coefficient_none_matches_params_exactly(small_universe):
+    universe, params = small_universe
+    default_row, _ = run_cell(universe, AuditCell(0.20, 13, 0), params, solver="scipy")
+    same, _ = run_cell(
+        universe, AuditCell(0.20, 13, 0, shadow_coefficient=10.0), params, solver="scipy"
+    )
+    assert same["net_ir"] == default_row["net_ir"]
+    assert same["shadow_bps_mean"] == pytest.approx(default_row["shadow_bps_mean"])
+
+
+def test_a_different_shadow_coefficient_moves_weights_not_costs(small_universe):
+    universe, params = small_universe
+    cheap, _ = run_cell(
+        universe, AuditCell(0.20, 13, 0, shadow_coefficient=10.0), params, solver="scipy"
+    )
+    dear, _ = run_cell(
+        universe, AuditCell(0.20, 13, 0, shadow_coefficient=40.0), params, solver="scipy"
+    )
+    assert dear["shadow_bps_mean"] != pytest.approx(cheap["shadow_bps_mean"])
+    assert dear["net_ir"] != cheap["net_ir"]
+
+
+def test_existing_keys_are_unchanged_and_a_friction_cell_says_what_it_is():
+    plain = AuditCell(0.35, 13, 0, 1.0, None, 0.25)
+    assert plain.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25"
+    dear = dataclasses.replace(plain, shadow_coefficient=20.0)
+    assert dear.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_shadow20"
+
+
+def test_the_friction_grid_is_60_live_cells_outside_params(params):
+    cells = friction_cells(params)
+    assert (
+        len(cells)
+        == len(FRICTION_IC_RUNGS) * len(FRICTION_SEEDS) * len(FRICTION_COEFFICIENTS)
+        == 60
+    )
+    assert all(not c.baseline and c.horizon == 13 and c.tag == "base" for c in cells)
+    assert {c.ic for c in cells} == set(FRICTION_IC_RUNGS) <= set(KNEE_IC_RUNGS)
+    assert {c.shadow_coefficient for c in cells} == set(FRICTION_COEFFICIENTS)
+    assert len({c.key() for c in cells}) == 60
+    other = {c.key() for c in [*knee_cells(params), *power_cells(params)]}
+    assert not other & {c.key() for c in cells}, "nothing collides with the knee or power runs"
+    knee = next(c for c in knee_cells(params) if not c.baseline)
+    assert {(c.cost_multiplier, c.turnover_cap, c.per_rebalance_cap) for c in cells} == {
+        (knee.cost_multiplier, knee.turnover_cap, knee.per_rebalance_cap)
+    }

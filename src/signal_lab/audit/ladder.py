@@ -278,6 +278,9 @@ class AuditCell:
     # score shuffle, which permutation. The defaults leave every existing key as it was.
     shuffle: str = TRUTH_SHUFFLE
     perm: int = 0
+    # HANDOFF task 32: override `constraints.turnover.penalty.coefficient` for this
+    # cell only. `None` (the default) reads params, exactly as every cell before it.
+    shadow_coefficient: float | None = None
 
     def __post_init__(self) -> None:
         if self.shuffle not in SHUFFLES:
@@ -304,6 +307,8 @@ class AuditCell:
             key = f"{key}_baseline"
             if self.shuffle != TRUTH_SHUFFLE:
                 key = f"{key}_{self.shuffle.replace('_', '')}_p{self.perm:02d}"
+        if self.shadow_coefficient is not None:
+            key = f"{key}_shadow{self.shadow_coefficient:g}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -353,7 +358,12 @@ class _OptimiserRule:
         self.solver = solver
         self.ppy = float(params.get("costs.application.weeks_per_year", 52))
         self.costs = audit_cost_model(universe, params, cell.cost_multiplier)
-        self.shadow_coeff = float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
+        override = cell.shadow_coefficient
+        self.shadow_coeff = (
+            float(override)
+            if override is not None
+            else float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
+        )
         self.shadow_start = float(params.require("constraints.turnover.shadow_start_annualised"))
         self.shadow_reference = float(
             params.require("constraints.turnover.shadow_reference_annualised")
@@ -556,6 +566,7 @@ def run_cell(
         "cost_multiplier": cell.cost_multiplier,
         "turnover_cap": cell.turnover_cap,
         "per_rebalance_cap": cell.per_rebalance_cap,
+        "shadow_coefficient": cell.shadow_coefficient,
         "turnover_per_rebalance_max": float(path.turnover.max()),
         "turnover_per_rebalance_p95": float(path.turnover.quantile(0.95)),
         "turnover_from_repairs_annual": rule.repair_turnover * rule.ppy / max(len(path.dates), 1),
@@ -1133,7 +1144,17 @@ POWER10_GRID = "power10"
 POWER10_IC_RUNGS = (0.70,)
 POWER10_SEEDS = tuple(range(10))
 POWER10_PERMS = 20
-AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID, POWER_GRID, POWER10_GRID)
+
+# The `friction` grid (HANDOFF task 32): live cells only, at two knee rungs and ten
+# seeds, with the turnover shadow-cost coefficient overridden to 10, 20 and 40 bp
+# (`params/` stays 10, unmoved). The 10 bp arm's live twin is `POWER_LIVE_RUN`'s
+# base cell at the same (ic, seed); real costs are unchanged, so net IR stays
+# honest and only the weights the shadow cost shapes can move.
+FRICTION_GRID = "friction"
+FRICTION_IC_RUNGS = (0.35, 0.70)
+FRICTION_SEEDS = tuple(range(10))
+FRICTION_COEFFICIENTS = (10.0, 20.0, 40.0)
+AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID, POWER_GRID, POWER10_GRID, FRICTION_GRID)
 
 
 def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list[AuditCell]:
@@ -1239,6 +1260,34 @@ def power10_cells(params: Params | None = None) -> list[AuditCell]:
         for ic in POWER10_IC_RUNGS
         for s in POWER10_SEEDS
         for p in range(POWER10_PERMS)
+    ]
+
+
+def friction_cells(params: Params | None = None) -> list[AuditCell]:
+    """
+    Live cells only, at `KNEE_HORIZON`: every IC in `FRICTION_IC_RUNGS`, every
+    seed in `FRICTION_SEEDS`, the turnover shadow-cost coefficient overridden to
+    each of `FRICTION_COEFFICIENTS`. The 10 bp arm has the same constraints,
+    costs and RNG draw as `POWER_LIVE_RUN`'s base cell at the same (ic, seed), so
+    it should reproduce that cell's net IR exactly.
+    """
+    params = params or get_params()
+    default_per = params.get("audit.per_rebalance_cap_default", None)
+    default_per = None if default_per is None else float(default_per)
+    return [
+        AuditCell(
+            ic,
+            KNEE_HORIZON,
+            s,
+            1.0,
+            None,
+            default_per,
+            "base",
+            shadow_coefficient=coef,
+        )
+        for ic in FRICTION_IC_RUNGS
+        for s in FRICTION_SEEDS
+        for coef in FRICTION_COEFFICIENTS
     ]
 
 
