@@ -1,0 +1,34 @@
+# Pull list for the JPMaQS loader (SUBSTRATE section 5.6).
+# All 27 registered tickers resolved against the vendor catalogue
+# (HANDOFF task 23, data/requests/jpmaqs_catalogue_check.csv).
+#
+# The download API returns the cross product of the requested cids and
+# xcats, not just these named tickers -- filter the result back to this
+# list before it reaches the loader (see split_tickers()/filter_panel()
+# in signal_lab/loaders/jpmaqs.py and the module docstring).
+AUD_CTOT_NSA_P1M1ML12
+BRL_CTOT_NSA_P1M1ML12
+CAD_CTOT_NSA_P1M1ML12
+DEM_GB10YCRY_NSA
+EUR_BLSCSCORE_NSA_D2Q2QL2
+EUR_CPIC_SJA_P6M6ML6AR
+EUR_EQCRR_NSA
+EUR_INTRGDP_NSA_P1M1ML12_D3M3ML3
+EUR_MBCSCORE_SA
+EUR_RIR_NSA
+EUR_RMBROAD_SJA_P1M1ML12
+GBP_INTRGDP_NSA_P1M1ML12_D3M3ML3
+GBP_RIR_NSA
+JPY_EQCRR_NSA
+JPY_INTRGDP_NSA_P1M1ML12_D3M3ML3
+JPY_RIR_NSA
+USD_BLSCSCORE_NSA_D2Q2QL2
+USD_CPIC_SJA_P6M6ML6AR
+USD_EQCRR_NSA
+USD_GB10YCRY_NSA
+USD_INTRGDP_NSA_P1M1ML12_D3M3ML3
+USD_MBCSCORE_SA
+USD_RIR_NSA
+USD_RMBROAD_SJA_P1M1ML12
+USD_UNEMPLRATE_SA_3MMAV5YMA
+ZAR_CTOT_NSA_P1M1ML12
