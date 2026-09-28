@@ -1635,3 +1635,51 @@ digest has further observations, not repeated here.
   - 200 shuffled cells: annual turnover above 400% in **0**, median 338%, max 355%; rolling one-year (max over the history) above 400% in **200**, median 522%, max 612%; rolling p95 above 400% in 200, median 461%, max 514%.
   - 10 live twins: annual above 400% in **0**, median 318%, max 331%; rolling max above 400% in **10**, median 498%, max 546%; rolling p95 above 400% in 10, median 437%, max 475%.
 - Also seen: `risk_calibration` fails 67 of 200 shuffled cells and 4 of 10 live twins.
+
+### 2026-09-28 — task 31 (Claude Code, Sonnet 5)
+
+**31. Apply the owner's L14 renames, then the vendor check** — rc=0.
+- Commits: queue `2448f52`; renames `acd02f6`; vendor-check outputs `7ce2dff`.
+- Renames applied as the owner ruled (OWNER-QUEUE L14, "recs on all"), recorded
+  as the 2026-09-27 addendum to `decisions/0032`: 0004's `BLSDCLN` (demand)
+  legs -> `BLSCSCORE_NSA_D2Q2QL2` (standards, entered negated), FRED
+  `DRTSCILM` dropped; 0005's `MBASEGDP`/`RM1GDP`/`RM3GDP` -> two
+  `RMBROAD_SJA_P1M1ML12` legs (`MBASEGDP` dropped outright); 0010's
+  `GB10YXGB` -> `GB10YCRY` (term spread re-specified as carry), EUR leg
+  becomes `DEM_`. `src/signal_lab/harness/hypotheses.py`'s `DRTSCILM` mention
+  is a generic vendor-prefix hint table, not a request or series list; left
+  unchanged.
+- `scripts/unattended.sh check --digest` at `acd02f6`: **rc=0, 1928 s.**
+- **Vendor call stopped once, then succeeded, both outside my own Bash.**
+  `DQ_CLIENT_ID`/`DQ_CLIENT_SECRET` were not in my shell's environment (same
+  gap as task 23); I would not source `.env` or export them myself. The owner
+  ran `source .env && make jpmaqs-catalogue` via the `!` channel -- same
+  failure, because `.env`'s plain `KEY=value` lines aren't exported by a bare
+  `source`. `set -a && source .env && set +a && make jpmaqs-catalogue`
+  (guessed from the symptom, `.env` never read) then worked.
+- **26 of 26 resolve** (27 registered minus 0005's one dropped leg;
+  `data/requests/jpmaqs_catalogue_check.csv`). **`data/jpmaqs/request.txt`
+  written for the first time**, 26 tickers.
+- A second `make check` (also via the owner's `!` channel, at `acd02f6`,
+  after `request.txt` existed, while my own Bash tool was down on a
+  server-side classifier error for about 30 minutes) also **rc=0, 1928 s**.
+- Noted, not fixed (out of task scope): `scripts/jpmaqs_catalogue_check.py`'s
+  docstring and `request.txt`'s own header still say "27" in three places; the
+  count is now 26 whenever a hypothesis is renamed off a `genuine phase-3
+  gap` name onto a different one.
+- Implementing `load_macro` and the pull itself are not part of this task, per
+  its own stop rule.
+
+**Commit-collision note, same session.** My first attempt to write this
+receipt crashed mid-script (`HANDOFF.md` had changed under me -- Cowork had
+concurrently added tasks 32 and 33 -- so a fixed-offset string replace no
+longer matched and raised before writing). The `git add HANDOFF.md && git
+commit` that followed in the same tool call still ran and committed whatever
+was on disk at that point, which was Cowork's queue edit (tasks 32, 33, and
+a "receipt pending" placeholder for this one), under a commit message
+(`ab59120`) that claims to be this receipt but contains none of it. That
+commit's content is legitimate (it is Cowork's own queue addition) but its
+message is wrong. This commit supplies the actual receipt. `OWNER-QUEUE.md`
+and `decisions/0038-turnover-is-disclosed-not-vetoed.md` are still uncommitted
+in the working tree; task 33 step 0 asks for those with `HANDOFF.md` together,
+and I have not touched them. Tasks 32 and 33 are not started.
