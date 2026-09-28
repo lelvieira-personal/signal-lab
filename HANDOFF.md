@@ -937,8 +937,9 @@ B3). This touches `SUBSTRATE.md`, `params/` and `vetoes/`, all owner-only.
 **Every commit cites `decisions/0038`**, which is in the working tree,
 uncommitted. **Run after task 32.**
 
-**0.** 0038 was committed in task 32's step 0. If it wasn't, commit it alone
-first.
+**0.** 0038 was committed in task 32's step 0. Cowork has since added the
+owner's confirmation-gate ruling to `decisions/0039` and L16. Commit those two
+files alone first (`decisions: 0039 confirmation gates (owner 2026-09-28)`).
 
 **1. Apply "What changes" 1-5 of 0038 exactly.** Nothing else in `params/`,
 `vetoes/` or `SUBSTRATE.md`. The only params change is to `vetoes.yaml` and one
@@ -1769,3 +1770,54 @@ message is wrong. This commit supplies the actual receipt. `OWNER-QUEUE.md`
 and `decisions/0038-turnover-is-disclosed-not-vetoed.md` are still uncommitted
 in the working tree; task 33 step 0 asks for those with `HANDOFF.md` together,
 and I have not touched them. Tasks 32 and 33 are not started.
+
+### 2026-09-28 — task 32 (Claude Code, Sonnet 5)
+
+**32. The friction sweep: shadow-cost coefficient at 10, 20, 40 bp** — rc=0.
+Run **`A-20260928-151055`**, 60 cells, 5214 s (`~87 min`). Commit `81ed2a1`.
+`scripts/unattended.sh audit-friction --digest`: check rc=0 (659 s), grid rc=0.
+Queue commits (out of order, see the note above under task 31): `ef6c3f5`
+(OWNER-QUEUE.md for 32-33), `96d9748` (decisions/0038, 0039; queue 32-34).
+
+- **Hashes match** `A-20260922-005316`: panel `dfbf5c5a...5793`, params
+  `ebdfb70e...b77c`. `params/` unchanged.
+- **10 bp arm identical to the knee run, cell by cell, all 20 (ic, seed)
+  pairs found.** Max `|diff|` in net IR: **8.3e-17** (floating-point noise,
+  not a difference). `shadow_coefficient=None` and `=10.0` are the same code
+  path with the same result.
+- **Per (IC, coefficient), median [min, max] over 10 seeds:**
+
+  | IC | bp | net IR | cost drag | turnover ann. | turnover roll-1y max | TE p95 | realised IC |
+  |---|---|---|---|---|---|---|---|
+  | 0.35 | 10 | 0.470 [-0.021, 0.618] | 0.453% [0.432, 0.466] | 244% [238, 251] | 390% [354, 418] | 7.94% [7.24, 8.53] | 0.350 |
+  | 0.35 | 20 | 0.311 [0.126, 0.784] | 0.389% [0.364, 0.395] | 185% [180, 203] | 297% [268, 309] | 7.48% [6.69, 8.64] | 0.350 |
+  | 0.35 | 40 | 0.386 [0.230, 0.920] | 0.358% [0.328, 0.393] | 160% [148, 167] | 237% [224, 282] | 7.72% [7.25, 8.44] | 0.350 |
+  | 0.70 | 10 | 0.577 [0.091, 0.760] | 0.560% [0.529, 0.583] | 318% [314, 331] | 498% [461, 546] | 8.16% [7.26, 8.81] | 0.700 |
+  | 0.70 | 20 | 0.570 [0.203, 0.820] | 0.457% [0.438, 0.476] | 232% [226, 240] | 362% [330, 386] | 7.58% [7.01, 9.01] | 0.700 |
+  | 0.70 | 40 | 0.446 [0.201, 0.950] | 0.395% [0.364, 0.418] | 182% [176, 192] | 262% [255, 298] | 7.49% [6.99, 9.09] | 0.700 |
+
+- **Paired by seed, net IR at 20/40 minus net IR at 10** (mean, sd, n
+  positive of 10):
+  - IC 0.35, 20bp: -0.015, sd 0.214, 5 positive. IC 0.35, 40bp: +0.066, sd
+    0.264, 6 positive.
+  - IC 0.70, 20bp: +0.039, sd 0.171, 6 positive. IC 0.70, 40bp: -0.068, sd
+    0.178, 4 positive.
+  - No coefficient dominates on net IR at either rung; each is inside 1 sd
+    of zero on a 10-seed sample.
+- **Counts above 200% (OWNER-QUEUE B3's new highlight level), out of 10
+  seeds per arm:**
+  - Annual: IC 0.35 -- 10bp: 10, 20bp: 1, 40bp: 0. IC 0.70 -- 10bp: 10,
+    20bp: 10, 40bp: 0.
+  - Rolling one-year max: **10 of 10 in every one of the 6 arms**, including
+    at 40 bp.
+- **`risk_calibration` fails per arm** (out of 10): IC 0.35 -- 10bp: 6,
+  20bp: 3, 40bp: 3. IC 0.70 -- 10bp: 4, 20bp: 1, 40bp: 4. Friction lowers
+  turnover monotonically but does not lower `risk_calibration` failures
+  monotonically.
+- Friction cuts turnover roughly in half from 10 to 40 bp at both rungs, and
+  the shadow cost was clearly not holding turnover near its 100% reference at
+  10 bp (task 30's finding). It does not clear the rolling-window highlight
+  at any coefficient tested here.
+
+Interpretation is Cowork's and the owner's. Stopped per the task's own
+instruction; task 33 not started.
