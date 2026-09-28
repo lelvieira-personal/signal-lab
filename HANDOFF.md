@@ -56,9 +56,11 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-28, tasks 0-30 are done. Queued, in order: 31** (L14 renames and
-the vendor names check; the renames landed in `acd02f6`, receipt pending), **32**
-(friction sweep, 60 cells), **33** (apply `decisions/0038`: no turnover veto). Receipts are in
+**As of 2026-09-28, tasks 0-31 are done. Queued, in order: 32** (friction
+sweep, 60 cells), **33** (apply `decisions/0038`: no turnover veto), **34**
+(multiple-testing module plus the FDR-vs-FWER Monte Carlo; no engine runs).
+`decisions/0038` and `0039` and both queue files are in the working tree,
+uncommitted. **Task 32 commits them first** (see its step 0). Receipts are in
 `## Done`. Task 25's power audit is `A-20260924-194115`, read in
 `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`. H-2026-0001's
 JPMaQS names were renamed 2026-09-24 (`33b84f4`).
@@ -886,6 +888,11 @@ Added 2026-09-28 by Cowork. **Owner-approved 2026-09-28** (OWNER-QUEUE B3c,
 `decisions/0038`). **Run this before task 33**: its 10 bp arm checks against
 the knee run under today's `params_hash`, which task 33 changes. About 1-1.5 h.
 
+**0. Commit first,** alone: `decisions/0038-turnover-is-disclosed-not-vetoed.md`,
+`decisions/0039-the-lab-screens-it-does-not-confirm.md`, `HANDOFF.md` and
+`OWNER-QUEUE.md` (`decisions: 0038, 0039 (owner rulings 2026-09-28); queue
+tasks 32-34`). Committing 0038 doesn't apply it; that's task 33.
+
 **Why.** Task 30's books trade 3.2-3.4x a year against a 100% target, so the
 shadow cost isn't holding turnover near its target. The owner wants to see
 how results respond to more friction. The shadow cost
@@ -930,10 +937,8 @@ B3). This touches `SUBSTRATE.md`, `params/` and `vetoes/`, all owner-only.
 **Every commit cites `decisions/0038`**, which is in the working tree,
 uncommitted. **Run after task 32.**
 
-**0.** Commit `decisions/0038-turnover-is-disclosed-not-vetoed.md`,
-`HANDOFF.md` and `OWNER-QUEUE.md` alone (`decisions: 0038 turnover is disclosed,
-not vetoed; queue tasks 32-33`). If task 32 already committed the queue files,
-commit 0038 on its own.
+**0.** 0038 was committed in task 32's step 0. If it wasn't, commit it alone
+first.
 
 **1. Apply "What changes" 1-5 of 0038 exactly.** Nothing else in `params/`,
 `vetoes/` or `SUBSTRATE.md`. The only params change is to `vetoes.yaml` and one
@@ -951,6 +956,87 @@ as a dated line.
 
 **Receipt should say:** rc, commit hashes, the old and new `params_hash`, the
 verdict count from step 2, and the tests that changed and why. **Then stop.**
+
+---
+
+### 34. FDR against FWER: build the multiple-testing module, then a Monte Carlo on the registry's shape
+
+Added 2026-09-28 by Cowork. **Owner-approved 2026-09-28** (OWNER-QUEUE L16).
+**No engine runs:** a statistics-level simulation, calibrated on task 30, that
+runs in minutes. Independent of tasks 32 and 33, but runs after them in queue
+order.
+
+**Why.** The owner ruled the lab a screen (`decisions/0039`). SUBSTRATE §9 still
+gates on Romano-Wolf at FWER 5%, and §9 already names FDR as the owner-decided
+alternative. **Nothing in `src/` implements either yet:** `stats/` holds only
+`blocks.py`, and `run_context.romano_wolf` is a placeholder. The owner wants a
+number to decide on: how much power FDR buys over FWER for a registry shaped
+like this one, and at what realised error.
+
+**1. Build `src/signal_lab/stats/multiple_testing.py`,** the module the real bar-2
+gate will use later. Each procedure takes observed statistics `t` (shape `m`)
+and a joint null draw matrix `T0` (shape `k x m`, one row per shuffle, with
+columns sharing the permutation, as the audit's shuffles do). Each returns a
+boolean reject vector and the adjusted p-values:
+- `holm(p, alpha)`: the reference FWER procedure, which ignores dependence.
+- `romano_wolf(t, T0, alpha)`: the stepdown max-t, FWER. Romano & Wolf (2005,
+  *Econometrica*; 2016, *Statistics & Probability Letters*).
+- `benjamini_hochberg(p, q)` and `benjamini_yekutieli(p, q)`.
+- `romano_shaikh_wolf_fdr(t, T0, q)`: bootstrap FDR under dependence.
+  Romano, Shaikh & Wolf (2008), *Econometric Theory* 24(2). Implement from the
+  paper. **Record any choice the paper leaves open in the docstring.** If you
+  can't implement it faithfully, say so in the receipt and ship the others;
+  don't approximate it silently.
+- Marginal p-values from the null draws: `p_j = (1 + #{T0[:, j] >= t_j}) / (k + 1)`.
+
+**Tests, with known answers:**
+- BH and BY on a hand-worked example from the paper or a textbook.
+- With independent columns, Romano-Wolf's rejections match Holm's closely.
+- Under the complete null (all `m` false), a short simulation keeps realised
+  FWER ≤ alpha and FDR ≤ q, within MC error.
+- Everything is deterministic under a seed.
+
+**2. The study, `scripts/fdr_vs_fwer.py`** plus `make fdr-study`. It writes
+`results/fdr_vs_fwer/<stamp>/summary.csv` and `report.md`. The model is at the
+level of the test statistic, standardised by the null sd:
+- **m = 12**, grouped by `target_axis` from `hypotheses/pending/*.yaml`: region
+  4, credit 3, duration 2, three singletons. Read the groups from the files; don't
+  hard-code them.
+- **Null:** each hypothesis's statistic is N(0, 1). Correlation is `rho_w`
+  within an axis and `rho_b` between axes. Grid: `rho_w` in {0, 0.3, 0.6},
+  `rho_b` in {0, 0.2}.
+- **True hypotheses:** `n_true` in {0, 1, 3, 6}, spread across axes, with mean
+  shift `mu` and sd `s`, calibrated on task 30's `A-20260926-161749` and the
+  knee run. **IC 0.70:** `mu` = 0.255 / 0.168 ≈ 1.52, `s` = 0.193 / 0.168 ≈ 1.15.
+  **IC 0.35:** `mu` from the knee grid's 10-seed paired excess (0.095) over the
+  pooled null sd, with `s` as at 0.70 (**say that this `s` is assumed**). Also a
+  `mu` sweep of 0.5, 1.0, 1.5, 2.0 and 3.0, for the curve.
+- **Shuffles per test**, `k` in {20, 100, 500, 1000}. Draw `T0` from the same
+  null correlation.
+- **Procedures:** Holm 5%, Romano-Wolf 5%, BH at q = 5% and 10%, BY at 10%,
+  RSW-FDR at 10%.
+- **5,000 MC replications** per scenario, seeded.
+
+**Report per scenario:** average power (the share of true hypotheses passing),
+P(at least one true passes), realised FWER, realised FDR, and mean false passes.
+Add a short table for the owner's two headline cases, `n_true` = 3 at IC 0.35
+and at IC 0.70, `rho_w` = 0.3, `rho_b` = 0.2, `k` = 1000.
+
+**Caveats the report must state:**
+- This models the test, not the engine. It assumes normal statistics and moments
+  calibrated on planted signals.
+- The registry has one hypothesis per SUBSTRATE §6 family, so "family level
+  first, then within" is trivial here, and the study runs flat.
+
+    scripts/unattended.sh check --digest
+    make fdr-study
+
+**`params/`, `vetoes/` and `SUBSTRATE.md` do not change.** The gate stays FWER
+until the owner rules L16.
+
+**Receipt should say:** rc, runtime, commit hash, the output directory, the two
+headline tables, whether RSW-FDR was implemented, and any test that needed a
+tolerance and why. Interpretation is Cowork's and the owner's. **Then stop.**
 
 ---
 
