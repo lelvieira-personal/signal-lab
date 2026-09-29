@@ -8,6 +8,10 @@ results/fdr_vs_fwer/    # regenerable: HANDOFF task 34
 results/*.db
 results/*.db-journal
 
+# Copyrighted reference material (journal article PDFs): kept locally for the
+# implementer, not redistributed via git (HANDOFF task 38).
+docs/references/*.pdf
+
 # Secrets come from environment variables only. Nothing key-shaped is tracked.
 *key*
 *.secret

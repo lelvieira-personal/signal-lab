@@ -22,7 +22,9 @@ value at each step is the max of the ACTIVE hypotheses' null draws, which
 `marginal_pvalues` alone cannot reconstruct once a hypothesis has been removed
 from the active set.
 
-`romano_shaikh_wolf_fdr` is NOT implemented -- see its docstring.
+`romano_shaikh_wolf_fdr` is NOT implemented -- HANDOFF task 38 fetched and read
+the correct paper (unlike task 34's wrong citation) but found the mapping from
+its recursion to the outer stepdown genuinely ambiguous; see its docstring.
 """
 
 from __future__ import annotations
@@ -106,7 +108,7 @@ def benjamini_hochberg(p: np.ndarray, q: float) -> tuple[np.ndarray, np.ndarray]
     independence or positive regression dependence (PRDS); SUBSTRATE s9 notes
     the audit's shuffled null is dependence-aware, which BH itself is not --
     `romano_shaikh_wolf_fdr` would be the dependence-robust FDR analogue, and
-    it is not implemented here (see its docstring).
+    it is not implemented here (see its docstring, HANDOFF task 38).
 
     Returns `(reject, p_adjusted)` in the original order of `p`.
     """
@@ -184,29 +186,71 @@ def romano_wolf(t: np.ndarray, T0: np.ndarray, alpha: float) -> tuple[np.ndarray
 
 def romano_shaikh_wolf_fdr(t: np.ndarray, T0: np.ndarray, q: float):
     """
-    NOT IMPLEMENTED. HANDOFF task 34 asked for the bootstrap FDR-under-
-    dependence stepdown of Romano, Shaikh & Wolf (2008), cited there as
-    Econometric Theory 24(2). That citation is Romano, Shaikh & Wolf,
-    "Formalized data snooping based on generalized error rates" (Econometric
-    Theory 24(2), 2008), which controls the generalised familywise error rate
-    k-FWER (the probability of `k` or more false rejections) via a bootstrap
-    stepdown, not the false discovery rate. The FDR-under-dependence result
-    with a bootstrap/subsampling construction is a DIFFERENT paper by the same
-    three authors (Romano, Shaikh & Wolf, "Control of the false discovery rate
-    under dependence using the bootstrap and subsampling", TEST 17(3), 2008).
+    NOT IMPLEMENTED, despite HANDOFF task 38 fetching the correct paper this
+    time -- unlike task 34, this is not a citation problem.
 
-    Implementing either faithfully from memory, without the source in hand to
-    check the exact stepdown construction and the choice it leaves open (both
-    papers have one), risks shipping a plausible-looking but wrong procedure
-    under a name that claims paper fidelity -- exactly what SUBSTRATE's
-    fail-loud discipline exists to prevent. Per the task's own instruction,
-    this raises rather than approximates. `holm`, `romano_wolf`,
+    Romano, Shaikh & Wolf (2008), "Control of the false discovery rate under
+    dependence using the bootstrap and subsampling", TEST 17(3), 417-442,
+    section 5's bootstrap stepdown. Source read in full:
+    `docs/references/romano-shaikh-wolf-2008-test.pdf` (the University of
+    Zurich working-paper copy; git-ignored, not redistributed -- see
+    `.gitignore`).
+
+    **What was recovered with confidence.** The population-level recursion
+    (their Sect. 4, eq. 7-10): for a stepdown with critical values c_1,...,c_m
+    compared against the descending order statistics T_(1)>=...>=T_(m)
+    (reject the top R, R the largest r with T_(1)>=c_1,...,T_(r)>=c_r), the
+    worst-case FDR contribution from a hypothetical world where exactly `j`
+    hypotheses are true nulls is `E[rho / ((m-j)+rho)]`, rho being how many of
+    a `j`-sized subset a matching local stepdown would reject. This was
+    verified self-consistent for the singleton case (eq. 8) and for j=2
+    (eq. 9), independently re-derived from the general formula (eq. 7/10) and
+    matching the paper's own worked specialisations exactly, both by hand and
+    against the extracted PDF text.
+
+    **What could not be resolved: which OUTER rank each recursively-computed
+    c_j belongs to.** The recursion computes c_1 first (the j=1, "one true
+    null" case), then c_2, etc. Two readings of the paper are both defensible
+    from the text and both were implemented and tested:
+    - **Same order** (c_j used at outer rank j, matching the symbol order
+      literally): under a complete-null Monte Carlo (m=8, 200 reps), this
+      rejects exactly 1 hypothesis EVERY replication -- realised FDR 100%
+      against a nominal q=0.10, an outright control violation.
+    - **Reversed** (c_j used at outer rank m-j+1, motivated by the proof
+      sketch on p.427-428 treating j as a hypothesis label and by analogy to
+      Holm's strictest-correction-at-rank-1 structure): this rejects NOTHING,
+      even on an obviously-significant case (t = [4.0, 3.5, 3.2, 3.0, noise,
+      noise, noise, noise], which Holm and `romano_wolf` both reject cleanly
+      at rank 1). Zero power on a 4-sigma signal is not a plausible reading
+      of a procedure the paper reports as competitive with BH.
+    A further complication: Remark 1 (p.426), which states the bootstrap
+    version's indexing for eq. 17, defines T*_{n,r:t} as the r-th SMALLEST of
+    t bootstrap values, while the population argument (eq. 7) defines the
+    corresponding T_{n,r:t} as the r-th LARGEST -- read together, literally,
+    these assign opposite elements to the same symbolic position, and it is
+    not established here which convention governs the mapping above.
+
+    Two implemented, empirically-tested candidates both failing basic
+    sanity checks is a stronger signal than uncertainty from reading alone --
+    it means at least one interpretation is definitely wrong, and neither
+    inspires confidence in the other. Per the task's own instruction ("if you
+    can't implement it faithfully... don't approximate it silently"), this
+    raises rather than ships either. `holm`, `romano_wolf`,
     `benjamini_hochberg` and `benjamini_yekutieli` are implemented and tested;
-    this one is not.
+    this one is not, and the study (`scripts/fdr_vs_fwer.py`) omits it, as it
+    did before this task.
+
+    Separately, note for any future attempt: the paper's validity argument is
+    stated for i.i.d. data and Efron's (1979) bootstrap (Sect. 5), not for a
+    block-shuffle/permutation null; `stats.blocks`' shuffles would be used
+    here unendorsed by the paper's own proof even once the indexing is fixed.
     """
     raise NotImplementedError(
-        "romano_shaikh_wolf_fdr is not implemented -- see this function's docstring "
-        "for which of the two 2008 Romano-Shaikh-Wolf papers is ambiguous here and why "
-        "it was not approximated. Use benjamini_yekutieli for a dependence-robust FDR "
-        "bound, or benjamini_hochberg under PRDS."
+        "romano_shaikh_wolf_fdr is not implemented -- HANDOFF task 38 fetched and read "
+        "the correct paper, but the mapping from its recursively-computed critical values "
+        "to the outer stepdown's ranks is ambiguous in the source and two tested readings "
+        "both fail basic sanity checks (100% FDR under the complete null; zero power on an "
+        "obvious 4-sigma signal). See this function's docstring for what was checked. Use "
+        "benjamini_yekutieli for a dependence-robust FDR bound, or benjamini_hochberg under "
+        "PRDS, or romano_wolf for FWER."
     )

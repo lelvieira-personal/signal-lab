@@ -24,14 +24,19 @@ correlation with its neighbours.
 
 Grid actually run, and why it is not the full cross product the task text
 lays out (see the receipt): the full cross of {5 valid correlations} x
-{4 k values} x {4 n_true} x {2 calibrated mu, when n_true > 0} is run at
-5,000 replications each (140 scenarios). The mu SWEEP (0.5, 1.0, 1.5, 2.0,
-3.0), which is for a power CURVE rather than the grid, is run only at the
-headline correlation (rho_w=0.3, rho_b=0.2) and k=1000, for n_true in
-{1, 3, 6} -- 15 more scenarios. Crossing the sweep through the full
-correlation x k grid as well would be a further 5x, for a dimension the task
-itself frames as "for the curve", i.e. against mu at one representative
-point, not a fifth grid axis.
+{6 k values} x {4 n_true} x {2 calibrated mu, when n_true > 0} is run at
+5,000 replications each. The mu SWEEP (0.5, 1.0, 1.5, 2.0, 3.0), which is for
+a power CURVE rather than the grid, is run only at the headline correlation
+(rho_w=0.3, rho_b=0.2) and k=1000, for n_true in {1, 3, 6}. Crossing the
+sweep through the full correlation x k grid as well would be a further 5x,
+for a dimension the task itself frames as "for the curve", i.e. against mu
+at one representative point, not a fifth grid axis.
+
+HANDOFF task 38 extends `K_GRID` to {20, 50, 100, 200, 500, 1000} and adds
+`p_any_pass`, `pfdr` and `false_share_expected`. `romano_shaikh_wolf_fdr` is
+still not implemented (see its docstring -- a genuine indexing ambiguity in
+the paper, not the task 34 citation error), so the FDR side of this study
+remains BH and BY only; `PROCEDURES` carries no RSW-FDR row.
 """
 
 from __future__ import annotations
@@ -75,7 +80,7 @@ SKIPPED_CORRELATIONS = tuple(
 HEADLINE_CORR = (0.3, 0.2)
 HEADLINE_K = 1000
 
-K_GRID = (20, 100, 500, 1000)
+K_GRID = (20, 50, 100, 200, 500, 1000)
 N_TRUE_GRID = (0, 1, 3, 6)
 N_REPS = 5000
 ALPHA = 0.05
@@ -207,18 +212,27 @@ def run_scenario(rng, n_reps, k, m, group_index, rho_w, rho_b, true_mask, mu, s)
 
         n_reject = reject.sum(axis=1)
         n_false_reject = reject[:, false_mask].sum(axis=1) if false_mask.any() else n_reject * 0
+        n_true_reject = reject[:, true_mask].sum(axis=1) if n_true > 0 else n_reject * 0
+        any_reject = n_reject > 0
         fdp = np.divide(
-            n_false_reject, np.maximum(n_reject, 1), out=np.zeros(n_reps), where=n_reject > 0
+            n_false_reject, np.maximum(n_reject, 1), out=np.zeros(n_reps), where=any_reject
         )
+        # pFDR (HANDOFF task 38): E[FDP | R > 0], undefined (NaN) if nothing ever rejects.
+        pfdr = float(fdp[any_reject].mean()) if any_reject.any() else float("nan")
+        mean_v, mean_s = float(n_false_reject.mean()), float(n_true_reject.mean())
         row = {
             "procedure": name,
             "level": level,
             "fwer": float((n_false_reject > 0).mean()),
             "fdr": float(fdp.mean()),
-            "mean_false_passes": float(n_false_reject.mean()),
+            "pfdr": pfdr,
+            "p_any_pass": float(any_reject.mean()),
+            "false_share_expected": mean_v / (mean_v + mean_s)
+            if (mean_v + mean_s) > 0
+            else float("nan"),
+            "mean_false_passes": mean_v,
         }
         if n_true > 0:
-            n_true_reject = reject[:, true_mask].sum(axis=1)
             row["avg_power"] = float((n_true_reject / n_true).mean())
             row["p_at_least_one_true"] = float((n_true_reject > 0).mean())
         else:
@@ -310,9 +324,22 @@ def main(argv=None) -> int:
             "p_at_least_one_true",
             "fwer",
             "fdr",
+            "pfdr",
             "mean_false_passes",
         ]
     ]
+
+    # HANDOFF task 38: the k-sensitivity table, headline correlation, n_true=3,
+    # Romano-Wolf 5% and BH 10% (RSW-FDR omitted -- not implemented).
+    k_sens = table[
+        (table["rho_w"] == HEADLINE_CORR[0])
+        & (table["rho_b"] == HEADLINE_CORR[1])
+        & (table["n_true"] == 3)
+        & (table["mu_label"].isin(["ic035", "ic070"]))
+        & (table["procedure"].isin(["romano_wolf_5", "bh_10"]))
+    ][["mu_label", "k", "procedure", "avg_power", "fwer", "fdr", "pfdr"]].sort_values(
+        ["mu_label", "procedure", "k"]
+    )
 
     seconds = round(time.time() - started, 1)
     report = [
@@ -334,6 +361,15 @@ def main(argv=None) -> int:
         "### IC 0.70 (mu={:.3f}, s={:.3f}, both measured)".format(*MU_SOURCES["ic070"]),
         _markdown_table(headline[headline["mu_label"] == "ic070"].drop(columns="mu_label")),
         "",
+        "## k-sensitivity (HANDOFF task 38): n_true=3, rho_w=0.3, rho_b=0.2, "
+        "Romano-Wolf 5% and BH 10% (RSW-FDR omitted -- not implemented)",
+        "",
+        "### IC 0.35",
+        _markdown_table(k_sens[k_sens["mu_label"] == "ic035"].drop(columns="mu_label")),
+        "",
+        "### IC 0.70",
+        _markdown_table(k_sens[k_sens["mu_label"] == "ic070"].drop(columns="mu_label")),
+        "",
         "## Caveats",
         "",
         "- This models the TEST, not the engine: statistics are assumed normal, "
@@ -352,6 +388,7 @@ def main(argv=None) -> int:
     (out / "report.md").write_text("\n".join(report) + "\n", encoding="utf-8")
     print(f"wrote {out}/summary.csv and report.md  ({seconds:.0f}s)")
     print(headline.to_string(index=False))
+    print(k_sens.to_string(index=False))
     return 0
 
 
