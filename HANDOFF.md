@@ -2403,3 +2403,81 @@ before the commit. Interpretation is Cowork's and the owner's -- adopting the
 form and choosing the coefficient happen later, in `params/`, via
 `decisions/0040`. Task 35 (the volatility-overlay halflife sweep) is next per
 the queue order (34 -> 36 -> 35).
+
+### 2026-09-29 (day) — task 37 (Claude Code, Sonnet 5)
+
+**37. Split the test suite: fast wiring checks and slow model-validity checks** — rc=0.
+Commits: `bb67306` (step 0, decisions 0038/0040 addenda, queue 37-39), `e76b60c`
+(the split). `scripts/unattended.sh check --digest`: **rc=0, 2m24s.**
+`scripts/unattended.sh check-full --digest`: **rc=0, 10m26s.**
+
+- **Profile (`pytest -q --durations=60`), top 20 of 562, 582s total:**
+
+  | s | test |
+  |---|---|
+  | 78.00 | test_audit.py::test_the_turnover_cap_binds_and_costs_return |
+  | 47.02 | test_audit.py::test_a_dearer_spread_makes_the_solver_trade_less |
+  | 38.30 | test_baseline.py::test_at_coefficient_zero_created_equals_trailing |
+  | 35.44 | test_audit.py::test_the_per_session_cap_holds_and_the_annual_figure_still_moves |
+  | 33.19 | test_baseline.py::test_shadow_coefficient_none_matches_params_exactly |
+  | 30.37 | test_audit.py::test_the_oracle_beats_a_blind_signal |
+  | 28.89 | test_baseline.py::test_a_different_shadow_coefficient_moves_weights_not_costs |
+  | 26.71 | test_audit.py::test_a_blind_signal_hugs_the_benchmark |
+  | 26.52 | test_baseline.py::test_the_trailing_default_is_unchanged_bit_for_bit |
+  | 26.12 | test_baseline.py::test_the_created_form_actually_moves_weights_relative_to_trailing |
+  | 23.09 | test_audit.py::test_a_cell_runs_the_whole_chain_and_reports_what_bound |
+  | 16.58 | test_baseline.py::test_the_shuffle_switched_off_reproduces_todays_score_and_net_ir_bit_for_bit |
+  | 16.49 | test_audit.py::test_an_early_over_trade_does_not_block_a_later_one |
+  | 15.82 | test_audit.py::test_a_base_cell_reports_the_transfer_coefficient_the_left_tail_and_the_pearson_ic |
+  | 15.46 | test_audit.py::test_rolling_one_year_turnover_is_reported_for_the_budget_question |
+  | 13.29 | test_audit.py::test_the_audit_writes_no_run_to_the_results_store |
+  | 11.81 | test_audit.py::test_the_report_names_the_panel_and_the_params_it_ran_on |
+  | 10.12 | test_engine.py::test_alternate_days_are_averaged_and_every_day_is_reported |
+  | 8.20 | test_scripts.py::test_the_validation_run_is_recorded_and_tagged |
+  | 6.70 | test_experiment.py::test_validation_recovers_the_planted_ir_exactly (setup) |
+
+  **Tasks 34 and 36 among these:** all 6 `test_baseline.py` rows are task 36
+  (the shadow-form tests on `small_universe`, added or extended by that task).
+  Task 34 added none of the top 20 -- its own suite (`test_multiple_testing.py`,
+  `test_batched_multiple_testing.py`, `test_fdr_vs_fwer.py`) is pure numpy and
+  finished the whole profiling run in 7.32s when checked separately;
+  `test_realised_error_rates_stay_within_mc_error_of_their_nominal_level`
+  (1,500 replications in a Python loop) is marked slow on the `>200
+  replications` criterion regardless, since it is exactly the kind of test
+  that could stop being fast on a different machine.
+
+- **31 tests marked `slow`, three ways:**
+  - 20 by the >5s threshold above (all of them also call `run_cell`, the
+    engine, or a real optimiser solve, except the one Monte Carlo).
+  - 10 more that call `run_cell`/the engine but happened to run under 5s
+    this time: 4 in `test_audit.py` (all `small_universe`), 6 by
+    fixture-sharing -- `test_engine.py`'s other `planted`/`planted_path`
+    tests and `test_experiment.py`'s other `validation`-fixture tests, marked
+    together with their slow siblings so the fixture itself (a real
+    `plant_weight_path`/`validate_pipeline` run) is never built in the fast
+    tier, not just individually slow tests within a file that still pays for
+    it.
+  - 1 by the replications criterion alone (above).
+  - **Not marked**, despite using `small_universe`: `test_prefilled_P_at_the_second_rebalance`
+    (constructs `_OptimiserRule`, never solves), the two frictionless-cell
+    tests (`run_frictionless` is a closed-form calculation, no optimiser), and
+    `test_a_synthetic_cell_is_not_charged_the_dear_bucket_throughout` (reads
+    cost buckets only). None of `test_long_only.py`'s tests are marked: they
+    solve a 6-instrument toy problem, not a universe, and none exceeded 2.6s.
+  - **No test was rewritten.** Every slow test is slow because it genuinely
+    exercises the engine or the solver; none was slow only because a fixture
+    would have done instead.
+- **Tier counts: 31 slow + 516 fast (not slow, not holdout) + 15 holdout = 562.**
+  Confirmed by `pytest --collect-only` on each selector; no test lost or
+  double-counted.
+- **Target met.** `make check` **2m24s**, well under the 10-minute target.
+  `make check-full` **10m26s** for the whole 562 (up from 582s stand-alone,
+  reflecting today's lower machine load rather than any change from this
+  task -- the same suite took 3695s inside yesterday's `check` run).
+- `CLAUDE.md`'s "definition of done" line and the `unattended.sh` paragraph
+  are updated as specified; `scripts/unattended.sh`'s audit targets now open
+  with `make check-full`, and `check`/`check-full` are both valid bare
+  targets.
+
+Interpretation is Cowork's and the owner's. Task 38 next per the queue order
+(37 -> 38 -> 35 -> 39).
