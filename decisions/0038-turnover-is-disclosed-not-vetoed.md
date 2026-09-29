@@ -58,3 +58,23 @@ tracking error: from a gate to a disclosed characteristic.
   verifies this from the stored `cells.csv` files.
 - Turnover no longer protects against a malfunctioning book. The disclosure and
   the owner's review do that now.
+
+## Addendum 2026-09-29: the highlight's windows (owner, OWNER-QUEUE L17)
+
+The owner narrowed item 4. **The highlight applies to the annual figure and to
+the rolling one-year p95 ("both"), not to the rolling one-year max.** The max
+is still reported but not highlighted. The reason is evidence from the friction
+sweeps (`A-20260928-151055`, `A-20260929-070540`): the rolling max was above
+200% in 59 or 60 of 60 cells in both runs, whatever the friction, so it
+separated nothing. The p95 does separate books: `created` at 40 bp and IC 0.35
+is 0 of 10 above 200%.
+
+In item 4, read "whose annual figure **or** rolling one-year max exceeds it"
+as "whose annual figure **or** rolling one-year p95 exceeds it". The params key
+is `turnover.highlight_annualised: 2.00`, plus
+`turnover.highlight_windows: [annual, rolling_1y_p95]`. Both are reporting
+only.
+
+**Applied together with `decisions/0040`** by HANDOFF task 39, which
+supersedes task 33, so `params_hash` moves once.
+

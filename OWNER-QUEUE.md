@@ -28,6 +28,21 @@ Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
   standard, with 35-45% power at IC 0.70 before the stepdown.
   **Owner, 2026-09-28: "most likely FDR", to be confirmed after task 34's
   FDR-vs-FWER numbers are read. Not ruled.**
+  **Task 34 reported 2026-09-29** (`results/fdr_vs_fwer/20260929-031720/`,
+  Cowork doc `claude/tasks-34-36-review-2026-09-29.md`). The number of
+  shuffles per test, k, decides more than FWER vs FDR:
+  - At k ≤ 100, Romano-Wolf 5% has more power than BH 10% (IC 0.70: 0.175 vs
+    0.152 at k = 100, and 0.144 vs 0.013 at k = 20).
+  - BH 10% wins only at k ≥ 500 (0.274 vs 0.174).
+  - k = 500 costs about 140 engine-hours per cycle.
+
+  RSW-FDR, which uses the joint null like Romano-Wolf, was not implemented:
+  the task cited the wrong paper (Cowork's error). The right one is Romano,
+  Shaikh & Wolf 2008, *TEST* 17(3). **Cowork recommends not ruling yet:**
+  implement RSW-FDR from that paper, re-run the study with small k (20-200),
+  then choose.
+  **Owner, 2026-09-29: yes, and Claude Code may fetch the paper.** Queued as
+  HANDOFF task 38. L16(a) is still open until its numbers are read.
 - ~~**What confirms a candidate.**~~ **Ruled 2026-09-28:** replication and
   economic intuition are the gates, both required. A paper track and a live
   allocation are not. Recorded in `decisions/0039`. ~~Whether to adopt Cowork's
@@ -39,60 +54,6 @@ L4's holdout-power sentence should land in SUBSTRATE §3 in the same edit as
 **Partly retirable by measuring:** HANDOFF task 34 (queued 2026-09-28)
 measures the power and the realised error of FWER against FDR on the registry's
 shape. The choice stays the owner's.
-
-### L17. How wide the 200% turnover highlight reaches (`decisions/0038`, held)
-Added 2026-09-28 by Cowork. **Owner, 2026-09-28: holding the 0038 ruling until
-he has read the friction sweep.** HANDOFF task 33 is on hold until then.
-
-0038 applies the 200% highlight to both the annual figure and the rolling
-one-year max. The sweep (`A-20260928-151055`, `claude/friction-sweep-2026-09-28.md`)
-shows the rolling max above 200% in **60 of 60** cells, even at 40 bp, and the
-rolling p95 above 200% in 60 of 60 as well. Much of that is mechanical: a single
-lumpy rebalance of up to 200% of NAV is enough by itself to push any one-year
-window to 200% (see L18). On the annual figure the highlight discriminates:
-20 of 20 cells at 10 bp, 11 of 20 at 20 bp, 0 of 20 at 40 bp.
-
-**The decision:** keep both windows as 0038 reads it, narrow it to the annual
-figure, or defer the rolling-window part until L18 is settled.
-
-### L18. The shadow cost echoes on a 53-week cycle (`decisions/0024`'s design; ruled in principle, `decisions/0040`)
-Added 2026-09-28 by Cowork, from the friction sweep. Bears on B2, 0038 and
-L17.
-
-The shadow cost per unit traded is set from the **trailing 52 weeks** of
-turnover, excluding the current trade, and is flat in the size of the current
-trade. So a large trade raises the cost for exactly 52 weeks, and when it rolls
-out of the window the cost falls off a cliff and the backlog trades at once,
-which re-enters the window. Measured on the persisted weights: the
-autocorrelation of weekly turnover **at lag 53 is 0.73-0.78 at 40 bp**, 0.23-0.47
-at 20 bp and 0.15-0.23 at 10 bp, against about 0 at lags 26, 51, 52 and 78.
-The largest single-week trades line up a year apart (e.g. 2015-08-07,
-2016-08-12, 2017-08-18). The median maximum single-week trade **rises** with
-friction, from about 1.0x NAV at 10 bp to 1.8-1.9x at 40 bp, and 7 of 20 cells at
-40 bp have a week at 1.95x NAV or more, close to a full book swap.
-
-**Why it is yours:** B2 ruled out a per-rebalance cap on the premise that
-friction restrains trading. As built, more friction makes trading *lumpier*.
-The shadow curve is `decisions/0024`, an owner decision. The measurement is on
-the audit's optimiser rule (`audit/ladder.py`, `_OptimiserRule._shadow`). Its
-docstring says `harness.objective.turnover_penalty` uses the same curve, but
-Cowork has not checked whether that path has the same window edge.
-
-**Options (Cowork's, unmeasured):** (a) make the cost depend on the trade
-itself, so the trade is priced at the trailing turnover it creates. That makes
-the cost convex in trade size, and lumps become expensive. (b) Replace the
-hard 52-week window with an exponentially weighted one, so there is no cliff.
-(c) Both. **Retirable in part by measuring:** a small grid with (a) and (b) at
-10/20/40 bp would show whether the echo goes and what it does to net IR.
-
-**Ruled 2026-09-28 (owner): option (a)**, "charge each trade at the trailing
-turnover it would create". Also chosen by the owner: **measure first** (a
-per-cell override, HANDOFF task 36, before anything in `params/`); **the
-marginal unit** pays the curve at the post-trade turnover, so the cost is the
-integral of the 0024 curve; and **missing history is prefilled at the 100%
-target**. Recorded in `decisions/0040`. **Still open:** whether to adopt it into
-`params/` after task 36, and at what coefficient. That would land with 0038's
-params change (L17), so `params_hash` moves once.
 
 ### L12. Is the registry the right shape, now that the stepdown is the bar?
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
@@ -247,11 +208,6 @@ set. Deferred by the owner on 2026-09-09 until a candidate model exists, and
 **Wakes when:** a candidate model exists. The form is already settled
 (conviction-scaled, linear between two endpoints, floored — `decisions/0019`).
 
-### D2. Test-suite split — model-validity checks vs wiring
-Deferred by the owner. **Wakes when:** `make check` runtime becomes an obstacle
-to iteration. It went 1642 s → 417 s on 2026-09-18 for unknown reasons, so this
-may have receded on its own.
-
 ### D3. Region labels are still placeholders (`decisions/0022`)
 **Wakes when:** a hypothesis needs a region axis it can trust —
 `H-2026-0001`, `0006`, `0009` and `0011` all target `region`.
@@ -266,6 +222,24 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L17 — how wide the 200% turnover highlight reaches. CLOSED 2026-09-29.
+**Owner: "both"**, meaning the annual figure and the rolling one-year p95. The
+rolling max is still reported but not highlighted. Recorded as an addendum to
+`decisions/0038`, and applied with 0040 by HANDOFF task 39. The full item
+text is in git history.
+
+### L18 — the shadow cost's 53-week echo. CLOSED 2026-09-29.
+**Owner:** option (a) on 2026-09-28, then **"0040: 40bps"** on 2026-09-29 after
+task 36 (`A-20260929-070540`): the largest week is at most 0.84× NAV, with no
+detectable change in net IR. `decisions/0040` is adopted at 40 bp and applied
+by HANDOFF task 39. A residual lag-52 rhythm (0.24-0.30 at 40 bp) remains; an
+exponentially weighted window is the fix if it ever matters. The full item
+text is in git history.
+
+### D2 — the test-suite split. CLOSED 2026-09-29.
+**Owner: "yes"**, after `make check` reached 3695 s. HANDOFF task 37 splits it
+into a fast `make check` and a full `make check-full`.
 
 ### L13 — `risk_calibration` vetoes a quarter to a half of every grid, on 2008. CLOSED 2026-09-28.
 **Owner: "approved, go ahead"**: B1's halflife sweep is queued now as

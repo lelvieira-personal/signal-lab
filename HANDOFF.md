@@ -56,7 +56,23 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-28 (evening), tasks 0-32 are done. Queued, in order: 34**
+**As of 2026-09-29 (afternoon): queued, in order, 37 → 38 → 35 → 39.**
+- **37:** split the test suite (D2).
+- **38:** Romano-Shaikh-Wolf FDR from the paper, and the study re-run at small k
+  (L16).
+- **35:** the halflife sweep, overnight. It must run before 39.
+- **39:** apply `decisions/0038` and `0040` in one params change.
+
+**Task 33 is superseded by 39**; don't run it. Task 37's step 0 commits
+Cowork's edits (the step 0 formerly in task 35 moved there).
+
+*(Earlier note:)* **As of 2026-09-29, tasks 0-34 and 36 are done** (Cowork verified both; three
+counts in task 36's receipt were wrong. The corrections are in the Cowork doc
+`claude/tasks-34-36-review-2026-09-29.md`, and the receipt stays as written).
+**Queued: 35. Task 33 is still ON HOLD.** Budget about 1 h for `make check`
+before 35's grid: the suite now takes about 3700 s (OWNER-QUEUE D2).
+
+*(Earlier note:)* **As of 2026-09-28 (evening), tasks 0-32 are done. Queued, in order: 34**
 (multiple-testing module plus the FDR-vs-FWER Monte Carlo; no engine runs),
 then **36** (the created-turnover shadow cost as an override, 60 cells,
 `decisions/0040`), then **35** (the volatility-overlay halflife sweep,
@@ -939,7 +955,10 @@ Interpretation is Cowork's and the owner's. **Then stop.**
 
 ### 33. Apply `decisions/0038`: turnover is disclosed, never vetoed
 
-> **ON HOLD, 2026-09-28 (Cowork, at the owner's instruction).** The owner is
+> **SUPERSEDED 2026-09-29 by task 39**, which applies 0038 (with its
+> 2026-09-29 addendum) and 0040 together. Do not run this task.
+>
+> *Earlier:* **ON HOLD, 2026-09-28 (Cowork, at the owner's instruction).** The owner is
 > holding the 0038 ruling until he has read the friction sweep (OWNER-QUEUE
 > L17, L18). **Do not run any step of this task**, including step 0, whose
 > commit has moved to task 34's step 0. Cowork will lift or re-issue it.
@@ -1062,6 +1081,214 @@ tolerance and why. Interpretation is Cowork's and the owner's. **Then stop.**
 
 ---
 
+### 37. Split the test suite: fast wiring checks and slow model-validity checks (OWNER-QUEUE D2)
+
+Added 2026-09-29 by Cowork. **Owner ruling 2026-09-29** (D2: "yes"). No engine
+runs, and nothing in `params/`, `vetoes/` or `SUBSTRATE.md` changes.
+
+**0. Commit first, alone:**
+- **Files:** `decisions/0038-turnover-is-disclosed-not-vetoed.md`,
+  `decisions/0040-the-shadow-cost-prices-the-turnover-a-trade-creates.md`,
+  `HANDOFF.md` and `OWNER-QUEUE.md`.
+- **Message:** `decisions: 0038 L17 addendum, 0040 adopted at 40bp; queue:
+  37-39, 33 superseded; L16-L18, D2 (owner 2026-09-29)`.
+- Check `git diff --cached --ignore-cr-at-eol --stat` before committing.
+
+**Why.** `make check` went 596 s → 1206 s (task 34) → 3695 s (task 36). An hour
+per check now sits in front of every audit and every small commit.
+
+**1. Profile first.** Run
+`uv run --python 3.12 --group dev pytest -q --durations=60` and put the top 20
+test durations in the receipt, with the total. Say which tests task 34 and
+task 36 added among them.
+
+**2. Mark.**
+- Add a `slow` marker to `pyproject.toml`: "model-validity: runs the engine or
+  a Monte Carlo".
+- Mark every test that runs `run_cell`, the engine, an optimiser solve on a
+  universe, or a simulation of more than about 200 replications, **or** that
+  takes more than 5 s in step 1.
+- **Never mark** the `holdout` tests, the governance tests, or any test of
+  `params/` loading, key construction or preflights.
+- A test that is slow only because it uses a solve where a fixture would do
+  can be rewritten to be fast instead. Say which ones you rewrote, and
+  **don't weaken what any test asserts**.
+
+**3. Targets.**
+- `make check` = governance + lint + `pytest -m "not slow and not holdout"`
+  + holdout.
+- `make check-full` = governance + lint + the whole suite + holdout.
+- `make test-slow` = `pytest -m slow`.
+- Extend `scripts/unattended.sh` with a `check-full` mode.
+- **Audit modes run `check-full` before the grid.** An audit is hours, so an
+  hour of engine tests in front of it is affordable, and it's the one place
+  the engine must be proven.
+
+**4. `CLAUDE.md`.** Replace "`make check` is the definition of done." with:
+"`make check-full` is the definition of done for any commit touching `src/`,
+`scripts/`, `tests/`, `vetoes/` or `params/`. `make check` (the fast tier) is
+enough for a commit touching only `HANDOFF.md`, `OWNER-QUEUE.md`,
+`decisions/`, `hypotheses/` or docs." Update the `unattended.sh` paragraph to
+match.
+
+**Test:** `make check` and `make check-full` both pass. The test count of
+`check-full` equals today's 562 plus any new tests. No test is lost between
+the tiers (fast + slow + holdout = total).
+
+    scripts/unattended.sh check --digest
+    scripts/unattended.sh check-full --digest
+
+**Receipt should say:** rc, commit hashes, the profile's top 20, how many tests
+are in each tier, the runtimes of `check` and `check-full`, and any test
+rewritten, with the reason. **Target:** `make check` under 10 minutes. If it
+can't get there, say what's in the way. **Then stop.**
+
+---
+
+### 38. Romano-Shaikh-Wolf FDR, from the paper, and the study re-run at small k (OWNER-QUEUE L16)
+
+Added 2026-09-29 by Cowork. **Owner ruling 2026-09-29** (L16: "yes, Claude Code
+can fetch it"). No engine runs, and nothing in `params/`, `vetoes/` or
+`SUBSTRATE.md` changes. The gate stays FWER until the owner rules L16(a).
+
+**Why.** Task 34 showed the number of shuffles per test, k, decides more than
+the procedure. Procedures that work from each test's own p-value (Holm, BH,
+BY) are floored at p ≥ 1/(k+1). Romano-Wolf, which uses the joint null, keeps
+its power at k = 20-100, where BH has almost none. An engine shuffle costs
+about 84 s × 12 hypotheses, so k is the lab's binding cost.
+
+RSW-FDR also uses the joint null. Whether it keeps FDR's power advantage at
+small k is **the** open question for L16(a).
+
+**Correction to task 34's citation (Cowork's error):** the procedure is Romano,
+J. P., Shaikh, A. M. and Wolf, M. (2008), "Control of the false discovery rate
+under dependence using the bootstrap and subsampling", *TEST* 17(3), 417-442,
+with discussion and rejoinder in the same issue. *Econometric Theory* 24(2)
+is their generalized-error-rates (k-FWER, FDP) paper, not this one.
+
+**1. Fetch the paper.**
+- **Sources:** Springer (`link.springer.com/article/10.1007/s11749-008-0126-6`),
+  the University of Zurich working paper (IEW WP 337, ZORA eprint 10432), or
+  SSRN 1025410.
+- **Where it goes:** save the PDF under `docs/references/`. Git-ignore it if
+  its licence doesn't clearly allow a copy in the repo; say which you did.
+- **If the network refuses every source, stop and report.** Don't implement
+  from memory.
+
+**2. Implement `romano_shaikh_wolf_fdr(t, T0, q)`** in
+`stats/multiple_testing.py`, with the same interface as `romano_wolf`.
+- Follow the paper's bootstrap stepdown algorithm exactly.
+- **In the docstring, record every choice the paper leaves open**, with its
+  section or equation number.
+- **Record whether the paper's validity argument covers null draws from
+  permutation or shuffles rather than a centred bootstrap.** Our `T0` comes
+  from shuffles. If the paper doesn't cover that, say so plainly in the
+  docstring and the receipt, and ship it labelled as such.
+- Add the batched version in `_batched.py`, pinned row by row against the
+  single-replication function, as task 34 did.
+
+**Tests:**
+- Under the complete null, realised FDR ≤ q within MC error.
+- **Reproduce one row of one of the paper's own simulation tables within MC
+  error.** This is the fidelity check. Say which table and row.
+- Deterministic under a seed.
+
+**3. Re-run the study** (`make fdr-study`).
+- **Procedures:** add `rsw_fdr_5` and `rsw_fdr_10`.
+- **k grid:** extend it to {20, 50, 100, 200, 500, 1000}.
+- **New columns:**
+  - `p_any_pass`: P(R > 0);
+  - `pfdr`: E[V/R | R > 0];
+  - `false_share_expected`: E[V] / (E[V] + E[S]).
+- Keep 5,000 reps. If RSW-FDR makes the full grid take more than about 2 h,
+  you may drop to 2,000 reps **for the RSW rows only** and disclose it.
+
+**Receipt should say:**
+- rc, runtime, commit hash, the output directory, and the paper's source.
+- The choices recorded in the docstring.
+- Whether the permutation null is covered by the paper's argument.
+- The fidelity-row result.
+- **A k-sensitivity table** at n_true = 3, rho_w 0.3, rho_b 0.2, for IC 0.35
+  and IC 0.70: `avg_power`, `fwer`, `fdr` and `pfdr` for Romano-Wolf 5%,
+  BH 10% and RSW-FDR 10%, at each k.
+
+Interpretation is Cowork's and the owner's. **Then stop.**
+
+---
+
+### 39. Apply `decisions/0038` (with its 2026-09-29 addendum) and `decisions/0040`, in one params change
+
+Added 2026-09-29 by Cowork. It **supersedes task 33**. **Owner rulings:** B2
+and B3 (0038); L17 on 2026-09-29 (addendum: highlight on annual and rolling
+p95); L18 on 2026-09-29 (0040 adopted at 40 bp). It touches `SUBSTRATE.md`,
+`params/` and `vetoes/`, all owner-only: **every commit cites `decisions/0038`
+and/or `decisions/0040`**.
+- **Run after task 35:** 35's identity check needs today's `params_hash`.
+- **Changes `params_hash`.**
+
+**1. `params/vetoes.yaml`:** delete the `turnover:` block, and remove
+`turnover` from `evaluation.order` (0038 item 1).
+
+**2. `params/constraints.yaml`:**
+- `turnover.penalty.form: created_marginal` and `coefficient: 40.0` (0040
+  addendum). Rewrite the comment block as 0040 says, and recompute its
+  magnitude table at 40 bp.
+- Add `turnover.highlight_annualised: 2.00` and
+  `turnover.highlight_windows: [annual, rolling_1y_p95]`. Both are reporting
+  only (0038 item 4, as amended).
+- Don't touch `per_rebalance_caps`. Bump `params_version` as the repo's
+  convention requires.
+
+**3. `SUBSTRATE.md`, exactly as written in the records:**
+- §10: delete the turnover row; "Ten vetoes" becomes "Nine vetoes" (0038
+  item 2).
+- §4 Turnover row: the per-session-cap sentence (0038 item 3), and the
+  pricing text (0040 addendum, item 1).
+- §4 "Turnover handling" paragraph (0040 addendum, item 2).
+
+Nothing else in SUBSTRATE changes.
+
+**4. Code.**
+- **`AuditCell.shadow_form`:** default `None`, meaning read
+  `constraints.turnover.penalty.form` from params, as `shadow_coefficient`
+  already does. `"trailing"` and `"created"` stay explicit overrides. Keys
+  append a suffix only for an explicit override, so the task 32 and 36 grids
+  keep their keys.
+- **`harness.objective`:** accepts `created_marginal`. Put the `S(x)` of 0040
+  there as the single implementation, and have the audit rule call it. Make
+  sure `linear` is not reached by default anywhere.
+- **Turnover veto:** the check leaves `portfolio_veto_verdicts`, and every
+  reader of `vetoes.turnover.max_annualised` goes.
+- **Highlight:** add a `turnover_highlight` column: true if annual or rolling
+  p95 exceeds 2.00. Mark it in `report.py` and on the leaderboard.
+- **Golden test:** `GOLDEN_NET_IR` changes under the new default. Keep the old
+  value by pinning that test's cell to `shadow_form="trailing"` and
+  `shadow_coefficient=10.0`, which must reproduce it bit for bit. Add a
+  second golden at the new default and record its value in the receipt.
+- **Other tests:** turnover-veto tests are rewritten to assert the highlight.
+
+**5. Verify past verdicts.** For every `results/audit/A-*/cells.csv`, count the
+cells whose `veto_detail` names `turnover`. The expected count is zero; list
+any that aren't.
+
+**6. Record** the old and new `params_hash` as a dated line in the
+"Consequences" of both 0038 and 0040.
+
+    scripts/unattended.sh check-full --digest
+
+**Receipt should say:**
+- rc and commit hashes.
+- The old and new `params_hash`.
+- The step 5 count.
+- The new golden value.
+- Every test changed, and why.
+- A diff summary of `params/` and `SUBSTRATE.md` (`--ignore-cr-at-eol`).
+
+**Then stop.** No audit runs in this task. Earlier runs' twins are
+invalidated by the hash change, and any later grid re-runs its own.
+
+---
+
 ### 36. The shadow cost priced at the turnover a trade creates — override and a 60-cell grid
 
 Added 2026-09-28 by Cowork. **Owner ruling 2026-09-28** (OWNER-QUEUE L18,
@@ -1161,6 +1388,11 @@ coefficient, happen later in `params/` via 0040. **Then stop.**
 ---
 
 ### 35. The volatility-overlay halflife sweep (OWNER-QUEUE B1, L13)
+
+**0.** *(Moved to task 37's step 0 on 2026-09-29. Nothing to commit here.)*
+**Note, 2026-09-29:** after task 37, audit modes of `scripts/unattended.sh` run
+`check-full` before the grid, so `scripts/unattended.sh audit-halflife --digest`
+alone is enough. `scripts/unattended.sh check` is now the fast tier.
 
 Added 2026-09-28 by Cowork. **Owner-approved 2026-09-28** (L13: "approved, go
 ahead"). **Run after task 34, and before task 33 is released**: the h13

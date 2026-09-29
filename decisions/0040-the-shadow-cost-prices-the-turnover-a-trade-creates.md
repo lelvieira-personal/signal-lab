@@ -1,13 +1,13 @@
 # 0040 — The shadow cost prices the turnover a trade creates
 
-**Status:** decided in principle 2026-09-28 by the owner (OWNER-QUEUE L18:
-"charge each trade at the trailing turnover it would create"). **Measure
-first**, also the owner's choice on 2026-09-28: HANDOFF task 36 builds it as a
-per-cell override and runs it. The `params/` change lands only after the owner
-has read that run, in the same params change as `decisions/0038` (task 33), so
-`params_hash` moves once. Drafted by Cowork. Amends `decisions/0024`; the
-curve itself (start 0.75, reference 1.50, coefficient at the reference) is
-unchanged.
+**Status:** **decided 2026-09-29 by the owner: adopted, at 40 bp** (OWNER-QUEUE
+L18, "0040: 40bps"). The form was decided in principle on 2026-09-28 and
+measured first by HANDOFF task 36 (`A-20260929-070540`, reviewed in the Cowork
+doc `claude/tasks-34-36-review-2026-09-29.md`). It is applied by HANDOFF task 39,
+together with `decisions/0038`, so `params_hash` moves once. Drafted by
+Cowork. It amends `decisions/0024`: the start (0.75) and reference (1.50) are
+unchanged, the coefficient goes from 10 to 40 bp at the reference, and the
+pricing is by the turnover a trade creates.
 
 ## Why
 
@@ -70,3 +70,42 @@ the reference (1.50) and `κ = coefficient × 1e-4`.
   pricing should spread out the catch-up trade rather than remove the cliff.
   The owner chose not to add an exponentially weighted window (L18 option b)
   for now; task 36's lag-53 autocorrelation will show whether that holds up.
+
+## Addendum 2026-09-29: the measurement and the ruling
+
+**Task 36** (`A-20260929-070540`, against the trailing control
+`A-20260928-151055`, same hashes):
+- The largest single-week trade is at most 0.84× NAV (was up to 2.00×), lower
+  in 60 of 60 pairs.
+- At 40 bp, annual turnover is 130% at IC 0.35 and 164% at IC 0.70 (was 160%
+  and 182%).
+- There is no detectable change in net IR (paired means −0.075 to +0.030, sd
+  0.08-0.19).
+- The annual echo is down to 0.24-0.30 at lag 52 (was 0.73-0.78 at lag 53). It
+  moved to lag 52 by construction and is not gone. That is the "Open" cliff
+  above, now a moderate rhythm rather than lumps.
+
+**The owner's ruling, 2026-09-29: adopt `created`, coefficient 40 bp.**
+
+**The exact `SUBSTRATE.md` edits, applied by task 39 citing this record and
+0038:**
+1. **§4, Turnover row.** Replace "zero at 75%, 10bp at 150%, rising without
+   bound (§8, `decisions/0017`, `0018`)" with "zero at 75%, 40bp at 150%,
+   rising without bound, **charged at the trailing turnover each trade
+   creates**, so a lump costs more than the same trading spread out (§8,
+   `decisions/0017`, `0018`, `0040`)". The per-session-cap sentence is
+   replaced as 0038 item 3 says.
+2. **§4, the "Turnover handling" paragraph.** Replace "A one-sided linear
+   penalty on trailing one-year turnover, priced as a shadow cost in basis
+   points (`decisions/0018`), starts at 75%, reaches 10bp at 150% and keeps
+   rising" with "A one-sided shadow cost in basis points (`decisions/0018`),
+   linear in trailing one-year turnover, starts at 75%, reaches 40bp at 150%
+   and keeps rising. Each trade is charged the curve at the trailing turnover
+   it creates, with the marginal unit paying the curve at the post-trade level
+   (`decisions/0040`)".
+
+**`params/constraints.yaml`:** `turnover.penalty.form: created_marginal`,
+`coefficient: 40.0`, and the comment block rewritten to describe items 1 and 2
+of "The ruling, made precise". The magnitude table in that comment is
+recomputed at 40 bp.
+
