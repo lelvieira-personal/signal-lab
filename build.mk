@@ -29,9 +29,15 @@
 #   make jpmaqs-name-search                      name search of the cached catalogue for H-2026-0004, 0005, 0010
 #   make fdr-study                                Monte Carlo: FDR vs FWER on the registry's shape, no engine runs (HANDOFF task 34)
 #   make governance SUBSTRATE section 2, checked mechanically
+#   make check         fast tier -- wiring checks only (HANDOFF task 37, OWNER-QUEUE D2)
+#   make check-full    the definition of done for src/, scripts/, tests/, vetoes/, params/ -- the whole suite
+#   make test-slow     model-validity checks only: the engine, an optimiser solve, a Monte Carlo
 #
 # uv manages Python 3.12 and the locked dependency set; nothing is installed
-# into the system interpreter. `make check` is the definition of done.
+# into the system interpreter. `make check-full` is the definition of done for
+# any commit touching src/, scripts/, tests/, vetoes/ or params/; `make check`
+# (the fast tier) is enough for HANDOFF.md, OWNER-QUEUE.md, decisions/,
+# hypotheses/ or docs (HANDOFF task 37, OWNER-QUEUE D2).
 
 # The virtualenv lives OUTSIDE the repo by default. This repo is normally
 # checked out on the Windows filesystem and driven from WSL through /mnt/c,
@@ -54,7 +60,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
+.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -74,6 +80,12 @@ lint: ## ruff check and format check
 test: ## the full suite
 	$(PYTEST) -q
 
+test-fast: ## wiring checks only -- excludes slow (model-validity) and holdout (HANDOFF task 37)
+	$(PYTEST) -q -m "not slow and not holdout"
+
+test-slow: ## model-validity checks only: the engine, an optimiser solve, a Monte Carlo (HANDOFF task 37)
+	$(PYTEST) -q -m slow
+
 holdout: ## the holdout lock, run explicitly and by name
 	@echo "--- holdout lock (SUBSTRATE sections 2 and 3) ---"
 	$(PYTEST) -m holdout -v
@@ -85,9 +97,13 @@ ifndef CI
 	@$(GOV) --hooks
 endif
 
-check: governance lint test holdout ## governance, lint, tests, and the holdout lock
+check: governance lint test-fast holdout ## fast tier: governance, lint, wiring checks, the holdout lock
 	@echo
 	@echo "make check: OK"
+
+check-full: governance lint test holdout ## full tier: governance, lint, the WHOLE suite, the holdout lock
+	@echo
+	@echo "make check-full: OK"
 
 report: ## render the synthetic report to leaderboard.html
 	$(PY) --group dev python render/static_report.py --synthetic -o leaderboard.html

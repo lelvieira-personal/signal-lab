@@ -41,7 +41,10 @@ package = false   # a lab, not a library; src/ is put on sys.path, nothing is in
 pythonpath = ["src", "."]
 testpaths = ["tests"]
 filterwarnings = ["error::FutureWarning"]
-markers = ["holdout: the holdout lock tests, run explicitly by `make check`"]
+markers = [
+    "holdout: the holdout lock tests, run explicitly by `make check`",
+    "slow: model-validity -- runs the engine or a Monte Carlo (HANDOFF task 37, OWNER-QUEUE D2)",
+]
 
 [tool.ruff]
 line-length = 100

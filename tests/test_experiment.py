@@ -82,15 +82,18 @@ def validation(panel, params):
     return validate_pipeline(panel, "R-test-validate", params, target_ir=0.5, target_te=0.04)
 
 
+@pytest.mark.slow
 def test_validation_recovers_the_planted_ir_exactly(validation):
     assert validation.metrics["ir_recovery_error"] < 1e-9
     assert validation.metrics["net_ir"] == pytest.approx(validation.metrics["planted_ir"])
 
 
+@pytest.mark.slow
 def test_validation_is_tagged_so_it_cannot_rank(validation):
     assert validation.status == "validation"
 
 
+@pytest.mark.slow
 def test_validation_populates_every_artifact_the_report_needs(validation):
     expected = {
         "weights",
@@ -107,6 +110,7 @@ def test_validation_populates_every_artifact_the_report_needs(validation):
         assert isinstance(frame, pd.DataFrame) and not frame.empty, name
 
 
+@pytest.mark.slow
 def test_validation_records_both_turnover_conventions(validation):
     turnover = validation.artifacts["turnover"]
     assert {"traded_notional", "one_way"} == set(turnover.columns)
@@ -115,11 +119,13 @@ def test_validation_records_both_turnover_conventions(validation):
     ), "decisions/0017: traded notional is twice the one-way figure, always"
 
 
+@pytest.mark.slow
 def test_validation_metrics_never_include_gross_ir(validation):
     assert not any("gross" in k for k in validation.metrics), "decisions/0004"
     assert "cost_drag" in validation.metrics
 
 
+@pytest.mark.slow
 def test_the_vetoes_run_on_the_validation_path_and_bite(validation, params):
     """
     The planted path trades ~500% of NAV a year, so the turnover veto must kill
@@ -134,6 +140,7 @@ def test_the_vetoes_run_on_the_validation_path_and_bite(validation, params):
     assert verdicts["positions"].passed
 
 
+@pytest.mark.slow
 def test_the_veto_inputs_that_need_a_signal_fail_closed(validation, params):
     """
     A planted weight path has no signal behind it, so coverage, lookahead and

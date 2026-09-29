@@ -222,6 +222,7 @@ def test_the_knee_grid_pairs_a_live_cell_with_its_baseline_at_rungs_outside_para
 # --- section 5 --------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_the_shuffle_switched_off_reproduces_todays_score_and_net_ir_bit_for_bit(
     weekly, benchmark, small_universe
 ):
@@ -482,6 +483,7 @@ def test_the_power10_preflight_reads_a_cells_csv_from_before_the_shuffle_column(
 # --- HANDOFF task 32: the shadow-cost override -------------------------------
 
 
+@pytest.mark.slow
 def test_shadow_coefficient_none_matches_params_exactly(small_universe):
     universe, params = small_universe
     default_row, _ = run_cell(universe, AuditCell(0.20, 13, 0), params, solver="scipy")
@@ -492,6 +494,7 @@ def test_shadow_coefficient_none_matches_params_exactly(small_universe):
     assert same["shadow_bps_mean"] == pytest.approx(default_row["shadow_bps_mean"])
 
 
+@pytest.mark.slow
 def test_a_different_shadow_coefficient_moves_weights_not_costs(small_universe):
     universe, params = small_universe
     cheap, _ = run_cell(
@@ -533,6 +536,7 @@ def test_the_friction_grid_is_60_live_cells_outside_params(params):
 # --- HANDOFF task 36: the created-turnover shadow, decisions/0040 -----------
 
 
+@pytest.mark.slow
 def test_the_trailing_default_is_unchanged_bit_for_bit(small_universe):
     """`AuditCell.shadow_form`'s default must leave every cell before this task alone."""
     universe, params = small_universe
@@ -554,6 +558,7 @@ def test_a_shadow_form_cell_says_what_it_is_and_existing_keys_are_unchanged():
         AuditCell(0.35, 13, 0, shadow_form="quadratic")
 
 
+@pytest.mark.slow
 def test_at_coefficient_zero_created_equals_trailing(small_universe):
     """A coefficient of zero prices no shadow under either form."""
     universe, params = small_universe
@@ -574,6 +579,7 @@ def test_at_coefficient_zero_created_equals_trailing(small_universe):
     assert trailing["shadow_bps_mean"] == pytest.approx(0.0, abs=1e-9)
 
 
+@pytest.mark.slow
 def test_the_created_form_actually_moves_weights_relative_to_trailing(small_universe):
     """A positive control: at a real coefficient the two forms must differ."""
     universe, params = small_universe

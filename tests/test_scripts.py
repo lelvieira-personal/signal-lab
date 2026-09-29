@@ -185,6 +185,7 @@ def test_the_cycle_records_the_specific_blocked_reason(tmp_path, capsys):
     assert set(runs["status"]) <= {"blocked:data", "blocked:no_signal_module"}
 
 
+@pytest.mark.slow
 def test_the_validation_run_is_recorded_and_tagged(tmp_path, capsys):
     """
     The end-to-end proof: a planted path through engine, vetoes, metrics and

@@ -276,6 +276,7 @@ def test_the_exposure_rule_is_called_per_date_not_once(params):
 # --- alternate rebalance days are averaged, never selected -------------------
 
 
+@pytest.mark.slow
 def test_alternate_days_are_averaged_and_every_day_is_reported(panel, params, planted):
     from signal_lab.loaders.synthetic import make_benchmark
 
@@ -298,6 +299,7 @@ def test_alternate_days_are_averaged_and_every_day_is_reported(panel, params, pl
 # --- the planted recovery test, SUBSTRATE section 16 phase 1 -----------------
 
 
+@pytest.mark.slow
 def test_the_engine_recovers_a_planted_information_ratio(planted, planted_path):
     """
     "The engine must recover a planted IR of 0.5 within its own confidence
@@ -317,6 +319,7 @@ def test_the_engine_recovers_a_planted_information_ratio(planted, planted_path):
     assert path.active_returns.std() * np.sqrt(52) == pytest.approx(truth.target_te, abs=1e-6)
 
 
+@pytest.mark.slow
 def test_the_recovery_test_would_fail_if_costs_were_dropped(panel, planted):
     """
     The control on the test above. If the engine stopped charging costs, the net
@@ -342,6 +345,7 @@ def test_the_recovery_test_would_fail_if_costs_were_dropped(panel, planted):
 # --- feeding the vetoes ------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_a_completed_path_populates_the_veto_inputs(panel, params, planted_path):
     from vetoes.rules import veto_positions, veto_turnover
 
@@ -356,6 +360,7 @@ def test_a_completed_path_populates_the_veto_inputs(panel, params, planted_path)
     )
 
 
+@pytest.mark.slow
 def test_the_summary_reports_cost_drag_and_never_gross_ir(planted_path):
     summary = planted_path.summary()
     assert "cost_drag" in summary and summary["cost_drag"] > 0

@@ -149,6 +149,7 @@ def _complete_null_replications(n_reps, m, k, alpha, q, rng):
     return fwer_holm / n_reps, fwer_rw / n_reps, fdp_bh / n_reps, fdp_by / n_reps
 
 
+@pytest.mark.slow
 def test_realised_error_rates_stay_within_mc_error_of_their_nominal_level():
     rng = np.random.default_rng(4)
     alpha, q = 0.05, 0.05

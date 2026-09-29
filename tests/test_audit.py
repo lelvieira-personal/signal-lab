@@ -244,6 +244,7 @@ def small_universe(params, panel):
     return build_universe(trimmed, universe.legs, universe.leg_weights, slim), slim
 
 
+@pytest.mark.slow
 def test_a_cell_runs_the_whole_chain_and_reports_what_bound(small_universe):
     universe, params = small_universe
     row, path = run_cell(universe, AuditCell(0.10, 13, 0), params, solver="scipy")
@@ -262,6 +263,7 @@ def test_a_cell_runs_the_whole_chain_and_reports_what_bound(small_universe):
     assert row["bias_n"] > 0 and np.isfinite(row["bias_stat"])
 
 
+@pytest.mark.slow
 def test_the_oracle_beats_a_blind_signal(small_universe):
     """
     The weakest property the ladder must have: perfect foresight through this
@@ -274,6 +276,7 @@ def test_the_oracle_beats_a_blind_signal(small_universe):
     assert oracle["net_ir"] > blind["net_ir"] + 0.5
 
 
+@pytest.mark.slow
 def test_a_blind_signal_hugs_the_benchmark(small_universe):
     """
     IC = 0 is the control: no information, so no tracking error worth paying
@@ -297,6 +300,7 @@ def test_a_blind_signal_hugs_the_benchmark(small_universe):
     assert blind["turnover_annual"] < 0.3, "nothing to trade on means little trading"
 
 
+@pytest.mark.slow
 def test_the_turnover_cap_binds_and_costs_return(small_universe):
     """
     A hard annual wall must materially reduce trading -- that is what the
@@ -331,6 +335,7 @@ def test_the_turnover_cap_binds_and_costs_return(small_universe):
         )
 
 
+@pytest.mark.slow
 def test_a_dearer_spread_makes_the_solver_trade_less(small_universe):
     """
     Note what is NOT asserted: that the dearer cell has a higher cost drag. It
@@ -420,6 +425,7 @@ def test_a_partial_year_is_not_judged_as_a_completed_one(params):
     assert rule.trailing_annual_turnover() == pytest.approx(0.03 * 52)
 
 
+@pytest.mark.slow
 def test_an_early_over_trade_does_not_block_a_later_one(small_universe):
     """
     The failure the owner named: "we rebalanced too much on previous windows and
@@ -461,6 +467,7 @@ def test_an_early_over_trade_does_not_block_a_later_one(small_universe):
     )
 
 
+@pytest.mark.slow
 def test_the_per_session_cap_holds_and_the_annual_figure_still_moves(small_universe):
     """
     The owner's first requirement: no single session takes too much of the
@@ -486,6 +493,7 @@ def test_the_grid_sweeps_the_per_session_cap_because_no_value_is_chosen(params):
     assert all(c.per_rebalance_cap == default for c in cells if c.tag == "base")
 
 
+@pytest.mark.slow
 def test_rolling_one_year_turnover_is_reported_for_the_budget_question(small_universe):
     """
     A full-sample mean cannot say whether one conviction-rich year ran hot, so
@@ -574,6 +582,7 @@ def test_a_bar_cleared_at_the_lowest_rung_is_printed_as_a_bound():
 # --- the audit is not a run --------------------------------------------------
 
 
+@pytest.mark.slow
 def test_the_audit_writes_no_run_to_the_results_store(small_universe, store):
     """
     SUBSTRATE section 2 and decisions/0023: the planted signal is a lookahead by
@@ -586,6 +595,7 @@ def test_the_audit_writes_no_run_to_the_results_store(small_universe, store):
     assert store.summary()["n_runs"] == 0
 
 
+@pytest.mark.slow
 def test_the_report_names_the_panel_and_the_params_it_ran_on(small_universe, tmp_path):
     from signal_lab.audit.report import write_outputs
 
@@ -1084,6 +1094,7 @@ def test_risk_calibration_does_not_read_a_year_too_short_to_judge():
 # --- decisions/0031 and 0033: what a base cell now reports ---------------------------
 
 
+@pytest.mark.slow
 def test_a_base_cell_reports_the_transfer_coefficient_the_left_tail_and_the_pearson_ic(
     small_universe,
 ):
