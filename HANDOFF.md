@@ -56,12 +56,19 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-28, tasks 0-31 are done. Queued, in order: 32** (friction
-sweep, 60 cells), **33** (apply `decisions/0038`: no turnover veto), **34**
-(multiple-testing module plus the FDR-vs-FWER Monte Carlo; no engine runs).
-`decisions/0038` and `0039` and both queue files are in the working tree,
-uncommitted. **Task 32 commits them first** (see its step 0). Receipts are in
-`## Done`. Task 25's power audit is `A-20260924-194115`, read in
+**As of 2026-09-28 (evening), tasks 0-32 are done. Queued, in order: 34**
+(multiple-testing module plus the FDR-vs-FWER Monte Carlo; no engine runs),
+then **36** (the created-turnover shadow cost as an override, 60 cells,
+`decisions/0040`), then **35** (the volatility-overlay halflife sweep,
+OWNER-QUEUE B1/L13, about 240 cells, an overnight run). 36 runs before 35 on
+purpose: its code touches the solver, and 35's identity check against the knee
+run catches any change to the default path. **Task 33 is ON HOLD**: the owner is holding the
+`decisions/0038` ruling (OWNER-QUEUE L17). Do not start it until this line
+says otherwise. Task 34's step 0 commits Cowork's queue edits first. Receipts
+are in `## Done`.
+
+*(Earlier note, kept for the record: as of 2026-09-28 morning, tasks 0-31 were
+done and 32, 33, 34 were queued.)* Task 25's power audit is `A-20260924-194115`, read in
 `results/audit/A-20260924-194115/power-on-one-history-2026-09-24.md`. H-2026-0001's
 JPMaQS names were renamed 2026-09-24 (`33b84f4`).
 
@@ -932,6 +939,11 @@ Interpretation is Cowork's and the owner's. **Then stop.**
 
 ### 33. Apply `decisions/0038`: turnover is disclosed, never vetoed
 
+> **ON HOLD, 2026-09-28 (Cowork, at the owner's instruction).** The owner is
+> holding the 0038 ruling until he has read the friction sweep (OWNER-QUEUE
+> L17, L18). **Do not run any step of this task**, including step 0, whose
+> commit has moved to task 34's step 0. Cowork will lift or re-issue it.
+
 Added 2026-09-28 by Cowork. **Owner ruling 2026-09-28** (OWNER-QUEUE B2 and
 B3). This touches `SUBSTRATE.md`, `params/` and `vetoes/`, all owner-only.
 **Every commit cites `decisions/0038`**, which is in the working tree,
@@ -961,6 +973,15 @@ verdict count from step 2, and the tests that changed and why. **Then stop.**
 ---
 
 ### 34. FDR against FWER: build the multiple-testing module, then a Monte Carlo on the registry's shape
+
+**0. Commit first, alone** (added 2026-09-28 evening; this replaces task 33's
+step 0, which is on hold): `decisions/0039-the-lab-screens-it-does-not-confirm.md`,
+`decisions/0040-the-shadow-cost-prices-the-turnover-a-trade-creates.md`,
+`OWNER-QUEUE.md` and `HANDOFF.md`, with the message `decisions: 0039 gates
+adopted, 0040 created-turnover shadow (in principle); queue: hold 33, add 35-36,
+L12 corrected, L17-L18 (owner 2026-09-28)`. Nothing under `params/`, `vetoes/` or `SUBSTRATE.md` is in this
+commit. Verify with `git diff --cached --ignore-cr-at-eol --stat` before
+committing.
 
 Added 2026-09-28 by Cowork. **Owner-approved 2026-09-28** (OWNER-QUEUE L16).
 **No engine runs:** a statistics-level simulation, calibrated on task 30, that
@@ -1041,6 +1062,161 @@ tolerance and why. Interpretation is Cowork's and the owner's. **Then stop.**
 
 ---
 
+### 36. The shadow cost priced at the turnover a trade creates — override and a 60-cell grid
+
+Added 2026-09-28 by Cowork. **Owner ruling 2026-09-28** (OWNER-QUEUE L18,
+`decisions/0040`, committed in task 34's step 0). **Measure first:** this adds
+a per-cell override, like task 32's `shadow_coefficient`. **Nothing in
+`params/`, `vetoes/` or `SUBSTRATE.md` changes.** Run after task 34 and before
+task 35. About 60 cells. The quadratic term may make each solve slower than
+task 32's ~84 s, so budget 1.5-2.5 h.
+
+**Read first:** `decisions/0040`, especially "The ruling, made precise". The
+formula there is the specification. If anything in it can't be implemented as
+written, stop and report; don't approximate.
+
+**Build.**
+
+1. **`AuditCell.shadow_form: str = "trailing"`**, accepting `"trailing"` (today)
+   and `"created"` (0040). Append `_created` to `key()` only when it isn't
+   `"trailing"`, after any `_shadowNN`, so existing keys don't change.
+2. **In `_OptimiserRule`, for `"created"` only:**
+   - `P` is the sum of the last `W−1` entries of `turnover_log`, with missing
+     entries filled at `constraints.turnover.target_annualised / ppy`.
+     `W = int(round(ppy))`.
+   - Take the shadow **out** of the linear cost vector. The vector keeps the
+     real half-spread only.
+   - Pass the solver a convex shadow term instead:
+     `S(x) = κ/(2(r−s)) · (W/ppy) · [pos(T(x) − s)² − pos(T(0) − s)²]`,
+     with `x = Σ|trade|`, `T(x) = (P + x)·ppy/W` and
+     `κ = coefficient × 1e-4` (coefficient from the cell override or
+     `params/`).
+   - The first rebalance stays free, as today.
+   - `"trailing"` must follow exactly the code path it does now.
+3. **In `portfolio/long_only.solve`:** add an optional argument, for example
+   `shadow_quadratic: tuple[float, float] | None` carrying `(a, b)` for
+   `S = a·pos(b + x)²`. The constant `−a·pos(b)²` doesn't affect the solve.
+   - **cvxpy:** `cp.square(cp.pos(b + cp.sum(cp.abs(trade))))`. Check that
+     the problem is DCP, and put `a` into the same bps scaling as the other
+     objective terms.
+   - **scipy reference:** the same term on `x = Σ(u + v)`, with its analytic
+     gradient `2a·pos(b + x)`.
+   - `None` must leave both paths byte-for-byte as they are.
+4. **Diagnostics:**
+   - per rebalance: `shadow_bps` = the marginal shadow at `T(x)` in bp, and
+     `shadow_paid_bps` = `S(x)/x` in bp (0 when `x = 0`);
+   - per cell: `turnover_autocorr_lag26`, `_lag52`, `_lag53` and `_lag78` of
+     `path.turnover`, for **every** cell (a new column is fine: keys don't
+     change).
+5. **Grid `friction_created`** in `ladder.py`, as module constants: h13, IC
+   0.35 and 0.70, seeds 0-9, coefficient 10, 20 and 40, `shadow_form="created"`,
+   live cells only, **60 cells**. Add `make audit-friction-created` and extend
+   the `unattended.sh` whitelist.
+6. **Preflight:** the control run `A-20260928-151055` (task 32) exists, both
+   hashes match it, and it has the live cell at every (IC, seed, coefficient).
+
+**Tests:**
+- The `"trailing"` default gives identical `net_ir` to before on the small
+  universe, and existing keys are unchanged.
+- `shadow_quadratic=None` leaves both solvers' results unchanged.
+- At a coefficient of 0, `"created"` equals `"trailing"`.
+- **The shadow term is convex in trade size:** for fixed `P`, the solver's
+  shadow on two trades of size x/2 in consecutive weeks is less than on one
+  trade of size x. Test the function `S`, not an engine run.
+- **Prefill:** at rebalance 2, `P` equals `(W−2)·target/ppy` plus the first
+  logged trade.
+- The derivative of `S` at `x` equals the 0024 curve at `T(x)`, to 1e-12.
+
+```
+scripts/unattended.sh check --digest
+scripts/unattended.sh audit-friction-created --digest
+```
+
+**Receipt should say:**
+- rc, runtime, run id, and the commit hash.
+- Whether the hashes match `A-20260928-151055`, and that `params/` is
+  unchanged.
+- **Per (IC, coefficient), median and range over 10 seeds, with the same
+  figures from `A-20260928-151055` beside them:**
+  - net IR and gross IR;
+  - cost drag;
+  - annual turnover;
+  - rolling one-year p95 and max;
+  - `turnover_per_rebalance_max`, plus the count of cells with a week of 1.5x
+    NAV or more and of 1.95x or more;
+  - `turnover_autocorr_lag53` and lag 52;
+  - `shadow_bps_mean` and `shadow_paid_bps` mean;
+  - `te_p95` and realised IC.
+- **Paired by (IC, seed, coefficient):** created minus trailing, for net IR,
+  annual turnover and `turnover_per_rebalance_max` (mean, sd, number
+  positive).
+- Counts above 200%, annual and rolling max, for each arm.
+- `risk_calibration` fails for each arm.
+- Solver health: `inaccurate_share` max, `infeasible_te_share` max, and
+  anything not solved by CLARABEL.
+
+Interpretation is Cowork's and the owner's. Adopting the form, and choosing the
+coefficient, happen later in `params/` via 0040. **Then stop.**
+
+---
+
+### 35. The volatility-overlay halflife sweep (OWNER-QUEUE B1, L13)
+
+Added 2026-09-28 by Cowork. **Owner-approved 2026-09-28** (L13: "approved, go
+ahead"). **Run after task 34, and before task 33 is released**: the h13
+no-overlay arm checks against the knee run under today's `params_hash`,
+which task 33 would change. About 240 cells at the friction sweep's ~84 s
+each, so **5.5-6 h**. The h4 cells may run slower. Treat it as an overnight run.
+
+**Why.** `risk_calibration` fails 23-47% of cells in every grid, on 2008, live
+and baseline alike (L13). In the friction sweep it failed 21 of 60, with 2008
+the worst year in 50. `decisions/0030` found a scalar 26-week overlay took the
+worst-year bias from 1.39-2.21 to 1.17-1.61 (0 fails of 11). That was tested
+at one horizon, two IC rungs and one halflife. B1 is retired only by a sweep
+across halflives and horizons.
+
+**This does not turn the overlay on.** It sets `AuditCell.vol_halflife` and
+`vol_overlay` per cell, which already exist. Nothing in `params/` reads them.
+The standing refusal below stands.
+
+**Build.** Add a `halflife` grid to `ladder.py` as module constants (nothing in
+`params/`): live cells only, IC **0.35 and 0.70**, seeds **0-9**, horizons
+**4, 13 and 26**, and `vol_halflife` in **None, 13, 26, 52** with
+`vol_overlay="scalar"` whenever `vol_halflife` is set. Constraints and costs
+are the knee grid's live cells' (`per_rebalance_cap` from
+`audit.per_rebalance_cap_default`, no turnover cap, cost multiplier 1.0, shadow
+coefficient from `params/`). That's 2 x 10 x 3 x 4 = **240 cells**. Keys already
+encode the overlay (`_vhl26scalar`), and a `None` cell's key is unchanged. Add
+`make audit-halflife`, extend the `unattended.sh` whitelist, and add a
+preflight like `_friction_preflight`: the knee run `A-20260922-005316` exists,
+both hashes match, and it has the live h13 cell at every (IC, seed).
+
+**Test:** the grid is 240 unique live keys. Every `vol_halflife=None` cell at
+h13 has the same key and constraints as the knee run's live cell. A
+`vol_halflife` cell is `scalar`.
+
+    scripts/unattended.sh check --digest
+    scripts/unattended.sh audit-halflife --digest
+
+**Receipt should say:**
+- rc, runtime, run id, commit hash.
+- **The h13 `None` arm against the knee run `A-20260922-005316`:** live
+  `net_ir` identical, cell by cell, for all 20 (IC, seed) pairs, and whether the
+  hashes match. **Stop and report if not.**
+- Per (horizon, halflife), pooled over both ICs (20 cells), and separately per
+  IC: `risk_calibration` fails (count), `bias_worst_annual` median and max, how
+  many cells have 2008 as the worst year, full-sample `bias_stat` median,
+  `te_p95` median, `te_p95_to_budget` median, net IR median and range, annual
+  turnover median, cost drag median.
+- Paired by (IC, seed, horizon): net IR at each halflife minus net IR at `None`
+  (mean, sd, number positive).
+- Any cell with `inaccurate_share` > 0.01 or `infeasible_te_share` > 0.
+
+Interpretation is Cowork's and the owner's. Whether the overlay becomes policy
+is B1, an owner decision. **Then stop.**
+
+---
+
 ## Not queued yet, and what each is waiting on
 
 Rewritten 2026-09-22 by Cowork; the earlier text predated `decisions/0035` being
@@ -1060,8 +1236,13 @@ of reach on a single history regardless, that changes what B is for.
 0.022 against an acceptance case of 1.0, with `w` and `w_baseline` nearly
 orthogonal (cos 0.011). No task until a hypothesis for it is written.
 
-**The volatility overlay halflife sweep (OWNER-QUEUE B1).** Not queued; see L13.
-It stays a standing refusal below until the owner decides.
+**The volatility overlay halflife sweep (OWNER-QUEUE B1).** Queued 2026-09-28 as
+task 35 (owner's L13 ruling). Turning the overlay **on** stays a standing
+refusal below until the owner rules B1.
+
+**The shadow cost's 53-week echo (OWNER-QUEUE L18).** Ruled 2026-09-28 (option
+a, `decisions/0040`) and queued as task 36. Adopting it into `params/` waits on
+task 36 and lands with task 33.
 
 **The validator (0034).** Not decided by the owner. Do not build it.
 

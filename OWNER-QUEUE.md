@@ -26,40 +26,73 @@ Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
   pass, a confirmation standard. A screen usually controls the *share* of false
   passes (FDR, SUBSTRATE §9). Keeping FWER means screening at a confirmation
   standard, with 35-45% power at IC 0.70 before the stepdown.
-- **What confirms a candidate.** A live paper track of fixed length, the owner's
-  economic sign-off, or cross-market replication. The holdout cannot (L4).
+  **Owner, 2026-09-28: "most likely FDR", to be confirmed after task 34's
+  FDR-vs-FWER numbers are read. Not ruled.**
+- ~~**What confirms a candidate.**~~ **Ruled 2026-09-28:** replication and
+  economic intuition are the gates, both required. A paper track and a live
+  allocation are not. Recorded in `decisions/0039`. ~~Whether to adopt Cowork's
+  operational proposal~~ **Ruled 2026-09-28: "yes, adopt all three"**: a thesis
+  synthesis that lists what must be true, a replication target fixed before
+  looking, and named rival explanations. Recorded in `decisions/0039`.
 L4's holdout-power sentence should land in SUBSTRATE §3 in the same edit as
 0039's paragraph.
 **Partly retirable by measuring:** HANDOFF task 34 (queued 2026-09-28)
 measures the power and the realised error of FWER against FDR on the registry's
 shape. The choice stays the owner's.
 
-### L13. `risk_calibration` vetoes a quarter to a half of every grid, on 2008
-Added 2026-09-22 by Cowork. Bears on B1, B4, `decisions/0030` and SUBSTRATE §10.
+### L17. How wide the 200% turnover highlight reaches (`decisions/0038`, held)
+Added 2026-09-28 by Cowork. **Owner, 2026-09-28: holding the 0038 ruling until
+he has read the friction sweep.** HANDOFF task 33 is on hold until then.
 
-Share of cells with `bias_worst_annual` > 1.72, from each run's `cells.csv`:
-`A-20260919-155557` base 23% (frictionless 100%); knee 47%, live and baseline
-alike; full baseline grid 26%; baseline pilot 30%. **2008 is the worst year in
-every failure of the three newer runs and in 240 of 260 run-wide in the first.**
-A correctly specified model at the p99 fails about 1%. Kurtosis (B4) does not
-rescue it: at the κ = 4 threshold of 1.92, 3-8% still fail. Live and baseline
-fail together, so it is the risk model in 2008, not the signal.
+0038 applies the 200% highlight to both the annual figure and the rolling
+one-year max. The sweep (`A-20260928-151055`, `claude/friction-sweep-2026-09-28.md`)
+shows the rolling max above 200% in **60 of 60** cells, even at 40 bp, and the
+rolling p95 above 200% in 60 of 60 as well. Much of that is mechanical: a single
+lumpy rebalance of up to 200% of NAV is enough by itself to push any one-year
+window to 200% (see L18). On the annual figure the highlight discriminates:
+20 of 20 cells at 10 bp, 11 of 20 at 20 bp, 0 of 20 at 40 bp.
 
-`decisions/0030` foresaw it: 5 of 17 base cells failed without the volatility
-overlay, 0 of 11 with it.
+**The decision:** keep both windows as 0038 reads it, narrow it to the annual
+figure, or defer the rolling-window part until L18 is settled.
 
-**Why it is live.** Under SUBSTRATE v0.5 every real hypothesis carries roughly a
-25-45% chance of dying on 2008 whatever its signal. The overlay (B1) is opt-in,
-tested at one halflife and one horizon, and a standing refusal in `HANDOFF.md`.
+### L18. The shadow cost echoes on a 53-week cycle (`decisions/0024`'s design; ruled in principle, `decisions/0040`)
+Added 2026-09-28 by Cowork, from the friction sweep. Bears on B2, 0038 and
+L17.
 
-**Update 2026-09-25:** task 25's power grid fails `risk_calibration` in 32 of
-80 shuffles and 3 of 4 live twins — the same pattern, live and null together.
+The shadow cost per unit traded is set from the **trailing 52 weeks** of
+turnover, excluding the current trade, and is flat in the size of the current
+trade. So a large trade raises the cost for exactly 52 weeks, and when it rolls
+out of the window the cost falls off a cliff and the backlog trades at once,
+which re-enters the window. Measured on the persisted weights: the
+autocorrelation of weekly turnover **at lag 53 is 0.73-0.78 at 40 bp**, 0.23-0.47
+at 20 bp and 0.15-0.23 at 10 bp, against about 0 at lags 26, 51, 52 and 78.
+The largest single-week trades line up a year apart (e.g. 2015-08-07,
+2016-08-12, 2017-08-18). The median maximum single-week trade **rises** with
+friction, from about 1.0x NAV at 10 bp to 1.8-1.9x at 40 bp, and 7 of 20 cells at
+40 bp have a week at 1.95x NAV or more, close to a full book swap.
 
-**The decision:** queue B1's halflife sweep now as critical-path work, or accept
-and disclose the veto's 2008 behaviour. `vetoes/` and `params/` are owner-only.
+**Why it is yours:** B2 ruled out a per-rebalance cap on the premise that
+friction restrains trading. As built, more friction makes trading *lumpier*.
+The shadow curve is `decisions/0024`, an owner decision. The measurement is on
+the audit's optimiser rule (`audit/ladder.py`, `_OptimiserRule._shadow`). Its
+docstring says `harness.objective.turnover_penalty` uses the same curve, but
+Cowork has not checked whether that path has the same window edge.
 
-**Partly retirable by measuring:** the sweep shows whether an overlay brings the
-fail rate near 1%. Adopting it stays the owner's call.
+**Options (Cowork's, unmeasured):** (a) make the cost depend on the trade
+itself, so the trade is priced at the trailing turnover it creates. That makes
+the cost convex in trade size, and lumps become expensive. (b) Replace the
+hard 52-week window with an exponentially weighted one, so there is no cliff.
+(c) Both. **Retirable in part by measuring:** a small grid with (a) and (b) at
+10/20/40 bp would show whether the echo goes and what it does to net IR.
+
+**Ruled 2026-09-28 (owner): option (a)**, "charge each trade at the trailing
+turnover it would create". Also chosen by the owner: **measure first** (a
+per-cell override, HANDOFF task 36, before anything in `params/`); **the
+marginal unit** pays the curve at the post-trade turnover, so the cost is the
+integral of the 0024 curve; and **missing history is prefilled at the 100%
+target**. Recorded in `decisions/0040`. **Still open:** whether to adopt it into
+`params/` after task 36, and at what coefficient. That would land with 0038's
+params change (L17), so `params_hash` moves once.
 
 ### L12. Is the registry the right shape, now that the stepdown is the bar?
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
@@ -71,19 +104,29 @@ footnote at the end of a pipeline nobody had run. It is now the gate.
 
 The registry was written before that was true, and it does not sit well against
 it. **`effective_bets_active` is 11.67 across 95 series.** Of twelve
-hypotheses, **five target `region` and four target `credit`.** A stepdown learns
-dependence from the block bootstrap, so correlated tests do not pay full
-multiplicity — but they do not buy twelve independent shots either. Twelve
-registrations concentrated on two axes over roughly twelve effective bets means
-the **family definitions do most of the work**, and nobody has chosen them
+hypotheses, **four target `region`, three `credit` and two `duration`; the
+other three (`cash`, `conviction`, `real_nominal`) are one each.** Each of the
+twelve sits in its own SUBSTRATE §6 family (`growth`, `inflation`, …,
+`conviction`), so "family level first" is trivial today: the dependence lives
+in the shared *target axis*, not in the family. A stepdown learns dependence
+from the block bootstrap, so correlated tests do not pay full multiplicity,
+but they do not buy twelve independent shots either. Twelve registrations
+concentrated on three axes over roughly twelve effective bets means **how the
+tests are grouped does most of the work**, and nobody has chosen that grouping
 against this constraint.
+
+*Corrected 2026-09-28 by Cowork at the owner's request. The earlier text said
+five `region` and four `credit`, and treated the target axis as the family.
+Counts are from `target_axis` and `family` in `hypotheses/pending/*.yaml` as of
+`076c80e`.*
 
 Two decisions inside it:
 
 - **How families are defined.** SUBSTRATE §6 lists eleven, and the stepdown runs
-  at family level first. Whether `region` with five entrants and `credit` with
-  four are one family each, or should be split or merged, decides most of what
-  survives.
+  at family level first. With one hypothesis per family that step does
+  nothing. Whether the four `region` tests and the three `credit` tests should
+  instead be grouped as families (and the stepdown run on those groups) decides
+  most of what survives.
 - **How many hypotheses per family per cycle.** `params/agents.yaml` already
   carries the knob (`max proposals per family per cycle`). It was sized as a
   cost lever (`decisions/0007`); it is now also a statistical one.
@@ -140,6 +183,8 @@ differences went the right way.
 
 **Retired by:** a halflife sweep across horizons. 26 weeks was the only value
 tested, at one horizon and two IC rungs. Nothing reads it by default.
+**Queued 2026-09-28 as HANDOFF task 35** (owner's L13 ruling). Blocked until it
+reports.
 
 **Note for when it lands:** it competes with `H-2026-0008` for the same
 variance. Once the book de-risks through its covariance, 0008 must be measured
@@ -221,6 +266,13 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L13 — `risk_calibration` vetoes a quarter to a half of every grid, on 2008. CLOSED 2026-09-28.
+**Owner: "approved, go ahead"**: B1's halflife sweep is queued now as
+critical-path work, HANDOFF task 35. Whether the overlay then becomes policy is
+B1, blocked on task 35. The friction sweep adds one data point: 21 of 60 cells
+fail, 2008 is the worst year in 50 of 60, and friction does not move it
+monotonically. The full item text is in git history.
 
 ### L14 — twelve JPMaQS tickers that didn't exist as named. CLOSED 2026-09-28.
 The owner renamed H-0001 (2026-09-24) and 0004, 0005 and 0010 (2026-09-27,

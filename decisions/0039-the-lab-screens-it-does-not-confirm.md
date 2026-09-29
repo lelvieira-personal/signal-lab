@@ -38,12 +38,45 @@ The lab is a **screen**:
 
 ## Open — OWNER-QUEUE L16
 
-- **Is Romano-Wolf at FWER 5% still the right bar for a screen?** FWER
+- **Is Romano-Wolf at FWER 5% still the right bar for a screen?** *Owner,
+  2026-09-28: most likely FDR, to be confirmed once HANDOFF task 34's
+  FDR-vs-FWER study is read. Not ruled.* FWER
   controls the chance of *any* false pass, which is a confirmation standard.
   Screens usually control the *share* of false passes (FDR, e.g.
   Benjamini-Hochberg, SUBSTRATE §9). Keeping FWER while calling the output a
   screen means screening at a confirmation standard, which has low power on
   top of low power.
-- **What confirms a candidate, if the lab doesn't?** Options: a live paper
-  track of fixed length, economic sign-off by the owner, or cross-market
-  replication. The holdout cannot confirm (L4).
+
+## Confirmation gates — decided 2026-09-28 (owner, OWNER-QUEUE L16)
+
+A candidate is admitted only through **two gates, both required**:
+
+1. **Replication.** The effect shows up where it was not tested.
+2. **Economic intuition.** In the owner's words: "The thesis needs to be
+   synthesized in a way that fits as plausible real world discovery. It may be
+   surprising at times, but if the statements that need to be true about them
+   need to be so far-fetched that borderlines what a conspiracy theorist would
+   need to assume to be true for the theory to be real, then it means we are
+   probably off track."
+
+A paper track and a live allocation are **not** gates. Neither can confirm a
+signal at a realistic IR in any realistic time (t ≈ IR·√years; IR 0.30 needs
+about 44 years for t = 2).
+
+**How the gates are made operational. Proposed by Cowork; adopted in full by
+the owner on 2026-09-28 (OWNER-QUEUE L16: "yes, adopt all three"):**
+- **A thesis synthesis per candidate.** State the mechanism in plain language,
+  say who is on the other side of the trade and why the edge persists, and list
+  **the statements that must be true for it to work**. The owner judges that
+  list against the plausibility test above. It is also checked against the
+  pre-registered rationale: the right channel, horizon and sign. A result that
+  works for a different reason than the one registered fails the gate, even if
+  it is profitable.
+- **The replication target is fixed before looking**, in the hypothesis file
+  or at candidate time, and before any replication data is read. Otherwise the
+  gate becomes a search. Candidate targets: other markets or cross-sections of
+  the same signal (e.g. 0010's carry exists on 14 cids), or the holdout, which
+  is read once.
+- **Rival explanations are named and checked:** a static tilt, a known factor,
+  or a single macro bet (the B5 risk decomposition, when it exists).
+
