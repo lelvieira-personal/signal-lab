@@ -307,3 +307,73 @@ def test_an_inaccurate_solve_is_labelled_and_still_projected(monkeypatch):
 def test_an_accurate_solve_is_not_labelled_inaccurate():
     sol = solve(ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver="scipy")
     assert not sol.inaccurate
+
+
+# --- HANDOFF task 36: the created-turnover shadow, decisions/0040 -----------
+
+
+def _S(x: float, a: float, b: float) -> float:
+    return a * max(0.0, b + x) ** 2
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_shadow_quadratic_none_leaves_the_solve_unchanged(solver):
+    default = solve(ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver=solver)
+    explicit_none = solve(
+        ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver=solver, shadow_quadratic=None
+    )
+    assert explicit_none.objective == pytest.approx(default.objective)
+    pd.testing.assert_series_equal(explicit_none.weights, default.weights)
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_a_large_shadow_quadratic_restrains_trading(solver):
+    """A positive control: the term must actually bind on something."""
+    free = solve(ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver=solver)
+    shadowed = solve(
+        ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver=solver, shadow_quadratic=(50.0, 0.0)
+    )
+    assert shadowed.turnover < free.turnover - 1e-6
+
+
+@pytest.mark.skipif(not HAVE_CVXPY, reason="cvxpy is not installed in this environment")
+def test_cvxpy_and_scipy_agree_with_a_shadow_quadratic():
+    kwargs = {"shadow_quadratic": (8.0, -0.1)}
+    a = solve(ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver="cvxpy", **kwargs)
+    b = solve(ALPHA, toy_sigma(), BOOK, FREE, toy_spec(), solver="scipy", **kwargs)
+    assert a.objective == pytest.approx(b.objective, abs=2e-5)
+    assert (a.weights - b.weights).abs().max() < 5e-3
+
+
+@pytest.mark.parametrize("a,b", [(2.0, 0.5), (2.0, -0.3), (5.0, 0.0), (5.0, -2.0)])
+def test_shadow_quadratic_S_is_convex_in_trade_size(a, b):
+    """
+    decisions/0040 builds S as the integral of a non-decreasing marginal cost
+    curve, so it must be convex in trade size: the discrete second difference
+    is non-negative everywhere. This is the property behind "one lump costs
+    more than the same trading spread over several weeks" -- tested on `S`
+    itself, not an engine run.
+    """
+    for x in (0.3, 1.0, 2.5):
+        h = 0.4
+        second_difference = _S(x + h, a, b) - 2 * _S(x, a, b) + _S(x - h, a, b)
+        assert second_difference >= -1e-9
+
+
+def test_shadow_quadratic_derivative_matches_the_0024_curve_exactly():
+    """
+    decisions/0040: `S'(x)` must equal the existing linear shadow curve
+    evaluated at the POST-trade trailing turnover `T(x)`, so "coefficient bp at
+    150%" keeps its meaning under the new form.
+    """
+    coefficient, start, reference, ppy, w_periods = 20.0, 0.75, 1.50, 52.0, 52
+    kappa = coefficient * 1e-4
+    span = reference - start
+    p_trailing = 0.6  # traded notional over the trailing window before this trade
+    a = kappa * ppy / (2.0 * span * w_periods)
+    b = p_trailing - start * w_periods / ppy
+    for x in (0.0, 0.1, 0.5, 1.2, 3.0):
+        derivative = 2.0 * a * max(0.0, b + x)
+        t_x = (p_trailing + x) * ppy / w_periods
+        curve = kappa * max(0.0, t_x - start) / span
+        assert derivative == pytest.approx(curve, abs=1e-12)

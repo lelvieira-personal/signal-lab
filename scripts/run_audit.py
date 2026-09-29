@@ -260,6 +260,135 @@ def _friction_by_cell(table, universe, params, out_root):
     return hashes, ten_bp, by_arm, paired
 
 
+def _friction_created_preflight(cells, universe, params, out_root):
+    """
+    HANDOFF task 36: the control is `FRICTION_LIVE_RUN` (task 32's grid, the
+    `trailing` form), matched by (ic, seed, shadow_coefficient) -- not the knee
+    run, which never carries a `shadow_coefficient` override. Checked before any
+    cell so a mismatch costs seconds, not the 1.5-2.5h the grid budgets.
+    """
+    import json
+    from pathlib import Path
+
+    from signal_lab.audit.ladder import FRICTION_LIVE_RUN
+
+    live_dir = Path(out_root) / FRICTION_LIVE_RUN
+    if not live_dir.exists():
+        return f"{live_dir} not found"
+    live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
+    if live_summary.get("panel_hash") != universe.panel_hash():
+        return f"panel_hash differs from {FRICTION_LIVE_RUN}"
+    if live_summary.get("params_hash") != params.params_hash:
+        return f"params_hash differs from {FRICTION_LIVE_RUN}"
+    table = _read_cells(live_dir)
+    for ic, seed, coef in sorted({(c.ic, c.seed, c.shadow_coefficient) for c in cells}):
+        at = (
+            (table["horizon"] == 13)
+            & (table["ic"].round(6) == round(ic, 6))
+            & (table["seed"] == seed)
+            & (table["shadow_coefficient"].astype(float).round(6) == round(coef, 6))
+        )
+        live = at & ~table["baseline"].astype(bool) & (table["tag"] == "base")
+        if live.sum() != 1:
+            return f"{FRICTION_LIVE_RUN} lacks the trailing cell at ic={ic}, seed={seed}, coefficient={coef}"
+    return None
+
+
+def _column_or_nan(frame, name):
+    import numpy as np
+
+    return frame[name].astype(float) if name in frame.columns else np.full(len(frame), np.nan)
+
+
+def _friction_created_by_cell(table, universe, params, out_root):
+    """
+    HANDOFF task 36. The `created` grid's 60 cells against `FRICTION_LIVE_RUN`'s
+    `trailing` control at the same (ic, seed, shadow_coefficient): a cell-by-cell
+    merge (not every control column exists in that older run -- see
+    `_column_or_nan` -- because `gross_ir` and the autocorrelation and
+    `shadow_paid_bps` columns are new in this task), summary by arm for both
+    forms, and the paired created-minus-trailing differences.
+    """
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from signal_lab.audit.ladder import FRICTION_LIVE_RUN
+
+    live_dir = Path(out_root) / FRICTION_LIVE_RUN
+    hashes = {"live_run": FRICTION_LIVE_RUN, "found": live_dir.exists()}
+    trailing = None
+    if live_dir.exists():
+        live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
+        hashes["panel_hash_match"] = live_summary.get("panel_hash") == universe.panel_hash()
+        hashes["params_hash_match"] = live_summary.get("params_hash") == params.params_hash
+        cells = _read_cells(live_dir)
+        trailing = cells[~cells["baseline"].astype(bool) & (cells["tag"] == "base")].copy()
+
+    metrics = [
+        "net_ir",
+        "gross_ir",
+        "cost_drag_annual",
+        "turnover_annual",
+        "turnover_p95_rolling_1y",
+        "turnover_max_rolling_1y",
+        "turnover_per_rebalance_max",
+        "turnover_autocorr_lag52",
+        "turnover_autocorr_lag53",
+        "shadow_bps_mean",
+        "shadow_paid_bps_mean",
+        "te_p95",
+        "realised_ic_pooled",
+    ]
+
+    def _by_arm(frame):
+        out = frame.copy()
+        for m in metrics:
+            out[m] = _column_or_nan(out, m)
+        agg = {}
+        for m in metrics:
+            agg[f"{m}_median"] = (m, "median")
+            agg[f"{m}_min"] = (m, "min")
+            agg[f"{m}_max"] = (m, "max")
+        agg["n"] = ("seed", "count")
+        agg["n_annual_above_200"] = ("turnover_annual", lambda s: int((s > 2.0).sum()))
+        agg["n_rolling_above_200"] = ("turnover_max_rolling_1y", lambda s: int((s > 2.0).sum()))
+        agg["n_week_above_150"] = ("turnover_per_rebalance_max", lambda s: int((s > 1.5).sum()))
+        agg["n_week_above_195"] = ("turnover_per_rebalance_max", lambda s: int((s > 1.95).sum()))
+        agg["n_risk_calibration_fails"] = (
+            "veto_detail",
+            lambda s: int(s.fillna("").str.contains("risk_calibration").sum()),
+        )
+        agg["inaccurate_share_max"] = ("inaccurate_share", "max")
+        agg["infeasible_te_share_max"] = ("infeasible_te_share", "max")
+        agg["n_not_clarabel"] = ("solvers_used", lambda s: int((s.fillna("") != "CLARABEL").sum()))
+        return out.groupby(["ic", "shadow_coefficient"]).agg(**agg).reset_index()
+
+    by_arm_created = _by_arm(table)
+    by_arm_trailing = _by_arm(trailing) if trailing is not None else None
+
+    paired_rows = []
+    if trailing is not None:
+        keys = ["ic", "seed", "shadow_coefficient"]
+        merged = table.merge(
+            trailing[[*keys, "net_ir", "turnover_annual", "turnover_per_rebalance_max"]],
+            on=keys,
+            suffixes=("_created", "_trailing"),
+            how="inner",
+        )
+        for (ic, coef), grp in merged.groupby(["ic", "shadow_coefficient"]):
+            row = {"ic": float(ic), "coefficient": float(coef), "n": int(len(grp))}
+            for m in ("net_ir", "turnover_annual", "turnover_per_rebalance_max"):
+                diff = grp[f"{m}_created"] - grp[f"{m}_trailing"]
+                row[f"{m}_mean_diff"] = float(diff.mean())
+                row[f"{m}_sd_diff"] = float(diff.std(ddof=1)) if len(diff) > 1 else float("nan")
+                row[f"{m}_n_positive"] = int((diff > 0).sum())
+            paired_rows.append(row)
+    paired = pd.DataFrame(paired_rows)
+    return hashes, by_arm_created, by_arm_trailing, paired
+
+
 def _write_baseline_run(args, params, universe, table, run_id, out_root, started) -> int:
     """
     A baseline-only run has no base cells, oracle or twin, so the ruler report has
@@ -281,7 +410,7 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
         .reset_index()
     )
     paired = None
-    if (~is_base).any() and args.grid != "friction":
+    if (~is_base).any() and args.grid not in ("friction", "friction_created"):
         # A run with live cells beside their baselines (the knee grid): the
         # statistic is the seed-paired excess, not either level (SUBSTRATE s3, bar 2).
         from signal_lab.audit.ladder import net_ir_excess
@@ -324,11 +453,22 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
         summary["friction_by_arm"] = by_arm.to_dict(orient="records")
         summary["friction_paired_by_seed"] = paired_seeds.to_dict(orient="records")
         friction = (ten_bp, by_arm, paired_seeds)
+    friction_created = None
+    if args.grid == "friction_created":
+        hashes, by_arm_created, by_arm_trailing, paired_seeds = _friction_created_by_cell(
+            table, universe, params, out_root
+        )
+        summary["friction_created_live_run"] = hashes
+        summary["friction_created_by_arm"] = by_arm_created.to_dict(orient="records")
+        if by_arm_trailing is not None:
+            summary["friction_trailing_by_arm"] = by_arm_trailing.to_dict(orient="records")
+        summary["friction_created_paired_by_seed"] = paired_seeds.to_dict(orient="records")
+        friction_created = (hashes, by_arm_created, by_arm_trailing, paired_seeds)
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, default=float), encoding="utf-8"
     )
     if not args.quiet:
-        if args.grid != "friction":
+        if args.grid not in ("friction", "friction_created"):
             print(by_rung.to_string(index=False))
         if paired is not None:
             print(paired.to_string(index=False))
@@ -342,6 +482,16 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
             print(ten_bp.to_string(index=False))
             print(f"max |diff| = {ten_bp['diff'].abs().max():.6g}")
             print(by_arm.to_string(index=False))
+            print(paired_seeds.to_string(index=False))
+        if friction_created is not None:
+            hashes, by_arm_created, by_arm_trailing, paired_seeds = friction_created
+            print(hashes)
+            print("created form, by arm:")
+            print(by_arm_created.to_string(index=False))
+            if by_arm_trailing is not None:
+                print("trailing form control (FRICTION_LIVE_RUN), by arm:")
+                print(by_arm_trailing.to_string(index=False))
+            print("paired created-minus-trailing, by (ic, seed, coefficient):")
             print(paired_seeds.to_string(index=False))
         print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
     return 0
@@ -382,12 +532,14 @@ def main(argv=None) -> int:
     from signal_lab.audit.breadth import effective_breadth
     from signal_lab.audit.ladder import (
         AUDIT_GRIDS,
+        FRICTION_CREATED_GRID,
         FRICTION_GRID,
         KNEE_GRID,
         POWER10_GRID,
         POWER_GRID,
         baseline_cells,
         friction_cells,
+        friction_created_cells,
         grid_cells,
         knee_cells,
         power10_cells,
@@ -414,7 +566,9 @@ def main(argv=None) -> int:
         "baseline cells at the IC rungs between 0.20 and the oracle (h13); or power, "
         "20 score-shuffle baselines per knee rung and seed (HANDOFF task 25); or "
         "power10, 20 span-limited score shuffles at IC 0.70 for seeds 0-9 (task 30); or "
-        "friction, live cells only at the shadow-cost coefficient 10/20/40 bp (task 32)",
+        "friction, live cells only at the shadow-cost coefficient 10/20/40 bp (task 32); or "
+        "friction_created, the same 60 cells priced with the created-turnover shadow "
+        "instead of trailing (task 36, decisions/0040)",
     )
     parser.add_argument("--solver", default=None, help="auto | cvxpy | scipy (default: params)")
     parser.add_argument("--run-id", default=None)
@@ -450,6 +604,14 @@ def main(argv=None) -> int:
         )
         if problem:
             print(f"friction STOPPED before any cell: {problem}", file=sys.stderr)
+            return 2
+    elif args.grid == FRICTION_CREATED_GRID:
+        cells = friction_created_cells(params)
+        problem = _friction_created_preflight(
+            cells, universe, params, args.out or params.get("audit.output_dir", "results/audit")
+        )
+        if problem:
+            print(f"friction_created STOPPED before any cell: {problem}", file=sys.stderr)
             return 2
     elif args.grid:
         cells = baseline_cells(params, args.grid)

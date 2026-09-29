@@ -528,3 +528,99 @@ def test_the_friction_grid_is_60_live_cells_outside_params(params):
     assert {(c.cost_multiplier, c.turnover_cap, c.per_rebalance_cap) for c in cells} == {
         (knee.cost_multiplier, knee.turnover_cap, knee.per_rebalance_cap)
     }
+
+
+# --- HANDOFF task 36: the created-turnover shadow, decisions/0040 -----------
+
+
+def test_the_trailing_default_is_unchanged_bit_for_bit(small_universe):
+    """`AuditCell.shadow_form`'s default must leave every cell before this task alone."""
+    universe, params = small_universe
+    row, _ = run_cell(universe, AuditCell(0.10, 13, 0), params, solver="scipy")
+    assert row["net_ir"] == GOLDEN_NET_IR
+    assert row["shadow_form"] == "trailing"
+    explicit, _ = run_cell(
+        universe, AuditCell(0.10, 13, 0, shadow_form="trailing"), params, solver="scipy"
+    )
+    assert explicit["net_ir"] == GOLDEN_NET_IR
+
+
+def test_a_shadow_form_cell_says_what_it_is_and_existing_keys_are_unchanged():
+    trailing = AuditCell(0.35, 13, 0, 1.0, None, 0.25, shadow_coefficient=20.0)
+    assert trailing.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_shadow20"
+    created = dataclasses.replace(trailing, shadow_form="created")
+    assert created.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_shadow20_created"
+    with pytest.raises(ValueError, match="shadow_form"):
+        AuditCell(0.35, 13, 0, shadow_form="quadratic")
+
+
+def test_at_coefficient_zero_created_equals_trailing(small_universe):
+    """A coefficient of zero prices no shadow under either form."""
+    universe, params = small_universe
+    trailing, _ = run_cell(
+        universe,
+        AuditCell(0.20, 13, 0, shadow_coefficient=0.0, shadow_form="trailing"),
+        params,
+        solver="scipy",
+    )
+    created, _ = run_cell(
+        universe,
+        AuditCell(0.20, 13, 0, shadow_coefficient=0.0, shadow_form="created"),
+        params,
+        solver="scipy",
+    )
+    assert created["net_ir"] == pytest.approx(trailing["net_ir"])
+    assert created["shadow_bps_mean"] == pytest.approx(0.0, abs=1e-9)
+    assert trailing["shadow_bps_mean"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_the_created_form_actually_moves_weights_relative_to_trailing(small_universe):
+    """A positive control: at a real coefficient the two forms must differ."""
+    universe, params = small_universe
+    trailing, _ = run_cell(
+        universe,
+        AuditCell(0.35, 13, 1, shadow_coefficient=40.0, shadow_form="trailing"),
+        params,
+        solver="scipy",
+    )
+    created, _ = run_cell(
+        universe,
+        AuditCell(0.35, 13, 1, shadow_coefficient=40.0, shadow_form="created"),
+        params,
+        solver="scipy",
+    )
+    assert created["net_ir"] != pytest.approx(trailing["net_ir"])
+
+
+def test_prefilled_P_at_the_second_rebalance(small_universe):
+    """
+    decisions/0040 s2: at rebalance 2, exactly one trade is logged (from
+    rebalance 1) and the rest of the `W - 1`-long window is prefilled at the
+    100% target. `P` should equal `(W - 2) * target/ppy` plus that one trade.
+    """
+    from signal_lab.audit.ladder import _OptimiserRule, _plant
+
+    universe, params = small_universe
+    cell = AuditCell(0.20, 13, 0, shadow_form="created")
+    signal = _plant(universe, cell)
+    rule = _OptimiserRule(universe, signal, cell, params, "scipy")
+    w_periods = int(round(rule.ppy))
+    first_trade = 0.37
+    rule.turnover_log.append(first_trade)
+    expected = (w_periods - 2) * rule.target_annualised / rule.ppy + first_trade
+    assert rule._prefilled_P() == pytest.approx(expected)
+
+
+def test_the_friction_created_grid_is_60_cells_pairing_the_friction_grid(params):
+    from signal_lab.audit.ladder import friction_created_cells
+
+    trailing_cells = friction_cells(params)
+    created_cells = friction_created_cells(params)
+    assert len(created_cells) == 60
+    assert all(c.shadow_form == "created" for c in created_cells)
+    assert {c.key() for c in created_cells} & {c.key() for c in trailing_cells} == set()
+    # Every other field matches its trailing twin exactly.
+    trailing_by_id = {(c.ic, c.seed, c.shadow_coefficient): c for c in trailing_cells}
+    for c in created_cells:
+        twin = trailing_by_id[(c.ic, c.seed, c.shadow_coefficient)]
+        assert dataclasses.replace(c, shadow_form="trailing") == twin

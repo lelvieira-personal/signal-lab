@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -281,6 +281,12 @@ class AuditCell:
     # HANDOFF task 32: override `constraints.turnover.penalty.coefficient` for this
     # cell only. `None` (the default) reads params, exactly as every cell before it.
     shadow_coefficient: float | None = None
+    # HANDOFF task 36 / decisions/0040: which shadow-cost form the cell prices
+    # turnover with. `trailing` (the default, and every cell before this task) is
+    # the existing flat per-unit cost on PRE-trade trailing turnover. `created`
+    # prices the marginal unit at the turnover IT creates (decisions/0040's
+    # ruling), as a convex term the solver sees instead of a per-unit cost.
+    shadow_form: str = "trailing"
 
     def __post_init__(self) -> None:
         if self.shuffle not in SHUFFLES:
@@ -289,6 +295,10 @@ class AuditCell:
             raise ValueError("a score shuffle is a baseline; set baseline=True")
         if self.shuffle == TRUTH_SHUFFLE and self.perm != 0:
             raise ValueError("perm indexes the score shuffle only")
+        if self.shadow_form not in ("trailing", "created"):
+            raise ValueError(
+                f"shadow_form must be 'trailing' or 'created', got {self.shadow_form!r}"
+            )
 
     def key(self) -> str:
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
@@ -309,6 +319,8 @@ class AuditCell:
                 key = f"{key}_{self.shuffle.replace('_', '')}_p{self.perm:02d}"
         if self.shadow_coefficient is not None:
             key = f"{key}_shadow{self.shadow_coefficient:g}"
+        if self.shadow_form != "trailing":
+            key = f"{key}_{self.shadow_form}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -368,6 +380,9 @@ class _OptimiserRule:
         self.shadow_reference = float(
             params.require("constraints.turnover.shadow_reference_annualised")
         )
+        # HANDOFF task 36 / decisions/0040 s2: the prefill level for the
+        # `created` form's window, before a full window of history exists.
+        self.target_annualised = float(params.require("constraints.turnover.target_annualised"))
         self.per_rebalance_cap = cell.per_rebalance_cap
         self.turnover_log: list[float] = []
         self.repair_turnover = 0.0  # traded to restore mandate compliance, cap or no cap
@@ -432,6 +447,45 @@ class _OptimiserRule:
         excess = max(0.0, self.trailing_annual_turnover() - self.shadow_start)
         return self.shadow_coeff * BPS * excess / span
 
+    def _prefilled_P(self) -> float:
+        """
+        `P`, decisions/0040 s"the ruling, made precise": traded notional over the
+        PREVIOUS `W - 1` rebalances (`W = round(periods_per_year)`), with any
+        missing entry (before a full window of history exists) filled at
+        `target_annualised / ppy` -- the owner's "prefill at 100% target". The
+        window this feeds is always `W` long once this rebalance's own trade `x`
+        is added, which is exactly what makes a week-2 trade not count ~26 times
+        over under the new pricing (see decisions/0040's "Why").
+        """
+        w_periods = int(round(self.ppy))
+        recent = self.turnover_log[-(w_periods - 1) :] if w_periods > 1 else []
+        missing = max(0, (w_periods - 1) - len(recent))
+        fill = self.target_annualised / self.ppy
+        return float(np.sum(recent)) + missing * fill
+
+    def _shadow_quadratic_coeffs(self) -> tuple[float, float]:
+        """
+        `(a, b)` for `S(x) = a * pos(b + x)**2`, `x` this rebalance's total
+        traded notional -- decisions/0040's "the ruling, made precise", item 1,
+        rearranged so `long_only.solve` never has to know about turnover windows:
+
+            T(x) - s = (ppy / W) * (x + P - s*W/ppy) = (ppy / W) * (x + b)
+            S(x) = kappa/(2*span) * (W/ppy) * [pos(T(x)-s)^2 - pos(T(0)-s)^2]
+                 = a * [pos(b+x)^2 - pos(b)^2]
+
+        so `a = kappa*ppy / (2*span*W)`, `b = P - s*W/ppy`. The constant
+        `-a*pos(b)**2` term does not affect the solve and is not returned; the
+        caller (`__call__`, for diagnostics) subtracts it explicitly where the
+        actual shadow PAID needs it.
+        """
+        w_periods = int(round(self.ppy))
+        span = self.shadow_reference - self.shadow_start
+        kappa = self.shadow_coeff * BPS
+        p_trailing = self._prefilled_P()
+        a = kappa * self.ppy / (2.0 * span * w_periods) if span > 0 else 0.0
+        b = p_trailing - self.shadow_start * w_periods / self.ppy
+        return a, b
+
     def ex_ante_te(self) -> pd.Series | None:
         """The annualised TE each solved book was sized to, by rebalance date.
 
@@ -476,12 +530,19 @@ class _OptimiserRule:
         first = drifted is None
         w0 = pd.Series(0.0, index=hold) if first else drifted.reindex(hold).fillna(0.0)
         cost = self.costs.half_spread_vector(hold)
+        shadow_quad = None
         if first:
             cost = cost * 0.0  # the initial book is built, not traded (engine records no row)
             cap = None
         else:
-            cost = cost + self._shadow()
             cap = self.session_cap()
+            if self.cell.shadow_form == "created":
+                # HANDOFF task 36: the shadow leaves the linear cost vector entirely
+                # -- only the real half-spread stays in `cost` -- and becomes a
+                # convex term on total traded notional instead (decisions/0040).
+                shadow_quad = self._shadow_quadratic_coeffs()
+            else:
+                cost = cost + self._shadow()
 
         sol = solve(
             alpha,
@@ -492,12 +553,33 @@ class _OptimiserRule:
             turnover_cap=cap,
             solver=self.solver,
             params=self.params,
+            shadow_quadratic=shadow_quad,
         )
 
         if not first:
             self.turnover_log.append(sol.turnover)
             if sol.status.endswith("repair"):
                 self.repair_turnover += sol.turnover
+
+        if first:
+            shadow_bps = shadow_paid_bps = 0.0
+        elif self.cell.shadow_form == "created":
+            # `shadow_quad` was fixed BEFORE this trade (it prices off the
+            # trailing history, not this trade itself), so it is reused here
+            # rather than recomputed -- recomputing after the append above would
+            # let this trade leak into its own price.
+            a_coef, b_coef = shadow_quad
+            x = sol.turnover
+            shadow_bps = 2.0 * a_coef * max(0.0, b_coef + x) / BPS  # S'(x): the marginal rate paid
+            shadow_paid_bps = (
+                (a_coef * max(0.0, b_coef + x) ** 2 - a_coef * max(0.0, b_coef) ** 2) / x / BPS
+                if x > 0
+                else 0.0
+            )
+        else:
+            flat = self._shadow()  # unchanged: same call, same place, as every run before this task
+            shadow_bps = shadow_paid_bps = flat / BPS
+
         self.diagnostics.append(
             {
                 "date": date,
@@ -509,7 +591,8 @@ class _OptimiserRule:
                 "cash_binding": sol.cash_binding,
                 "positions_capped": sol.positions_capped,
                 "shrinkage": cov.shrinkage,
-                "shadow_bps": self._shadow() / BPS,
+                "shadow_bps": shadow_bps,
+                "shadow_paid_bps": shadow_paid_bps,
                 "trailing_turnover": self.trailing_annual_turnover(),
                 "session_cap": self.session_cap(),
                 "status": sol.status,
@@ -519,6 +602,20 @@ class _OptimiserRule:
             }
         )
         return sol.weights
+
+
+def _gross_information_ratio(path, periods_per_year: float) -> float:
+    """
+    `path.information_ratio()`, on gross returns instead of net (decisions/0004:
+    reported for diagnostics, never for ranking or the leaderboard).
+    """
+    active = (path.gross_returns - path.benchmark_returns).dropna()
+    if len(active) < 2:
+        return float("nan")
+    sd = float(active.std())
+    if not np.isfinite(sd) or sd < 1e-12:
+        return float("nan")
+    return float(active.mean() * periods_per_year / (sd * np.sqrt(periods_per_year)))
 
 
 def run_cell(
@@ -567,12 +664,25 @@ def run_cell(
         "turnover_cap": cell.turnover_cap,
         "per_rebalance_cap": cell.per_rebalance_cap,
         "shadow_coefficient": cell.shadow_coefficient,
+        "shadow_form": cell.shadow_form,
         "turnover_per_rebalance_max": float(path.turnover.max()),
         "turnover_per_rebalance_p95": float(path.turnover.quantile(0.95)),
         "turnover_from_repairs_annual": rule.repair_turnover * rule.ppy / max(len(path.dates), 1),
         "shadow_bps_mean": float(diag["shadow_bps"].mean()),
         "shadow_bps_max": float(diag["shadow_bps"].max()),
+        "shadow_paid_bps_mean": float(diag["shadow_paid_bps"].mean())
+        if "shadow_paid_bps" in diag.columns
+        else float("nan"),
+        # HANDOFF task 36 / decisions/0040 "Why": the lag-53 echo the friction
+        # sweep found (a large trade ages out of the trailing window and the
+        # backlog trades at once), for every cell so the created form's effect
+        # on it is visible beside the trailing form's.
+        "turnover_autocorr_lag26": float(path.turnover.autocorr(26)),
+        "turnover_autocorr_lag52": float(path.turnover.autocorr(52)),
+        "turnover_autocorr_lag53": float(path.turnover.autocorr(53)),
+        "turnover_autocorr_lag78": float(path.turnover.autocorr(78)),
         "net_ir": path.information_ratio(),
+        "gross_ir": _gross_information_ratio(path, rule.ppy),
         "active_return_annual": float(path.active_returns.mean() * rule.ppy),
         "active_vol_annual": float(path.active_returns.std() * np.sqrt(rule.ppy)),
         "te_p95": float(te.quantile(0.95)) if len(te) else float("nan"),
@@ -1154,7 +1264,22 @@ FRICTION_GRID = "friction"
 FRICTION_IC_RUNGS = (0.35, 0.70)
 FRICTION_SEEDS = tuple(range(10))
 FRICTION_COEFFICIENTS = (10.0, 20.0, 40.0)
-AUDIT_GRIDS = (*BASELINE_GRIDS, KNEE_GRID, POWER_GRID, POWER10_GRID, FRICTION_GRID)
+
+# The `friction_created` grid (HANDOFF task 36): the same 60 cells as `friction`,
+# but priced with decisions/0040's created-turnover shadow (`shadow_form="created"`)
+# instead of the flat trailing one. The 10 bp arm's control is `FRICTION_LIVE_RUN`,
+# task 32's grid, at the SAME (ic, seed, coefficient) -- not the knee run, because
+# the knee run has no `shadow_coefficient` override to pair a coefficient against.
+FRICTION_CREATED_GRID = "friction_created"
+FRICTION_LIVE_RUN = "A-20260928-151055"
+AUDIT_GRIDS = (
+    *BASELINE_GRIDS,
+    KNEE_GRID,
+    POWER_GRID,
+    POWER10_GRID,
+    FRICTION_GRID,
+    FRICTION_CREATED_GRID,
+)
 
 
 def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list[AuditCell]:
@@ -1289,6 +1414,16 @@ def friction_cells(params: Params | None = None) -> list[AuditCell]:
         for s in FRICTION_SEEDS
         for coef in FRICTION_COEFFICIENTS
     ]
+
+
+def friction_created_cells(params: Params | None = None) -> list[AuditCell]:
+    """
+    `friction_cells()`, with `shadow_form="created"` (decisions/0040) instead of
+    the default `"trailing"`. Same rungs, seeds and coefficients, same
+    constraints and costs, so each cell pairs against `friction_cells()`'s
+    cell at the same (ic, seed, coefficient) in `FRICTION_LIVE_RUN`.
+    """
+    return [replace(c, shadow_form="created") for c in friction_cells(params)]
 
 
 def net_ir_excess(table: pd.DataFrame) -> pd.Series:

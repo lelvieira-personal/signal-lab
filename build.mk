@@ -20,6 +20,7 @@
 #   make audit-lean the same, two ICs and one seed -- shape and runtime only
 #   make audit-baseline-pilot / audit-baseline   the block-shuffled baseline cells (decisions/0036)
 #   make audit-knee                              live + baseline at IC 0.35/0.50/0.70, h13 (60 cells)
+#   make audit-friction-created                  the same 60 cells priced with the created-turnover shadow (task 36)
 #   make audit-friction                          live cells at shadow-cost 10/20/40 bp x IC 0.35/0.70 x seeds 0-9 -- 60 cells
 #   make audit-power10                           span-limited score shuffles, IC 0.70 x seeds 0-9 x 20 perms, h13 (200 cells)
 #   make audit-power                             score-shuffle baselines, IC 0.35/0.70 x seeds 0/1 x 20 perms, h13 (80 cells)
@@ -53,7 +54,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -105,6 +106,9 @@ audit-knee: ## live + baseline at IC 0.35/0.50/0.70, h13 only, 60 cells (HANDOFF
 
 audit-power: ## score-shuffle baselines, IC 0.35/0.70, seeds 0/1, 20 perms, h13 -- 80 cells (HANDOFF task 25)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid power
+
+audit-friction-created: ## shadow priced at the turnover a trade creates, IC 0.35/0.70, seeds 0-9, coefficient 10/20/40 -- 60 cells (HANDOFF task 36)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid friction_created
 
 audit-power10: ## span-limited score shuffles, IC 0.70, seeds 0-9, 20 perms, h13 -- 200 cells (HANDOFF task 30)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid power10

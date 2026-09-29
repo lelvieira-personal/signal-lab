@@ -181,6 +181,11 @@ class _Arrays:
     turnover_cap: float | None
     support: np.ndarray  # holdable, bool: which may be non-zero
     risk_aversion: float
+    # HANDOFF task 36 / decisions/0040: an optional convex shadow term on TOTAL
+    # traded notional, `S(x) = a * pos(b + x)**2`, `x = sum(abs(trade))`. `None`
+    # (the default, and every call before this task) adds nothing; the linear
+    # per-unit `c` above is the only trading cost, exactly as today.
+    shadow_quadratic: tuple[float, float] | None = None
 
     @property
     def n(self) -> int:
@@ -205,6 +210,7 @@ def _arrays(
     spec: LongOnlySpec,
     turnover_cap: float | None,
     support: np.ndarray | None,
+    shadow_quadratic: tuple[float, float] | None = None,
 ) -> _Arrays:
     ids, hold = spec.ids, spec.holdable
     sig = sigma.reindex(index=ids, columns=ids)
@@ -229,6 +235,7 @@ def _arrays(
         turnover_cap=turnover_cap,
         support=sup,
         risk_aversion=float(spec.risk_aversion),
+        shadow_quadratic=shadow_quadratic,
     )
 
 
@@ -363,7 +370,14 @@ def solve_cvxpy(arr: _Arrays, params: Params | None = None) -> tuple[np.ndarray,
     # Scaled to basis points so the solver sees O(1) numbers rather than 1e-4.
     sigma_bps = cp.psd_wrap(arr.sigma / BPS)
     risk = cp.quad_form(active, sigma_bps)
-    objective = cp.Maximize((arr.a @ w - arr.c @ cp.abs(trade)) / BPS - arr.risk_aversion * risk)
+    linear = (arr.a @ w - arr.c @ cp.abs(trade)) / BPS - arr.risk_aversion * risk
+    if arr.shadow_quadratic is not None:
+        a_coef, b_coef = arr.shadow_quadratic
+        # HANDOFF task 36: S(x) = a*pos(b+x)**2, x = total traded notional. Scaled
+        # by BPS to match `linear` above, exactly as the other two objective terms.
+        shadow = a_coef * cp.square(cp.pos(b_coef + cp.sum(cp.abs(trade)))) / BPS
+        linear = linear - shadow
+    objective = cp.Maximize(linear)
     constraints = [cp.sum(w) == 1.0]
     if np.isfinite(arr.te_var):
         constraints.append(risk <= arr.te_var / BPS)
@@ -374,6 +388,8 @@ def solve_cvxpy(arr: _Arrays, params: Params | None = None) -> tuple[np.ndarray,
     if not arr.support.all():
         constraints.append(w[np.flatnonzero(~arr.support)] == 0.0)
     problem = cp.Problem(objective, constraints)
+    if not problem.is_dcp():
+        raise SolverFailed("the budgeted problem is not DCP -- check the shadow_quadratic term")
     return _solve_with_chain(problem, w, params, "the budgeted problem")
 
 
@@ -499,11 +515,23 @@ def solve_reference(arr: _Arrays) -> tuple[np.ndarray, str, str]:
     def objective(z):
         w = unpack(z)
         value = arr.a @ w - arr.c @ (z[:n] + z[n:]) - arr.risk_aversion * arr.active_var(w)
+        if arr.shadow_quadratic is not None:
+            a_coef, b_coef = arr.shadow_quadratic
+            x = float((z[:n] + z[n:]).sum())
+            value = value - a_coef * max(0.0, b_coef + x) ** 2
         return -value * scale
 
     def grad(z):
         g = arr.a - arr.risk_aversion * arr.active_var_grad(unpack(z))
-        return -np.concatenate([g - arr.c, -g - arr.c]) * scale
+        out = -np.concatenate([g - arr.c, -g - arr.c]) * scale
+        if arr.shadow_quadratic is not None:
+            a_coef, b_coef = arr.shadow_quadratic
+            x = float((z[:n] + z[n:]).sum())
+            # d/dx [a*pos(b+x)**2] = 2*a*pos(b+x); x's gradient is 1 in every one
+            # of the 2n split-trade components, so it adds the same amount to
+            # every entry (a cost, hence the same sign `-arr.c` already carries).
+            out = out + 2.0 * a_coef * max(0.0, b_coef + x) * scale
+        return out
 
     cons = [
         {
@@ -771,11 +799,18 @@ def solve(
     turnover_cap: float | None = None,
     solver: str = "auto",
     params: Params | None = None,
+    shadow_quadratic: tuple[float, float] | None = None,
 ) -> Solution:
     """
     One rebalance. `alpha` and `cost` are per period and per unit traded, over
     the holdable series; `sigma` covers `spec.ids`; `drifted` is the book as it
     stands at the close. `turnover_cap` is traded notional for this rebalance.
+    `shadow_quadratic` (HANDOFF task 36, decisions/0040) is `None` by default
+    and leaves both solvers byte-for-byte as they were; set it to `(a, b)` to
+    add `a * pos(b + x)**2` on total traded notional `x`, ON TOP OF `cost`,
+    to the objectives `solve_cvxpy` and `solve_reference` build -- the
+    minimum-tracking-error and minimum-trade repair paths never see it, same
+    as `cost` today.
 
     The position cap is applied by re-solving on the largest positions of the
     relaxed solution; `Solution.positions_capped` says when that happened.
@@ -785,13 +820,13 @@ def solve(
     how far that moved it.
     """
     backend = _available(solver)
-    arr = _arrays(alpha, sigma, drifted, cost, spec, turnover_cap, None)
+    arr = _arrays(alpha, sigma, drifted, cost, spec, turnover_cap, None, shadow_quadratic)
     w, status, name, inaccurate = _run_or_minimum_te(arr, backend, params)
     held = (w > DUST).sum()
     if spec.max_positions is not None and held > spec.max_positions:
         keep = np.zeros(len(w), dtype=bool)
         keep[np.argsort(-w)[: spec.max_positions]] = True
-        arr = _arrays(alpha, sigma, drifted, cost, spec, turnover_cap, keep)
+        arr = _arrays(alpha, sigma, drifted, cost, spec, turnover_cap, keep, shadow_quadratic)
         w, status, name, inaccurate = _run_or_minimum_te(arr, backend, params)
     w, shift = _polish(w, arr)
     return _diagnose(w, arr, spec, status, name, inaccurate, shift)
