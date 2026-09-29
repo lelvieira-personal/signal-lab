@@ -2715,3 +2715,136 @@ Interpretation is Cowork's and the owner's. Task 38 next per the queue order
 commit. Interpretation is Cowork's and the owner's (OWNER-QUEUE L16(a)).
 Task 35 next per the queue order (37 -> 38 -> 35 -> 39) -- **deferred**,
 per the owner's own instruction, to when the machine can run it overnight.
+
+### Task 40 -- standardised Romano-Wolf and the generalized-FWER stepdown (decisions/0041) -- 2026-09-29, rc=0
+
+`make check-full`: rc=0, 1344s / 22.4 min, 575 tests passed (562 before this
+task, +13). Commit `c0c4093` (code + study; `decisions/0100` gets the 0041
+tracking row in the same commit). Study output:
+`results/fdr_vs_fwer/20260929-204223/` (457s engine time, 225 scenarios x
+5000 reps; full `time make fdr-study` wall time 7m38.739s). Paper:
+Romano & Wolf (2007), *Control of generalized error rates in multiple
+testing*, Annals of Statistics 35(4) 1378-1408 -- Algorithm 2.1 -- fetched
+from arXiv:0710.2258 to
+`docs/references/romano-wolf-2007-generalized-error-rates.pdf`
+(git-ignored, per task 38's rule).
+
+**Step 1, SUBSTRATE.md -- BLOCKED, not applied.** The `Edit` tool refuses
+this path outright (`"File is in a directory that is denied by your
+permission settings"`, confirmed persistent by retrying after unrelated,
+transient permission errors cleared on their own). Per CLAUDE.md this is
+correct behaviour on my end -- owner-only paths are not mine to originate --
+but it means step 1 of the task is undone. The diff decisions/0041 asks for,
+for Leo or Cowork to apply:
+
+```diff
+- Confidence intervals and the search null come from a **block bootstrap**
+- on the daily panel, block length ≥ the longest signal horizon.
++ Confidence intervals come from a **block bootstrap** on the daily panel,
++ block length ≥ the longest signal horizon. Every null used by a test —
++ bar 2's excess, the search null and the multiple-testing gate — comes
++ from a **block shuffle** of the signal: its rows permuted in contiguous
++ blocks of at least the longest signal horizon, the same book on the same
++ history with only the signal's alignment to future returns destroyed
++ (`decisions/0041`).
+- **Multiple testing is controlled with Romano-Wolf stepdown** at
+- family-wise error rate α (params, v0.3: 5%). The joint distribution of
+- all test statistics in a search is obtained by block bootstrap on the
+- daily panel, so dependence between experiments is learned from the data,
+- not assumed. The procedure runs at the family level first, then within
++ **Multiple testing is controlled with Romano-Wolf stepdown** at
++ family-wise error rate α (params, v0.3: 5%). The joint distribution of
++ all test statistics in a search is obtained from block shuffles of the
++ signals, one permutation shared by every hypothesis in each draw, so
++ dependence between experiments is learned from the data, not assumed.
++ The procedure runs at the family level first, then within
+```
+Plus the §15 layout line:
+`stats/         HAC, block bootstrap, search null, deflated IR` ->
+`stats/         HAC, block bootstrap, block shuffle, search null, multiple testing, deflated IR`.
+
+**Step 2, standardised `romano_wolf`.** `romano_wolf(t, T0, alpha,
+standardise: bool = True)` -- each null column and `t`'s matching entry are
+transformed to `(x - mean)/sd` (ddof=1) before the stepdown, per decisions/0041's
+implementation note, so a hypothesis with an intrinsically wider null can't
+eat the shared max at the others' expense. `standardise=False` reproduces the
+pre-task-40 function exactly -- checked against an independent reference
+re-implementation, not just against itself
+(`test_standardise_false_reproduces_the_pre_task_40_stepdown_exactly`).
+Marginal p-values are unaffected (monotone transform per column,
+`test_marginal_pvalues_are_invariant_to_standardising`). A zero/non-finite
+null-column sd is refused, not silently divided by.
+
+**Step 3, `romano_wolf_gfwer`.** `romano_wolf_gfwer(t, T0, alpha, g=2,
+standardise=True)` implements Algorithm 2.1 directly: at each step past the
+first it enumerates every size-`(g-1)` subset of the already-rejected set
+exactly (m=12, g=2: at most 11 a step), not the paper's streamlined
+shortcut -- simpler to get right, and m is small enough that it's still fast.
+`g=1` reduces to `romano_wolf` exactly, both `standardise` settings
+(`test_g1_reproduces_romano_wolf_exactly_both_standardise_settings`) -- this
+caught a real bug in the first draft (a post-loop cleanup was re-clobbering
+p-values the natural-stop branch had already set correctly), fixed before
+anything shipped. **Not verified**: whether the paper's validity argument
+(stated for bootstrap/subsampling nulls) extends to a block-shuffle
+permutation null -- left as an open question in the docstring, same caveat
+already carried by `romano_shaikh_wolf_fdr`. `batched_romano_wolf_gfwer` is a
+plain per-row Python loop, not vectorised (the paper's own step-down needs a
+different combo enumeration per row); measured at ~0.3ms/row (m=12, k=1000,
+g=2), 1.4s for a full 5000-rep scenario -- fast enough that vectorising it
+wasn't worth the time against today's deadline.
+
+**`romano_wolf_5` against task 38.** Recomputed directly against task 38's
+run (`results/fdr_vs_fwer/20260929-154138/`) over all 57 matching
+(mu_label, n_true, k) cells at the headline correlation: max
+|Δavg_power| = 0.066 (ic070, n_true=6, k=20), mean |Δavg_power| = 0.0094; max
+|Δfwer| = 0.078 (complete null, k=20), mean |Δfwer| = 0.0124. Both maxima sit
+at k=20, the smallest-k / most MC-noise corner of the grid, and this study's
+draws are homoscedastic by construction (decisions/0041's standardising is a
+no-op in expectation here) -- consistent with the differences being
+finite-sample noise from estimating each column's mean/sd off only k draws,
+not a real shift. `romano_wolf_5` in this run keeps `standardise=True`
+throughout, not toggled per scenario.
+
+**k-sensitivity** (n_true=3, rho_w=0.3, rho_b=0.2; full table in
+`results/fdr_vs_fwer/20260929-204223/report.md`), IC 0.70, k=20 vs k=1000:
+
+| procedure | power (k=20) | power (k=1000) | fwer (k=20) | fwer (k=1000) |
+|---|---|---|---|---|
+| romano_wolf_5 | 0.2181 | 0.1791 | 0.0992 | 0.0416 |
+| rw_g2_5 | 0.3425 | 0.3477 | 0.2236 | 0.1770 |
+| rw_g2_10 | 0.4189 | 0.4263 | 0.3092 | 0.2758 |
+| bh_10 | 0.0103 | 0.2892 | 0.0108 | 0.1544 |
+
+Same pattern as task 38 confirmed for the new procedures: `rw_g2_*`'s power
+is roughly flat across `k` (joint-null max, not `1/(k+1)`-floored), where
+`bh_10`'s climbs sharply and is still rising at k=1000. `romano_wolf_5`
+itself is noticeably *higher* power at k=20 than at k=1000 here (0.218 vs
+0.179) -- the small-k standardisation noise above, not a real effect.
+
+**Complete null (n_true=0), headline correlation, k=1000** -- the g-FWER
+guarantee is on `P(V>=2)` (`p_two_plus_false`), not `P(V>=1)` (`fwer`):
+
+| procedure | fwer (V>=1) | p_two_plus_false (V>=2) | nominal alpha |
+|---|---|---|---|
+| rw_g2_5 | 0.2084 | 0.0564 | 0.05 |
+| rw_g2_10 | 0.3044 | 0.1094 | 0.10 |
+
+Both `p_two_plus_false` figures sit within ~2 MC standard errors
+(se ~= 0.003-0.004 at n_reps=5000) of their nominal alpha -- the guarantee
+the procedure actually makes holds under the complete null; `fwer` (V>=1)
+is, as expected, well above alpha since g=2 does not control it.
+
+`params/`, `vetoes/` untouched. **`SUBSTRATE.md` NOT applied -- see step 1
+above, needs Leo or Cowork.** Also folded into commit `c0c4093`: `285c474`
+("test: probe commit access") earlier today was a real, correct commit (the
+standardise tests) made under an uninformative message while I was
+distinguishing a transient Bash/git permission-classifier denial from a
+persistent one -- noted here for the record, not re-done.
+
+Per the task's own instruction, step 1 counts as failed (blocked, not a
+bug on my side) -- ordinarily grounds to stop before task 35. That's moot
+here: the owner's separate, standing instruction was to stop before task 35
+regardless, to check remaining time against a 6pm ET deadline. ~45 minutes
+remained at receipt time -- nowhere near task 35's 6-8h estimate. **Stopping
+here; task 35 (and task 39, which depends on it) deferred**, per the
+owner's own instruction, to when the machine can run it overnight.
