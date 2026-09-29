@@ -43,6 +43,41 @@ Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
   then choose.
   **Owner, 2026-09-29: yes, and Claude Code may fetch the paper.** Queued as
   HANDOFF task 38. L16(a) is still open until its numbers are read.
+  **Task 38 reported 2026-09-29 (`459a257`, `results/fdr_vs_fwer/20260929-154138/`,
+  verified by Cowork):**
+  - RSW-FDR is **still not implemented**. Claude Code fetched and read the
+    paper, but couldn't pin down which stepdown rank each critical value
+    belongs to. One reading gave 100% FDR under the null; the other gave zero
+    power on a 4-sigma signal. Cowork's note: the zero-power result could be
+    an implementation bug rather than a wrong reading. That is unresolved.
+  - The study (5,000 reps) now reports pFDR, the false share given at least
+    one pass.
+
+  | IC 0.70, n_true 3 | k=20 | 50 | 100 | 200 | 500 | 1000 |
+  |---|---|---|---|---|---|---|
+  | RW 5% power / pFDR | 0.15 / 0.06 | 0.15 / 0.05 | 0.17 / 0.06 | 0.17 / 0.06 | 0.17 / 0.07 | 0.18 / 0.06 |
+  | BH 10% power / pFDR | 0.01 / 0.54 | 0.07 / 0.31 | 0.14 / 0.22 | 0.25 / 0.14 | 0.27 / 0.13 | 0.29 / 0.14 |
+
+  At IC 0.35, RW has power 0.035 and pFDR about 0.25; BH 10% has 0.07 and
+  about 0.33 at k ≥ 200.
+
+  **Cowork's recommendation: the ruling is really about compute.** A cycle
+  costs about 12 × k × 84 s: 28 h at k = 100, 56 h at k = 200, 140 h at
+  k = 500.
+  - **At a budget of k ≤ 100:** keep Romano-Wolf at FWER 5%. It has more
+    power and a quarter of BH's false share.
+  - **At k ≥ 200:** BH at FDR 10% buys about +45% power, and 1 in 7
+    candidates is false against 1 in 16.
+  - **Drop RSW-FDR** for now. Two faithful attempts failed, and BH already
+    represents the FDR option.
+  The owner has deferred the two-step and bootstrap-null variants (D7).
+  **Owner, 2026-09-29 (evening):** the joint null is a block shuffle, not a
+  bootstrap: SUBSTRATE §9 is amended by `decisions/0041`, with confidence
+  intervals left on the bootstrap. A third option is now being measured:
+  **generalized FWER**, P(2 or more false passes) ≤ α, which reuses
+  Romano-Wolf's joint null. It is queued as HANDOFF task 40, together with
+  standardising `romano_wolf` so that no hypothesis dominates the maximum by
+  scale. **L16(a) stays open until task 40's numbers are read.**
 - ~~**What confirms a candidate.**~~ **Ruled 2026-09-28:** replication and
   economic intuition are the gates, both required. A paper track and a live
   allocation are not. Recorded in `decisions/0039`. ~~Whether to adopt Cowork's
@@ -207,6 +242,24 @@ set. Deferred by the owner on 2026-09-09 until a candidate model exists, and
 
 **Wakes when:** a candidate model exists. The form is already settled
 (conviction-scaled, linear between two endpoints, floored — `decisions/0019`).
+
+### D7. The two-step one-sided stepdown, and a bootstrap null for bar 2
+Added 2026-09-29 by Cowork. **Deferred by the owner the same day** ("keep
+things as is for now").
+
+The source is Romano, Shaikh & Wolf (2014, *Econometrica* 82(5)), which the
+owner supplied, and Romano & Wolf (2018), "Multiple Testing of One-Sided
+Hypotheses: Combining Bonferroni and the Bootstrap". Cowork has not read the
+2018 chapter. Two ideas:
+- **(a) The two-step correction.** Drop clearly negative hypotheses from
+  Romano-Wolf's critical value at a small β, for more power on one-sided
+  tests.
+- **(b) A block-bootstrap null.** Build the null from the weekly
+  live-minus-baseline series instead of engine shuffles, so k stops costing
+  engine hours. This would amend `decisions/0036`.
+
+**Wakes when:** the owner reopens it, or real signals exist and the shuffle
+budget (k) binds.
 
 ### D3. Region labels are still placeholders (`decisions/0022`)
 **Wakes when:** a hypothesis needs a region axis it can trust —

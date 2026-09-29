@@ -56,11 +56,19 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-29 (afternoon): queued, in order, 37 → 38 → 35 → 39.**
+**As of 2026-09-29 (evening): tasks 37 and 38 are done. Queued, in order, 40 → 35 → 39.**
+- **40:** transcribe `decisions/0041` into SUBSTRATE §9, standardise
+  `romano_wolf`, and add the generalized-FWER stepdown to the study (L16). About
+  1-1.5 h, no engine runs. Its step 0 commits Cowork's edits.
+- **35 and 39:** unchanged below. Go on from 40 to 35 in the same session.
+
+*(Earlier note:)* **As of 2026-09-29 (afternoon): queued, in order, 37 → 38 → 35 → 39.**
 - **37:** split the test suite (D2).
 - **38:** Romano-Shaikh-Wolf FDR from the paper, and the study re-run at small k
   (L16).
-- **35:** the halflife sweep, overnight. It must run before 39.
+- **35:** the halflife sweep, overnight. It must run before 39. **Owner, 2026-09-29:
+  go straight on to 39 after 35 if 35 is clean and 39 can finish by 06:00 ET.**
+  See the end of task 35.
 - **39:** apply `decisions/0038` and `0040` in one params change.
 
 **Task 33 is superseded by 39**; don't run it. Task 37's step 0 commits
@@ -1387,9 +1395,124 @@ coefficient, happen later in `params/` via 0040. **Then stop.**
 
 ---
 
+### 40. SUBSTRATE §9: the joint null is a block shuffle (`decisions/0041`); a standardised Romano-Wolf; the generalized-FWER variant in the study (OWNER-QUEUE L16)
+
+Added 2026-09-29 (evening) by Cowork. **Owner ruling 2026-09-29:** amend
+SUBSTRATE to say shuffle, not bootstrap (`decisions/0041`), and run the
+generalized-FWER variant now, before the long tasks. **Runs first, before 35.**
+No engine runs, and nothing in `params/` or `vetoes/` changes. The gate stays
+Romano-Wolf at FWER 5% until the owner rules L16(a). Budget about 1-1.5 h.
+
+**0. Commit first, alone:** `OWNER-QUEUE.md`, `HANDOFF.md` and
+`decisions/0041-the-joint-null-is-a-block-shuffle.md`, with the message
+`queue: task 40, decisions/0041; L16 task 38 verified (Cowork 2026-09-29)`.
+This replaces task 35's former step 0.
+
+**1. SUBSTRATE, citing `decisions/0041`.** Transcribe the three edits in
+0041's "Amended text" verbatim: two in §9, one in the §15 layout line.
+`SUBSTRATE.md` is CRLF; keep it CRLF. Don't touch the status line or version.
+Add a row to `decisions/0100` for the amendment, under a new
+`## Applied 2026-09-29` heading, in the table's format. Commit alone:
+`substrate: s9 the joint null is a block shuffle (decisions/0041)`. Show
+`git diff --ignore-cr-at-eol SUBSTRATE.md` in the receipt.
+
+**2. Standardise inside `romano_wolf`** (0041's implementation note).
+- Add a keyword `standardise: bool = True` to `romano_wolf` and
+  `batched_romano_wolf`. When it's true, transform each column `j` of `T0`,
+  and `t_j`, by `(x - mean(T0[:, j])) / sd(T0[:, j], ddof=1)` before the
+  stepdown. Raise `ValueError` on a zero or non-finite column sd.
+- **Tests:**
+  - With `standardise=False`, the output reproduces today's function exactly.
+  - Marginal p-values are invariant to the transform.
+  - **The scale case:** give one null column 3× the others' sd, with the
+    other columns carrying a true effect. Standardised Romano-Wolf rejects
+    them; unstandardised has less power. Assert it on a fixed seed.
+  - The batched version matches the single one row by row, both settings.
+
+**3. The generalized-FWER stepdown: `romano_wolf_gfwer(t, T0, alpha, g=2,
+standardise=True)`.** It controls P(at least `g` false passes) ≤ `alpha`, so
+`g = 1` is ordinary FWER. The letter is `g`, not `k`, because `k` is already
+the number of shuffles.
+- **Implement it from the paper, not from memory.** The source is Romano, J. P.
+  and Wolf, M. (2007), "Control of generalized error rates in multiple
+  testing", *Annals of Statistics* 35(4), 1378-1408. A related, acceptable
+  source is Romano, Shaikh and Wolf (2008), "Formalized data snooping based on
+  generalized error rates", *Econometric Theory* 24(2).
+  - **Cowork is not certain of the page numbers.** Check the title and authors
+    of whatever you fetch.
+  - Try the publisher's open copy first, then the authors' working-paper
+    copies (University of Zurich IEW or ZORA, Stanford). Save it under
+    `docs/references/`, git-ignored as in task 38.
+- **What Cowork expects the paper to say. Verify it; don't assume it.**
+  - The critical value at a step is a high quantile of the **g-th largest**
+    null statistic, not the maximum.
+  - After the first step, the paper's stepdown takes a maximum over subsets
+    of the already-rejected hypotheses of size `g - 1`, added back to the
+    active set. With m = 12 and g = 2, that's at most 11 subsets a step, so
+    enumerate them exactly; don't use the paper's streamlined shortcut unless
+    the paper says it keeps control.
+  - Follow the paper's algorithm. **Where it differs from this description,
+    the paper wins; record the difference in the docstring.**
+- **Record in the docstring:** every choice the paper leaves open, with its
+  equation or algorithm number, and whether its validity argument covers
+  permutation or shuffle nulls or only the bootstrap.
+- **Tests:**
+  - `g = 1` reproduces `romano_wolf` exactly, both `standardise` settings.
+  - Under the complete null, P(V ≥ 2) ≤ alpha within MC error (m = 12, at
+    least 2,000 reps).
+  - An obvious signal, say `t = [4.0, 3.5, 3.2, 3.0, noise…]`, rejects at
+    least what `romano_wolf` rejects.
+  - It's monotone: every hypothesis `romano_wolf` rejects is also rejected by
+    `g = 2`.
+  - Deterministic under a seed.
+  - Batched version in `_batched.py`, pinned row by row against the single
+    one.
+- **If no source can be fetched, or the algorithm is ambiguous in the way
+  task 38's was, don't ship an approximation.** Leave it raising
+  `NotImplementedError` with what you found, do steps 1, 2 and 4 without it,
+  and say so in the receipt. That's a planned stop for this step only: carry
+  on to task 35 afterwards.
+
+**4. Re-run the study** (`make fdr-study`).
+- **Add procedures:** `rw_g2_5` and `rw_g2_10`, and put `romano_wolf_5` on
+  `standardise=True`.
+- **Add a column:** `p_two_plus_false`, P(V ≥ 2), for every procedure.
+- Keep 5,000 reps and the k grid {20, 50, 100, 200, 500, 1000}.
+- The study's draws are homoscedastic by construction, so `romano_wolf_5`
+  should match task 38's figures within MC error. Report the largest
+  absolute difference in `avg_power` and `fwer` against
+  `results/fdr_vs_fwer/20260929-154138/summary.csv`.
+
+Run:
+
+    scripts/unattended.sh check-full --digest
+    make fdr-study
+
+Commit the code and the study as `stats: standardised Romano-Wolf and the
+generalized-FWER stepdown (HANDOFF task 40, decisions/0041)`.
+
+**Receipt should say:**
+- rc, runtime and commit hashes, the output directory, and the paper's source.
+- The SUBSTRATE diff.
+- The choices recorded in the docstring, and whether permutation nulls are
+  covered.
+- The `romano_wolf_5` difference against task 38.
+- **The k-sensitivity table** at n_true = 3, rho_w 0.3, rho_b 0.2, for IC 0.35
+  and IC 0.70: `avg_power`, `p_at_least_one_true`, `fwer`,
+  `p_two_plus_false`, `fdr` and `pfdr` for `romano_wolf_5`, `rw_g2_5`,
+  `rw_g2_10` and `bh_10`, at each k.
+- The complete-null rows (n_true = 0) for the two new procedures.
+
+Interpretation is Cowork's and the owner's (L16(a)). **Then go on to task
+35**, and from 35 to 39 under 35's own conditions. **Stop without going on**
+only if the check fails (rc ≠ 0) or step 1 or 2 fails. A step-3 stop as
+described above is not a failure.
+
+---
+
 ### 35. The volatility-overlay halflife sweep (OWNER-QUEUE B1, L13)
 
-**0.** *(Moved to task 37's step 0 on 2026-09-29. Nothing to commit here.)*
+**0.** *(Moved to task 40's step 0 on 2026-09-29, evening. Nothing to commit here.)*
 **Note, 2026-09-29:** after task 37, audit modes of `scripts/unattended.sh` run
 `check-full` before the grid, so `scripts/unattended.sh audit-halflife --digest`
 alone is enough. `scripts/unattended.sh check` is now the fast tier.
@@ -1445,7 +1568,19 @@ h13 has the same key and constraints as the knee run's live cell. A
 - Any cell with `inaccurate_share` > 0.01 or `infeasible_te_share` > 0.
 
 Interpretation is Cowork's and the owner's. Whether the overlay becomes policy
-is B1, an owner decision. **Then stop.**
+is B1, an owner decision.
+
+**Then: continue straight to task 39, or stop** (owner, 2026-09-29). Write and
+commit 35's receipt first, then go on to task 39 in the same session only if
+**all** of these hold:
+1. The grid's rc = 0.
+2. The h13 `None` arm matched the knee run on all 20 (IC, seed) pairs, and
+   both hashes matched.
+3. **39 is expected to finish by 06:00 America/New_York** (check with
+   `TZ=America/New_York date`). Budget about 1.5 h for 39: the edits plus one
+   `check-full`. So start it only if it's before 04:30 ET.
+
+If any of them fails, stop, and say in the receipt which one.
 
 ---
 
