@@ -122,7 +122,9 @@ def test_romano_wolf_adjusted_pvalues_are_monotone_in_rejection_order():
     m = 10
     T0 = rng.standard_normal((5_000, m))
     t = np.sort(rng.standard_normal(m))[::-1] + 2.0  # descending, all somewhat significant
-    _, p_adj = romano_wolf(t, T0, alpha=0.05)
+    # standardise=False: with it on, per-column standardisation can reorder t
+    # relative to its raw values, which is not what this test is about.
+    _, p_adj = romano_wolf(t, T0, alpha=0.05, standardise=False)
     # t is sorted descending, so its own order is the rejection order.
     assert np.all(np.diff(p_adj) >= -1e-12)
 
@@ -183,3 +185,76 @@ def test_everything_is_deterministic_under_a_seed():
 def test_romano_shaikh_wolf_fdr_is_not_implemented_and_says_why():
     with pytest.raises(NotImplementedError, match="not implemented"):
         romano_shaikh_wolf_fdr(np.zeros(3), np.zeros((10, 3)), q=0.10)
+
+
+# --- HANDOFF task 40: standardised Romano-Wolf, decisions/0041 --------------
+
+
+def _reference_romano_wolf_unstandardised(t, T0, alpha):
+    """A direct re-implementation of the pre-task-40 stepdown (no standardising),
+    as an independent oracle for `romano_wolf(..., standardise=False)`."""
+    m = t.shape[0]
+    k = T0.shape[0]
+    p_adj = np.empty(m)
+    remaining = np.arange(m)
+    floor = 0.0
+    while remaining.size:
+        M = T0[:, remaining].max(axis=1)
+        p_active = (1.0 + (M[:, None] >= t[remaining][None, :]).sum(axis=0)) / (k + 1.0)
+        reject_now = p_active <= alpha
+        if not reject_now.any():
+            p_adj[remaining] = np.maximum(floor, p_active)
+            break
+        p_adj[remaining[reject_now]] = np.maximum(floor, p_active[reject_now])
+        floor = max(floor, float(p_active[reject_now].max()))
+        remaining = remaining[~reject_now]
+    return p_adj <= alpha, p_adj
+
+
+def test_standardise_false_reproduces_the_pre_task_40_stepdown_exactly():
+    rng = np.random.default_rng(20)
+    m = 9
+    T0 = rng.standard_normal((2000, m)) * rng.uniform(0.5, 2.0, m)
+    t = rng.standard_normal(m) * 2.0
+    reject_r, p_adj_r = _reference_romano_wolf_unstandardised(t, T0, 0.05)
+    reject, p_adj = romano_wolf(t, T0, 0.05, standardise=False)
+    assert reject.tolist() == reject_r.tolist()
+    np.testing.assert_array_equal(p_adj, p_adj_r)
+
+
+def test_marginal_pvalues_are_invariant_to_standardising():
+    rng = np.random.default_rng(21)
+    m = 6
+    T0 = rng.standard_normal((500, m)) * rng.uniform(0.5, 3.0, m) + rng.uniform(-1, 1, m)
+    t = rng.standard_normal(m) * 2.0
+    from signal_lab.stats.multiple_testing import _standardise_columns
+
+    t_s, T0_s = _standardise_columns(t, T0)
+    np.testing.assert_allclose(marginal_pvalues(t, T0), marginal_pvalues(t_s, T0_s), atol=1e-12)
+
+
+def test_standardising_prevents_a_wide_null_column_from_costing_the_others_power():
+    """
+    decisions/0041's implementation note: an unstandardised max-T stepdown lets
+    a hypothesis with a wider null dominate the shared maximum. Column 0's null
+    is 3x as wide as the rest; columns 1-4 carry a real, moderate effect.
+    """
+    rng = np.random.default_rng(22)
+    m = 5
+    k = 3000
+    T0 = rng.standard_normal((k, m))
+    T0[:, 0] *= 3.0
+    t = np.array([0.2, 2.6, 2.5, 2.4, 2.3])  # column 0 near-null; 1-4 a real effect
+    reject_std, _ = romano_wolf(t, T0, alpha=0.05, standardise=True)
+    reject_raw, _ = romano_wolf(t, T0, alpha=0.05, standardise=False)
+    assert reject_std[1:].sum() >= reject_raw[1:].sum()
+    assert reject_std[1:].all(), "standardised should reject all four real effects"
+    assert not reject_raw[1:].all(), "the wide null column should cost the raw version power"
+
+
+def test_a_zero_or_nonfinite_null_column_sd_is_refused():
+    rng = np.random.default_rng(23)
+    T0 = rng.standard_normal((10, 3))
+    T0[:, 0] = 5.0  # constant column: sd = 0
+    with pytest.raises(ValueError, match="zero or non-finite"):
+        romano_wolf(np.array([1.0, 1.0, 1.0]), T0, alpha=0.05, standardise=True)

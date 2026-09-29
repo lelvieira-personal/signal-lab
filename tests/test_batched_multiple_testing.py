@@ -95,3 +95,29 @@ def test_batched_romano_wolf_handles_rows_that_finish_at_different_rounds():
         reject_i, p_adj_i = romano_wolf(t[i], T0[i], alpha=0.05)
         assert reject_b[i].tolist() == reject_i.tolist()
         np.testing.assert_allclose(p_adj_b[i], p_adj_i)
+
+
+# --- HANDOFF task 40: standardised Romano-Wolf, both settings ---------------
+
+
+def test_batched_standardise_columns_matches_row_by_row():
+    from signal_lab.stats._batched import batched_standardise_columns
+    from signal_lab.stats.multiple_testing import _standardise_columns
+
+    rng = np.random.default_rng(24)
+    t, T0 = _random_batch(rng, n=20, m=7, k=200)
+    t_s, T0_s = batched_standardise_columns(t, T0)
+    for i in range(t.shape[0]):
+        t_i, T0_i = _standardise_columns(t[i], T0[i])
+        np.testing.assert_allclose(t_s[i], t_i)
+        np.testing.assert_allclose(T0_s[i], T0_i)
+
+
+def test_batched_romano_wolf_matches_row_by_row_standardise_false():
+    rng = np.random.default_rng(25)
+    t, T0 = _random_batch(rng, n=30, m=8, k=250)
+    reject_b, p_adj_b = batched_romano_wolf(t, T0, alpha=0.05, standardise=False)
+    for i in range(t.shape[0]):
+        reject_i, p_adj_i = romano_wolf(t[i], T0[i], alpha=0.05, standardise=False)
+        assert reject_b[i].tolist() == reject_i.tolist(), f"row {i} rejection set differs"
+        np.testing.assert_allclose(p_adj_b[i], p_adj_i, err_msg=f"row {i}")
