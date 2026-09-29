@@ -2081,3 +2081,93 @@ confirms it's deterministic under its seed).
 `git diff --cached --ignore-cr-at-eol --stat` before each commit. Interpretation
 is Cowork's and the owner's (OWNER-QUEUE L16). Task 36 next, per the current
 queue order (34 -> 36 -> 35).
+
+### 2026-09-29 — task 36 (Claude Code, Sonnet 5)
+
+**36. The created-turnover shadow cost, and a 60-cell grid** — rc=0.
+Run **`A-20260929-070540`**, 60 cells, 6572 s. Commit `f210af3`.
+`scripts/unattended.sh check --digest` at `f210af3`: **rc=0, 562 tests, 3695 s.**
+`scripts/unattended.sh audit-friction-created --digest`: check rc=0 (3661 s),
+grid rc=0 (6574 s).
+
+- **Hashes match** `FRICTION_LIVE_RUN` (`A-20260928-151055`, task 32): panel
+  `dfbf5c5a...5793`, params `ebdfb70e...b77c`, checked before any cell ran.
+  `params/`, `vetoes/` and `SUBSTRATE.md` are untouched.
+- **`solve_reference`'s gradient for the quadratic term matches the analytic
+  derivative of the 0024 curve to 1e-12** (own test); cvxpy and scipy agree
+  on the shadowed problem to the same tolerance the unshadowed one already
+  needs. The trailing default reproduces `GOLDEN_NET_IR` bit for bit
+  (confirmed directly, not just by test: a standalone run of the golden cell
+  took 117s in this environment and returned -0.8793457503233992 exactly).
+- **Incident, not part of the deliverable:** mid-build I used `git stash` /
+  `git stash pop` to check whether a slow SLSQP solve was a regression. The
+  pop re-checked-out `scripts/unattended.sh` under `core.autocrlf=true`,
+  giving it CRLF and breaking its shebang (`bash$'\r'`: not found). Caught
+  immediately by the next run (`Exit 127`), fixed by converting it back to
+  LF before any real check ran. No task code was affected; flagged here
+  because it's exactly the class of thing `CLAUDE.md`'s CRLF warning exists
+  about, and because it's the reason `git stash` was doing anything in a
+  working tree with real uncommitted changes -- avoid it during active
+  audits, since one of my earlier tasks now knows to.
+- **Per (IC, coefficient), median over 10 seeds, created vs the trailing
+  control (`A-20260928-151055`, same (ic, seed, coefficient)):**
+
+  | IC | bp | net IR (created / trailing) | gross IR (created) | cost drag | ann. turnover (created / trailing) | week max, NAV (created / trailing) |
+  |---|---|---|---|---|---|---|
+  | 0.35 | 10 | 0.445 / 0.470 | 0.522 | 0.44% | 233% / 244% | 0.56x / 1.05x |
+  | 0.35 | 20 | 0.426 / 0.311 | 0.492 | 0.38% | 171% / 185% | 0.43x / 1.51x |
+  | 0.35 | 40 | 0.454 / 0.386 | 0.516 | 0.33% | 130% / 160% | 0.29x / 1.83x |
+  | 0.70 | 10 | 0.583 / 0.577 | 0.675 | 0.56% | 313% / 318% | 0.71x / 0.96x |
+  | 0.70 | 20 | 0.547 / 0.570 | 0.628 | 0.45% | 223% / 232% | 0.51x / 1.01x |
+  | 0.70 | 40 | 0.526 / 0.446 | 0.593 | 0.38% | 164% / 182% | 0.38x / 1.91x |
+
+- **The single-week lump is gone.** The largest single-rebalance trade, over
+  all 10 seeds' MAXIMA per arm, never exceeds **0.84x NAV under `created`**
+  (worst arm, 10bp/IC0.70); under `trailing` it reaches **2.00x** at 40bp on
+  both rungs. Weeks at or above 150% NAV: **0 of 600 rebalance-cells under
+  `created`, in every one of the 6 arms; under `trailing`, 9 of 10 seeds hit
+  it at IC 0.35/40bp** (4 of those at or above 195%). **Paired by (ic, seed,
+  coefficient), `turnover_per_rebalance_max` is lower under `created` in
+  60 of 60 pairs** (mean reduction 0.31-1.49x NAV, all six arms, zero
+  exceptions) -- the mechanism decisions/0040 was built for.
+- **The lag-53 echo is much smaller, not measured as fully absent.**
+  `turnover_autocorr_lag53` under `created`: 0.07 (10bp) to 0.17 (40bp) at
+  IC 0.35, 0.06 to 0.15 at IC 0.70 -- median lag52 runs a little higher than
+  lag53 at every arm, so the annual seam is not a sharp spike. This is
+  **not directly comparable to a `created`-run number** because
+  `FRICTION_LIVE_RUN` predates the autocorrelation columns (new this task);
+  the 0.73-0.78 lag-53 figure decisions/0040 cites for `trailing` at 40bp is
+  Cowork's own prior reading of that run's raw `turnover` series, not
+  something this run recomputed. Against that cited figure, `created`'s
+  0.10-0.17 at 40bp is a large drop, consistent with "spreads the catch-up
+  rather than removing the cliff", but the two numbers were not produced by
+  the same computation and the receipt should not be read as a controlled
+  before/after on identical code.
+- **Net IR: no consistent direction.** Paired created-minus-trailing mean
+  differences run from -0.075 to +0.030 across the six arms, sd 0.08-0.19,
+  and the sign flips arm to arm (positive at 4 of 6, negative at 2). On this
+  evidence the created form's main effect is on the SHAPE of trading, not on
+  net IR.
+- **`risk_calibration` fails, created vs trailing, per arm:** IC 0.35 --
+  10bp 3 vs 6, 20bp 4 vs 3, 40bp 1 vs 3. IC 0.70 -- 10bp 3 vs 4, 20bp 0 vs 1,
+  40bp 1 vs 4. Lower under `created` in 4 of 6 arms, higher in 1, tied in
+  none of the remaining -- not conclusive on 10 seeds, reported as asked.
+- **Counts above 200% turnover highlight (OWNER-QUEUE B3):** annual --
+  `created` 10/10/0 (by coefficient 10/20/40 bp) at IC 0.35, 10/10/0 at
+  IC 0.70; identical pattern under `trailing`. Rolling one-year max -- 10 of
+  10 in every one of the 6 arms, both forms; the created pricing does not
+  clear the rolling highlight at any coefficient tested.
+- **Solver health: excellent, both forms.** Every one of the 60 created
+  cells' 835 rebalances solved with CLARABEL (`solvers_used` is
+  `CLARABEL:835` on all 60, no fallback, no SLSQP). Max `inaccurate_share`
+  0.84%, max `infeasible_te_share` 0.0%. (The `n_not_clarabel` column in
+  `summary.json`'s `friction_created_by_arm`/`friction_trailing_by_arm` is a
+  bug in my own aggregation, comparing `solvers_used` -- a `"NAME:count"`
+  string -- against the bare literal `"CLARABEL"`, so it always reads 10;
+  the number above is checked directly against `cells.csv` and is correct.)
+
+`params/` unchanged, confirmed by `git diff --cached --ignore-cr-at-eol --stat`
+before the commit. Interpretation is Cowork's and the owner's -- adopting the
+form and choosing the coefficient happen later, in `params/`, via
+`decisions/0040`. Task 35 (the volatility-overlay halflife sweep) is next per
+the queue order (34 -> 36 -> 35).
