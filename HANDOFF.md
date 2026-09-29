@@ -2002,3 +2002,82 @@ Queue commits (out of order, see the note above under task 31): `ef6c3f5`
 
 Interpretation is Cowork's and the owner's. Stopped per the task's own
 instruction; task 33 not started.
+
+### 2026-09-28 (night) — task 34 (Claude Code, Sonnet 5)
+
+**34. Multiple-testing module, then the FDR-vs-FWER Monte Carlo** — rc=0.
+`scripts/unattended.sh check --digest`: **rc=0, 546 tests, 1206 s.** Commits:
+`566a33f` (step 0, decisions 0039/0040 and queue); `ed65436` (the module and
+the study). `make fdr-study` at `ed65436`: **rc=0, 210 s**, run
+`results/fdr_vs_fwer/20260929-031720/` (a second, identical run at 190 s
+confirms it's deterministic under its seed).
+
+- **`src/signal_lab/stats/multiple_testing.py`:** `holm`, `romano_wolf`
+  (stepdown max-T, FWER), `benjamini_hochberg`, `benjamini_yekutieli` (step-up
+  FDR), `marginal_pvalues`. All four tested against a hand-worked example
+  (Holm and BY both reject only the smallest p on it; BH rejects the two
+  smallest), independence and positive-dependence checks against Holm, and a
+  1500-replication complete-null simulation keeping realised FWER/FDR within
+  MC error of nominal. 12 tests, all passing.
+- **`romano_shaikh_wolf_fdr` is NOT implemented.** The task's citation
+  ("Romano, Shaikh & Wolf 2008, Econometric Theory 24(2)") is that pair's
+  *k-FWER* paper ("Formalized data snooping..."), not their FDR-under-
+  dependence result (a different paper, in *TEST* 17(3), same year). Without
+  the source in hand to fix which stepdown construction and which open choice
+  the paper makes, implementing either from memory risked shipping a
+  plausible-looking but wrong procedure under a citation that claims fidelity
+  it doesn't have. Per the task's own instruction, this stops rather than
+  approximates; `holm`, `romano_wolf`, `benjamini_hochberg` and
+  `benjamini_yekutieli` ship, tested, and the study's FDR side is BH and BY
+  only.
+- **The study is not the literal full cross product the task lays out, by a
+  disclosed design choice** (stated in the script's own docstring and the
+  report): the correlation grid, k grid and n_true/mu grid are fully crossed
+  (140 scenarios), but the mu SWEEP (0.5-3.0, "for the curve") runs only at
+  the headline correlation and k=1000 for n_true in {1,3,6} (15 more
+  scenarios), not through the whole grid again. Also, (rho_w=0, rho_b=0.2) is
+  skipped: it is not a valid equicorrelation structure (between-axis
+  correlation can't exceed within-axis under the factor-model construction
+  used), stated in both the script and `report.md`.
+- **5,000 replications per scenario, every scenario**, not reduced anywhere —
+  vectorising every procedure across replications
+  (`src/signal_lab/stats/_batched.py`, pinned correct against the
+  single-replication functions by 5 tests comparing row by row, including a
+  case mixing rows that finish the stepdown at different rounds) is what
+  keeps 155 scenarios x 5,000 replications to about 3.5 minutes rather than
+  hours.
+- **Headline tables, n_true=3, rho_w=0.3, rho_b=0.2, k=1000:**
+
+  IC 0.35 (mu=0.565, s=1.149 — **s assumed, not separately measured at this
+  IC**):
+
+  | procedure | avg power | P(>=1 true passes) | FWER | FDR | mean false passes |
+  |---|---|---|---|---|---|
+  | Holm 5% | 0.034 | 0.095 | 0.033 | 0.029 | 0.037 |
+  | Romano-Wolf 5% | 0.038 | 0.106 | 0.039 | 0.033 | 0.045 |
+  | BH 5% | 0.043 | 0.106 | 0.047 | 0.033 | 0.065 |
+  | BH 10% | 0.073 | 0.169 | 0.098 | 0.067 | 0.163 |
+  | BY 10% | 0.026 | 0.067 | 0.024 | 0.017 | 0.032 |
+
+  IC 0.70 (mu=1.518, s=1.149, both measured):
+
+  | procedure | avg power | P(>=1 true passes) | FWER | FDR | mean false passes |
+  |---|---|---|---|---|---|
+  | Holm 5% | 0.160 | 0.372 | 0.038 | 0.023 | 0.041 |
+  | Romano-Wolf 5% | 0.180 | 0.407 | 0.043 | 0.024 | 0.047 |
+  | BH 5% | 0.198 | 0.391 | 0.074 | 0.035 | 0.101 |
+  | BH 10% | 0.285 | 0.510 | 0.154 | 0.072 | 0.253 |
+  | BY 10% | 0.146 | 0.300 | 0.042 | 0.020 | 0.054 |
+
+- Romano-Wolf beats Holm at both ICs (0.038 vs 0.034 at IC 0.35, 0.180 vs
+  0.160 at IC 0.70) by exploiting the positive dependence the equicorrelated
+  null carries — the mechanism the task asked to measure. BH at q=10% roughly
+  doubles power over Holm at both ICs, at 3-6x the false-pass rate.
+- Full `summary.csv` (155 scenarios x 5 procedures = 775 rows) has every
+  (rho_w, rho_b, k, n_true, mu) combination actually run, plus the mu-sweep
+  curve rows.
+
+`params/`, `vetoes/` and `SUBSTRATE.md` untouched — confirmed by
+`git diff --cached --ignore-cr-at-eol --stat` before each commit. Interpretation
+is Cowork's and the owner's (OWNER-QUEUE L16). Task 36 next, per the current
+queue order (34 -> 36 -> 35).
