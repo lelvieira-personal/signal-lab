@@ -2481,3 +2481,102 @@ Commits: `bb67306` (step 0, decisions 0038/0040 addenda, queue 37-39), `e76b60c`
 
 Interpretation is Cowork's and the owner's. Task 38 next per the queue order
 (37 -> 38 -> 35 -> 39).
+
+### 2026-09-29 (day) — task 38 (Claude Code, Sonnet 5)
+
+**38. Romano-Shaikh-Wolf FDR, from the paper, and the study re-run at small k** — rc=0,
+**RSW-FDR still not implemented.** Commit `459a257`.
+`scripts/unattended.sh check-full --digest`: **rc=0, 562 tests, 730 s.**
+`make fdr-study` at `459a257`: **rc=0, 207 s**, run
+`results/fdr_vs_fwer/20260929-154138/`.
+
+- **The paper: fetched and read in full.** Springer redirected to a paywall
+  login; the University of Zurich working-paper copy
+  (`econ.uzh.ch/.../test_2008_merged.pdf`, matching the task's own named
+  source) fetched cleanly -- 55 pages, all algorithm and simulation sections
+  present. Saved to `docs/references/romano-shaikh-wolf-2008-test.pdf`,
+  git-ignored (copyrighted journal article, not redistributed; noted in the
+  new `.gitignore` entry). WebFetch's own text summary couldn't parse the
+  PDF's compressed streams; read it directly instead with `pypdf` and
+  `pdfplumber` (word-level, coordinate-based extraction -- confirmed reliable
+  by exactly reproducing the paper's own Table 1, see below).
+- **What was recovered with confidence.** The population-level recursion
+  (their eq. 7-10): a stepdown FDR bound built by, at each step j, assuming
+  exactly j hypotheses are true nulls and bounding the resulting worst-case
+  FDR contribution. Independently re-derived by hand from the general formula
+  and checked against the paper's own worked specialisations for j=1 (eq. 8)
+  and j=2 (eq. 9) -- both matched exactly.
+- **What could not be resolved: which outer stepdown rank each recursively-
+  computed critical value belongs to.** Built and empirically tested BOTH
+  readings the text supports:
+  - Same order (c_j at outer rank j): **100% empirical FDR under the complete
+    null** (m=8, 200 reps) against a nominal 10% -- an outright control
+    violation.
+  - Reversed (c_j at outer rank m-j+1, matching the proof sketch's own use of
+    j as a hypothesis label and Holm's strictest-first structure): **zero
+    power on an obvious 4-sigma signal** that Holm and `romano_wolf` both
+    reject cleanly.
+  A further complication: Remark 1 (p.426), fixing the bootstrap version's
+  index convention, defines an order statistic as the r-th SMALLEST where the
+  population argument (eq. 7) defines the corresponding one as the r-th
+  LARGEST -- read literally together, these assign opposite elements to the
+  same symbolic position.
+- **Stopped rather than ship either.** Two tested candidates both failing
+  basic sanity checks is a stronger signal than uncertainty from reading
+  alone: it means at least one is definitely wrong. Per the task's own
+  instruction ("if you can't implement it faithfully... don't approximate it
+  silently"), `romano_shaikh_wolf_fdr` still raises `NotImplementedError`,
+  now with the full derivation, both tested readings, and the specific
+  failure each produced, in its docstring -- so a future attempt starts from
+  what's already ruled out rather than repeating this one.
+- **The fidelity-check row the task asked for was not obtainable** (no
+  working implementation to check), but its target was located and verified
+  precisely, for whoever attempts this next: Table 1, "All theta_j=0",
+  sigma=0.5, Boot column, empirical FDR **9.9%** against nominal 10% (n=100,
+  s=50, B=500 bootstrap resamples, 5,000 repetitions) -- reconstructed via
+  `pdfplumber`'s per-word coordinates (the earlier text-layer extraction
+  glued adjacent numeric cells together) and cross-checked against the
+  paper's own narrative ("STS is liberal under positive constant
+  correlation": its empirical FDR rises 10.3% to 16.5% to 32.8% across
+  sigma=0/0.5/0.9 in the same reconstruction -- matches exactly).
+- **The study re-run anyway, with the validated procedures.** `K_GRID`
+  extended to `{20, 50, 100, 200, 500, 1000}`; `p_any_pass`, `pfdr` and
+  `false_share_expected` added; a k-sensitivity table added to the report.
+  Kept the full 5,000 replications throughout -- the run finished in 207s,
+  far under the 2h budget the task allowed dropping to 2,000 reps for.
+- **k-sensitivity, headline correlation (rho_w=0.3, rho_b=0.2), n_true=3:**
+
+  IC 0.35:
+
+  | k | Romano-Wolf 5% power | Romano-Wolf 5% pFDR | BH 10% power | BH 10% pFDR |
+  |---|---|---|---|---|
+  | 20 | 0.035 | 0.244 | 0.005 | 0.632 |
+  | 50 | 0.034 | 0.228 | 0.016 | 0.546 |
+  | 100 | 0.037 | 0.257 | 0.029 | 0.478 |
+  | 200 | 0.039 | 0.261 | 0.062 | 0.352 |
+  | 500 | 0.035 | 0.260 | 0.067 | 0.341 |
+  | 1000 | 0.037 | 0.244 | 0.071 | 0.334 |
+
+  IC 0.70:
+
+  | k | Romano-Wolf 5% power | Romano-Wolf 5% pFDR | BH 10% power | BH 10% pFDR |
+  |---|---|---|---|---|
+  | 20 | 0.154 | 0.061 | 0.010 | 0.541 |
+  | 50 | 0.147 | 0.048 | 0.071 | 0.314 |
+  | 100 | 0.168 | 0.057 | 0.138 | 0.224 |
+  | 200 | 0.173 | 0.060 | 0.250 | 0.144 |
+  | 500 | 0.172 | 0.065 | 0.272 | 0.132 |
+  | 1000 | 0.177 | 0.060 | 0.289 | 0.135 |
+
+  Confirms Cowork's earlier reading: Romano-Wolf's power is roughly FLAT
+  across `k` (uses the joint null's max, not floored by `1/(k+1)`); BH's
+  power rises sharply with `k` and is still climbing at k=1000, needing
+  roughly k>=200-500 before it clears Romano-Wolf's power at either IC.
+  BH's pFDR (conditional on passing anything) falls from 0.63/0.54 at k=20
+  to 0.33/0.14 as k grows -- fewer candidates, but a much higher false share
+  among them at low k.
+
+`params/`, `vetoes/` and `SUBSTRATE.md` untouched, confirmed before the
+commit. Interpretation is Cowork's and the owner's (OWNER-QUEUE L16(a)).
+Task 35 next per the queue order (37 -> 38 -> 35 -> 39) -- **deferred**,
+per the owner's own instruction, to when the machine can run it overnight.
