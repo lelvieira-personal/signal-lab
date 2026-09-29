@@ -37,6 +37,11 @@ HANDOFF task 38 extends `K_GRID` to {20, 50, 100, 200, 500, 1000} and adds
 still not implemented (see its docstring -- a genuine indexing ambiguity in
 the paper, not the task 34 citation error), so the FDR side of this study
 remains BH and BY only; `PROCEDURES` carries no RSW-FDR row.
+
+HANDOFF task 40 (decisions/0041) adds `rw_g2_5` and `rw_g2_10` (Romano & Wolf
+2007's generalized-FWER stepdown at g=2, P(2+ false rejections) <= alpha),
+puts `romano_wolf_5` on `standardise=True`, and adds a `p_two_plus_false`
+column, P(V >= 2), for every procedure.
 """
 
 from __future__ import annotations
@@ -88,12 +93,18 @@ ALPHA = 0.05
 PROCEDURES = (
     ("holm_5", "holm", 0.05),
     ("romano_wolf_5", "romano_wolf", 0.05),
+    ("rw_g2_5", "rw_gfwer", 0.05),
+    ("rw_g2_10", "rw_gfwer", 0.10),
     ("bh_5", "bh", 0.05),
     ("bh_10", "bh", 0.10),
     ("by_10", "by", 0.10),
 )
 # romano_shaikh_wolf_fdr (10%) is NOT in PROCEDURES: it is not implemented.
 # See signal_lab.stats.multiple_testing.romano_shaikh_wolf_fdr's docstring.
+# rw_g2_5 / rw_g2_10 (HANDOFF task 40): the generalized-FWER stepdown at g=2,
+# P(2 or more false rejections) <= alpha. romano_wolf_5 is explicitly on
+# standardise=True below (decisions/0041's implementation note; also this
+# module's new default).
 
 
 def read_axis_groups(pending_dir: Path = PENDING_DIR):
@@ -190,6 +201,7 @@ def run_scenario(rng, n_reps, k, m, group_index, rho_w, rho_b, true_mask, mu, s)
         batched_holm,
         batched_marginal_pvalues,
         batched_romano_wolf,
+        batched_romano_wolf_gfwer,
     )
 
     t, T0 = draw_batch(rng, n_reps, k, m, group_index, rho_w, rho_b, true_mask, mu, s)
@@ -202,7 +214,9 @@ def run_scenario(rng, n_reps, k, m, group_index, rho_w, rho_b, true_mask, mu, s)
         if kind == "holm":
             reject, _ = batched_holm(p, level)
         elif kind == "romano_wolf":
-            reject, _ = batched_romano_wolf(t, T0, level)
+            reject, _ = batched_romano_wolf(t, T0, level, standardise=True)
+        elif kind == "rw_gfwer":
+            reject, _ = batched_romano_wolf_gfwer(t, T0, level, g=2, standardise=True)
         elif kind == "bh":
             reject, _ = batched_benjamini_hochberg(p, level)
         elif kind == "by":
@@ -224,6 +238,7 @@ def run_scenario(rng, n_reps, k, m, group_index, rho_w, rho_b, true_mask, mu, s)
             "procedure": name,
             "level": level,
             "fwer": float((n_false_reject > 0).mean()),
+            "p_two_plus_false": float((n_false_reject >= 2).mean()),  # HANDOFF task 40
             "fdr": float(fdp.mean()),
             "pfdr": pfdr,
             "p_any_pass": float(any_reject.mean()),
@@ -323,23 +338,45 @@ def main(argv=None) -> int:
             "avg_power",
             "p_at_least_one_true",
             "fwer",
+            "p_two_plus_false",
             "fdr",
             "pfdr",
             "mean_false_passes",
         ]
     ]
 
-    # HANDOFF task 38: the k-sensitivity table, headline correlation, n_true=3,
-    # Romano-Wolf 5% and BH 10% (RSW-FDR omitted -- not implemented).
+    # HANDOFF task 40: the k-sensitivity table, headline correlation, n_true=3,
+    # romano_wolf_5, rw_g2_5, rw_g2_10 and bh_10 (RSW-FDR omitted -- still not
+    # implemented, see romano_shaikh_wolf_fdr's docstring).
     k_sens = table[
         (table["rho_w"] == HEADLINE_CORR[0])
         & (table["rho_b"] == HEADLINE_CORR[1])
         & (table["n_true"] == 3)
         & (table["mu_label"].isin(["ic035", "ic070"]))
-        & (table["procedure"].isin(["romano_wolf_5", "bh_10"]))
-    ][["mu_label", "k", "procedure", "avg_power", "fwer", "fdr", "pfdr"]].sort_values(
-        ["mu_label", "procedure", "k"]
-    )
+        & (table["procedure"].isin(["romano_wolf_5", "rw_g2_5", "rw_g2_10", "bh_10"]))
+    ][
+        [
+            "mu_label",
+            "k",
+            "procedure",
+            "avg_power",
+            "p_at_least_one_true",
+            "fwer",
+            "p_two_plus_false",
+            "fdr",
+            "pfdr",
+        ]
+    ].sort_values(["mu_label", "procedure", "k"])
+
+    # HANDOFF task 40: complete-null (n_true=0) rows for the two new procedures,
+    # headline correlation and k.
+    null_rows = table[
+        (table["rho_w"] == HEADLINE_CORR[0])
+        & (table["rho_b"] == HEADLINE_CORR[1])
+        & (table["k"] == HEADLINE_K)
+        & (table["n_true"] == 0)
+        & (table["procedure"].isin(["rw_g2_5", "rw_g2_10"]))
+    ][["procedure", "fwer", "p_two_plus_false", "fdr", "mean_false_passes"]]
 
     seconds = round(time.time() - started, 1)
     report = [
@@ -361,14 +398,20 @@ def main(argv=None) -> int:
         "### IC 0.70 (mu={:.3f}, s={:.3f}, both measured)".format(*MU_SOURCES["ic070"]),
         _markdown_table(headline[headline["mu_label"] == "ic070"].drop(columns="mu_label")),
         "",
-        "## k-sensitivity (HANDOFF task 38): n_true=3, rho_w=0.3, rho_b=0.2, "
-        "Romano-Wolf 5% and BH 10% (RSW-FDR omitted -- not implemented)",
+        "## k-sensitivity (HANDOFF task 40): n_true=3, rho_w=0.3, rho_b=0.2, "
+        "Romano-Wolf 5% (standardised), g=2-FWER at 5%/10%, and BH 10% "
+        "(RSW-FDR omitted -- still not implemented)",
         "",
         "### IC 0.35",
         _markdown_table(k_sens[k_sens["mu_label"] == "ic035"].drop(columns="mu_label")),
         "",
         "### IC 0.70",
         _markdown_table(k_sens[k_sens["mu_label"] == "ic070"].drop(columns="mu_label")),
+        "",
+        "## Complete null (n_true=0), rw_g2_5 and rw_g2_10, headline correlation, "
+        f"k={HEADLINE_K} (HANDOFF task 40)",
+        "",
+        _markdown_table(null_rows),
         "",
         "## Caveats",
         "",
@@ -381,6 +424,10 @@ def main(argv=None) -> int:
         "- IC 0.35's dispersion `s` is ASSUMED equal to IC 0.70's, not separately measured.",
         "- `romano_shaikh_wolf_fdr` is not implemented (see its docstring); the "
         "FDR side of this study is BH and BY only.",
+        "- `romano_wolf_5`, `rw_g2_5` and `rw_g2_10` all use `standardise=True` "
+        "(decisions/0041); this study's draws are homoscedastic by construction, "
+        "so standardising should not materially move `romano_wolf_5` from task "
+        "38's figures -- the receipt reports the largest observed difference.",
         f"- The mu sweep ({MU_SWEEP}) runs only at the headline correlation and "
         f"k={HEADLINE_K}, not through the full grid -- it is the power curve, not "
         "a further grid axis.",
@@ -389,6 +436,7 @@ def main(argv=None) -> int:
     print(f"wrote {out}/summary.csv and report.md  ({seconds:.0f}s)")
     print(headline.to_string(index=False))
     print(k_sens.to_string(index=False))
+    print(null_rows.to_string(index=False))
     return 0
 
 

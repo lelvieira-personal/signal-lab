@@ -29,12 +29,15 @@ its recursion to the outer stepdown genuinely ambiguous; see its docstring.
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 
 __all__ = [
     "marginal_pvalues",
     "holm",
     "romano_wolf",
+    "romano_wolf_gfwer",
     "benjamini_hochberg",
     "benjamini_yekutieli",
     "romano_shaikh_wolf_fdr",
@@ -136,12 +139,34 @@ def benjamini_yekutieli(p: np.ndarray, q: float) -> tuple[np.ndarray, np.ndarray
     return p_adj <= q, p_adj
 
 
-def romano_wolf(t: np.ndarray, T0: np.ndarray, alpha: float) -> tuple[np.ndarray, np.ndarray]:
+def _standardise_columns(t: np.ndarray, T0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """`(t, T0)` with each column `j` of `T0`, and `t_j`, transformed by
+    `(x - mean(T0[:, j])) / sd(T0[:, j], ddof=1)` (decisions/0041's
+    implementation note). Raises on a zero or non-finite column sd."""
+    mean = T0.mean(axis=0)
+    sd = T0.std(axis=0, ddof=1)
+    if not np.all(np.isfinite(sd)) or np.any(sd <= 0):
+        raise ValueError("a null column has zero or non-finite standard deviation")
+    return (t - mean) / sd, (T0 - mean[None, :]) / sd[None, :]
+
+
+def romano_wolf(
+    t: np.ndarray, T0: np.ndarray, alpha: float, standardise: bool = True
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Romano & Wolf (2005, Econometrica 73(4); 2016, Statistics & Probability
     Letters 113) stepdown max-T. FWER <= alpha, using the ACTUAL joint null
     (`T0`'s columns share the permutation the audit drew, so real dependence
     between hypotheses raises power over Holm rather than being ignored).
+
+    `standardise` (default `True`, decisions/0041's implementation note): each
+    column `j` of `T0`, and `t_j`, is transformed to `(x - mean)/sd` (that
+    column's own null mean and standard deviation) before the stepdown. Without
+    it, a hypothesis whose null is wider (e.g. more tracking error) dominates
+    the max and costs narrower-null hypotheses power -- Romano and Wolf's own
+    reason for recommending studentised statistics. Marginal p-values are
+    unchanged by the transform (it is monotone per column); only the
+    comparison ACROSS hypotheses, via the shared max, changes.
 
     At each step, the critical region for the still-active hypotheses is the
     upper tail of the MAX of their own null columns (so a hypothesis already
@@ -167,6 +192,8 @@ def romano_wolf(t: np.ndarray, T0: np.ndarray, alpha: float) -> tuple[np.ndarray
     m = t.shape[0]
     if T0.ndim != 2 or T0.shape[1] != m:
         raise ValueError(f"T0 must be (k, {m}), got {T0.shape}")
+    if standardise:
+        t, T0 = _standardise_columns(t, T0)
     k = T0.shape[0]
     p_adj = np.empty(m, dtype=float)
     remaining = np.arange(m)
@@ -181,6 +208,130 @@ def romano_wolf(t: np.ndarray, T0: np.ndarray, alpha: float) -> tuple[np.ndarray
         p_adj[remaining[reject_now]] = np.maximum(floor, p_active[reject_now])
         floor = max(floor, float(p_active[reject_now].max()))
         remaining = remaining[~reject_now]
+    return p_adj <= alpha, p_adj
+
+
+def _g_max_per_row(T0: np.ndarray, cols: np.ndarray, g: int) -> np.ndarray:
+    """The g-th largest value in each row of `T0[:, cols]` (g=1: the max).
+    `-inf` when `cols` has fewer than `g` entries (a set that small can never
+    hold `g` false rejections, so it never binds -- HANDOFF task 40)."""
+    sub = T0[:, cols]
+    if sub.shape[1] < g:
+        return np.full(T0.shape[0], -np.inf)
+    return np.partition(sub, sub.shape[1] - g, axis=1)[:, sub.shape[1] - g]
+
+
+def romano_wolf_gfwer(
+    t: np.ndarray, T0: np.ndarray, alpha: float, g: int = 2, standardise: bool = True
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Romano & Wolf (2007), "Control of generalized error rates in multiple
+    testing", Annals of Statistics 35(4), 1378-1408, Algorithm 2.1 (their
+    "generic step-down method for control of the k-FWER"), specialised to the
+    bootstrap/resampling single-step critical value of their eq. (8)-(9) --
+    here, the empirical `(1-alpha)`-quantile of `g-max(T0[:, K])` for a
+    hypothesis set `K`, exactly as `romano_wolf`'s existing max-based
+    construction is `romano_wolf`'s g=1 case of the same formula. HANDOFF
+    task 40 (OWNER-QUEUE L16); source saved at
+    `docs/references/romano-wolf-2007-generalized-error-rates.pdf`
+    (arXiv:0710.2258, an author's copy of the published version; git-ignored,
+    not redistributed).
+
+    `g-FWER` is `P(V >= g) <= alpha`, `V` the number of false rejections;
+    `g=1` is ordinary FWER (`romano_wolf`). The letter is `g`, not `k`: `k` is
+    already the number of null draws (`T0`'s rows) throughout this module.
+
+    **The algorithm (their Sect. 2.2, notation p.7-9), read and implemented
+    exactly, not paraphrased.** Order the observed statistics descending. At
+    step 1, reject any `i` in the full set `A_1` with `t_i > c(A_1)`, where
+    `c(K)` is the `(1-alpha)`-quantile of `g-max(T0[:, K])` (their eq. 8-9,
+    made feasible by resampling per their Sect. 3 -- here, `T0`'s block
+    shuffles rather than their i.i.d. bootstrap; see `SHUFFLE_NULL_COVERED`
+    doc on `romano_shaikh_wolf_fdr` for the same caveat applying more broadly
+    in this module). At step j>1, with `R_j` the hypotheses rejected so far
+    and `A_j` the remaining active set: if `|R_j| < g`, stop (fewer than `g`
+    rejections so far means `g` false ones among them is impossible, so no
+    further correction is needed and nothing more is rejected -- their
+    Algorithm 2.1 step 2's explicit stopping rule). Otherwise the critical
+    value is the MAXIMUM, over every size-`(g-1)` subset `I` of `R_j`, of
+    `c(A_j union I)` -- because we don't know which of the `g-1` "at most"
+    false rejections already made are the true nulls, so every way of
+    attributing them is guarded against. `m=12` and `g=2` makes this at most
+    11 subsets a step, enumerated exactly (`itertools.combinations`), per the
+    task's own instruction not to use the paper's streamlined Algorithm 2.2
+    shortcut without separately verifying it preserves control -- not done
+    here.
+
+    In p-value form (this module's convention throughout): reject `i` in
+    `A_j` iff `max` over every combo `K` of the empirical one-sided p-value
+    `(1 + #{b : g-max(T0[b, K]) >= t_i}) / (k+1)` is `<= alpha` -- the same
+    duality `romano_wolf` already uses between a critical value and a
+    p-value, generalised to a max over combos rather than a single set.
+
+    **`g=1` reduces to this module's `romano_wolf` exactly by construction**:
+    `g-max` at `g=1` is the ordinary max, and `itertools.combinations(R, 0)`
+    yields exactly the empty subset, so `K = A_j` at every step with no
+    combining -- there is no separate code path for `g=1`, only this one
+    specialised by the parameter (checked by the g=1-reproduces-`romano_wolf`
+    test below, not assumed).
+
+    **Not verified: whether the paper's validity argument covers a
+    permutation/block-shuffle null rather than the i.i.d. bootstrap or
+    subsampling it develops (their Sect. 3).** Per `decisions/0041`, every
+    null in this lab is a block shuffle; this is the same open question
+    `romano_shaikh_wolf_fdr`'s docstring records for that procedure, not
+    re-derived here for this one.
+
+    `t` is shape `(m,)`; `T0` is shape `(k, m)`. Returns `(reject,
+    p_adjusted)`, `p_adjusted` monotone non-decreasing in rejection order
+    (floored at the running maximum, as `romano_wolf`), in the original
+    order of `t`. A hypothesis never reached (the `|R_j| < g` stop) gets
+    `p_adjusted = max(floor, 1.0)` -- not rejected, and no round produced a
+    sharper number for it.
+    """
+    t = np.asarray(t, dtype=float)
+    T0 = np.asarray(T0, dtype=float)
+    m = t.shape[0]
+    if T0.ndim != 2 or T0.shape[1] != m:
+        raise ValueError(f"T0 must be (k, {m}), got {T0.shape}")
+    if g < 1:
+        raise ValueError(f"g must be >= 1, got {g}")
+    if standardise:
+        t, T0 = _standardise_columns(t, T0)
+    k = T0.shape[0]
+
+    p_adj = np.full(m, np.nan)
+    active = np.arange(m)
+    rejected: list[int] = []
+    floor = 0.0
+    step = 0
+    while active.size:
+        step += 1
+        if step == 1:
+            combos = [active]
+        else:
+            if len(rejected) < g:
+                break
+            combos = [
+                np.concatenate([active, np.asarray(combo, dtype=int)])
+                for combo in itertools.combinations(rejected, g - 1)
+            ]
+        p_worst = np.zeros(active.size)
+        for cols in combos:
+            M = _g_max_per_row(T0, cols, g)
+            p = (1.0 + (M[:, None] >= t[active][None, :]).sum(axis=0)) / (k + 1.0)
+            p_worst = np.maximum(p_worst, p)
+        reject_now = p_worst <= alpha
+        if not reject_now.any():
+            p_adj[active] = np.maximum(floor, p_worst)
+            active = np.empty(0, dtype=int)
+            break
+        p_adj[active[reject_now]] = np.maximum(floor, p_worst[reject_now])
+        floor = max(floor, float(p_worst[reject_now].max()))
+        rejected.extend(active[reject_now].tolist())
+        active = active[~reject_now]
+    if active.size:  # the |R_j| < g stop: p_adj not yet set for what's left
+        p_adj[active] = np.maximum(floor, 1.0)
     return p_adj <= alpha, p_adj
 
 

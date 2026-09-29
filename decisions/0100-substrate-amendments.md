@@ -28,6 +28,12 @@ the code and the constitution agree.**
 | 10 | The `lookahead` veto extends to estimated parameters, not only observed vintages — an exposure matrix or a set of regime probabilities fitted on the full sample leaks without misdating anything. | 0015, 0019 |
 | 4 | The tracking-error penalty coefficient is a function of conviction, not a number. | 0019 |
 
+## Applied 2026-09-29
+
+| Section | Amendment | Decision |
+|---|---|---|
+| 9, 15 | Every null used by a test (bar 2's excess, the search null, the multiple-testing gate) comes from a **block shuffle** of the signal, not a block bootstrap; confidence intervals stay on the block bootstrap. The §15 `stats/` layout line gains "block shuffle" and "multiple testing". | 0041 |
+
 ## Open questions — NOT amendments, and deliberately not applied
 
 The constitution should not pretend to settle what the lab has not learned.

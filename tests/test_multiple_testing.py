@@ -14,6 +14,7 @@ from signal_lab.stats.multiple_testing import (
     marginal_pvalues,
     romano_shaikh_wolf_fdr,
     romano_wolf,
+    romano_wolf_gfwer,
 )
 
 # --- a hand-worked example ----------------------------------------------------
@@ -258,3 +259,69 @@ def test_a_zero_or_nonfinite_null_column_sd_is_refused():
     T0[:, 0] = 5.0  # constant column: sd = 0
     with pytest.raises(ValueError, match="zero or non-finite"):
         romano_wolf(np.array([1.0, 1.0, 1.0]), T0, alpha=0.05, standardise=True)
+
+
+# --- HANDOFF task 40: the generalized-FWER stepdown (Romano & Wolf 2007) ----
+
+
+def test_g1_reproduces_romano_wolf_exactly_both_standardise_settings():
+    rng = np.random.default_rng(30)
+    m = 9
+    T0 = rng.standard_normal((600, m)) * rng.uniform(0.5, 2.0, m)
+    t = rng.standard_normal(m) * 2.0
+    for standardise in (False, True):
+        reject_rw, p_rw = romano_wolf(t, T0, 0.05, standardise=standardise)
+        reject_g, p_g = romano_wolf_gfwer(t, T0, 0.05, g=1, standardise=standardise)
+        assert reject_rw.tolist() == reject_g.tolist()
+        np.testing.assert_allclose(p_rw, p_g)
+
+
+def test_complete_null_p_of_two_or_more_false_within_mc_error():
+    rng = np.random.default_rng(31)
+    m = 12
+    alpha = 0.05
+    n_reps, k = 2000, 300
+    v_ge_2 = 0
+    for _ in range(n_reps):
+        t = rng.standard_normal(m)
+        T0 = rng.standard_normal((k, m))
+        reject, _ = romano_wolf_gfwer(t, T0, alpha, g=2)
+        v_ge_2 += reject.sum() >= 2
+    # SE of a ~5% proportion at n=2000 is ~0.005; a generous margin.
+    assert v_ge_2 / n_reps <= alpha + 0.03
+
+
+def test_an_obvious_signal_rejects_at_least_what_romano_wolf_does():
+    rng = np.random.default_rng(32)
+    T0 = rng.standard_normal((500, 8))
+    t = np.array([4.0, 3.5, 3.2, 3.0, 0.3, 0.1, -0.2, -0.1])
+    reject_rw, _ = romano_wolf(t, T0, 0.05, standardise=False)
+    reject_g2, _ = romano_wolf_gfwer(t, T0, 0.05, g=2, standardise=False)
+    assert reject_g2[reject_rw].all(), "everything romano_wolf rejects, g=2 also rejects"
+    assert reject_g2.sum() >= reject_rw.sum()
+
+
+def test_monotone_in_g_on_the_registry_shaped_case():
+    rng = np.random.default_rng(33)
+    m = 12
+    factor = rng.standard_normal((800, 1))
+    T0 = 0.4 * factor + 0.7 * rng.standard_normal((800, m))
+    t = rng.standard_normal(m) * 1.8
+    reject_1, _ = romano_wolf_gfwer(t, T0, 0.05, g=1)
+    reject_2, _ = romano_wolf_gfwer(t, T0, 0.05, g=2)
+    assert reject_2[reject_1].all()
+
+
+def test_gfwer_is_deterministic_under_a_seed():
+    rng = np.random.default_rng(34)
+    t = rng.standard_normal(10)
+    T0 = rng.standard_normal((400, 10))
+    r1, a1 = romano_wolf_gfwer(t, T0, 0.05, g=2)
+    r2, a2 = romano_wolf_gfwer(t, T0, 0.05, g=2)
+    assert r1.tolist() == r2.tolist()
+    np.testing.assert_array_equal(a1, a2)
+
+
+def test_gfwer_refuses_g_below_one():
+    with pytest.raises(ValueError, match="g must be"):
+        romano_wolf_gfwer(np.zeros(3), np.zeros((5, 3)), 0.05, g=0)

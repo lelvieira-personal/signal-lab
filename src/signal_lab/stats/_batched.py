@@ -57,15 +57,29 @@ def batched_benjamini_yekutieli(p: np.ndarray, q: float) -> tuple[np.ndarray, np
     return p_adj <= q, p_adj
 
 
+def batched_standardise_columns(t: np.ndarray, T0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """The batched form of `multiple_testing._standardise_columns`: `t` is
+    `(n, m)`, `T0` is `(n, k, m)`; each (replication, hypothesis) column is
+    standardised by its own `T0[i, :, j]` mean and sd (ddof=1)."""
+    mean = T0.mean(axis=1)  # (n, m)
+    sd = T0.std(axis=1, ddof=1)  # (n, m)
+    if not np.all(np.isfinite(sd)) or np.any(sd <= 0):
+        raise ValueError("a null column has zero or non-finite standard deviation")
+    return (t - mean) / sd, (T0 - mean[:, None, :]) / sd[:, None, :]
+
+
 def batched_romano_wolf(
-    t: np.ndarray, T0: np.ndarray, alpha: float
+    t: np.ndarray, T0: np.ndarray, alpha: float, standardise: bool = True
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     The per-replication stepdown of `multiple_testing.romano_wolf`, run for
     every row of `t` at once. Each row's active set shrinks independently; a
     row stops the moment its own round rejects nothing, and is left alone
-    (its `active` mask cleared) while other rows keep going.
+    (its `active` mask cleared) while other rows keep going. `standardise`
+    matches the single-replication function's default and meaning.
     """
+    if standardise:
+        t, T0 = batched_standardise_columns(t, T0)
     n, m = t.shape
     k = T0.shape[1]
     p_adj = np.full((n, m), np.nan)
@@ -91,3 +105,26 @@ def batched_romano_wolf(
             floor = np.where(rows_with_reject, np.maximum(floor, round_max), floor)
             active = active & ~reject_now
     return p_adj <= alpha, p_adj
+
+
+def batched_romano_wolf_gfwer(
+    t: np.ndarray, T0: np.ndarray, alpha: float, g: int = 2, standardise: bool = True
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    `multiple_testing.romano_wolf_gfwer`, run for every row of `t`. Unlike
+    the other batched functions here, this is a plain per-row loop, not a
+    vectorised one: the paper's own step-down (HANDOFF task 40) requires
+    enumerating every size-`(g-1)` subset of each row's OWN rejected set,
+    which differs in count and membership row to row, so there is no shared
+    array shape to vectorise across rows the way `batched_romano_wolf` does.
+    Timed at ~0.3ms/row for m=12, k=1000, g=2 -- fast enough that the study
+    (`scripts/fdr_vs_fwer.py`) does not need it vectorised.
+    """
+    from signal_lab.stats.multiple_testing import romano_wolf_gfwer
+
+    n, m = t.shape
+    reject = np.empty((n, m), dtype=bool)
+    p_adj = np.empty((n, m), dtype=float)
+    for i in range(n):
+        reject[i], p_adj[i] = romano_wolf_gfwer(t[i], T0[i], alpha, g=g, standardise=standardise)
+    return reject, p_adj

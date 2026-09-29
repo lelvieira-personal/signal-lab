@@ -14,6 +14,7 @@ from signal_lab.stats._batched import (
     batched_holm,
     batched_marginal_pvalues,
     batched_romano_wolf,
+    batched_romano_wolf_gfwer,
 )
 from signal_lab.stats.multiple_testing import (
     benjamini_hochberg,
@@ -21,6 +22,7 @@ from signal_lab.stats.multiple_testing import (
     holm,
     marginal_pvalues,
     romano_wolf,
+    romano_wolf_gfwer,
 )
 
 
@@ -121,3 +123,19 @@ def test_batched_romano_wolf_matches_row_by_row_standardise_false():
         reject_i, p_adj_i = romano_wolf(t[i], T0[i], alpha=0.05, standardise=False)
         assert reject_b[i].tolist() == reject_i.tolist(), f"row {i} rejection set differs"
         np.testing.assert_allclose(p_adj_b[i], p_adj_i, err_msg=f"row {i}")
+
+
+# --- HANDOFF task 40: the batched generalized-FWER stepdown -----------------
+
+
+def test_batched_romano_wolf_gfwer_matches_row_by_row():
+    rng = np.random.default_rng(26)
+    t, T0 = _random_batch(rng, n=25, m=8, k=200)
+    for standardise in (False, True):
+        reject_b, p_adj_b = batched_romano_wolf_gfwer(
+            t, T0, alpha=0.05, g=2, standardise=standardise
+        )
+        for i in range(t.shape[0]):
+            reject_i, p_adj_i = romano_wolf_gfwer(t[i], T0[i], 0.05, g=2, standardise=standardise)
+            assert reject_b[i].tolist() == reject_i.tolist(), f"row {i}, standardise={standardise}"
+            np.testing.assert_allclose(p_adj_b[i], p_adj_i, err_msg=f"row {i}")
