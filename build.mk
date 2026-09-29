@@ -26,6 +26,7 @@
 #   make jpmaqs-catalogue                        the 27 registered JPMaQS tickers against the vendor catalogue
 #   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make jpmaqs-name-search                      name search of the cached catalogue for H-2026-0004, 0005, 0010
+#   make fdr-study                                Monte Carlo: FDR vs FWER on the registry's shape, no engine runs (HANDOFF task 34)
 #   make governance SUBSTRATE section 2, checked mechanically
 #
 # uv manages Python 3.12 and the locked dependency set; nothing is installed
@@ -52,7 +53,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search
+.PHONY: check lint test holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -122,6 +123,9 @@ jpmaqs-candidates: ## catalogue names sharing each unresolved JPMaQS ticker's ci
 
 jpmaqs-name-search: ## name search of the cached JPMaQS catalogue for 0004, 0005, 0010 -- names only, no choice (HANDOFF task 29)
 	$(PY) --group dev python scripts/jpmaqs_name_search.py
+
+fdr-study: ## Monte Carlo: FDR vs FWER on the registry's shape -- no engine runs (HANDOFF task 34)
+	$(PY) --group dev python scripts/fdr_vs_fwer.py
 
 coverage: ## rebuild bbg_index_coverage.csv from the Index Map (decisions/0022)
 	$(PY) --group dev python scripts/build_coverage.py
