@@ -78,6 +78,37 @@ Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
   Romano-Wolf's joint null. It is queued as HANDOFF task 40, together with
   standardising `romano_wolf` so that no hypothesis dominates the maximum by
   scale. **L16(a) stays open until task 40's numbers are read.**
+  **Task 40 reported 2026-09-29** (`c0c4093`,
+  `results/fdr_vs_fwer/20260929-204223/`). `romano_wolf_gfwer` is implemented
+  from Romano & Wolf (2007), *Annals of Statistics* 35(4), Algorithm 2.1
+  (fetched from arXiv:0710.2258); standardising `romano_wolf` is implemented
+  and is now the default. Under the complete null at k=1000, `p_two_plus_false`
+  sits within ~2 MC standard errors of nominal alpha for both variants
+  (rw_g2_5: 0.056 vs 0.05; rw_g2_10: 0.109 vs 0.10) — the guarantee the
+  procedure actually makes holds.
+
+  | IC 0.70, n_true 3, rho_w 0.3, rho_b 0.2 | k=20 power/fwer | k=1000 power/fwer |
+  |---|---|---|
+  | romano_wolf_5 (standardised) | 0.218 / 0.099 | 0.179 / 0.042 |
+  | rw_g2_5 | 0.343 / 0.224 | 0.348 / 0.177 |
+  | rw_g2_10 | 0.419 / 0.309 | 0.426 / 0.276 |
+  | bh_10 | 0.010 / 0.011 | 0.289 / 0.154 |
+
+  Like the FWER-vs-FDR choice, `rw_g2_*`'s power is roughly flat across k
+  (joint-null max), so it doesn't buy back power by spending shuffle budget
+  the way `bh_10` does. **A fourth option is now on the table alongside plain
+  Romano-Wolf and BH:** generalized FWER at g=2 nearly doubles power over
+  plain Romano-Wolf at any k, at the cost of tolerating a single false pass
+  17-22% of the time (only *two or more* false passes are held near 5-10%).
+  Whether that tradeoff is acceptable given L15's "screen" ruling is unruled.
+  **L16(a) stays open.**
+
+  **Also outstanding, not a judgement call:** `decisions/0041`'s SUBSTRATE §9
+  and §15 edits are drafted (verbatim diff in task 40's HANDOFF receipt) but
+  **not applied** — Claude Code's permissions refuse writes to `SUBSTRATE.md`
+  outright, so this needs Leo or Cowork to apply the three-line diff directly.
+  Task 40 also deferred tasks 35 and 39 to the next overnight run (time budget
+  against a same-day deadline, not a finding).
 - ~~**What confirms a candidate.**~~ **Ruled 2026-09-28:** replication and
   economic intuition are the gates, both required. A paper track and a live
   allocation are not. Recorded in `decisions/0039`. ~~Whether to adopt Cowork's
