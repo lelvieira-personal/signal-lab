@@ -65,6 +65,12 @@ each column, and its observed value, by the column's own null mean and
 standard deviation before the stepdown. Marginal p-values are unchanged by
 this; only the comparison across hypotheses is.
 
+**2026-09-29, task 41:** task 40's version standardised each column by `T0`'s
+own mean and sd, excluding the observed value -- that breaks exchangeability
+between the observed row and the null draws and inflated small-k FWER (0.127
+at k=20 against nominal 0.05). The fix pools the observed value into the mean
+and sd (`k + 1` values), which keeps the transform symmetric and exact.
+
 ## Amended text (task 40 transcribes it verbatim)
 
 **§9, first bootstrap bullet.** Replace

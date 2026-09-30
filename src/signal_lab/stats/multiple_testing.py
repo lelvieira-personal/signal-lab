@@ -140,11 +140,17 @@ def benjamini_yekutieli(p: np.ndarray, q: float) -> tuple[np.ndarray, np.ndarray
 
 
 def _standardise_columns(t: np.ndarray, T0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """`(t, T0)` with each column `j` of `T0`, and `t_j`, transformed by
-    `(x - mean(T0[:, j])) / sd(T0[:, j], ddof=1)` (decisions/0041's
-    implementation note). Raises on a zero or non-finite column sd."""
-    mean = T0.mean(axis=0)
-    sd = T0.std(axis=0, ddof=1)
+    """`(t, T0)` with each column `j` transformed by `(x - mean) / sd`
+    (ddof=1), the mean and sd taken over the POOLED `k + 1` values -- `t_j`
+    together with `T0[:, j]` -- not `T0` alone (decisions/0041's
+    implementation note, task 41 fix). Pooling keeps the transform a symmetric
+    function of all `k + 1` values, so the observed row stays exchangeable
+    with the null draws; standardising by `T0` alone (task 40) breaks that and
+    inflates FWER at small k (0.127 at k=20 against nominal 0.05, task 41).
+    Raises on a zero or non-finite column sd."""
+    pooled = np.concatenate([t[None, :], T0], axis=0)  # (k + 1, m)
+    mean = pooled.mean(axis=0)
+    sd = pooled.std(axis=0, ddof=1)
     if not np.all(np.isfinite(sd)) or np.any(sd <= 0):
         raise ValueError("a null column has zero or non-finite standard deviation")
     return (t - mean) / sd, (T0 - mean[None, :]) / sd[None, :]
@@ -160,10 +166,11 @@ def romano_wolf(
     between hypotheses raises power over Holm rather than being ignored).
 
     `standardise` (default `True`, decisions/0041's implementation note): each
-    column `j` of `T0`, and `t_j`, is transformed to `(x - mean)/sd` (that
-    column's own null mean and standard deviation) before the stepdown. Without
-    it, a hypothesis whose null is wider (e.g. more tracking error) dominates
-    the max and costs narrower-null hypotheses power -- Romano and Wolf's own
+    column `j` of `T0`, and `t_j`, is transformed to `(x - mean)/sd`, the mean
+    and sd taken over the pooled `t_j` and `T0[:, j]` together (`k + 1`
+    values, `_standardise_columns`), before the stepdown. Without it, a
+    hypothesis whose null is wider (e.g. more tracking error) dominates the
+    max and costs narrower-null hypotheses power -- Romano and Wolf's own
     reason for recommending studentised statistics. Marginal p-values are
     unchanged by the transform (it is monotone per column); only the
     comparison ACROSS hypotheses, via the shared max, changes.

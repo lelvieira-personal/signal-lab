@@ -254,11 +254,49 @@ def test_standardising_prevents_a_wide_null_column_from_costing_the_others_power
 
 
 def test_a_zero_or_nonfinite_null_column_sd_is_refused():
+    """Sd is taken over the pooled k+1 values (task 41), so a zero-variance
+    column needs the observed value to match the constant null too."""
     rng = np.random.default_rng(23)
     T0 = rng.standard_normal((10, 3))
-    T0[:, 0] = 5.0  # constant column: sd = 0
+    T0[:, 0] = 5.0  # constant column, including the observed value: pooled sd = 0
     with pytest.raises(ValueError, match="zero or non-finite"):
-        romano_wolf(np.array([1.0, 1.0, 1.0]), T0, alpha=0.05, standardise=True)
+        romano_wolf(np.array([5.0, 1.0, 1.0]), T0, alpha=0.05, standardise=True)
+
+
+@pytest.mark.slow
+def test_pooled_standardising_controls_fwer_under_heteroscedastic_complete_null():
+    """
+    Regression for HANDOFF task 41. Task 40 standardised each column by T0's
+    OWN mean/sd, excluding the observed value -- that breaks exchangeability
+    between the observed row and the k null draws and inflated small-k FWER
+    (measured 0.127 at k=20 against nominal 0.05). Pooling the observed value
+    into the mean/sd (k+1 values) restores it. m=12, equicorrelated,
+    heteroscedastic columns (scale 0.5 to 3), k=20 -- the worst corner.
+    """
+    rng = np.random.default_rng(41)
+    m, k, alpha, n_reps, rho = 12, 20, 0.05, 4000, 0.3
+    scales = np.linspace(0.5, 3.0, m)
+
+    def draw(n_rows):
+        factor = rng.standard_normal((n_rows, 1))
+        idio = rng.standard_normal((n_rows, m))
+        return (np.sqrt(rho) * factor + np.sqrt(1 - rho) * idio) * scales[None, :]
+
+    v_ge_1 = 0
+    v_ge_2 = 0
+    for _ in range(n_reps):
+        T0 = draw(k)
+        t = draw(1)[0]
+        reject_rw, _ = romano_wolf(t, T0, alpha, standardise=True)
+        v_ge_1 += reject_rw.any()
+        reject_g2, _ = romano_wolf_gfwer(t, T0, alpha, g=2, standardise=True)
+        v_ge_2 += reject_g2.sum() >= 2
+
+    se = (alpha * (1 - alpha) / n_reps) ** 0.5
+    fwer = v_ge_1 / n_reps
+    p_two_plus = v_ge_2 / n_reps
+    assert fwer <= alpha + 3 * se, f"romano_wolf FWER {fwer} exceeds {alpha + 3 * se}"
+    assert p_two_plus <= alpha + 3 * se, f"gfwer P(V>=2) {p_two_plus} exceeds {alpha + 3 * se}"
 
 
 # --- HANDOFF task 40: the generalized-FWER stepdown (Romano & Wolf 2007) ----

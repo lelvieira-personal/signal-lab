@@ -60,9 +60,12 @@ def batched_benjamini_yekutieli(p: np.ndarray, q: float) -> tuple[np.ndarray, np
 def batched_standardise_columns(t: np.ndarray, T0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """The batched form of `multiple_testing._standardise_columns`: `t` is
     `(n, m)`, `T0` is `(n, k, m)`; each (replication, hypothesis) column is
-    standardised by its own `T0[i, :, j]` mean and sd (ddof=1)."""
-    mean = T0.mean(axis=1)  # (n, m)
-    sd = T0.std(axis=1, ddof=1)  # (n, m)
+    standardised by the mean and sd (ddof=1) of the POOLED `k + 1` values --
+    `t[i, j]` together with `T0[i, :, j]` -- not `T0` alone (task 41 fix;
+    see the single-replication docstring for why)."""
+    pooled = np.concatenate([t[:, None, :], T0], axis=1)  # (n, k + 1, m)
+    mean = pooled.mean(axis=1)  # (n, m)
+    sd = pooled.std(axis=1, ddof=1)  # (n, m)
     if not np.all(np.isfinite(sd)) or np.any(sd <= 0):
         raise ValueError("a null column has zero or non-finite standard deviation")
     return (t - mean) / sd, (T0 - mean[:, None, :]) / sd[:, None, :]
