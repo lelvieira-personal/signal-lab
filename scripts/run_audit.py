@@ -561,7 +561,7 @@ def _halflife_by_cell(table, universe, params, out_root):
     by_horizon_halflife = _summary([])
     by_horizon_halflife_ic = _summary(["ic"])
 
-    work["hl_key"] = work["vol_halflife"].fillna(-1.0)
+    work["hl_key"] = work["vol_halflife"].astype(float).fillna(-1.0)
     pivot = work.pivot_table(index=["ic", "seed", "horizon"], columns="hl_key", values="net_ir")
     paired_rows = []
     if -1.0 in pivot.columns:
