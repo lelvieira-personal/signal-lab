@@ -118,6 +118,20 @@ Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
   within about 0.01 of nominal. The fix (pool the observed value into the
   mean and sd) is HANDOFF task 41, which re-runs the study. **Don't read the
   small-k power figures until task 41's numbers are in.**
+  **Task 41 reported 2026-09-29 (late evening)** (`0a5645f`,
+  `results/fdr_vs_fwer/20260930-031720/`): the fix holds. Complete-null,
+  headline correlation, k=20: `romano_wolf_5` FWER 0.052 (was 0.127),
+  `rw_g2_5` P(V>=2) 0.049 (was 0.083), `rw_g2_10` P(V>=2) 0.098 (nominal
+  0.05/0.10) — all within 2-3 MC standard errors of nominal. Against task
+  38's pre-standardisation baseline, max |delta FWER| across all (mu, n_true,
+  k) cells is now 0.0074 (was 0.066-0.078), consistent with MC noise rather
+  than a real shift. **The small-k power/FWER table in the correction above
+  is now safe to read** — task 40's g=2 tradeoff description (near-doubled
+  power over plain Romano-Wolf, at the cost of a single false pass 17-31% of
+  the time) stands under the fix; the earlier `T0`-only numbers it was partly
+  drawn from were also individually within noise of the pooled ones except at
+  k=20/50, where the direction of the finding (more power, more single-false-
+  pass risk) is unchanged. L16(a) stays open.
 - ~~**What confirms a candidate.**~~ **Ruled 2026-09-28:** replication and
   economic intuition are the gates, both required. A paper track and a live
   allocation are not. Recorded in `decisions/0039`. ~~Whether to adopt Cowork's

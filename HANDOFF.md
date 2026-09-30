@@ -2983,3 +2983,79 @@ regardless, to check remaining time against a 6pm ET deadline. ~45 minutes
 remained at receipt time -- nowhere near task 35's 6-8h estimate. **Stopping
 here; task 35 (and task 39, which depends on it) deferred**, per the
 owner's own instruction, to when the machine can run it overnight.
+
+### Task 41 -- pool the observed value into romano_wolf's standardising (decisions/0041) -- 2026-09-29 (late evening), rc=0
+
+`uv run --python 3.12 --group dev pytest -q tests/test_multiple_testing.py
+tests/test_batched_multiple_testing.py`: 31 passed, 7.5s. `scripts/unattended.sh
+check` (fast tier, not check-full, per the task's own instruction -- 35's
+`audit-halflife` covers this commit): rc=0, 62-70s. Commit `0a5645f`.
+`check-full` deferred to 35 as instructed; not run here.
+
+**Step 1, code.** `_standardise_columns` (`stats/multiple_testing.py`) and
+`batched_standardise_columns` (`stats/_batched.py`) now pool the observed
+value `t`/`t[i]` together with the `k` null draws before taking the mean and
+sd (ddof=1) -- `k + 1` values, a symmetric function of all of them, restoring
+the exchangeability task 40's `T0`-only transform broke. `decisions/0041`'s
+Implementation note gets a dated addendum recording the bug and the fix; both
+docstrings updated. The `ValueError` on a zero/non-finite sd is unchanged,
+but now needs the observed value equal to a constant null to trigger --
+updated the one test that assumed otherwise
+(`test_a_zero_or_nonfinite_null_column_sd_is_refused`).
+
+**Step 2, the regression that would have caught it.**
+`test_pooled_standardising_controls_fwer_under_heteroscedastic_complete_null`
+(marked `slow`, though it runs in ~0.4s): m=12, equicorrelated (rho=0.3),
+column scales 0.5-3, k=20, 4,000 reps, fixed seed. `romano_wolf`'s FWER and
+`romano_wolf_gfwer(g=2)`'s P(V>=2) both land at or under alpha + 3*se. No
+other existing test pinned task 40's un-pooled numbers, so nothing else
+needed updating; `standardise=False` and the `g=1` identity tests pass
+unchanged (they never touch `_standardise_columns`' internals).
+
+**Step 3, the study re-run** (`make fdr-study`,
+`results/fdr_vs_fwer/20260930-031720/`, 560s engine time, 9m21s wall).
+Complete-null rows (n_true=0), headline correlation (rho_w=0.3, rho_b=0.2):
+
+| k | romano_wolf_5 fwer | rw_g2_5 p_two_plus_false | rw_g2_10 p_two_plus_false |
+|---|---|---|---|
+| 20 | 0.0520 | 0.0488 | 0.0978 |
+| 50 | 0.0416 | 0.0416 | 0.1000 |
+| 100 | 0.0470 | 0.0482 | 0.0984 |
+| 200 | 0.0494 | 0.0500 | 0.1002 |
+| 500 | 0.0534 | 0.0482 | 0.0994 |
+| 1000 | 0.0522 | 0.0554 | 0.1082 |
+
+Against nominal alpha 0.05 and 0.10: every cell sits within 2-3 MC standard
+errors (se ~ 0.003 at n_reps=5000). Task 40's `romano_wolf_5` FWER of 0.127
+(k=20) and `rw_g2_5` P(V>=2) of 0.083 (k=20) are both gone.
+
+k-sensitivity, n_true=3, rho_w=0.3, rho_b=0.2 (report.md has the full table):
+
+| IC 0.70 | k=20 | 50 | 100 | 200 | 500 | 1000 |
+|---|---|---|---|---|---|---|
+| romano_wolf_5 power/fwer | .119/.043 | .131/.030 | .159/.038 | .171/.043 | .169/.042 | .177/.041 |
+| rw_g2_5 power/p2+ | .274/.038 | .282/.025 | .318/.035 | .333/.035 | .336/.039 | .347/.041 |
+| rw_g2_10 power/p2+ | .362/.077 | .387/.072 | .397/.077 | .414/.075 | .414/.088 | .425/.085 |
+| bh_10 power/fwer | .010/.011 | .071/.065 | .138/.097 | .250/.136 | .272/.143 | .289/.154 |
+
+| IC 0.35 | k=20 | 50 | 100 | 200 | 500 | 1000 |
+|---|---|---|---|---|---|---|
+| romano_wolf_5 power/fwer | .027/.044 | .031/.033 | .035/.037 | .037/.045 | .035/.037 | .037/.038 |
+| rw_g2_5 power/p2+ | .083/.033 | .092/.028 | .097/.033 | .107/.035 | .101/.032 | .104/.035 |
+| rw_g2_10 power/p2+ | .127/.073 | .143/.068 | .140/.072 | .152/.074 | .142/.071 | .145/.070 |
+| bh_10 power/fwer | .005/.006 | .016/.027 | .029/.045 | .062/.085 | .067/.091 | .071/.095 |
+
+**romano_wolf_5 against task 38** (pre-standardisation baseline,
+`results/fdr_vs_fwer/20260929-154138/`), 57 matching (mu_label, n_true, k)
+cells at the headline correlation: max |delta avg_power| = 0.038 (ic070,
+n_true=1, k=20), mean 0.0047; max |delta fwer| = **0.0074** (ic035, n_true=3,
+k=20), mean 0.0015 -- both an order of magnitude smaller than task 40's
+(0.066 / 0.078), and the max sits at k=20 as expected from MC noise on the
+smallest sample, not a systematic shift. The fix holds at small k, which is
+exactly where task 40's bug bit hardest.
+
+`params/`, `vetoes/` untouched.
+
+Interpretation is Cowork's and the owner's (L16(a), OWNER-QUEUE updated
+separately). **Going straight on to task 35** per the task's own instruction
+(step 2's tests pass; nothing here counts as a stop).
