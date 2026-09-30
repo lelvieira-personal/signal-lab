@@ -109,6 +109,15 @@ Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
   outright, so this needs Leo or Cowork to apply the three-line diff directly.
   Task 40 also deferred tasks 35 and 39 to the next overnight run (time budget
   against a same-day deadline, not a finding).
+  **Correction, 2026-09-29 late evening (Cowork, verified against
+  `results/fdr_vs_fwer/20260929-204223/summary.csv`):** the k=20 and k=50 rows
+  above are **invalid**. Task 40's standardising used only the null draws'
+  mean and sd (Cowork's spec error), which breaks exchangeability. Under the
+  complete null, `romano_wolf_5` FWER is 0.127 at k=20 and 0.064 at k=50
+  (nominal 0.05), and `rw_g2_5` P(V>=2) is 0.083 at k=20. The k≥100 rows are
+  within about 0.01 of nominal. The fix (pool the observed value into the
+  mean and sd) is HANDOFF task 41, which re-runs the study. **Don't read the
+  small-k power figures until task 41's numbers are in.**
 - ~~**What confirms a candidate.**~~ **Ruled 2026-09-28:** replication and
   economic intuition are the gates, both required. A paper track and a live
   allocation are not. Recorded in `decisions/0039`. ~~Whether to adopt Cowork's

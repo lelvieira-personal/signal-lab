@@ -56,7 +56,10 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-29 (evening): tasks 37 and 38 are done. Queued, in order, 40 → 35 → 39.**
+**As of 2026-09-29 (late evening): task 40 is done (SUBSTRATE step blocked by permissions; Cowork holds it). Tonight: 41 → 35, with a hard stop. The grid stops by 06:30 ET and the receipt is committed by 06:45 ET (see the amendment at the top of 35). 39 does NOT run tonight.**
+- **41:** pool the observed value into `romano_wolf`'s standardising. Task 40's version breaks FWER at small k.
+
+*(Earlier note:)* **As of 2026-09-29 (evening): tasks 37 and 38 are done. Queued, in order, 40 → 35 → 39.**
 - **40:** transcribe `decisions/0041` into SUBSTRATE §9, standardise
   `romano_wolf`, and add the generalized-FWER stepdown to the study (L16). About
   1-1.5 h, no engine runs. Its step 0 commits Cowork's edits.
@@ -1510,7 +1513,139 @@ described above is not a failure.
 
 ---
 
+### 41. Fix `romano_wolf`'s standardising: pool the observed value with the null draws (task 40 follow-up, `decisions/0041`)
+
+Added 2026-09-29 (late evening) by Cowork. **Owner ruling 2026-09-29: fix it,
+then start 35 tonight.** No engine runs. **Runs first, then go straight on to
+35.** Budget about 30 min.
+
+**0. Commit first, alone:** `HANDOFF.md` and `OWNER-QUEUE.md`, with the message
+`queue: task 41, 35 deadline amendment; L16 small-k correction (Cowork 2026-09-29)`.
+
+**Why.** Task 40 standardised each column with the mean and sd of its `k`
+null draws **only**. That treats the observed value differently from the
+draws: the draws are shrunk toward zero by their own mean and sd, and the
+observed value is not. The permutation test's validity rests on the observed
+row being exchangeable with the `k` null rows, and this breaks it. The error
+is Cowork's: task 40's spec said to do exactly that.
+
+Task 40's own study shows the result. Under the complete null (rho_w 0.3,
+rho_b 0.2), `romano_wolf_5` FWER is:
+
+| k | before (task 38) | task 40 |
+|---|---|---|
+| 20 | 0.048 | **0.127** |
+| 50 | 0.041 | 0.064 |
+
+With 5,000 reps, se ≈ 0.003, so this isn't MC noise. `rw_g2_5`'s P(V ≥ 2) is
+**0.083** at k = 20 against 0.05.
+
+**The fix:** compute each column's mean and sd over the **k + 1 values, the
+observed `t_j` together with `T0[:, j]`**. That is a symmetric function of
+all k + 1 values, so exchangeability, and with it exact validity, is kept.
+
+Cowork checked this in a simulation: m = 12, equicorrelation 0.3, column
+scales from 0.5 to 3, 4,000 reps, complete null, FWER 5%.
+
+| k | unstandardised | T0 only (task 40) | pooled (the fix) |
+|---|---|---|---|
+| 20 | 0.047 | 0.120 | 0.049 |
+| 50 | 0.034 | 0.061 | 0.037 |
+| 100 | 0.049 | 0.060 | 0.051 |
+
+**1. Code.** In `_standardise_columns` in `stats/multiple_testing.py`, pool
+`t` into the mean and sd (ddof=1 over k + 1 values). Update its docstring and
+the note in `decisions/0041` ("Implementation note", one sentence plus the
+date). Make the same change in `_batched.py` wherever it standardises. Keep
+the `ValueError` on a zero or non-finite sd.
+
+**2. Tests.**
+- **Add the regression that would have caught this.** Take a complete null,
+  m = 12, equicorrelated, **heteroscedastic columns** (scales 0.5 to 3),
+  k = 20, at least 4,000 reps, fixed seed. Assert:
+  - `romano_wolf` with `standardise=True`: FWER ≤ 0.05 + 3 se.
+  - `romano_wolf_gfwer` with g = 2: P(V ≥ 2) ≤ 0.05 + 3 se.
+  If it's too slow for the fast tier, mark it `slow`.
+- Update any test that pinned task 40's T0-only transform.
+- The existing `standardise=False` reproduction test and the `g = 1`
+  identity test must pass unchanged.
+
+**3. Re-run the study** (`make fdr-study`, about 8 min). Report:
+- The complete-null rows (n_true = 0, headline correlation) at every k, for
+  `romano_wolf_5`, `rw_g2_5` and `rw_g2_10`: `fwer` and `p_two_plus_false`.
+- **The k-sensitivity table** in task 40's format, IC 0.35 and IC 0.70.
+
+**4. Check and commit.**
+- Run `uv run --python 3.12 --group dev pytest -q tests/test_multiple_testing.py tests/test_batched_multiple_testing.py`
+  and `scripts/unattended.sh check` (the fast tier).
+- **Don't run `check-full` here.** Task 35's `scripts/unattended.sh
+  audit-halflife` runs `check-full` on the combined tree before its grid, which
+  covers this commit. That saves about 22 min against tonight's deadline, and
+  is the owner's call for tonight only. If that check-full fails, 35 stops
+  there, and the receipt says whether the failure is in this task's code.
+- Commit as `stats: pool the observed value into romano_wolf's standardising
+  (HANDOFF task 41, decisions/0041)`.
+
+**Receipt:**
+- rc, commit, study directory and runtime.
+- The two tables in step 3.
+- The largest remaining gap between `romano_wolf_5` and task 38's at each k.
+
+Interpretation is Cowork's and the owner's. **Then go straight on to task
+35**, under its 2026-09-29 late-evening amendment. Stop without going on only
+if step 2's tests fail. **If the new regression still fails after the fix,
+don't loosen it:** revert this task's changes to `standardise=False` as the
+default, say so, and still go on to 35.
+
+---
+
 ### 35. The volatility-overlay halflife sweep (OWNER-QUEUE B1, L13)
+
+> **AMENDMENT 2026-09-29, late evening (owner). Tonight's run has a hard stop:
+> the grid stops by 06:30 ET and the receipt is committed by 06:45 ET. This
+> overrides the "continue straight to task 39" block at the end of this task.
+> Don't start 39 tonight, whatever the time.** The run goes 41 → 35.
+>
+> Timeline: start about 23:30. Task 41 ends about 00:00, and this task's build
+> about 00:30. `check-full` then takes about 22 min, and 240 cells × about
+> 84 s is about 5.6 h. So the grid should finish around 06:00-06:15, with
+> little margin. h4 cells may run slower. **Three additions to the build,
+> tested like the rest:**
+>
+> 1. **Order the cells** so that an early stop leaves complete comparisons:
+>    - horizon **13 first**, which holds the knee identity check, then **26**,
+>      then **4**;
+>    - within a horizon, by (IC, seed), with all four halflife arms of one
+>      (IC, seed) back to back, so every pair of arms is complete.
+> 2. **Checkpoint each cell.** Append each finished row to
+>    `cells.partial.csv` in the run directory as soon as it's done, through
+>    `run_grid`'s `progress` callback, and flush. A kill then loses at most
+>    one cell. Today, `run_grid` holds every row in memory, so a kill loses
+>    the whole run.
+> 3. **A deadline guard.** The audit reads `HALFLIFE_DEADLINE`, an ISO
+>    timestamp with its offset. Before each cell, if now + 1.5 × the median
+>    cell time so far (120 s before the first cell) would pass the deadline,
+>    stop cleanly:
+>    - write `cells.csv` and the report from the finished cells;
+>    - mark the report **PARTIAL**, with the cell count per horizon;
+>    - exit rc = 0.
+>    If the variable is unset, nothing changes. Tests:
+>    - a deadline already past gives zero cells and a partial report, with no
+>      crash;
+>    - a deadline far ahead leaves the output unchanged.
+>
+> Launch with:
+>
+>     HALFLIFE_DEADLINE=2026-09-30T06:30:00-04:00 scripts/unattended.sh audit-halflife --digest
+>
+> - **This `check-full` also covers task 41's commit** (41 skipped its own).
+>   If it fails, stop, and say in the receipt which task's code failed.
+> - **If the grid stops at the deadline:** write the receipt on what finished.
+>   Say which horizons are complete. Run the h13 identity check if h13 is
+>   complete. Commit the receipt before 06:45 ET.
+> - **If you're still running at 06:40 ET for any other reason** (the check
+>   ran long, or the digest is slow), stop what's running and commit a short
+>   receipt saying where it stopped.
 
 **0.** *(Moved to task 40's step 0 on 2026-09-29, evening. Nothing to commit here.)*
 **Note, 2026-09-29:** after task 37, audit modes of `scripts/unattended.sh` run
@@ -1570,7 +1705,7 @@ h13 has the same key and constraints as the knee run's live cell. A
 Interpretation is Cowork's and the owner's. Whether the overlay becomes policy
 is B1, an owner decision.
 
-**Then: continue straight to task 39, or stop** (owner, 2026-09-29). Write and
+*(Overridden for the night of 2026-09-29 by the amendment at the top of this task: stop after 35.)* **Then: continue straight to task 39, or stop** (owner, 2026-09-29). Write and
 commit 35's receipt first, then go on to task 39 in the same session only if
 **all** of these hold:
 1. The grid's rc = 0.
