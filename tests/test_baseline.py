@@ -23,6 +23,10 @@ from signal_lab.audit.ladder import (
     FRICTION_COEFFICIENTS,
     FRICTION_IC_RUNGS,
     FRICTION_SEEDS,
+    HALFLIFE_ARMS,
+    HALFLIFE_HORIZONS,
+    HALFLIFE_IC_RUNGS,
+    HALFLIFE_SEEDS,
     KNEE_IC_RUNGS,
     POWER10_IC_RUNGS,
     POWER10_PERMS,
@@ -35,6 +39,7 @@ from signal_lab.audit.ladder import (
     build_universe,
     friction_cells,
     grid_cells,
+    halflife_cells,
     knee_cells,
     net_ir_excess,
     power10_cells,
@@ -556,6 +561,198 @@ def test_a_shadow_form_cell_says_what_it_is_and_existing_keys_are_unchanged():
     assert created.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_shadow20_created"
     with pytest.raises(ValueError, match="shadow_form"):
         AuditCell(0.35, 13, 0, shadow_form="quadratic")
+
+
+# --- HANDOFF task 35: the volatility-overlay halflife sweep (OWNER-QUEUE B1, L13) ---
+
+
+def test_the_halflife_grid_is_240_live_cells_outside_params(params):
+    cells = halflife_cells(params)
+    assert (
+        len(cells)
+        == len(HALFLIFE_HORIZONS)
+        * len(HALFLIFE_IC_RUNGS)
+        * len(HALFLIFE_SEEDS)
+        * len(HALFLIFE_ARMS)
+        == 240
+    )
+    assert all(not c.baseline and c.tag == "base" for c in cells)
+    assert {c.horizon for c in cells} == set(HALFLIFE_HORIZONS)
+    assert {c.ic for c in cells} == set(HALFLIFE_IC_RUNGS) <= set(KNEE_IC_RUNGS)
+    assert len({c.key() for c in cells}) == 240
+    for c in cells:
+        if c.vol_halflife is not None:
+            assert c.vol_overlay == "scalar"
+
+
+def test_a_halflife_none_arm_at_h13_matches_the_knee_live_cell_exactly(params):
+    """The identity check the receipt reports: a `vol_halflife=None` h13 cell's
+    key and constraints must be byte-identical to the knee run's live cell at
+    the same (ic, seed) -- POWER_LIVE_RUN is that knee run."""
+    knee = next(c for c in knee_cells(params) if not c.baseline)
+    none_h13 = [c for c in halflife_cells(params) if c.horizon == 13 and c.vol_halflife is None]
+    assert len(none_h13) == len(HALFLIFE_IC_RUNGS) * len(HALFLIFE_SEEDS)
+    for c in none_h13:
+        assert (c.cost_multiplier, c.turnover_cap, c.per_rebalance_cap) == (
+            knee.cost_multiplier,
+            knee.turnover_cap,
+            knee.per_rebalance_cap,
+        )
+        assert c.key() == dataclasses.replace(knee, ic=c.ic, seed=c.seed).key()
+
+
+def test_the_halflife_grid_orders_h13_first_then_h26_then_h4_with_arms_back_to_back(params):
+    cells = halflife_cells(params)
+    block = len(HALFLIFE_IC_RUNGS) * len(HALFLIFE_SEEDS) * len(HALFLIFE_ARMS)
+    expected_horizons = [h for h in HALFLIFE_HORIZONS for _ in range(block)]
+    assert [c.horizon for c in cells] == expected_horizons
+    for i in range(0, len(cells), len(HALFLIFE_ARMS)):
+        arm_group = cells[i : i + len(HALFLIFE_ARMS)]
+        keys = {(c.horizon, c.ic, c.seed) for c in arm_group}
+        assert keys == {(arm_group[0].horizon, arm_group[0].ic, arm_group[0].seed)}
+        assert {c.vol_halflife for c in arm_group} == set(HALFLIFE_ARMS)
+
+
+def test_the_halflife_preflight_checks_the_knee_run_at_every_ic_seed(tmp_path):
+    import json
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    sys.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts")]
+    import run_audit
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    run = tmp_path / POWER_LIVE_RUN
+    run.mkdir()
+    (run / "summary.json").write_text(json.dumps({"panel_hash": "p", "params_hash": "q"}))
+    rows = [
+        {"tag": "base", "baseline": False, "horizon": 13, "ic": ic, "seed": s, "net_ir": 0.1}
+        for ic in HALFLIFE_IC_RUNGS
+        for s in HALFLIFE_SEEDS
+    ]
+    pd.DataFrame(rows).to_csv(run / "cells.csv", index=False)
+    universe = SimpleNamespace(panel_hash=lambda: "p")
+    params = SimpleNamespace(params_hash="q")
+    cells = [SimpleNamespace(ic=ic, seed=s) for ic in HALFLIFE_IC_RUNGS for s in HALFLIFE_SEEDS]
+    assert run_audit._halflife_preflight(cells, universe, params, tmp_path) is None
+    pd.DataFrame(rows[:-1]).to_csv(run / "cells.csv", index=False)  # last (ic, seed) missing
+    problem = run_audit._halflife_preflight(cells, universe, params, tmp_path)
+    assert problem is not None and f"seed={HALFLIFE_SEEDS[-1]}" in problem
+    assert run_audit._halflife_preflight(
+        cells, universe, SimpleNamespace(params_hash="x"), tmp_path
+    )
+
+
+def _import_run_audit():
+    import sys
+    from pathlib import Path
+
+    sys.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts")]
+    import run_audit
+
+    return run_audit
+
+
+def test_halflife_deadline_parses_an_offset_timestamp_and_is_none_when_unset():
+    from datetime import datetime, timedelta, timezone
+
+    run_audit = _import_run_audit()
+    ts = run_audit._parse_halflife_deadline("2026-09-30T06:30:00-04:00")
+    expected = datetime(2026, 9, 30, 6, 30, tzinfo=timezone(timedelta(hours=-4))).timestamp()
+    assert ts == expected
+    assert run_audit._parse_halflife_deadline(None) is None
+    assert run_audit._parse_halflife_deadline("") is None
+
+
+def test_halflife_should_stop_true_when_the_deadline_is_already_past():
+    """Task 35's amendment: a deadline already past gives zero cells."""
+    run_audit = _import_run_audit()
+    assert (
+        run_audit._halflife_should_stop(now_ts=2_000.0, deadline_ts=1_000.0, durations=[]) is True
+    )
+
+
+def test_halflife_should_stop_false_when_the_deadline_is_far_ahead():
+    """Task 35's amendment: a deadline far ahead leaves the output unchanged
+    (the grid never stops early)."""
+    run_audit = _import_run_audit()
+    assert (
+        run_audit._halflife_should_stop(
+            now_ts=1_000.0, deadline_ts=1_000_000.0, durations=[80.0, 90.0, 100.0]
+        )
+        is False
+    )
+    assert run_audit._halflife_should_stop(now_ts=1_000.0, deadline_ts=None, durations=[]) is False
+
+
+def test_write_halflife_run_handles_zero_cells_without_crashing(tmp_path):
+    """The deadline-already-past case: zero cells, a PARTIAL report, no crash."""
+    import json
+    import time
+    from types import SimpleNamespace
+
+    run_audit = _import_run_audit()
+    universe = SimpleNamespace(
+        panel_hash=lambda: "p", panel=SimpleNamespace(snapshot_id="synthetic-v1")
+    )
+    params = SimpleNamespace(params_hash="q", params_version="v0.5")
+    args = SimpleNamespace(grid="halflife", source="synthetic", quiet=True)
+    rc = run_audit._write_halflife_run(
+        args, params, universe, pd.DataFrame(), "A-test-empty", tmp_path, time.time(), 240, True
+    )
+    assert rc == 0
+    summary = json.loads((tmp_path / "A-test-empty" / "summary.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "PARTIAL"
+    assert summary["n_cells"] == 0
+    assert summary["n_cells_total"] == 240
+    assert summary["per_horizon_cell_count"] == {}
+
+
+def test_halflife_by_cell_summarises_a_small_fake_grid(tmp_path):
+    """A hand-built table (no engine run) exercises the summary, paired-delta
+    and flagging logic the real grid's cells.csv will feed."""
+    from types import SimpleNamespace
+
+    run_audit = _import_run_audit()
+    rows = []
+    for h in (13, 26):
+        for ic in (0.35, 0.70):
+            for s in (0, 1):
+                for hl in (None, 13.0, 26.0, 52.0):
+                    rows.append(
+                        {
+                            "horizon": h,
+                            "ic": ic,
+                            "seed": s,
+                            "vol_halflife": hl,
+                            "net_ir": 0.5 + (0.1 if hl is not None else 0.0) + 0.01 * s,
+                            "veto_detail": "all four pass",
+                            "bias_worst_annual": 1.2,
+                            "bias_worst_year": 2008 if h == 13 else 2015,
+                            "bias_stat": 1.0,
+                            "te_p95": 0.05,
+                            "te_p95_to_budget": 0.8,
+                            "turnover_annual": 1.0,
+                            "cost_drag_annual": 0.002,
+                            "inaccurate_share": 0.0,
+                            "infeasible_te_share": 0.0,
+                        }
+                    )
+    table = pd.DataFrame(rows)
+    universe = SimpleNamespace(panel_hash=lambda: "p")
+    params = SimpleNamespace(params_hash="q")
+    hashes, identity, by_hh, by_hh_ic, paired, flagged = run_audit._halflife_by_cell(
+        table, universe, params, tmp_path
+    )
+    assert hashes["found"] is False  # no POWER_LIVE_RUN under this empty out_root
+    assert identity is None
+    assert len(by_hh) == 2 * 4  # 2 horizons x 4 halflife labels (including "none")
+    assert len(paired) == 2 * 2 * 3  # 2 horizons x 2 ICs x 3 non-None arms
+    np.testing.assert_allclose(paired["mean_diff"].to_numpy(), 0.1)
+    assert (paired["n_positive"] == 2).all()
+    assert flagged.empty
 
 
 @pytest.mark.slow

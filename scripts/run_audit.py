@@ -14,6 +14,7 @@ is not a run and never reaches the leaderboard (SUBSTRATE sections 2 and 10).
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 
@@ -161,6 +162,61 @@ def _friction_preflight(cells, universe, params, out_root):
         if live.sum() != 1:
             return f"{POWER_LIVE_RUN} lacks the live cell at ic={ic}, seed={seed}"
     return None
+
+
+def _halflife_preflight(cells, universe, params, out_root):
+    """
+    HANDOFF task 35: the `vol_halflife=None` h13 arm is the identity check
+    against `POWER_LIVE_RUN`'s live cell at every (ic, seed) the grid runs.
+    Checked before any cell so a mismatch costs seconds, not 5.5-6 hours.
+    Returns the reason to stop, or None.
+    """
+    import json
+    from pathlib import Path
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    live_dir = Path(out_root) / POWER_LIVE_RUN
+    if not live_dir.exists():
+        return f"{live_dir} not found"
+    live_summary = json.loads((live_dir / "summary.json").read_text(encoding="utf-8"))
+    if live_summary.get("panel_hash") != universe.panel_hash():
+        return f"panel_hash differs from {POWER_LIVE_RUN}"
+    if live_summary.get("params_hash") != params.params_hash:
+        return f"params_hash differs from {POWER_LIVE_RUN}"
+    table = _read_cells(live_dir)
+    for ic, seed in sorted({(c.ic, c.seed) for c in cells}):
+        at = (
+            (table["horizon"] == 13)
+            & (table["ic"].round(6) == round(ic, 6))
+            & (table["seed"] == seed)
+        )
+        live = at & ~table["baseline"].astype(bool) & (table["tag"] == "base")
+        if live.sum() != 1:
+            return f"{POWER_LIVE_RUN} lacks the live cell at ic={ic}, seed={seed}"
+    return None
+
+
+def _parse_halflife_deadline(raw: str | None) -> float | None:
+    """`HALFLIFE_DEADLINE` (task 35's amendment), an ISO timestamp with its
+    offset, as a unix timestamp -- or None if unset."""
+    if not raw:
+        return None
+    from datetime import datetime
+
+    return datetime.fromisoformat(raw).timestamp()
+
+
+def _halflife_should_stop(now_ts: float, deadline_ts: float | None, durations: list) -> bool:
+    """
+    True if starting another cell risks missing `deadline_ts`: now plus 1.5x
+    the median cell duration so far (120s before the first cell) would pass
+    it. `deadline_ts=None` (the variable unset) never stops early.
+    """
+    if deadline_ts is None:
+        return False
+    median = sorted(durations)[len(durations) // 2] if durations else 120.0
+    return now_ts + 1.5 * median > deadline_ts
 
 
 def _friction_by_cell(table, universe, params, out_root):
@@ -389,6 +445,225 @@ def _friction_created_by_cell(table, universe, params, out_root):
     return hashes, by_arm_created, by_arm_trailing, paired
 
 
+def _halflife_by_cell(table, universe, params, out_root):
+    """
+    HANDOFF task 35 (OWNER-QUEUE B1, L13). Four pieces, built to tolerate a
+    deadline-truncated `table` (including zero rows):
+    - the h13 `vol_halflife=None` arm checked cell by cell against
+      `POWER_LIVE_RUN`'s live twin (the identity check the receipt must stop
+      and report on if it fails);
+    - per (horizon, halflife) summary statistics, pooled over both ICs and
+      separately per IC;
+    - the paired net-IR delta of each halflife arm against the `None` control,
+      by (ic, seed, horizon), aggregated over seed;
+    - every cell flagged for `inaccurate_share > 0.01` or `infeasible_te_share
+      > 0`.
+    """
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from signal_lab.audit.ladder import POWER_LIVE_RUN
+
+    empty_cols = [
+        "horizon",
+        "halflife_label",
+        "n",
+        "n_risk_calibration_fails",
+        "bias_worst_annual_median",
+        "bias_worst_annual_max",
+        "n_worst_year_2008",
+        "bias_stat_median",
+        "te_p95_median",
+        "te_p95_to_budget_median",
+        "net_ir_median",
+        "net_ir_min",
+        "net_ir_max",
+        "turnover_annual_median",
+        "cost_drag_median",
+    ]
+
+    hashes = {"live_run": POWER_LIVE_RUN, "found": Path(out_root, POWER_LIVE_RUN).exists()}
+    if hashes["found"]:
+        live_summary = json.loads(
+            (Path(out_root) / POWER_LIVE_RUN / "summary.json").read_text(encoding="utf-8")
+        )
+        hashes["panel_hash_match"] = live_summary.get("panel_hash") == universe.panel_hash()
+        hashes["params_hash_match"] = live_summary.get("params_hash") == params.params_hash
+
+    if table.empty:
+        empty = pd.DataFrame(columns=empty_cols)
+        flagged_cols = [
+            "ic",
+            "horizon",
+            "seed",
+            "vol_halflife",
+            "inaccurate_share",
+            "infeasible_te_share",
+        ]
+        return hashes, None, empty, empty, pd.DataFrame(), pd.DataFrame(columns=flagged_cols)
+
+    identity = None
+    if hashes["found"]:
+        knee = _read_cells(Path(out_root) / POWER_LIVE_RUN)
+        knee_live = knee[~knee["baseline"].astype(bool) & (knee["tag"] == "base")]
+        none_h13 = table[(table["horizon"] == 13) & table["vol_halflife"].isna()]
+        rows = []
+        for _, row in none_h13.iterrows():
+            match = knee_live[
+                (knee_live["ic"].round(6) == round(float(row["ic"]), 6))
+                & (knee_live["seed"] == row["seed"])
+            ]
+            rows.append(
+                {
+                    "ic": float(row["ic"]),
+                    "seed": int(row["seed"]),
+                    "halflife_net_ir": float(row["net_ir"]),
+                    "knee_net_ir": (
+                        float(match["net_ir"].iloc[0]) if len(match) == 1 else float("nan")
+                    ),
+                    "found": len(match) == 1,
+                }
+            )
+        identity = pd.DataFrame(rows)
+        if len(identity):
+            identity["diff"] = identity["halflife_net_ir"] - identity["knee_net_ir"]
+
+    work = table.copy()
+    work["halflife_label"] = work["vol_halflife"].map(lambda x: "none" if pd.isna(x) else str(x))
+
+    def _summary(extra_keys):
+        keys = ["horizon", "halflife_label", *extra_keys]
+        return (
+            work.groupby(keys)
+            .agg(
+                n=("seed", "count"),
+                n_risk_calibration_fails=(
+                    "veto_detail",
+                    lambda s: int(s.fillna("").str.contains("risk_calibration").sum()),
+                ),
+                bias_worst_annual_median=("bias_worst_annual", "median"),
+                bias_worst_annual_max=("bias_worst_annual", "max"),
+                n_worst_year_2008=("bias_worst_year", lambda s: int((s == 2008).sum())),
+                bias_stat_median=("bias_stat", "median"),
+                te_p95_median=("te_p95", "median"),
+                te_p95_to_budget_median=("te_p95_to_budget", "median"),
+                net_ir_median=("net_ir", "median"),
+                net_ir_min=("net_ir", "min"),
+                net_ir_max=("net_ir", "max"),
+                turnover_annual_median=("turnover_annual", "median"),
+                cost_drag_median=("cost_drag_annual", "median"),
+            )
+            .reset_index()
+        )
+
+    by_horizon_halflife = _summary([])
+    by_horizon_halflife_ic = _summary(["ic"])
+
+    work["hl_key"] = work["vol_halflife"].fillna(-1.0)
+    pivot = work.pivot_table(index=["ic", "seed", "horizon"], columns="hl_key", values="net_ir")
+    paired_rows = []
+    if -1.0 in pivot.columns:
+        for (ic, horizon), grp in pivot.groupby(["ic", "horizon"]):
+            for hl in (13.0, 26.0, 52.0):
+                if hl not in grp.columns:
+                    continue
+                diff = (grp[hl] - grp[-1.0]).dropna()
+                if not len(diff):
+                    continue
+                paired_rows.append(
+                    {
+                        "ic": float(ic),
+                        "horizon": int(horizon),
+                        "halflife": hl,
+                        "n": int(len(diff)),
+                        "mean_diff": float(diff.mean()),
+                        "sd_diff": float(diff.std(ddof=1)) if len(diff) > 1 else float("nan"),
+                        "n_positive": int((diff > 0).sum()),
+                    }
+                )
+    paired = pd.DataFrame(paired_rows)
+
+    flagged = table[(table["inaccurate_share"] > 0.01) | (table["infeasible_te_share"] > 0)][
+        ["ic", "horizon", "seed", "vol_halflife", "inaccurate_share", "infeasible_te_share"]
+    ]
+
+    return hashes, identity, by_horizon_halflife, by_horizon_halflife_ic, paired, flagged
+
+
+def _write_halflife_run(
+    args, params, universe, table, run_id, out_root, started, n_cells_total, partial
+):
+    """
+    HANDOFF task 35. Writes `cells.csv` and a summary with the receipt's
+    required analytics from whatever cells finished -- the full 240 or a
+    deadline-truncated subset (possibly zero). `partial` marks the run
+    PARTIAL and records the per-horizon cell count, so the receipt can say
+    which horizons are complete.
+    """
+    import json
+    from pathlib import Path
+
+    out = Path(out_root) / run_id
+    out.mkdir(parents=True, exist_ok=True)
+    table.to_csv(out / "cells.csv", index=False)
+
+    hashes, identity, by_hh, by_hh_ic, paired, flagged = _halflife_by_cell(
+        table, universe, params, out_root
+    )
+    per_horizon = (
+        {int(k): int(v) for k, v in table.groupby("horizon").size().to_dict().items()}
+        if len(table)
+        else {}
+    )
+    summary = {
+        "run_id": run_id,
+        "kind": "halflife",
+        "grid": args.grid,
+        "status": "PARTIAL" if partial else "COMPLETE",
+        "source": args.source,
+        "snapshot_id": universe.panel.snapshot_id,
+        "panel_hash": universe.panel_hash(),
+        "params_version": params.params_version,
+        "params_hash": params.params_hash,
+        "generated_at": pd_now(),
+        "n_cells": len(table),
+        "n_cells_total": n_cells_total,
+        "per_horizon_cell_count": per_horizon,
+        "solver": str(table["solver"].iloc[0]) if len(table) else None,
+        "seconds": round(time.time() - started, 1),
+        "halflife_live_run": hashes,
+        "halflife_h13_identity": (
+            identity.to_dict(orient="records") if identity is not None else None
+        ),
+        "halflife_by_horizon_halflife": by_hh.to_dict(orient="records"),
+        "halflife_by_horizon_halflife_ic": by_hh_ic.to_dict(orient="records"),
+        "halflife_paired_by_ic_seed_horizon": paired.to_dict(orient="records"),
+        "halflife_flagged_cells": flagged.to_dict(orient="records"),
+    }
+    (out / "summary.json").write_text(
+        json.dumps(summary, indent=2, default=float), encoding="utf-8"
+    )
+    if not args.quiet:
+        print(f"status: {summary['status']}  n_cells={len(table)}/{n_cells_total}")
+        print(f"per-horizon cell count: {per_horizon}")
+        print(hashes)
+        if identity is not None and len(identity):
+            print("h13 vol_halflife=None arm vs POWER_LIVE_RUN's live twin:")
+            print(identity.to_string(index=False))
+            print(f"max |diff| = {identity['diff'].abs().max():.6g}")
+        if len(by_hh):
+            print(by_hh.to_string(index=False))
+        if len(paired):
+            print(paired.to_string(index=False))
+        if len(flagged):
+            print("FLAGGED cells (inaccurate_share > 0.01 or infeasible_te_share > 0):")
+            print(flagged.to_string(index=False))
+        print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
+    return 0
+
+
 def _write_baseline_run(args, params, universe, table, run_id, out_root, started) -> int:
     """
     A baseline-only run has no base cells, oracle or twin, so the ruler report has
@@ -534,6 +809,7 @@ def main(argv=None) -> int:
         AUDIT_GRIDS,
         FRICTION_CREATED_GRID,
         FRICTION_GRID,
+        HALFLIFE_GRID,
         KNEE_GRID,
         POWER10_GRID,
         POWER_GRID,
@@ -541,6 +817,7 @@ def main(argv=None) -> int:
         friction_cells,
         friction_created_cells,
         grid_cells,
+        halflife_cells,
         knee_cells,
         power10_cells,
         power_cells,
@@ -568,7 +845,9 @@ def main(argv=None) -> int:
         "power10, 20 span-limited score shuffles at IC 0.70 for seeds 0-9 (task 30); or "
         "friction, live cells only at the shadow-cost coefficient 10/20/40 bp (task 32); or "
         "friction_created, the same 60 cells priced with the created-turnover shadow "
-        "instead of trailing (task 36, decisions/0040)",
+        "instead of trailing (task 36, decisions/0040); or "
+        "halflife, live cells at horizons 4/13/26, IC 0.35/0.70, seeds 0-9, vol_halflife "
+        "None/13/26/52 -- 240 cells, respects HALFLIFE_DEADLINE (task 35, OWNER-QUEUE B1/L13)",
     )
     parser.add_argument("--solver", default=None, help="auto | cvxpy | scipy (default: params)")
     parser.add_argument("--run-id", default=None)
@@ -613,6 +892,14 @@ def main(argv=None) -> int:
         if problem:
             print(f"friction_created STOPPED before any cell: {problem}", file=sys.stderr)
             return 2
+    elif args.grid == HALFLIFE_GRID:
+        cells = halflife_cells(params)
+        problem = _halflife_preflight(
+            cells, universe, params, args.out or params.get("audit.output_dir", "results/audit")
+        )
+        if problem:
+            print(f"halflife STOPPED before any cell: {problem}", file=sys.stderr)
+            return 2
     elif args.grid:
         cells = baseline_cells(params, args.grid)
     else:
@@ -630,6 +917,62 @@ def main(argv=None) -> int:
     artifacts_root = Path(out_root).parent / "artifacts"
     artifact_bytes = 0
     rows = []
+
+    if args.grid == HALFLIFE_GRID:
+        # task 35's amendment: checkpoint every finished cell to
+        # cells.partial.csv (a kill loses at most one cell), and stop cleanly
+        # before a cell that would likely miss HALFLIFE_DEADLINE.
+        import csv
+
+        out = Path(out_root) / run_id
+        out.mkdir(parents=True, exist_ok=True)
+        deadline_ts = _parse_halflife_deadline(os.environ.get("HALFLIFE_DEADLINE"))
+        durations: list[float] = []
+        partial_file = None
+        partial_writer = None
+        stopped_early = False
+        try:
+            for i, cell in enumerate(cells, start=1):
+                if _halflife_should_stop(time.time(), deadline_ts, durations):
+                    stopped_early = True
+                    if not args.quiet:
+                        print(
+                            f"halflife: stopping before cell {i}/{len(cells)} -- "
+                            f"HALFLIFE_DEADLINE would be missed",
+                            flush=True,
+                        )
+                    break
+                t_cell = time.time()
+                row, path = run_cell(universe, cell, params, args.solver)
+                durations.append(time.time() - t_cell)
+                rows.append(row)
+                if cell.tag == "base":
+                    artifact_bytes += _write_cell_artifacts(artifacts_root, run_id, cell, path)
+                if partial_writer is None:
+                    partial_file = open(
+                        out / "cells.partial.csv", "w", newline="", encoding="utf-8"
+                    )
+                    partial_writer = csv.DictWriter(partial_file, fieldnames=list(row.keys()))
+                    partial_writer.writeheader()
+                partial_writer.writerow(row)
+                partial_file.flush()
+                if not args.quiet:
+                    print(
+                        f"  [{i:>3}/{len(cells)}] {cell.key():<34} net IR {row['net_ir']:+.3f}  "
+                        f"TE p95 {row['te_p95']:.1%}  turnover {row['turnover_annual']:.0%}  "
+                        f"inaccurate {row['inaccurate_share']:.1%}  {row['seconds']:.1f}s",
+                        flush=True,
+                    )
+        finally:
+            if partial_file is not None:
+                partial_file.close()
+        table = pd.DataFrame(rows)
+        if artifact_bytes and not args.quiet:
+            print(f"artifacts: {artifact_bytes / 1e6:.1f} MB under {artifacts_root}/{run_id}/")
+        return _write_halflife_run(
+            args, params, universe, table, run_id, out_root, started, len(cells), stopped_early
+        )
+
     for i, cell in enumerate(cells, start=1):
         row, path = run_cell(universe, cell, params, args.solver)
         rows.append(row)

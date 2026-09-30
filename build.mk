@@ -24,6 +24,7 @@
 #   make audit-friction                          live cells at shadow-cost 10/20/40 bp x IC 0.35/0.70 x seeds 0-9 -- 60 cells
 #   make audit-power10                           span-limited score shuffles, IC 0.70 x seeds 0-9 x 20 perms, h13 (200 cells)
 #   make audit-power                             score-shuffle baselines, IC 0.35/0.70 x seeds 0/1 x 20 perms, h13 (80 cells)
+#   make audit-halflife                          volatility-overlay halflife sweep, h4/13/26 x IC 0.35/0.70 x seeds 0-9 x halflife None/13/26/52 (240 cells, task 35)
 #   make jpmaqs-catalogue                        the 27 registered JPMaQS tickers against the vendor catalogue
 #   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make jpmaqs-name-search                      name search of the cached catalogue for H-2026-0004, 0005, 0010
@@ -60,7 +61,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
+.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -131,6 +132,9 @@ audit-power10: ## span-limited score shuffles, IC 0.70, seeds 0-9, 20 perms, h13
 
 audit-friction: ## shadow-cost 10/20/40 bp, IC 0.35/0.70, seeds 0-9, live cells only -- 60 cells (HANDOFF task 32)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid friction
+
+audit-halflife: ## volatility-overlay halflife sweep, h4/13/26, IC 0.35/0.70, seeds 0-9, halflife None/13/26/52 -- 240 cells (HANDOFF task 35)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid halflife
 
 audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not minutes
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg

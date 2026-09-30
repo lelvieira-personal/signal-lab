@@ -665,6 +665,8 @@ def run_cell(
         "per_rebalance_cap": cell.per_rebalance_cap,
         "shadow_coefficient": cell.shadow_coefficient,
         "shadow_form": cell.shadow_form,
+        "vol_halflife": cell.vol_halflife,
+        "vol_overlay": cell.vol_overlay if cell.vol_halflife is not None else "",
         "turnover_per_rebalance_max": float(path.turnover.max()),
         "turnover_per_rebalance_p95": float(path.turnover.quantile(0.95)),
         "turnover_from_repairs_annual": rule.repair_turnover * rule.ppy / max(len(path.dates), 1),
@@ -1272,6 +1274,20 @@ FRICTION_COEFFICIENTS = (10.0, 20.0, 40.0)
 # the knee run has no `shadow_coefficient` override to pair a coefficient against.
 FRICTION_CREATED_GRID = "friction_created"
 FRICTION_LIVE_RUN = "A-20260928-151055"
+
+# The `halflife` grid (HANDOFF task 35, OWNER-QUEUE B1/L13): the volatility
+# overlay's halflife sweep. Live cells only, three horizons, two IC rungs, ten
+# seeds and four halflife arms -- the `vol_halflife=None` arm at h13 is the
+# identity check against `POWER_LIVE_RUN`'s live cell (same seed, ic, h13,
+# constraints and costs; only the covariance's volatility estimator differs).
+# Horizon order matters: `HALFLIFE_HORIZONS` is iterated in the order listed,
+# not sorted, so an interrupted run leaves h13 (the identity check) complete
+# before h26, and h26 before h4.
+HALFLIFE_GRID = "halflife"
+HALFLIFE_IC_RUNGS = (0.35, 0.70)
+HALFLIFE_SEEDS = tuple(range(10))
+HALFLIFE_HORIZONS = (13, 26, 4)
+HALFLIFE_ARMS = (None, 13, 26, 52)
 AUDIT_GRIDS = (
     *BASELINE_GRIDS,
     KNEE_GRID,
@@ -1279,6 +1295,7 @@ AUDIT_GRIDS = (
     POWER10_GRID,
     FRICTION_GRID,
     FRICTION_CREATED_GRID,
+    HALFLIFE_GRID,
 )
 
 
@@ -1424,6 +1441,47 @@ def friction_created_cells(params: Params | None = None) -> list[AuditCell]:
     cell at the same (ic, seed, coefficient) in `FRICTION_LIVE_RUN`.
     """
     return [replace(c, shadow_form="created") for c in friction_cells(params)]
+
+
+def halflife_cells(params: Params | None = None) -> list[AuditCell]:
+    """
+    HANDOFF task 35 (OWNER-QUEUE B1, L13): live cells only, at every horizon in
+    `HALFLIFE_HORIZONS`, every IC in `HALFLIFE_IC_RUNGS`, every seed in
+    `HALFLIFE_SEEDS`, crossed with every halflife arm in `HALFLIFE_ARMS`.
+    Constraints and costs match the knee grid's live cells (no turnover cap,
+    cost multiplier 1.0, `per_rebalance_cap` from
+    `audit.per_rebalance_cap_default`, no shadow-coefficient override).
+
+    Ordering is deliberate, for a deadline-truncated run: horizon outermost, in
+    `HALFLIFE_HORIZONS`'s listed order (13 first, so the identity check is
+    complete before anything else); within a horizon, by (ic, seed); within a
+    (horizon, ic, seed), all four halflife arms back to back, so a stop between
+    seeds never leaves one arm of a pair without its `None` control.
+
+    A `vol_halflife=None` cell's key is unchanged (the pre-task-35 key), so its
+    h13 cells are byte-identical in key to `POWER_LIVE_RUN`'s live cells at the
+    same (ic, seed) -- the identity check the receipt reports.
+    """
+    params = params or get_params()
+    default_per = params.get("audit.per_rebalance_cap_default", None)
+    default_per = None if default_per is None else float(default_per)
+    return [
+        AuditCell(
+            ic,
+            h,
+            s,
+            1.0,
+            None,
+            default_per,
+            "base",
+            vol_halflife=hl,
+            vol_overlay="scalar" if hl is not None else "per_series",
+        )
+        for h in HALFLIFE_HORIZONS
+        for ic in HALFLIFE_IC_RUNGS
+        for s in HALFLIFE_SEEDS
+        for hl in HALFLIFE_ARMS
+    ]
 
 
 def net_ir_excess(table: pd.DataFrame) -> pd.Series:
