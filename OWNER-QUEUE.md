@@ -241,6 +241,34 @@ variance. Once the book de-risks through its covariance, 0008 must be measured
 as incremental to that, not against a never-de-risks baseline, or it gets
 credited for what the risk model did.
 
+**Task 35 reported 2026-09-30** (`A-20260930-033812`, HANDOFF receipt has the
+full tables). 240/240 cells, rc=0. The h13 no-overlay arm matched the knee
+run's live cell to float epsilon at all 20 (ic, seed) pairs, so the sweep is
+measuring the same book the earlier, narrower test did.
+
+- **`risk_calibration` fails drop from 5-10 of 20 (no overlay, per horizon)
+  to 0-2 of 20 with any halflife arm**, at every horizon (4, 13, 26), not
+  just h13. Worst-annual bias falls from a 1.55-1.72 median (no overlay) to
+  1.31-1.52 with an overlay; how many cells have 2008 as the worst year falls
+  from 15-17/20 to 3-13/20 depending on the arm.
+- **Net IR at h13 (the horizon B1's original test used): halflife 13 and 26
+  both gain against the no-overlay control in 7-9 of 10 seeds at both IC
+  rungs**, mean paired gain +0.05 to +0.07, sd 0.07-0.12 (se ~0.02-0.04) — the
+  most consistent net-IR case in the grid. h4 and h26 are mixed in sign.
+- **Halflife 13 vs 26 vs 52:** 13 and 26 are close on both risk calibration
+  and net IR; 52 is weaker on the h13 net-IR gain at IC 0.35 (-0.003, not
+  distinguishable from zero) though still clears risk calibration. Nothing in
+  this sweep singles out 26 (the value B1's original test used) as better
+  than 13.
+- **Not part of this measurement, flagged in the receipt anyway:**
+  `te_p95_to_budget` stays above 1 in every cell regardless of overlay
+  (1.13-1.34) — an overlay narrows the gap (best at halflife 13) but does not
+  close it on this reading.
+
+**Still the owner's call:** whether the overlay becomes policy, and if so at
+which halflife (13 and 26 are the strongest candidates on this evidence, 52
+the weakest). Not ruled here.
+
 ### B4. `decisions/0030`'s threshold sensitivity to kurtosis
 The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
 the measured excess kurtosis of 2.37. But p99 is 1.48 at κ=1 and 1.92 at κ=4,

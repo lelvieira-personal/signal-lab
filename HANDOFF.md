@@ -3059,3 +3059,95 @@ exactly where task 40's bug bit hardest.
 Interpretation is Cowork's and the owner's (L16(a), OWNER-QUEUE updated
 separately). **Going straight on to task 35** per the task's own instruction
 (step 2's tests pass; nothing here counts as a stop).
+
+### Task 35 -- the volatility-overlay halflife sweep (OWNER-QUEUE B1, L13) -- 2026-09-30, rc=0, COMPLETE
+
+Build committed at `c9820b0` (halflife_cells, preflight, checkpointing,
+deadline guard, receipt analytics; `ladder.py` rows now carry
+`vol_halflife`/`vol_overlay`), `8172889` (a pandas FutureWarning fix a
+live one-cell smoke test surfaced before the real run -- preflight
+matched, the h13 identity check reproduced the knee run's net IR to
+float epsilon on that one cell, checkpointing and the deadline stop
+both worked). Full run launched
+`HALFLIFE_DEADLINE=2026-09-30T06:30:00-04:00 scripts/unattended.sh
+audit-halflife --digest` at 23:29:20 ET on head `8172889`.
+
+**rc=0 throughout.** `make check-full`: rc=0, 531s, 585 tests. `make
+audit-halflife`: rc=0, 13,810s (3h50m -- faster than the 5.5-6h estimate).
+Run id `A-20260930-033812`. **Status COMPLETE, 240/240 cells** (80 each at
+h4, h13, h26) -- the deadline guard never had to fire; finished at 03:28 ET,
+well inside the 06:30 hard stop. Digest at
+`results/audit/_unattended/20260929-232920-audit-halflife/digest.md`.
+
+**The h13 `vol_halflife=None` arm against the knee run (`A-20260922-005316`,
+`POWER_LIVE_RUN`): identical.** `panel_hash` and `params_hash` both match.
+All 20 (ic, seed) pairs found; max |diff| in net IR is **8.3e-17** (float
+noise). The grid is measuring the same book at h13 the knee run measured --
+nothing about the identity is in question.
+
+**Per (horizon, halflife), pooled over both ICs (20 cells each):**
+
+| horizon | halflife | n_risk_cal_fails | bias_worst_annual median/max | n_worst_yr_2008 | bias_stat median | te_p95 median | te_p95/budget median | net_ir median (min, max) | turnover_annual median | cost_drag median |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 4 | none | 5 | 1.546 / 1.981 | 17 | 0.966 | 0.0755 | 1.259 | 0.492 (0.057, 0.875) | 5.833 | 0.00892 |
+| 4 | 13 | 0 | 1.305 / 1.431 | 4 | 0.990 | 0.0683 | 1.138 | 0.485 (0.246, 0.909) | 5.967 | 0.00928 |
+| 4 | 26 | 0 | 1.306 / 1.521 | 6 | 0.962 | 0.0684 | 1.141 | 0.447 (0.063, 0.789) | 5.853 | 0.00906 |
+| 4 | 52 | 0 | 1.370 / 1.683 | 13 | 0.952 | 0.0703 | 1.171 | 0.456 (0.132, 0.886) | 5.862 | 0.00905 |
+| 13 | none | 10 | 1.719 / 2.036 | 17 | 0.994 | 0.0805 | 1.341 | 0.524 (-0.021, 0.760) | 2.829 | 0.00498 |
+| 13 | 13 | 0 | 1.394 / 1.572 | 3 | 1.002 | 0.0688 | 1.147 | 0.550 (0.177, 0.821) | 2.960 | 0.00522 |
+| 13 | 26 | 0 | 1.359 / 1.562 | 8 | 0.986 | 0.0690 | 1.150 | 0.549 (0.050, 0.802) | 2.872 | 0.00515 |
+| 13 | 52 | 1 | 1.484 / 1.747 | 10 | 0.984 | 0.0719 | 1.198 | 0.492 (-0.028, 0.770) | 2.835 | 0.00506 |
+| 26 | none | 10 | 1.719 / 1.868 | 15 | 0.977 | 0.0793 | 1.322 | 0.455 (-0.109, 0.774) | 1.822 | 0.00363 |
+| 26 | 13 | 2 | 1.444 / 1.811 | 3 | 0.999 | 0.0709 | 1.182 | 0.482 (-0.095, 0.773) | 1.930 | 0.00376 |
+| 26 | 26 | 1 | 1.415 / 1.742 | 6 | 0.984 | 0.0709 | 1.182 | 0.424 (-0.132, 0.740) | 1.846 | 0.00367 |
+| 26 | 52 | 0 | 1.520 / 1.650 | 9 | 0.980 | 0.0730 | 1.217 | 0.453 (-0.008, 0.801) | 1.836 | 0.00361 |
+
+**Per IC** (full 24-row table in `results/audit/A-20260930-033812/summary.json`,
+key `halflife_by_horizon_halflife_ic`): the `risk_calibration` fail pattern
+holds within each IC separately -- e.g. h13/none fails 6/10 seeds at IC 0.35
+and 4/10 at IC 0.70, against 0/10 at h13/halflife-13 for both ICs. Net IR at
+IC 0.70 is consistently 0.13-0.24 higher than at IC 0.35 for the same
+(horizon, halflife), as expected; the halflife ranking is the same at both
+ICs.
+
+**Paired by (ic, seed, horizon): net IR at each halflife minus net IR at
+`None`, mean/sd/n_positive over 10 seeds** (full 18-row table in the same
+summary.json, key `halflife_paired_by_ic_seed_horizon`):
+
+| horizon | halflife | IC 0.35 mean/sd/n+ | IC 0.70 mean/sd/n+ |
+|---|---|---|---|
+| 4 | 13 | +0.058 / 0.174 / 4 | +0.016 / 0.115 / 7 |
+| 4 | 26 | -0.049 / 0.184 / 4 | -0.030 / 0.087 / 4 |
+| 4 | 52 | -0.014 / 0.123 / 4 | -0.024 / 0.069 / 4 |
+| 13 | 13 | +0.074 / 0.118 / 7 | +0.066 / 0.099 / 8 |
+| 13 | 26 | +0.056 / 0.069 / 9 | +0.047 / 0.083 / 7 |
+| 13 | 52 | -0.003 / 0.089 / 6 | +0.045 / 0.072 / 7 |
+| 26 | 13 | +0.041 / 0.092 / 7 | +0.012 / 0.071 / 6 |
+| 26 | 26 | +0.006 / 0.118 / 4 | -0.018 / 0.085 / 6 |
+| 26 | 52 | +0.029 / 0.098 / 8 | -0.018 / 0.117 / 5 |
+
+At h13, halflife 13 and 26 both gain net IR against the no-overlay control in
+a majority of seeds (7-9 of 10) at both IC rungs, with a paired sd of
+0.07-0.12 (se ~0.02-0.04) -- the strongest and most consistent case in the
+grid. h4 and h26 are mixed in sign; h4's halflife-13 gain at IC 0.35
+(+0.058) is the exception, not the rule for that horizon.
+
+**Flagged cells (inaccurate_share > 0.01 or infeasible_te_share > 0): none.**
+The grid ran clean throughout.
+
+**Two things beyond the task's own checklist, worth flagging for the owner
+alongside B1's ruling (not something this task resolves):**
+- **`te_p95_to_budget` is above 1 in every one of the 12 pooled cells**
+  (1.13-1.34), lowest with halflife 13 and highest with none. No halflife
+  arm brings the sweep inside the tracking-error budget on this measure --
+  consistent with `decisions/0030`'s `risk_calibration` finding (the veto
+  reads worst-annual bias, not this ratio) but a wider-angle view of the same
+  risk-sizing gap.
+- **h4's annual turnover (median 5.8-6.0, all halflife arms) sits far above
+  the 200% highlight line** `decisions/0038`/B3 set (report, not veto) --
+  unrelated to the overlay (halflife moves it by at most 2%), a known
+  property of the 4-week horizon already visible in earlier grids.
+
+Interpretation is Cowork's and the owner's. **Whether the overlay becomes
+policy is B1, an owner decision** -- not ruled here. Per the amendment,
+**stopping after this task tonight; task 39 does not run.**
