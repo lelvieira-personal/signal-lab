@@ -54,3 +54,5 @@ every figure below from `cells.csv`.
   their risk readings stand.
 
 - **params_hash, 2026-10-01 (HANDOFF task 42):** params_version 0.7.0 -> 0.8.0; `params_hash` moved `571f33fc6afee7273b45359ab310ff89025e353b8e7e5f959a6c5507e00b35d0` -> `9a3b002e95b8fa596b3273de7bb4cf259e075c836128853b3698a82ca4a1e5a8`. Runs before and after are not hash-comparable without the explicit overrides (`vol_halflife=None`).
+
+- **params_hash line endings, 2026-10-01 (task 42 review, F2):** `hash_params_dir` hashes raw bytes. The v0.7.0 "before" hash above is the LF (git-blob) form. In the CRLF working-tree form that every run records, and that 0038 and 0040 cite, v0.7.0 is `ba19198d4e9048abb82a0ece868881561f008f7c6f3043d4cdbfdf44dbfade93`. The v0.8.0 hash above is already the CRLF form; its LF form begins `f0cc67e1`. HANDOFF task 43 pins `params/*.yaml` to CRLF.

@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.7, 2026-10-01. Owner: Leo. This document is the constitution of
+Status: v0.8, 2026-10-01. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -23,6 +23,13 @@ volatility overlay is policy, 26-week halflife) and `decisions/0043` (the
 gate holds two or more false passes at 5%, 100 shuffles per test), decided
 by the owner on 2026-10-01. Applied by Cowork at the owner's instruction. The
 v0.6 text is in git history.
+
+v0.8 amended §3, §4, §9 and §10, transcribing `decisions/0039` §3 with
+OWNER-QUEUE L4 (the lab screens; the power of the gate and of the holdout),
+`decisions/0044` (the 6% TE budget is the ex-ante sizing target) and
+`decisions/0045` (a search of fewer than 8 tests is gated at ordinary FWER),
+decided by the owner on 2026-10-01. Applied by Cowork at the owner's
+instruction. The v0.7 text is in git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -103,6 +110,26 @@ information destroyed by a block shuffle (§9), so it matches in constraints, in
 costs and in alpha magnitude and differs only in whether the signal is aligned
 with the future.
 
+**The lab screens; it does not confirm** (`decisions/0039`, owner,
+2026-09-28). A hypothesis that clears both bars is a *candidate*: worth
+capital, scrutiny and further evidence, never reported as confirmed. One that
+fails bar 2 is *not detected*, not false, and is not retired on that ground
+alone; its record states the gate's power at the planted IC nearest its
+realised IC, so a reader sees how likely a real effect was to be missed. The
+reason is measured power. On the development window a planted signal of IC
+0.70, far stronger than a realistic macro signal, passes the gate (§9,
+`decisions/0043`) about a third of the time (0.32 at 100 shuffles, three true
+hypotheses among twelve), and one of IC 0.35 about one time in ten. The limit
+is one draw of noise-timing luck per history, not the width of the null, and
+more history shrinks the luck and the information at the same rate. **The
+holdout has the same limit:** at t ≈ IR·√years, its roughly 6.75 years to
+date give t ≈ 0.8 at a true IR of 0.30, and t = 2 would need about 44 years.
+The holdout can expose a candidate that has stopped working; it cannot confirm
+one (OWNER-QUEUE L4). A candidate is admitted only through the two gates of
+`decisions/0039`: replication on a target fixed before looking, and an
+economic thesis whose required statements are plausible, with rival
+explanations named and checked.
+
 **Bar 2 carries no threshold, deliberately.** On the development window a book
 holding no usable information read a net IR of 0.311 — the mean of a 420 bp-wide
 distribution across arbitrary tilts on a single history, one tilt in eight
@@ -121,7 +148,7 @@ single candidate taken toward production, and the unlock is written to
 Multiplicity is the central risk of this lab. The search tests many
 signals; the best observed IR is a maximum over draws. Every reported IR
 is accompanied by its position in the search null (§9). A run whose IR is
-not distinguishable from that null is not a result.
+not distinguishable from that null is not a candidate.
 
 ---
 
@@ -133,7 +160,7 @@ not distinguishable from that null is not a result.
 | Cash | 0–20% of NAV |
 | Positions | ≤ 30 instruments with non-zero weight |
 | Turnover | **Priced, not capped** (`decisions/0024`). A progressive shadow cost on trailing one-year **traded notional** (buys plus sells), zero at 75%, 40bp at 150%, rising without bound, **charged at the trailing turnover each trade creates**, so a lump costs more than the same trading spread out (§8, `decisions/0017`, `0018`, `0040`). 100% is the level the curve is sized around, not a ceiling. There is no per-session cap (`decisions/0038`). Turnover is disclosed on every run and highlighted above 200%; it is never vetoed. |
-| Tracking error | ≤ 6.0% **ex ante**, enforced at every rebalance by the solver. The realised trailing-3y figure is a reported characteristic and not a gate (`decisions/0030`): active volatility clusters, so a book sized to the budget runs above it in a crisis and below it in a calm decade. |
+| Tracking error | ≤ 6.0% **ex ante**, enforced at every rebalance by the solver. The realised trailing-3y figure is a reported characteristic and not a gate (`decisions/0030`): active volatility clusters, so a book sized to the budget runs above it in a crisis and below it in a calm decade. The 6% is the sizing target σ that `decisions/0025` derives, not a ceiling on realised TE: at the policy overlay the p95 of trailing-3y TE runs about 1.12-1.19× it, and that ratio is disclosed (`decisions/0044`). |
 | Active drawdown | Controlled ex ante, through the tracking-error budget (`decisions/0025`), not by a post-hoc cap (`decisions/0026`) |
 | Risk calibration | The one ex-post gate: the worst annual bias statistic, `std(r_t / sigma_ex_ante(t-1))` by calendar year, ≤ 1.72 (`decisions/0030`). It asks whether the risk model told the truth, not whether the book was risky. |
 | Rebalance | Weekly, Friday close; alternates tested by averaging over Tue/Wed/Fri |
@@ -425,7 +452,9 @@ its place (`decisions/0004`).
   stepdown** (Romano and Wolf 2007): the probability of **two or more** false
   passes in a search is held at α (params: g = 2, α = 5%; `decisions/0043`).
   Each statistic is standardised against its pooled null before the maximum
-  is taken, and each test draws k block shuffles (params: 100). The joint distribution of
+  is taken, and each test draws k block shuffles (params: 100). **A search of
+  fewer than 8 statistics is gated at g = 1, ordinary FWER** (params;
+  `decisions/0045`): with g = 2 a single test would pass unconditionally. The joint distribution of
   all test statistics in a search is obtained from block shuffles of the
   signals, one permutation shared by every hypothesis in each draw, so
   dependence between experiments is learned from the data, not assumed. The procedure runs at the family level first, then within
@@ -466,7 +495,7 @@ statistic is shown. Failing any one kills the run with the reason logged.
 | lookahead | bitemporal check passes: no observation used before its knowledge date, and no estimated parameter fitted on data unavailable when it is used |
 | frequency | no series contributes returns before its true daily start |
 | seed_stability | IR range across resampling seeds ≤ 0.15 |
-| multiple_testing | `net_ir_excess` > 0 **and** survives the generalized Romano-Wolf stepdown, P(two or more false passes) ≤ α (`decisions/0043`; family level, then within family). The statistic is the excess of §3's bar 2, not the level (`decisions/0036` §6) |
+| multiple_testing | `net_ir_excess` > 0 **and** survives the generalized Romano-Wolf stepdown, P(two or more false passes) ≤ α (`decisions/0043`; g = 1 when the stepdown runs over fewer than 8 statistics, `decisions/0045`; family level, then within family). The statistic is the excess of §3's bar 2, not the level (`decisions/0036` §6) |
 | direction | realised sign matches pre-registered direction |
 
 Nine vetoes (`decisions/0038` removed `turnover`; `decisions/0026` removed `active_drawdown`; `decisions/0030`

@@ -45,6 +45,14 @@ the code and the constitution agree.**
 | 4 | A "Risk model" paragraph after TE handling: the ex-ante covariance carries a scalar volatility overlay, 26-week halflife, in every book the lab builds. | 0042 |
 | 9, 10, 13 | The gate is the generalized Romano-Wolf stepdown: P(two or more false passes) ≤ α = 5%, statistics standardised against the pooled null, k = 100 shuffles per test (in params). The "no rejections" bullet points to the error rate and shuffle budget instead of FDR. §13's "Romano-Wolf" becomes "a stepdown". | 0043 |
 
+## Applied in v0.8 (2026-10-01, by Cowork at the owner's instruction)
+
+| Section | Amendment | Decision |
+|---|---|---|
+| 3 | A "The lab screens; it does not confirm" paragraph after bar 2: candidate / not detected, the gate's measured power, and the holdout's power limit (L4). The closing sentence reads "…is not a candidate". | 0039 §3, L4 |
+| 4 | The Tracking-error row: the 6% is the ex-ante sizing target σ, not a ceiling on realised TE, and the p95 ratio is disclosed. | 0044 |
+| 9, 10 | A search of fewer than 8 statistics is gated at g = 1 (ordinary FWER). | 0045 |
+
 ## Open questions — NOT amendments, and deliberately not applied
 
 The constitution should not pretend to settle what the lab has not learned.

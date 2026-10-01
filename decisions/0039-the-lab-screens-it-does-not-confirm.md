@@ -80,3 +80,14 @@ the owner on 2026-09-28 (OWNER-QUEUE L16: "yes, adopt all three"):**
 - **Rival explanations are named and checked:** a static tilt, a known factor,
   or a single macro bet (the B5 risk decomposition, when it exists).
 
+## Applied, 2026-10-01
+
+§3's paragraph, with OWNER-QUEUE L4's holdout-power sentence, was accepted by
+the owner on 2026-10-01 ("I accept your recs") and transcribed into SUBSTRATE
+v0.8 §3 by Cowork. It quotes the gate's power under `decisions/0043`, which
+replaced the FDR question above. One change from L4's wording: the holdout
+"can expose a candidate that has stopped working; it cannot confirm one",
+because at t ≈ 0.8 it can't reliably fail a weak-but-real strategy either.
+§3's closing sentence now reads "…is not a candidate". Items 2 and 3 (the
+report wording and `verdict: not_detected`) are code, queued in HANDOFF
+task 43.

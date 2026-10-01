@@ -129,3 +129,20 @@ that function). `GOLDEN_NET_IR` (`tests/test_baseline.py`,
 `GOLDEN_NET_IR_CREATED_MARGINAL = -0.3916592047250338`, records the same
 cell (`AuditCell(0.10, 13, 0)`) under today's default.
 
+## Addendum, 2026-10-01: what convexity does and does not buy (task 42 review, F5)
+
+The sentence "`S` is convex and quadratic in `x`, so one lump costs more than
+the same trading spread over several weeks" overstates it. S is the integral of
+the marginal curve along cumulative traded notional, so **within a fixed
+window, a lump and the same trading split across weeks cost exactly the
+same.** Splitting is cheaper only by the trades that roll out of the window in
+between. Recomputed by Cowork for a 0.40 trade at 40 bp:
+
+- prior 0%/week: 0.00 bp either way;
+- prior 2%/week: lump 10.03 bp, split 9.81 bp;
+- prior 5%/week: 42.67 bp vs 42.13 bp.
+
+The shadow prices the annual total, not lumpiness. The ruling stands. If
+lumpiness itself is to be priced, that is a market-impact term in the size of a
+single trade, a separate decision. The `params/constraints.yaml` comment was
+corrected in params v0.9.0 (owner's acceptance, 2026-10-01).
