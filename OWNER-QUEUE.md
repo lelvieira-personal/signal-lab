@@ -19,8 +19,178 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L16. A screen at a confirmation standard, and what confirms a candidate — RULED 2026-10-01
-**Owner, 2026-10-01, L16(a):** the generalized stepdown, P(two or more false passes) ≤ 5%, at 100 shuffles per test. Cowork picked 100 within the approved 50-100 range. Recorded in `decisions/0043`. Applied by HANDOFF task 42; SUBSTRATE v0.7 and `params/vetoes.yaml` were edited by Cowork. *Move this item to Closed once task 42 lands.*
+### L12. Is the registry the right shape, now that the stepdown is the bar?
+Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
+SUBSTRATE §9 and §13, and on what is bought from Macrosynergy.
+
+SUBSTRATE v0.5 made the `multiple_testing` veto — Romano-Wolf at FWER 5%, family
+level then within family — **bar 2, how a signal is judged**. It used to be a
+footnote at the end of a pipeline nobody had run. It is now the gate.
+
+The registry was written before that was true, and it does not sit well against
+it. **`effective_bets_active` is 11.67 across 95 series.** Of twelve
+hypotheses, **four target `region`, three `credit` and two `duration`; the
+other three (`cash`, `conviction`, `real_nominal`) are one each.** Each of the
+twelve sits in its own SUBSTRATE §6 family (`growth`, `inflation`, …,
+`conviction`), so "family level first" is trivial today: the dependence lives
+in the shared *target axis*, not in the family. A stepdown learns dependence
+from the block bootstrap, so correlated tests do not pay full multiplicity,
+but they do not buy twelve independent shots either. Twelve registrations
+concentrated on three axes over roughly twelve effective bets means **how the
+tests are grouped does most of the work**, and nobody has chosen that grouping
+against this constraint.
+
+*Corrected 2026-09-28 by Cowork at the owner's request. The earlier text said
+five `region` and four `credit`, and treated the target axis as the family.
+Counts are from `target_axis` and `family` in `hypotheses/pending/*.yaml` as of
+`076c80e`.*
+
+Two decisions inside it:
+
+- **How families are defined.** SUBSTRATE §6 lists eleven, and the stepdown runs
+  at family level first. With one hypothesis per family that step does
+  nothing. Whether the four `region` tests and the three `credit` tests should
+  instead be grouped as families (and the stepdown run on those groups) decides
+  most of what survives.
+- **How many hypotheses per family per cycle.** `params/agents.yaml` already
+  carries the knob (`max proposals per family per cycle`). It was sized as a
+  cost lever (`decisions/0007`); it is now also a statistical one.
+
+**And it is live now because of procurement.** 27 JPMaQS tickers are being
+bought for nine hypotheses. If those nine collapse to two or three effective
+tests under the stepdown, that is a different purchase, and task 23's catalogue
+check is already queued.
+
+**Cannot be retired by measuring — yet.** The correlation structure of the
+twelve signals cannot be estimated because `src/signal_lab/signals/` is empty,
+so nothing builds a signal from a hypothesis file. This is a design judgement
+today. **It becomes measurable once signals exist**, at which point the honest
+version is to estimate the joint distribution and read the effective number of
+independent tests off it rather than guess — and the owner has asked that it be
+revisited then.
+
+### L10. The `seed_stability` veto is unreachable as written
+Added 2026-09-20 by Cowork.
+
+`params/vetoes.yaml` sets `seed_stability.max_ir_range = 0.15`. Observed
+per-cell seed range in `A-20260919-155557` is **0.26 to 1.42**, and at the
+per-seed sd of 0.26 that `decisions/0028` already records, the expected range
+over ten seeds is about 0.78. The sd is not a simulation artefact: `1/sqrt(16.0
+years) = 0.250` is the sampling error of an IR over the development window.
+
+A threshold of 0.15 would require a near-deterministic IR, which 16 years cannot
+deliver. It is not applied to audit cells, so nothing has failed on it — but it
+would fail every real hypothesis it was ever applied to, and SUBSTRATE §10 is
+explicit that a veto whose input is absent **fails**.
+
+Either the threshold is re-derived from the estimator's own sampling error, or
+the statistic changes (a range is the worst-behaved summary of ten draws; a
+standard error is not), or the veto is retired with its reasoning recorded.
+`vetoes/` and `params/` are owner-only.
+
+**Cannot be retired by measuring.** The distribution is in hand.
+
+### L4. Holdout power belongs in SUBSTRATE §3
+~350 weeks gives t ≈ 0.8 at a true IR of 0.30, so the holdout can only ever
+fail a strategy, never confirm one. That is a material property of the lab's
+own final test and it is currently recorded only in these notes. Transcribing
+it into §3 is an owner act.
+
+---
+
+## Blocked — waiting on a measurement
+
+### B4. `decisions/0030`'s threshold sensitivity to kurtosis
+The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
+the measured excess kurtosis of 2.37. But p99 is 1.48 at κ=1 and 1.92 at κ=4,
+and one Bloomberg cell read κ=14.65. Whether the threshold should sit at a
+conservative κ, or be re-measured per run, is unsettled.
+
+**Retired by:** the ten-seed audit's kurtosis distribution across cells. One
+outlier out of seventeen is not enough to choose on.
+
+### B5. The robust factor-loading estimator (`decisions/0015`)
+Unchosen: shrinkage, resampling, robust regression or regime-conditional. It
+will live in `params/characteristics.yaml`, which does not exist.
+
+`H-2026-0010` declares that risk decomposition is the check on whether its
+cross-sectional carry signal is really a single term-premium bet — so 0010 is
+testable while its own stated safeguard is not.
+
+**Retired by:** nothing measured yet; this is a modelling choice that needs a
+candidate. Listed here because a hypothesis already depends on it.
+
+---
+
+## Dormant — deferred on purpose, with the trigger that wakes them
+
+### D6. Does "phase 3" gate on the loader or on the data?
+Moved from Live to Dormant by the owner, 2026-09-21, without being answered —
+because on the evidence it does not bind either way.
+
+SUBSTRATE §16 says *"Signal testing may not begin before phase 3,"* and phase 3
+is the JPMaQS loader. Four registered hypotheses need no JPMaQS at all:
+`H-2026-0007` (12 Bloomberg OAS series), `0008` (MOVE plus four FRED), `0009`
+(six Bloomberg, post-`0032`) and `0012` (**zero** series — it is the conviction
+measurement question). So the permissive reading would let four run today.
+
+**It buys nothing.** `src/signal_lab/signals/` is empty — `__init__.py` at 44
+bytes and a `.keep` — so no code turns a hypothesis file into a signal.
+`src/signal_lab/stats/` holds only `blocks.py`, the block shuffle: no
+Romano-Wolf stepdown, no HAC, no search null, no deflated IR. And since
+SUBSTRATE v0.5 the `multiple_testing` veto **is** §3's evidence bar, so a
+hypothesis run today fails bar 2 by construction — §10 is explicit that a veto
+whose input is absent fails. Vetoed before it is judged, whichever reading of
+§16 applies.
+
+**Wakes when:** `src/signal_lab/signals/` can build a signal from a hypothesis
+file **and** the Romano-Wolf stepdown exists. At that point the question becomes
+real and should be re-raised as a Live item.
+
+### D1. The two tracking-error penalty coefficients
+`decisions/0100` open questions: SUBSTRATE §4's asymmetric TE penalty has two
+coefficients, both null, and the objective **refuses to build** until they are
+set. Deferred by the owner on 2026-09-09 until a candidate model exists, and
+0100 records that refusing is the correct state rather than a gap.
+
+**Wakes when:** a candidate model exists. The form is already settled
+(conviction-scaled, linear between two endpoints, floored — `decisions/0019`).
+
+### D7. The two-step one-sided stepdown, and a bootstrap null for bar 2
+Added 2026-09-29 by Cowork. **Deferred by the owner the same day** ("keep
+things as is for now").
+
+The source is Romano, Shaikh & Wolf (2014, *Econometrica* 82(5)), which the
+owner supplied, and Romano & Wolf (2018), "Multiple Testing of One-Sided
+Hypotheses: Combining Bonferroni and the Bootstrap". Cowork has not read the
+2018 chapter. Two ideas:
+- **(a) The two-step correction.** Drop clearly negative hypotheses from
+  Romano-Wolf's critical value at a small β, for more power on one-sided
+  tests.
+- **(b) A block-bootstrap null.** Build the null from the weekly
+  live-minus-baseline series instead of engine shuffles, so k stops costing
+  engine hours. This would amend `decisions/0036`.
+
+**Wakes when:** the owner reopens it, or real signals exist and the shuffle
+budget (k) binds.
+
+### D3. Region labels are still placeholders (`decisions/0022`)
+**Wakes when:** a hypothesis needs a region axis it can trust —
+`H-2026-0001`, `0006`, `0009` and `0011` all target `region`.
+
+### D4. G3OC as the live 3–7y series
+The splice is live; the replacement is not actioned (`decisions/0022` area).
+
+### D5. `git_key` and `git_key.pub` in the repo root
+Ignored by `*key*`, so not at risk of being committed, but they sit in a
+directory that gets cloned and archived. Hygiene, owner's call.
+
+---
+
+## Closed
+
+### L16. A screen at a confirmation standard, and what confirms a candidate — CLOSED 2026-10-01 (HANDOFF task 42 landed)
+**Owner, 2026-10-01, L16(a):** the generalized stepdown, P(two or more false passes) ≤ 5%, at 100 shuffles per test. Cowork picked 100 within the approved 50-100 range. Recorded in `decisions/0043`. Applied by HANDOFF task 42; SUBSTRATE v0.7 and `params/vetoes.yaml` were edited by Cowork. *Task 42 landed 2026-10-01.*
 
 Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
 `decisions/0039`). Two things are unruled:
@@ -146,88 +316,7 @@ L4's holdout-power sentence should land in SUBSTRATE §3 in the same edit as
 measures the power and the realised error of FWER against FDR on the registry's
 shape. The choice stays the owner's.
 
-### L12. Is the registry the right shape, now that the stepdown is the bar?
-Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
-SUBSTRATE §9 and §13, and on what is bought from Macrosynergy.
-
-SUBSTRATE v0.5 made the `multiple_testing` veto — Romano-Wolf at FWER 5%, family
-level then within family — **bar 2, how a signal is judged**. It used to be a
-footnote at the end of a pipeline nobody had run. It is now the gate.
-
-The registry was written before that was true, and it does not sit well against
-it. **`effective_bets_active` is 11.67 across 95 series.** Of twelve
-hypotheses, **four target `region`, three `credit` and two `duration`; the
-other three (`cash`, `conviction`, `real_nominal`) are one each.** Each of the
-twelve sits in its own SUBSTRATE §6 family (`growth`, `inflation`, …,
-`conviction`), so "family level first" is trivial today: the dependence lives
-in the shared *target axis*, not in the family. A stepdown learns dependence
-from the block bootstrap, so correlated tests do not pay full multiplicity,
-but they do not buy twelve independent shots either. Twelve registrations
-concentrated on three axes over roughly twelve effective bets means **how the
-tests are grouped does most of the work**, and nobody has chosen that grouping
-against this constraint.
-
-*Corrected 2026-09-28 by Cowork at the owner's request. The earlier text said
-five `region` and four `credit`, and treated the target axis as the family.
-Counts are from `target_axis` and `family` in `hypotheses/pending/*.yaml` as of
-`076c80e`.*
-
-Two decisions inside it:
-
-- **How families are defined.** SUBSTRATE §6 lists eleven, and the stepdown runs
-  at family level first. With one hypothesis per family that step does
-  nothing. Whether the four `region` tests and the three `credit` tests should
-  instead be grouped as families (and the stepdown run on those groups) decides
-  most of what survives.
-- **How many hypotheses per family per cycle.** `params/agents.yaml` already
-  carries the knob (`max proposals per family per cycle`). It was sized as a
-  cost lever (`decisions/0007`); it is now also a statistical one.
-
-**And it is live now because of procurement.** 27 JPMaQS tickers are being
-bought for nine hypotheses. If those nine collapse to two or three effective
-tests under the stepdown, that is a different purchase, and task 23's catalogue
-check is already queued.
-
-**Cannot be retired by measuring — yet.** The correlation structure of the
-twelve signals cannot be estimated because `src/signal_lab/signals/` is empty,
-so nothing builds a signal from a hypothesis file. This is a design judgement
-today. **It becomes measurable once signals exist**, at which point the honest
-version is to estimate the joint distribution and read the effective number of
-independent tests off it rather than guess — and the owner has asked that it be
-revisited then.
-
-### L10. The `seed_stability` veto is unreachable as written
-Added 2026-09-20 by Cowork.
-
-`params/vetoes.yaml` sets `seed_stability.max_ir_range = 0.15`. Observed
-per-cell seed range in `A-20260919-155557` is **0.26 to 1.42**, and at the
-per-seed sd of 0.26 that `decisions/0028` already records, the expected range
-over ten seeds is about 0.78. The sd is not a simulation artefact: `1/sqrt(16.0
-years) = 0.250` is the sampling error of an IR over the development window.
-
-A threshold of 0.15 would require a near-deterministic IR, which 16 years cannot
-deliver. It is not applied to audit cells, so nothing has failed on it — but it
-would fail every real hypothesis it was ever applied to, and SUBSTRATE §10 is
-explicit that a veto whose input is absent **fails**.
-
-Either the threshold is re-derived from the estimator's own sampling error, or
-the statistic changes (a range is the worst-behaved summary of ten draws; a
-standard error is not), or the veto is retired with its reasoning recorded.
-`vetoes/` and `params/` are owner-only.
-
-**Cannot be retired by measuring.** The distribution is in hand.
-
-### L4. Holdout power belongs in SUBSTRATE §3
-~350 weeks gives t ≈ 0.8 at a true IR of 0.30, so the holdout can only ever
-fail a strategy, never confirm one. That is a material property of the lab's
-own final test and it is currently recorded only in these notes. Transcribing
-it into §3 is an owner act.
-
----
-
-## Blocked — waiting on a measurement
-
-### B1. Whether the volatility overlay becomes policy, and at what halflife — RULED 2026-10-01
+### B1. Whether the volatility overlay becomes policy, and at what halflife — CLOSED 2026-10-01 (HANDOFF task 42 landed)
 **Owner, 2026-10-01: policy, at 26 weeks** (Cowork's recommendation: 13 and 26 can't be told apart, and 26 was specified before the sweep). Recorded in `decisions/0042`. Applied by HANDOFF task 42; SUBSTRATE v0.7 and `params/audit.yaml` were edited by Cowork. *Move this item to Closed once task 42 lands.*
 
 Built and tested: seed-paired over 5 seeds at h=13, a scalar 26-week overlay
@@ -272,95 +361,6 @@ measuring the same book the earlier, narrower test did.
 **Still the owner's call:** whether the overlay becomes policy, and if so at
 which halflife (13 and 26 are the strongest candidates on this evidence, 52
 the weakest). Not ruled here.
-
-### B4. `decisions/0030`'s threshold sensitivity to kurtosis
-The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
-the measured excess kurtosis of 2.37. But p99 is 1.48 at κ=1 and 1.92 at κ=4,
-and one Bloomberg cell read κ=14.65. Whether the threshold should sit at a
-conservative κ, or be re-measured per run, is unsettled.
-
-**Retired by:** the ten-seed audit's kurtosis distribution across cells. One
-outlier out of seventeen is not enough to choose on.
-
-### B5. The robust factor-loading estimator (`decisions/0015`)
-Unchosen: shrinkage, resampling, robust regression or regime-conditional. It
-will live in `params/characteristics.yaml`, which does not exist.
-
-`H-2026-0010` declares that risk decomposition is the check on whether its
-cross-sectional carry signal is really a single term-premium bet — so 0010 is
-testable while its own stated safeguard is not.
-
-**Retired by:** nothing measured yet; this is a modelling choice that needs a
-candidate. Listed here because a hypothesis already depends on it.
-
----
-
-## Dormant — deferred on purpose, with the trigger that wakes them
-
-### D6. Does "phase 3" gate on the loader or on the data?
-Moved from Live to Dormant by the owner, 2026-09-21, without being answered —
-because on the evidence it does not bind either way.
-
-SUBSTRATE §16 says *"Signal testing may not begin before phase 3,"* and phase 3
-is the JPMaQS loader. Four registered hypotheses need no JPMaQS at all:
-`H-2026-0007` (12 Bloomberg OAS series), `0008` (MOVE plus four FRED), `0009`
-(six Bloomberg, post-`0032`) and `0012` (**zero** series — it is the conviction
-measurement question). So the permissive reading would let four run today.
-
-**It buys nothing.** `src/signal_lab/signals/` is empty — `__init__.py` at 44
-bytes and a `.keep` — so no code turns a hypothesis file into a signal.
-`src/signal_lab/stats/` holds only `blocks.py`, the block shuffle: no
-Romano-Wolf stepdown, no HAC, no search null, no deflated IR. And since
-SUBSTRATE v0.5 the `multiple_testing` veto **is** §3's evidence bar, so a
-hypothesis run today fails bar 2 by construction — §10 is explicit that a veto
-whose input is absent fails. Vetoed before it is judged, whichever reading of
-§16 applies.
-
-**Wakes when:** `src/signal_lab/signals/` can build a signal from a hypothesis
-file **and** the Romano-Wolf stepdown exists. At that point the question becomes
-real and should be re-raised as a Live item.
-
-### D1. The two tracking-error penalty coefficients
-`decisions/0100` open questions: SUBSTRATE §4's asymmetric TE penalty has two
-coefficients, both null, and the objective **refuses to build** until they are
-set. Deferred by the owner on 2026-09-09 until a candidate model exists, and
-0100 records that refusing is the correct state rather than a gap.
-
-**Wakes when:** a candidate model exists. The form is already settled
-(conviction-scaled, linear between two endpoints, floored — `decisions/0019`).
-
-### D7. The two-step one-sided stepdown, and a bootstrap null for bar 2
-Added 2026-09-29 by Cowork. **Deferred by the owner the same day** ("keep
-things as is for now").
-
-The source is Romano, Shaikh & Wolf (2014, *Econometrica* 82(5)), which the
-owner supplied, and Romano & Wolf (2018), "Multiple Testing of One-Sided
-Hypotheses: Combining Bonferroni and the Bootstrap". Cowork has not read the
-2018 chapter. Two ideas:
-- **(a) The two-step correction.** Drop clearly negative hypotheses from
-  Romano-Wolf's critical value at a small β, for more power on one-sided
-  tests.
-- **(b) A block-bootstrap null.** Build the null from the weekly
-  live-minus-baseline series instead of engine shuffles, so k stops costing
-  engine hours. This would amend `decisions/0036`.
-
-**Wakes when:** the owner reopens it, or real signals exist and the shuffle
-budget (k) binds.
-
-### D3. Region labels are still placeholders (`decisions/0022`)
-**Wakes when:** a hypothesis needs a region axis it can trust —
-`H-2026-0001`, `0006`, `0009` and `0011` all target `region`.
-
-### D4. G3OC as the live 3–7y series
-The splice is live; the replacement is not actioned (`decisions/0022` area).
-
-### D5. `git_key` and `git_key.pub` in the repo root
-Ignored by `*key*`, so not at risk of being committed, but they sit in a
-directory that gets cloned and archived. Hygiene, owner's call.
-
----
-
-## Closed
 
 ### L17 — how wide the 200% turnover highlight reaches. CLOSED 2026-09-29.
 **Owner: "both"**, meaning the annual figure and the rolling one-year p95. The

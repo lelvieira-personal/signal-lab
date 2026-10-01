@@ -1959,6 +1959,17 @@ task 36 and lands with task 33.
 
 **The validator (0034).** Not decided by the owner. Do not build it.
 
+**The phase-2 solver (added 2026-10-01, task 42).** `harness/experiment.py` has no
+solver yet: `build_weight_rule` raises. When it is written it must, and each point
+comes with a test pinning it:
+- read `audit.covariance.vol_overlay` through `audit.ladder.resolve_vol_overlay`
+  or its equivalent, so the overlay is policy and not a per-call choice
+  (`decisions/0042`);
+- price turnover through `harness.objective.created_marginal_quadratic` and
+  `created_marginal_shadow`, not a second copy of the arithmetic (`decisions/0040`);
+- run the multiple-testing gate through `stats.multiple_testing.gate` and hand
+  `verdict_for(result, i)` to the `multiple_testing` veto (`decisions/0043`).
+
 ### One scheduling point, because the audit costs 14 hours
 
 `A-20260918-201042` took **50,572 s**. The `L` statistic and the
@@ -1982,6 +1993,19 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-01 — task 42: overlay is policy, gate is generalized FWER, turnover highlight, one 0040 shadow cost (Claude Code, Sonnet 5.5)
+
+- **rc 0.** `scripts/unattended.sh check-full --digest`, log `results/audit/_unattended/20261001-115213-check-full/` (`status.txt`: check-full rc=0, 451 s; 628 passed, holdout 15 passed, governance OK).
+- **Commits:** `5230ae1` queue; `7c410b1` substrate v0.7 (+0042, 0043, 0100); `32fab05` params/vetoes/src/render/tests; a small commit recording the hash move in 0042 and 0043; then this receipt with OWNER-QUEUE B1 and L16 moved to Closed.
+- **params_hash:** `571f33fc6afee7273b45359ab310ff89025e353b8e7e5f959a6c5507e00b35d0` (0.7.0, at 81b16b4) -> `9a3b002e95b8fa596b3273de7bb4cf259e075c836128853b3698a82ca4a1e5a8` (0.8.0).
+- **Grids pinned `vol_halflife=None`** (they claim identity with a named run computed with no overlay): `power_cells`, `power10_cells` (POWER_LIVE_RUN), `friction_cells` and, by inheritance, `friction_created_cells` (FRICTION_LIVE_RUN). `halflife_cells` already set every arm explicitly; docstring updated. `knee_cells`, `baseline_cells`, `grid_cells` follow params, so live and baseline twins resolve alike (tested). Consequence: a re-run of knee/baseline no longer matches the A-20260919/A-20260922 runs' hashes or keys.
+- **Golden values:** `GOLDEN_NET_IR = -0.8793457503233992` and `GOLDEN_NET_IR_CREATED_MARGINAL = -0.3916592047250338` reproduce bit for bit through explicit overrides (`vol_halflife=None` plus the shadow overrides). `GOLDEN_NET_IR_V080 = -0.40475664238417963`, the same cell at the full default, from a live `run_cell` call, stable on a second run.
+- **Tests changed, and why:** `test_vetoes.py` multiple_testing verdicts gain `procedure/g/n_shuffles` (0043), plus new wrong-g, too-few-shuffles, missing-g, missing-n_shuffles and retired-g=1 tests. `test_baseline.py`, `test_signal_standardisation.py`, `test_vol_rescale.py`: tests asserting pre-overlay keys now pin `vol_halflife=None`; the knee-identity test compares against a `vol_halflife=None` twin; the `small_universe` fixture now carries the live `vol_overlay` block so a default cell there runs the overlay. New `tests/test_policy_defaults.py` (40 tests: overlay resolution including a guard that the params path is spelled right, gate, highlight, report and leaderboard rendering, 0040 derivative/convexity/lump-vs-split).
+- **Beyond the letter:** `verdict_for(result, i)` added in `stats.multiple_testing`, because `veto_multiple_testing` does `bool(result["rejected"])` and so cannot take the gate's per-hypothesis array; `vetoes/` is owner-only, so I did not touch it. `veto_legend`'s multiple_testing label now reads g from params. `AuditCell.key()` takes an optional `params`.
+- **Not done / for Cowork:** (1) HANDOFF's "Standing refusals" still says turning the overlay on is an undecided owner call, which B1's ruling made stale; I left Cowork's text alone. (2) `AuditCell.key()` still has no suffix for a default `shadow_form` (task 39), so a default cell's key does not say whether it was priced trailing or created. (3) Nothing was run against Bloomberg; no audit.
+- The phase-2 solver note is in "Not queued yet".
+
 
 ### 2026-09-18 — the landing commits and the first check (Claude Code, Sonnet 5)
 
