@@ -90,11 +90,18 @@ def test_realised_ic_reports_four_readings():
 def test_the_cell_key_is_unchanged_in_the_default_mode():
     # `vol_halflife=None`: the pre-task-42 key (the default now reads the params overlay)
     assert (
-        AuditCell(ic=0.1, horizon=13, seed=0, vol_halflife=None).key()
+        AuditCell(ic=0.1, horizon=13, seed=0, vol_halflife=None, shadow_form="trailing").key()
         == "ic0.10_h13_s0_c1.0_tnone_rnone"
     )
     assert (
-        AuditCell(ic=0.1, horizon=13, seed=0, standardise=CROSS_SECTIONAL, vol_halflife=None)
+        AuditCell(
+            ic=0.1,
+            horizon=13,
+            seed=0,
+            standardise=CROSS_SECTIONAL,
+            vol_halflife=None,
+            shadow_form="trailing",
+        )
         .key()
         .endswith("_cross_sectional")
     )

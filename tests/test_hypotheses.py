@@ -357,3 +357,28 @@ def test_registered_ids_are_unique(params):
     reg = HypothesisRegistry(params=params)
     ids = [h.id for h in reg.load("pending")]
     assert len(ids) == len(set(ids))
+
+
+def test_a_hypothesis_leaves_the_lab_as_candidate_or_not_detected(params, store, tmp_path):
+    """decisions/0039 items 2 and 3: `verdict` is on the move to `done`, in the
+    vocabulary candidate / not_detected, and `power_at_nearest_ic` is null -- never
+    invented -- until phase 3 computes it. The pre-registered file is not edited."""
+    from signal_lab.harness.hypotheses import VERDICTS
+
+    assert VERDICTS == ("candidate", "not_detected")
+    root = tmp_path / "hypotheses"
+    (root / "pending").mkdir(parents=True)
+    (root / "pending" / "H-2026-9001.yaml").write_text(yaml.safe_dump(good_doc()), encoding="utf-8")
+    reg = HypothesisRegistry(root, store=store, params=params, requests_dir=tmp_path / "requests")
+    before = (root / "pending" / "H-2026-9001.yaml").read_bytes()
+
+    with pytest.raises(ValueError, match="done"):
+        reg.move("H-2026-9001", "running", verdict="candidate")
+    for bad in ("confirmed", "rejected", "proven"):
+        with pytest.raises(ValueError, match="not one of"):
+            reg.move("H-2026-9001", "done", verdict=bad)
+    reg.move("H-2026-9001", "done", run_id="R-1", verdict="not_detected")
+
+    assert (root / "done" / "H-2026-9001.yaml").read_bytes() == before
+    detail = store.transitions("H-2026-9001")["detail"].iloc[-1]
+    assert "verdict: not_detected" in detail and "power_at_nearest_ic: null" in detail

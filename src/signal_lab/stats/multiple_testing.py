@@ -433,8 +433,14 @@ def gate(t: np.ndarray, T0: np.ndarray, params: Params | None = None) -> dict:
     and `veto_multiple_testing` would fail it anyway -- this fails earlier, where
     the shuffles can still be drawn. Returns, for the whole search:
 
-        procedure, fwer_alpha, g, n_shuffles (k), n_tests (m),
+        procedure, fwer_alpha, g, standardise, n_shuffles (k), n_tests (m),
         rejected (bool array, (m,)), p_adjusted ((m,))
+
+    `g` is the g the stepdown actually ran at. decisions/0045: with fewer than
+    `small_search_below` statistics (m = `t.shape[0]`) it runs at
+    `small_search_g` (1, ordinary FWER), because at g = 2 a set smaller than g
+    has a critical value of -inf and a single test would pass unconditionally.
+    The reported `procedure` stays `romano_wolf_gfwer`.
 
     `veto_multiple_testing` reads ONE hypothesis's verdict, `rejected` a scalar;
     `verdict_for(result, i)` is that dict for hypothesis `i`.
@@ -457,6 +463,9 @@ def gate(t: np.ndarray, T0: np.ndarray, params: Params | None = None) -> dict:
         )
     if procedure == "romano_wolf_gfwer":
         g = int(cfg["g"])
+        small_below = cfg.get("small_search_below")
+        if small_below is not None and t.shape[0] < int(small_below):
+            g = int(cfg["small_search_g"])
         reject, p_adj = romano_wolf_gfwer(t, T0, alpha, g, standardise)
     elif procedure == "romano_wolf":
         g = 1
@@ -467,6 +476,7 @@ def gate(t: np.ndarray, T0: np.ndarray, params: Params | None = None) -> dict:
         "procedure": procedure,
         "fwer_alpha": alpha,
         "g": g,
+        "standardise": standardise,
         "n_shuffles": int(k),
         "n_tests": int(t.shape[0]),
         "rejected": np.asarray(reject, dtype=bool),

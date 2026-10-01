@@ -89,7 +89,7 @@ def main() -> None:
 
     st.subheader("Leaderboard")
     st.caption(
-        "Survivors first, then by the pre-registered objective. There is no other sort: "
+        "Runs that passed every veto first, then by the pre-registered objective. There is no other sort: "
         "sorting by anything else is selection."
     )
     rows = v.leaderboard_table(data.runs)
@@ -102,9 +102,10 @@ def main() -> None:
             "Net IR": r["net_ir"],
             "TE %": r["te"],
             "Turnover %": r["turnover"],
-            "Turnover flag": "▲" if v.turnover_highlighted(r["turnover"], params) else "",
+            "Turnover flag (annual)": "▲" if v.turnover_highlighted(r["turnover"], params) else "",
             "Max cash %": r["max_cash"],
             "Holdings": r["n_positions"],
+            "Label": v.run_label(r, params),
             "Stopped by": "" if r["passed"] else v.first_failed_veto(r, order),
         }
         for r in rows

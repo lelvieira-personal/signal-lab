@@ -76,13 +76,14 @@ def build_digest(store, params, registry, requests_dir: Path) -> str:
 
         survivors = cycle[cycle["passed"]] if "passed" in cycle else cycle.head(0)
         if survivors.empty:
-            lines += ["### Survivors", "", "None this cycle.", ""]
+            lines += ["### Passed every veto", "", "None this cycle.", ""]
         else:
+            target = float(params.require("audit.target_net_ir"))  # bar 1, decisions/0039
             lines += [
-                "### Survivors, by the pre-registered objective",
+                "### Passed every veto, by the pre-registered objective",
                 "",
-                "| Run | Family | Net IR |",
-                "|---|---|---|",
+                "| Run | Family | Net IR | Label |",
+                "|---|---|---|---|",
             ]
             ordered = (
                 survivors.sort_values("net_ir", ascending=False)
@@ -91,8 +92,10 @@ def build_digest(store, params, registry, requests_dir: Path) -> str:
             )
             for _, r in ordered.iterrows():
                 ir = r.get("net_ir")
+                label = "candidate" if ir is not None and ir >= target else ""
                 lines.append(
-                    f"| `{r['run_id']}` | {r['family'] or ''} | {'—' if ir is None else f'{ir:.2f}'} |"
+                    f"| `{r['run_id']}` | {r['family'] or ''} "
+                    f"| {'—' if ir is None else f'{ir:.2f}'} | {label} |"
                 )
             lines.append("")
 

@@ -340,7 +340,10 @@ class AuditCell:
     def key(self, params: Params | None = None) -> str:
         """The cell's identity, with the overlay and its halflife RESOLVED
         (decisions/0042): a cell that follows params reads `..._vhl26scalar`, an
-        explicit `vol_halflife=None` cell keeps its pre-task-42 key."""
+        explicit `vol_halflife=None` cell keeps its pre-task-42 key. The shadow
+        form is resolved too (task 43, F3): `_created` is appended when the cell
+        PRICES turnover with the created form, explicit or read from params, so a
+        default cell's key says how it priced. Frictionless cells price nothing."""
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
         per = "none" if self.per_rebalance_cap is None else f"{self.per_rebalance_cap:.2f}"
         key = (
@@ -360,8 +363,11 @@ class AuditCell:
                 key = f"{key}_{self.shuffle.replace('_', '')}_p{self.perm:02d}"
         if self.shadow_coefficient is not None:
             key = f"{key}_shadow{self.shadow_coefficient:g}"
-        if self.shadow_form not in (None, "trailing"):
-            key = f"{key}_{self.shadow_form}"
+        if (
+            self.tag != FRICTIONLESS
+            and resolve_shadow_form(self, params or get_params()) == "created"
+        ):
+            key = f"{key}_created"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
 
 
@@ -724,7 +730,7 @@ def run_cell(
     diag = pd.DataFrame(rule.diagnostics)
     row = {
         "tag": cell.tag,
-        "key": cell.key(),
+        "key": cell.key(params),
         "baseline": cell.baseline,
         "shuffle": cell.shuffle if cell.baseline else "",
         "perm": cell.perm,
@@ -1006,7 +1012,7 @@ def run_frictionless(
     ic = realised_ic(signal)
     row: dict[str, Any] = {
         "tag": cell.tag,
-        "key": cell.key(),
+        "key": cell.key(params),
         "ic": cell.ic,
         "horizon": cell.horizon,
         "seed": cell.seed,

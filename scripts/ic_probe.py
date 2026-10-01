@@ -258,7 +258,7 @@ def main(argv=None) -> int:
             row["standardise"] = cell.standardise
             rows.append(row)
             if i % 20 == 0 or i == len(cells):
-                say(f"  [{i:>4}/{len(cells)}] {cell.key()}  net IR {row['net_ir']:+.3f}")
+                say(f"  [{i:>4}/{len(cells)}] {cell.key(params)}  net IR {row['net_ir']:+.3f}")
         append_rows(rows)
 
     # --- stage 3: base cells, optional ------------------------------------
@@ -276,7 +276,7 @@ def main(argv=None) -> int:
             row["standardise"] = cell.standardise
             rows.append(row)
             say(
-                f"  [{i:>2}/{len(base_cells)}] {cell.key()}  net IR {row['net_ir']:+.3f}  "
+                f"  [{i:>2}/{len(base_cells)}] {cell.key(params)}  net IR {row['net_ir']:+.3f}  "
                 f"TE p95 {row['te_p95']:.1%}  {row['seconds']:.0f}s"
             )
             append_rows([row])

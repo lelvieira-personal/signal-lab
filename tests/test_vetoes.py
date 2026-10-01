@@ -395,7 +395,14 @@ def test_seed_stability_needs_at_least_two_seeds(params):
 
 # decisions/0043: the verdict carries the procedure, g and the shuffle count k.
 # The context key stays `romano_wolf` for every procedure.
-GFWER = {"procedure": "romano_wolf_gfwer", "g": 2, "n_shuffles": 100}
+# decisions/0045: the verdict also carries n_tests (>= 8 here, so g = 2) and standardise.
+GFWER = {
+    "procedure": "romano_wolf_gfwer",
+    "g": 2,
+    "n_shuffles": 100,
+    "n_tests": 120,
+    "standardise": True,
+}
 
 
 def test_multiple_testing_passes_when_the_stepdown_rejects(params):
@@ -450,15 +457,56 @@ def test_multiple_testing_fails_on_too_few_shuffles(params):
 
 
 def test_multiple_testing_fails_closed_when_g_is_missing(params):
-    rw = {"rejected": True, "fwer_alpha": 0.05, "procedure": "romano_wolf_gfwer", "n_shuffles": 100}
+    rw = {"rejected": True, "fwer_alpha": 0.05, **{k: x for k, x in GFWER.items() if k != "g"}}
     v = veto_multiple_testing(ctx(romano_wolf=rw), params)
     assert not v.passed and "romano_wolf.g" in v.detail
 
 
 def test_multiple_testing_fails_closed_when_n_shuffles_is_missing(params):
-    rw = {"rejected": True, "fwer_alpha": 0.05, "procedure": "romano_wolf_gfwer", "g": 2}
+    rw = {
+        "rejected": True,
+        "fwer_alpha": 0.05,
+        **{k: x for k, x in GFWER.items() if k != "n_shuffles"},
+    }
     v = veto_multiple_testing(ctx(romano_wolf=rw), params)
     assert not v.passed and "romano_wolf.n_shuffles" in v.detail
+
+
+# --- decisions/0045: small searches are gated at g = 1 -------------------------
+
+
+def test_the_veto_passes_a_single_test_verdict_at_g1_and_fails_it_at_g2(params):
+    one = {"rejected": True, "fwer_alpha": 0.05, **{**GFWER, "n_tests": 1}}
+    assert veto_multiple_testing(ctx(romano_wolf={**one, "g": 1}), params).passed
+    v = veto_multiple_testing(ctx(romano_wolf={**one, "g": 2}), params)
+    assert not v.passed and "g=2" in v.detail and "g=1" in v.detail
+
+
+def test_the_veto_switches_to_g2_at_the_small_search_floor(params):
+    below = {"rejected": True, "fwer_alpha": 0.05, **{**GFWER, "n_tests": 7, "g": 1}}
+    at = {"rejected": True, "fwer_alpha": 0.05, **{**GFWER, "n_tests": 8}}
+    assert veto_multiple_testing(ctx(romano_wolf=below), params).passed
+    assert veto_multiple_testing(ctx(romano_wolf=at), params).passed
+    assert not veto_multiple_testing(ctx(romano_wolf={**at, "g": 1}), params).passed
+
+
+def test_the_veto_fails_a_verdict_with_no_n_tests(params):
+    rw = {
+        "rejected": True,
+        "fwer_alpha": 0.05,
+        **{k: x for k, x in GFWER.items() if k != "n_tests"},
+    }
+    v = veto_multiple_testing(ctx(romano_wolf=rw), params)
+    assert not v.passed and "romano_wolf.n_tests" in v.detail
+
+
+def test_the_veto_fails_a_verdict_with_no_standardise_or_standardise_false(params):
+    base = {"rejected": True, "fwer_alpha": 0.05, **GFWER}
+    missing = {k: x for k, x in base.items() if k != "standardise"}
+    v = veto_multiple_testing(ctx(romano_wolf=missing), params)
+    assert not v.passed and "romano_wolf.standardise" in v.detail
+    v = veto_multiple_testing(ctx(romano_wolf={**base, "standardise": False}), params)
+    assert not v.passed and "standardise" in v.detail
 
 
 # --- 9. direction -----------------------------------------------------------

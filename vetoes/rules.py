@@ -337,7 +337,9 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
     """
     Survives the multiple-testing stepdown in params: since decisions/0043 the
     generalized Romano-Wolf stepdown, P(g or more false passes) <= alpha, with
-    g = 2 and at least `min_shuffles` block shuffles per test.
+    g = 2 and at least `min_shuffles` block shuffles per test -- g = 1 when the
+    stepdown ran over fewer than `small_search_below` statistics
+    (decisions/0045). The verdict's `standardise` must match params too.
 
     This veto reads a verdict; it does not run the procedure. The stepdown lives
     in src/stats/ (phase 3) because it needs the joint distribution of every
@@ -382,6 +384,28 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
         )
 
     required_g = p.get("vetoes.multiple_testing.g")
+    # decisions/0045: a stepdown run over fewer than `small_search_below`
+    # statistics is held to `small_search_g` (ordinary FWER), because at g = 2 a
+    # set smaller than g passes unconditionally. m is the verdict's `n_tests`.
+    small_below = p.get("vetoes.multiple_testing.small_search_below")
+    if required_g is not None and small_below is not None:
+        if result.get("n_tests") is None:
+            return _missing("multiple_testing", MissingInput("romano_wolf.n_tests"))
+        if int(result["n_tests"]) < int(small_below):
+            required_g = int(p.require("vetoes.multiple_testing.small_search_g"))
+    required_standardise = p.get("vetoes.multiple_testing.standardise")
+    if required_standardise is not None:
+        if result.get("standardise") is None:
+            return _missing("multiple_testing", MissingInput("romano_wolf.standardise"))
+        if bool(result["standardise"]) != bool(required_standardise):
+            return Verdict(
+                passed=False,
+                veto="multiple_testing",
+                detail=(
+                    f"verdict standardise={bool(result['standardise'])}, params require "
+                    f"{bool(required_standardise)} (decisions/0041, decisions/0043)"
+                ),
+            )
     if required_g is not None:
         if result.get("g") is None:
             return _missing("multiple_testing", MissingInput("romano_wolf.g"))

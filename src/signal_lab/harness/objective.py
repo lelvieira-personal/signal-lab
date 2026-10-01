@@ -80,7 +80,10 @@ def turnover_penalty(
     above. What differs between the two is how a whole TRADE is charged, not
     the rate at a given trailing level -- `created_marginal` integrates this
     rate across the trade's own size instead of charging it once at the
-    post-trade level, so one lump costs more than the same trading spread out.
+    post-trade level. (It prices the annual total, not lumpiness: within a fixed
+    window a lump and the same trading split across weeks cost the same, and
+    splitting is cheaper only by what rolls out of the window in between --
+    decisions/0040's 2026-10-01 addendum.)
     That integral (`AuditCell.shadow_form="created"`) is `created_marginal_shadow`
     below, and `created_marginal_quadratic` is the form the solver takes; this
     function only ever returns the marginal rate, which decisions/0040 keeps
@@ -160,7 +163,12 @@ def created_marginal_quadratic(
     """
     params = params or get_params()
     if coefficient is None:
-        coefficient = float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
+        coefficient = params.get("constraints.turnover.penalty.coefficient", None)
+        if coefficient is None:
+            raise ObjectiveNotConfigured(
+                "constraints.turnover.penalty.coefficient is null in params/ and no override "
+                "was given. The lab does not invent thresholds; set it and record the decision."
+            )
     start = float(params.require("constraints.turnover.shadow_start_annualised"))
     reference = float(params.require("constraints.turnover.shadow_reference_annualised"))
     w_periods = int(round(periods_per_year))
@@ -184,6 +192,12 @@ def created_marginal_shadow(
     (traded notional, buys plus sells) this rebalance, the marginal unit paying
     the curve at the turnover it creates. Zero at `x = 0`, convex in `x`, and
     `dS/dx` is `annual_turnover_penalty` at the post-trade trailing level.
+
+    Convexity is NOT why a lump costs more. S integrates the marginal curve along
+    cumulative traded notional, so within a window that drops nothing a lump and
+    the same trading split over several weeks cost exactly the same; splitting is
+    cheaper only by the trades that roll out of the window in between
+    (decisions/0040, addendum 2026-10-01).
     """
     a, b = created_marginal_quadratic(prev_traded, params, periods_per_year, coefficient)
     return a * (max(0.0, b + x) ** 2 - max(0.0, b) ** 2)

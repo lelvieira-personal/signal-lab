@@ -36,6 +36,12 @@ REQUESTS_DIR = REPO_ROOT / "data" / "requests"
 
 STATES = ("pending", "running", "done")
 
+# decisions/0039 items 2 and 3: how a hypothesis leaves the lab. A pass on both bars
+# is a `candidate`; a bar-2 failure is `not_detected` -- not "false", not "rejected" --
+# and carries the power at the nearest IC the lab can detect. "confirmed" and
+# "proven" are not in the vocabulary: the lab screens, it does not confirm.
+VERDICTS = ("candidate", "not_detected")
+
 # SUBSTRATE section 6.
 FAMILIES = (
     "growth",
@@ -549,9 +555,17 @@ class HypothesisRegistry:
         to_state: str,
         run_id: str | None = None,
         detail: str = "",
+        verdict: str | None = None,
+        power_at_nearest_ic: float | None = None,
     ) -> Path:
         """
         Move a hypothesis between states and record the transition.
+
+        `verdict` (decisions/0039) is for the move to `done` and is one of
+        `VERDICTS`; it is recorded in the transition's detail with a
+        `power_at_nearest_ic` field. That field is `null` until phase 3 computes it
+        from the power tables (`decisions/0036`, the power audits) -- it is never
+        filled with a guess. The pre-registered file itself is not edited.
 
         The file moves and the transition is appended; nothing is overwritten, so
         the store shows the whole path a hypothesis took including the ones that
@@ -559,6 +573,13 @@ class HypothesisRegistry:
         """
         if to_state not in STATES:
             raise ValueError(f"unknown state {to_state!r}")
+        if verdict is not None:
+            if to_state != "done":
+                raise ValueError("a verdict is recorded on the move to `done` only")
+            if verdict not in VERDICTS:
+                raise ValueError(f"verdict {verdict!r} is not one of {list(VERDICTS)}")
+            power = "null" if power_at_nearest_ic is None else f"{power_at_nearest_ic:.3f}"
+            detail = f"{detail} verdict: {verdict}; power_at_nearest_ic: {power}".strip()
         found = self.find(hypothesis_id)
         if not found:
             raise FileNotFoundError(f"no hypothesis {hypothesis_id!r} in {self.root}")

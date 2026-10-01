@@ -71,11 +71,11 @@ def test_live_params_carry_the_26_week_scalar_overlay_and_a_default_cell_resolve
     cell = AuditCell(0.35, 13, 0)
     assert cell.vol_halflife is FROM_PARAMS and cell.vol_overlay is FROM_PARAMS
     assert resolve_vol_overlay(cell, params) == (26.0, "scalar")
-    assert cell.key(params).endswith("_vhl26scalar")
+    assert cell.key(params).endswith("_vhl26scalar_created")  # default shadow form too
 
 
 def test_none_keeps_meaning_no_overlay_and_keeps_every_historical_key(params):
-    cell = AuditCell(0.35, 13, 0, 1.0, None, 0.25, vol_halflife=None)
+    cell = AuditCell(0.35, 13, 0, 1.0, None, 0.25, vol_halflife=None, shadow_form="trailing")
     assert resolve_vol_overlay(cell, params) == (None, "per_series")
     assert cell.key(params) == "ic0.35_h13_s0_c1.0_tnone_r0.25"
     # an explicit overlay name with no halflife is still no overlay
@@ -89,7 +89,7 @@ def test_an_explicit_value_wins_and_a_bare_halflife_is_the_legacy_per_series_for
     )
     both = AuditCell(0.1, 13, 0, vol_halflife=52, vol_overlay="scalar")
     assert resolve_vol_overlay(both, params) == (52.0, "scalar")
-    assert both.key(params).endswith("_vhl52scalar")
+    assert "_vhl52scalar" in both.key(params)
     # the halflife from params, the overlay form explicit
     form_only = AuditCell(0.1, 13, 0, vol_overlay="per_series")
     assert resolve_vol_overlay(form_only, params) == (26.0, "per_series")
@@ -119,7 +119,7 @@ def test_a_live_cell_and_its_baseline_twin_resolve_to_the_same_overlay(params):
     assert len(live) == len(twin) > 0
     for a, b in zip(live, twin, strict=True):
         assert resolve_vol_overlay(a, params) == resolve_vol_overlay(b, params)
-        assert a.key(params) + "_baseline" == b.key(params)
+        assert a.key(params) == b.key(params).replace("_baseline", "")
     # the standing grid's base cells and the baseline grid's are twins too
     grid = {resolve_vol_overlay(c, params) for c in grid_cells(params)}
     assert grid == {(26.0, "scalar")}
@@ -133,6 +133,28 @@ def test_grids_that_claim_identity_with_a_named_run_pin_no_overlay(builder, para
     assert cells and all(c.vol_halflife is None for c in cells)
     assert {resolve_vol_overlay(c, params) for c in cells} == {(None, "per_series")}
     assert not any("_vhl" in c.key(params) for c in cells), "their keys are the pre-task-42 keys"
+
+
+def test_a_default_cells_key_says_it_priced_turnover_created(params):
+    """F3: the key encodes the RESOLVED shadow form, so the default cell and the
+    halflife grid's h26 arm (pinned trailing, same overlay) are different cells."""
+    default = AuditCell(0.35, 26, 0, 1.0, None, None)
+    assert default.key(params) == "ic0.35_h26_s0_c1.0_tnone_rnone_vhl26scalar_created"
+    arm = next(
+        c
+        for c in halflife_cells(params)
+        if (c.horizon, c.ic, c.seed, c.vol_halflife) == (26, 0.35, 0, 26)
+    )
+    assert arm.key(params) == "ic0.35_h26_s0_c1.0_tnone_rnone_vhl26scalar"
+    assert default.key(params) != arm.key(params)
+    # explicit created keeps its key; trailing keeps its; frictionless prices nothing
+    created = dataclasses.replace(default, shadow_coefficient=10.0, shadow_form="created")
+    assert created.key(params).endswith("_shadow10_created")
+    assert not dataclasses.replace(default, shadow_form="trailing").key(params).endswith("created")
+    frictionless = dataclasses.replace(default, tag="frictionless")
+    assert frictionless.key(params).endswith("_vhl26scalar_frictionless")
+    assert all(c.key(params).endswith("_created") for c in friction_created_cells(params))
+    assert not any(c.key(params).endswith("_created") for c in friction_cells(params))
 
 
 def test_the_halflife_grid_sets_every_arm_explicitly(params):
@@ -156,23 +178,44 @@ def _draws(m=6, k=100, seed=0, lift=(6.0, 5.0)):
 
 
 def test_gate_reproduces_romano_wolf_gfwer_exactly_and_reports_what_it_ran(params):
-    t, T0 = _draws()
+    t, T0 = _draws(m=12)  # >= small_search_below, so g = 2 (decisions/0045)
     out = gate(t, T0, params)
     reject, p_adj = romano_wolf_gfwer(t, T0, 0.05, 2, True)
     assert out["rejected"].tolist() == reject.tolist()
     assert np.array_equal(out["p_adjusted"], p_adj)
     assert (out["procedure"], out["fwer_alpha"], out["g"]) == ("romano_wolf_gfwer", 0.05, 2)
-    assert (out["n_shuffles"], out["n_tests"]) == (100, 6)
-    assert out["rejected"].shape == out["p_adjusted"].shape == (6,)
+    assert (out["n_shuffles"], out["n_tests"], out["standardise"]) == (100, 12, True)
+    assert out["rejected"].shape == out["p_adjusted"].shape == (12,)
 
 
 def test_gate_reads_params_not_constants(tmp_path, params):
-    t, T0 = _draws()
+    t, T0 = _draws(m=12)
     g3 = variant(tmp_path, params, "vetoes.yaml", "  g: 2\n", "  g: 3\n")
     out = gate(t, T0, g3)
     assert out["g"] == 3
     assert out["rejected"].tolist() == romano_wolf_gfwer(t, T0, 0.05, 3, True)[0].tolist()
     assert out["p_adjusted"].tolist() != gate(t, T0, params)["p_adjusted"].tolist()
+
+
+def test_a_small_search_runs_at_g1_and_the_floor_is_eight(params):
+    """decisions/0045: m = 1 reports g = 1, m = 8 reports g = 2; procedure unchanged."""
+    for m, g in ((1, 1), (7, 1), (8, 2), (12, 2)):
+        t, T0 = _draws(m=m, lift=(6.0,))
+        out = gate(t, T0, params)
+        assert (out["g"], out["procedure"]) == (g, "romano_wolf_gfwer"), m
+        assert out["rejected"].tolist() == romano_wolf_gfwer(t, T0, 0.05, g, True)[0].tolist()
+    assert verdict_for(out, 0)["standardise"] is True
+
+
+def test_a_single_test_under_a_complete_null_rejects_about_alpha_of_the_time(params):
+    """F1: before decisions/0045 this was 1.00 -- at g = 2 one test has no second
+    false pass to guard against, its critical value was -inf, and it always passed."""
+    rng = np.random.default_rng(20261001)
+    rejected = sum(
+        bool(gate(rng.normal(size=1), rng.normal(size=(100, 1)), params)["rejected"][0])
+        for _ in range(2000)
+    )
+    assert 0.03 <= rejected / 2000 <= 0.07, rejected / 2000
 
 
 def test_gate_runs_romano_wolf_if_params_say_so(tmp_path, params):
@@ -201,7 +244,7 @@ def test_gate_raises_below_min_shuffles(params):
 
 
 def test_the_veto_passes_on_the_gates_own_output_for_a_rejected_hypothesis(params):
-    t, T0 = _draws(lift=(25.0,))
+    t, T0 = _draws(m=12, lift=(25.0,))
     t[1:] = 0.0  # nothing else near the null's tail
     out = gate(t, T0, params)
     assert out["rejected"][0] and not out["rejected"][1:].any()
@@ -217,11 +260,22 @@ def test_the_veto_passes_on_the_gates_own_output_for_a_rejected_hypothesis(param
         lambda d: {**d, "n_shuffles": 99},
         lambda d: {k: x for k, x in d.items() if k != "g"},
         lambda d: {k: x for k, x in d.items() if k != "n_shuffles"},
+        lambda d: {k: x for k, x in d.items() if k != "n_tests"},
+        lambda d: {k: x for k, x in d.items() if k != "standardise"},
+        lambda d: {**d, "standardise": False},
     ],
-    ids=["wrong-g", "too-few-shuffles", "missing-g", "missing-n_shuffles"],
+    ids=[
+        "wrong-g",
+        "too-few-shuffles",
+        "missing-g",
+        "missing-n_shuffles",
+        "missing-n_tests",
+        "missing-standardise",
+        "standardise-false",
+    ],
 )
 def test_the_veto_fails_a_gate_verdict_that_is_not_the_params_test(mutate, params):
-    t, T0 = _draws(lift=(25.0,))
+    t, T0 = _draws(m=12, lift=(25.0,))
     verdict = verdict_for(gate(t, T0, params), 0)
     assert veto_multiple_testing(RunContext(run_id="R", romano_wolf=verdict), params).passed
     bent = mutate(verdict)
@@ -475,3 +529,35 @@ def test_the_ladder_prices_through_objective_and_keeps_no_second_copy():
     assert "created_marginal_quadratic" in src and "created_marginal_shadow" in src
     assert "prefilled_trailing_traded" in src
     assert "span * w_periods" not in src, "the (a, b) arithmetic lives in objective only"
+
+
+def test_an_unconfigured_coefficient_raises_rather_than_pricing_at_zero(tmp_path, params):
+    """F8: as `turnover_penalty` does. An explicit override still works."""
+    from signal_lab.harness.objective import ObjectiveNotConfigured
+
+    old = "coefficient: 40.0"
+    text = (Path(params.params_dir) / "constraints.yaml").read_text()
+    assert old in text
+    null = variant(tmp_path, params, "constraints.yaml", old, "coefficient: null  ")
+    with pytest.raises(ObjectiveNotConfigured):
+        created_marginal_quadratic([0.05] * 60, null, PPY)
+    with pytest.raises(ObjectiveNotConfigured):
+        created_marginal_shadow([0.05] * 60, 0.1, null, PPY)
+    assert created_marginal_shadow([0.05] * 60, 0.1, null, PPY, coefficient=10.0) > 0
+
+
+def test_below_the_start_of_the_curve_a_lump_and_a_split_cost_the_same(params):
+    """decisions/0040, addendum 2026-10-01 (task 42 review F5): S prices the annual
+    total, not lumpiness. With a window that drops nothing (a book that has traded
+    nothing, `prev=[0.0]*60`), a lump and the same trading split over two weeks cost
+    exactly the same, whether the trade crosses the curve's start (x = 1.6) or sits
+    mostly under it (x = 1.0): the cumulative notional is identical and nothing has
+    rolled out. Under the start the cost is zero either way."""
+    prev = [0.0] * 60
+    for x in (1.0, 1.6):
+        lump = created_marginal_shadow(prev, x, params, PPY)
+        split = created_marginal_shadow(prev, x / 2, params, PPY) + created_marginal_shadow(
+            [*prev[1:], x / 2], x / 2, params, PPY
+        )
+        assert lump == pytest.approx(split, rel=1e-9, abs=1e-18)
+    assert created_marginal_shadow(prev, 0.30, params, PPY) == 0.0, "below the start"

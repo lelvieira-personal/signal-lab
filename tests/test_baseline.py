@@ -192,8 +192,12 @@ def test_a_baseline_never_gives_a_series_a_value_before_its_start(ragged, benchm
 
 def test_a_live_cell_and_its_baseline_have_different_keys():
     """4b.4. The store is append-only; a collision would be two runs under one key."""
-    live = AuditCell(0.2, 13, 3, vol_halflife=None)  # None: the pre-task-42 key
-    base = AuditCell(0.2, 13, 3, tag=BASELINE, baseline=True, vol_halflife=None)
+    live = AuditCell(
+        0.2, 13, 3, vol_halflife=None, shadow_form="trailing"
+    )  # None: the pre-task-42 key
+    base = AuditCell(
+        0.2, 13, 3, tag=BASELINE, baseline=True, vol_halflife=None, shadow_form="trailing"
+    )
     assert live.key() != base.key()
     assert base.key().endswith("_baseline")
     assert live.key() == "ic0.20_h13_s3_c1.0_tnone_rnone", "the live key is unchanged"
@@ -327,9 +331,20 @@ def test_the_truth_shuffle_and_its_stream_are_unchanged_by_the_score_shuffle(wee
 def test_existing_keys_are_unchanged_and_a_score_cell_says_what_it_is():
     # `vol_halflife=None` throughout: the explicit "no overlay" is what keeps a
     # pre-task-42 key (decisions/0042 moved the default to the params overlay).
-    plain = AuditCell(0.35, 13, 0, 1.0, None, 0.25, vol_halflife=None)
+    plain = AuditCell(0.35, 13, 0, 1.0, None, 0.25, vol_halflife=None, shadow_form="trailing")
     assert plain.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25"
-    truth = AuditCell(0.35, 13, 0, 1.0, None, 0.25, BASELINE, baseline=True, vol_halflife=None)
+    truth = AuditCell(
+        0.35,
+        13,
+        0,
+        1.0,
+        None,
+        0.25,
+        BASELINE,
+        baseline=True,
+        vol_halflife=None,
+        shadow_form="trailing",
+    )
     assert truth.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_baseline"
     score = dataclasses.replace(truth, shuffle=SCORE_SHUFFLE, perm=7)
     assert score.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_baseline_score_p07"
@@ -414,7 +429,18 @@ def test_the_score_mode_is_bit_for_bit_unchanged_by_score_span(ragged, benchmark
 
 
 def test_a_span_cell_is_keyed_apart_and_existing_keys_are_unchanged():
-    truth = AuditCell(0.70, 13, 0, 1.0, None, 0.25, BASELINE, baseline=True, vol_halflife=None)
+    truth = AuditCell(
+        0.70,
+        13,
+        0,
+        1.0,
+        None,
+        0.25,
+        BASELINE,
+        baseline=True,
+        vol_halflife=None,
+        shadow_form="trailing",
+    )
     assert truth.key() == "ic0.70_h13_s0_c1.0_tnone_r0.25_baseline"
     assert (
         dataclasses.replace(truth, shuffle=SCORE_SHUFFLE, perm=7).key()
@@ -540,7 +566,7 @@ def test_a_different_shadow_coefficient_moves_weights_not_costs(small_universe):
 
 
 def test_existing_keys_are_unchanged_and_a_friction_cell_says_what_it_is():
-    plain = AuditCell(0.35, 13, 0, 1.0, None, 0.25, vol_halflife=None)
+    plain = AuditCell(0.35, 13, 0, 1.0, None, 0.25, vol_halflife=None, shadow_form="trailing")
     assert plain.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25"
     dear = dataclasses.replace(plain, shadow_coefficient=20.0)
     assert dear.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_shadow20"
@@ -624,13 +650,38 @@ def test_the_full_default_cell_runs_the_overlay_and_reproduces_its_golden(small_
     row, _ = run_cell(universe, AuditCell(0.10, 13, 0), params, solver="scipy")
     assert row["vol_halflife"] == 26.0 and row["vol_overlay"] == "scalar"
     assert row["shadow_form"] == "created"
-    assert row["key"].endswith("_vhl26scalar")
+    assert row["key"].endswith("_vhl26scalar_created")
     assert row["net_ir"] == GOLDEN_NET_IR_V080
     assert row["net_ir"] != GOLDEN_NET_IR_CREATED_MARGINAL, "the overlay moves the weights"
 
 
+def test_run_frictionless_records_a_key_computed_with_the_runs_params(small_universe):
+    """F4: the recorded key follows the params the cell RAN under, not the process-wide
+    ones. A params with no overlay block runs no overlay, and its key must say so."""
+    from signal_lab.audit.ladder import FRICTIONLESS, run_frictionless
+
+    universe, params = small_universe
+    cell = AuditCell(0.10, 13, 0, 0.0, None, None, FRICTIONLESS)
+    with_overlay, _ = run_frictionless(universe, cell, params)
+    assert "_vhl26scalar" in with_overlay["key"]
+    cov = {k: v for k, v in params.audit["covariance"].items() if k != "vol_overlay"}
+    bare = dataclasses.replace(params, audit={**params.audit, "covariance": cov})
+    row, _ = run_frictionless(universe, cell, bare)
+    assert "_vhl" not in row["key"]
+
+
 def test_a_shadow_form_cell_says_what_it_is_and_existing_keys_are_unchanged():
-    trailing = AuditCell(0.35, 13, 0, 1.0, None, 0.25, shadow_coefficient=20.0, vol_halflife=None)
+    trailing = AuditCell(
+        0.35,
+        13,
+        0,
+        1.0,
+        None,
+        0.25,
+        shadow_coefficient=20.0,
+        vol_halflife=None,
+        shadow_form="trailing",
+    )
     assert trailing.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_shadow20"
     created = dataclasses.replace(trailing, shadow_form="created")
     assert created.key() == "ic0.35_h13_s0_c1.0_tnone_r0.25_shadow20_created"
@@ -675,7 +726,9 @@ def test_a_halflife_none_arm_at_h13_matches_the_knee_live_cell_exactly(params):
         )
         # The knee grid follows params (task 42), so its cells now carry the 26-week
         # overlay; POWER_LIVE_RUN, the run this identity is with, was computed with none.
-        twin = dataclasses.replace(knee, ic=c.ic, seed=c.seed, vol_halflife=None)
+        twin = dataclasses.replace(
+            knee, ic=c.ic, seed=c.seed, vol_halflife=None, shadow_form="trailing"
+        )
         assert c.key() == twin.key()
 
 

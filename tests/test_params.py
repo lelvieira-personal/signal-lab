@@ -100,3 +100,15 @@ def test_every_substrate_threshold_is_in_params(params):
     assert params.require("data.windows.holdout_start") == "2020-01-01"
     assert params.require("costs.buckets.low.half_spread_bps") == 5
     assert params.require("costs.buckets.high.annual_fee_tracking_bps") == 35
+
+
+def test_every_params_file_is_crlf_on_disk(params):
+    """`params_hash` is over raw bytes, so line endings are part of it. The recorded
+    hashes (decisions/0038-0045) are of the CRLF working tree; `.gitattributes` pins
+    `params/*.yaml` to `eol=crlf` so a fresh checkout hashes the same. A bare LF would
+    silently move every hash-matched comparison (task 42 review, F2)."""
+    from pathlib import Path
+
+    for name in PARAM_FILES:
+        raw = (Path(params.params_dir) / name).read_bytes()
+        assert raw.count(b"\n") == raw.count(b"\r\n") > 0, f"{name} is not CRLF throughout"

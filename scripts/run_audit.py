@@ -778,7 +778,7 @@ def pd_now() -> str:
     return pd.Timestamp.now("UTC").isoformat(timespec="seconds")
 
 
-def _write_cell_artifacts(artifacts_root, run_id: str, cell, path) -> int:
+def _write_cell_artifacts(artifacts_root, run_id: str, cell, path, params=None) -> int:
     """
     Weights, alpha and the rebalance-date index for one cell, as parquet
     (decisions/0035 s5). `results/artifacts/` is where `STATUS.md` already
@@ -788,7 +788,7 @@ def _write_cell_artifacts(artifacts_root, run_id: str, cell, path) -> int:
     """
     from pathlib import Path
 
-    out = Path(artifacts_root) / run_id / cell.key()
+    out = Path(artifacts_root) / run_id / cell.key(params)
     out.mkdir(parents=True, exist_ok=True)
     written = 0
     weights = path.weights.reset_index(names="date")
@@ -947,7 +947,9 @@ def main(argv=None) -> int:
                 durations.append(time.time() - t_cell)
                 rows.append(row)
                 if cell.tag == "base":
-                    artifact_bytes += _write_cell_artifacts(artifacts_root, run_id, cell, path)
+                    artifact_bytes += _write_cell_artifacts(
+                        artifacts_root, run_id, cell, path, params
+                    )
                 if partial_writer is None:
                     partial_file = open(
                         out / "cells.partial.csv", "w", newline="", encoding="utf-8"
@@ -958,7 +960,7 @@ def main(argv=None) -> int:
                 partial_file.flush()
                 if not args.quiet:
                     print(
-                        f"  [{i:>3}/{len(cells)}] {cell.key():<34} net IR {row['net_ir']:+.3f}  "
+                        f"  [{i:>3}/{len(cells)}] {cell.key(params):<34} net IR {row['net_ir']:+.3f}  "
                         f"TE p95 {row['te_p95']:.1%}  turnover {row['turnover_annual']:.0%}  "
                         f"inaccurate {row['inaccurate_share']:.1%}  {row['seconds']:.1f}s",
                         flush=True,
@@ -979,10 +981,10 @@ def main(argv=None) -> int:
         if cell.tag == "base":
             # decisions/0035 s5: base cells at minimum, so the next measurement
             # bug is a re-derivation instead of another multi-hour re-run.
-            artifact_bytes += _write_cell_artifacts(artifacts_root, run_id, cell, path)
+            artifact_bytes += _write_cell_artifacts(artifacts_root, run_id, cell, path, params)
         if not args.quiet:
             print(
-                f"  [{i:>3}/{len(cells)}] {cell.key():<34} net IR {row['net_ir']:+.3f}  "
+                f"  [{i:>3}/{len(cells)}] {cell.key(params):<34} net IR {row['net_ir']:+.3f}  "
                 f"TE p95 {row['te_p95']:.1%}  turnover {row['turnover_annual']:.0%}  "
                 f"inaccurate {row['inaccurate_share']:.1%}  {row['seconds']:.1f}s",
                 flush=True,

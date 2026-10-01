@@ -138,6 +138,17 @@ def _first_failure(verdicts, order=None):
     return ""
 
 
+def _why(r, order, params):
+    """The last column: `candidate` (decisions/0039), `not detected` for a bar-2 failure
+    (with the veto, since the failure is statistical, not a verdict on the idea), or the
+    veto that stopped the run."""
+    label = v.run_label(r, params)
+    stopped = "" if r["passed"] else _first_failure(r["verdicts"], order)
+    if label == "not detected":
+        return f"not detected ({stopped or 'multiple_testing'})"
+    return label or stopped
+
+
 def leaderboard_html(rows, order=None, params=None):
     body = io.StringIO()
     lead_id = next((r["run_id"] for r in rows if r["passed"]), None)
@@ -161,7 +172,7 @@ def leaderboard_html(rows, order=None, params=None):
   <td class="num">{_num(r.get("max_cash"), "{:.1f}")}</td>
   <td class="num">{_num(r.get("n_positions"), "{:.0f}")}</td>
   <td>{_veto_dots(r["verdicts"])}</td>
-  <td class="why">{"" if r["passed"] else _first_failure(r["verdicts"], order)}</td>
+  <td class="why">{_why(r, order, params)}</td>
 </tr>""")
     return f"""
 <table>
@@ -360,14 +371,14 @@ def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
 {banner}
 
 <h2><span class="n">1</span>Leaderboard</h2>
-<p class="lede">All {data.n_runs} experiments, survivors first. Failures stay visible with
+<p class="lede">All {data.n_runs} experiments, runs that passed every veto first. Failures stay visible with
   the veto that stopped them — knowing what died and why is most of the diagnostic value,
   and hiding it invites the same idea to be proposed again next cycle.</p>
 {leaderboard_html(rows, order, params)}
 
 <div class="grid2" style="margin-top:30px">
   <div class="panel">
-    <h3>Where the survivors sit</h3>
+    <h3>Where the runs that passed every veto sit</h3>
     <p>Dotted line is the {te_cap:.1f}% tracking error veto.</p>
     {figs[0]}
   </div>

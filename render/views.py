@@ -63,7 +63,7 @@ def leaderboard_table(runs):
     """
     Rows for the leaderboard, sorted by the pre-registered objective only.
 
-    Survivors first, then by net IR descending. Failed runs are kept, not
+    Runs that passed every veto first, then by net IR descending. Failed runs are kept, not
     filtered: knowing what died and why is most of the diagnostic value, and
     hiding it invites the same idea to be proposed again next cycle.
     """
@@ -91,6 +91,28 @@ def leaderboard_table(runs):
         return (not row["passed"], -(ir if ir is not None else float("-inf")))
 
     return sorted(rows, key=key)
+
+
+def run_label(run, params=None):
+    """
+    The word a report uses for a run (decisions/0039 items 2 and 3).
+
+    `candidate`: it passed every veto (bar 2's `multiple_testing` among them) and its
+    net IR clears bar 1 (`audit.target_net_ir`). `not detected`: it failed bar 2 --
+    not "false" and not "rejected": the data could not tell it from nothing at this
+    power. Anything else carries no label. "Confirmed" and "proven" never appear: the
+    lab screens, it does not confirm.
+    """
+    from signal_lab.params import get_params
+
+    verdicts = run.get("verdicts") or {}
+    if run.get("killed_by") == "multiple_testing" or verdicts.get("multiple_testing") is False:
+        return "not detected"
+    ir = run.get("net_ir")
+    target = float((params or get_params()).require("audit.target_net_ir"))
+    if run.get("passed") and ir is not None and ir == ir and ir >= target:
+        return "candidate"
+    return ""
 
 
 def first_failed_veto(row, order=None):
@@ -319,8 +341,9 @@ def turnover_disclosure(params=None):
     cap = float(p.require("constraints.turnover.highlight_annualised"))
     return {
         "cap": cap,
-        "text": f"Turnover is disclosed on every run and highlighted above {cap:.0%} "
-        "annual traded notional; it is never a veto (decisions/0038).",
+        "text": f"Turnover is disclosed on every run and highlighted above {cap:.0%}. "
+        "The leaderboard flags annual turnover only; the audit report also flags "
+        "rolling-1y p95. It is never a veto (decisions/0038).",
     }
 
 

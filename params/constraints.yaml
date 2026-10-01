@@ -1,6 +1,6 @@
 # Portfolio constraints. SUBSTRATE.md section 4.
 # Owner-only. Agents may not edit this file (SUBSTRATE section 2).
-params_version: "0.8.0"
+params_version: "0.9.0"
 
 direction: long_only
 leverage_allowed: false
@@ -56,8 +56,11 @@ turnover:
     #        S(x) = k / (2 (r - s)) * [max(0, T(x) - s)^2 - max(0, T(0) - s)^2] * W / ppy
     #      with k = coefficient * 1e-4, s = start, r = reference. S'(x) =
     #      shadow(T(x)): the marginal unit pays the curve at the post-trade
-    #      level. S is convex, so one lump costs more than the same trading
-    #      spread over several weeks.
+    #      level. S depends only on cumulative traded notional in the window,
+    #      so within a fixed window a lump and the same trading split cost the
+    #      same; splitting is cheaper only by the trades that roll out of the
+    #      window in between (decisions/0040 addendum, 2026-10-01). The shadow
+    #      prices the annual total, not lumpiness.
     #   2. Before a full window exists, each missing rebalance counts at
     #      target_annualised / ppy, so the window is always W long.
     units: bps_per_unit_traded
@@ -72,9 +75,12 @@ turnover:
     # switches on exactly at the target leaves a kink the optimiser can sit in.
 
 tracking_error:
-  # Section 4 describes an asymmetric penalty, not a hard band; section 10 makes
-  # trailing-3y TE a hard veto. Both are implemented: the veto is the gate, the
-  # penalty is an objective term. See decisions/proposed/0003.
+  # decisions/0044 (owner, 2026-10-01, OWNER-QUEUE L19): `max_trailing_3y` is
+  # the EX-ANTE SIZING TARGET sigma the solver enforces at every rebalance --
+  # the figure decisions/0025 derives from the drawdown tolerance. It is not a
+  # ceiling on realised TE: realised trailing-3y TE (and its p95) is a
+  # disclosed characteristic (decisions/0030), never a gate. The key keeps its
+  # name because code reads it.
   max_trailing_3y: 0.060
   window_years: 3
   penalty:

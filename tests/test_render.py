@@ -176,3 +176,22 @@ def test_deploy_stub_exists_and_lists_open_questions():
     text = (REPO_ROOT / "DEPLOY.md").read_text(encoding="utf-8")
     assert "confirm" in text.lower()
     assert "Entrypoint" in text
+
+
+def test_run_label_is_candidate_or_not_detected_never_confirmed(params):
+    """decisions/0039 items 2 and 3."""
+    target = float(params.require("audit.target_net_ir"))
+    passed = {"passed": True, "net_ir": target + 0.1, "verdicts": {"multiple_testing": True}}
+    assert v.run_label(passed, params) == "candidate"
+    assert v.run_label({**passed, "net_ir": target - 0.1}, params) == "", "bar 1 not cleared"
+    failed = {"passed": False, "net_ir": 0.9, "verdicts": {"multiple_testing": False}}
+    assert v.run_label(failed, params) == "not detected"
+    assert v.run_label({"passed": False, "killed_by": "multiple_testing"}, params) == "not detected"
+    assert v.run_label({"passed": False, "verdicts": {"cash": False}}, params) == ""
+    import static_report
+
+    row = {"run_id": "R", "family": "f", "aggregation": "a", "te": 4.0, "turnover": 100,
+           "max_cash": 5.0, "n_positions": 20, **failed}  # fmt: skip
+    html = static_report.leaderboard_html([row], None, params)
+    assert "not detected (multiple_testing)" in html
+    assert not any(w in html.lower() for w in ("confirmed", "proven"))
