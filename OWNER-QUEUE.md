@@ -19,7 +19,9 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L16. A screen at a confirmation standard, and what confirms a candidate
+### L16. A screen at a confirmation standard, and what confirms a candidate — RULED 2026-10-01
+**Owner, 2026-10-01, L16(a):** the generalized stepdown, P(two or more false passes) ≤ 5%, at 100 shuffles per test. Cowork picked 100 within the approved 50-100 range. Recorded in `decisions/0043`. Applied by HANDOFF task 42; SUBSTRATE v0.7 and `params/vetoes.yaml` were edited by Cowork. *Move this item to Closed once task 42 lands.*
+
 Added 2026-09-28 by Cowork, from the owner's L15 ruling ("screen",
 `decisions/0039`). Two things are unruled:
 - **FWER or FDR.** Romano-Wolf at FWER 5% controls the chance of *any* false
@@ -225,7 +227,9 @@ it into §3 is an owner act.
 
 ## Blocked — waiting on a measurement
 
-### B1. Whether the volatility overlay becomes policy, and at what halflife
+### B1. Whether the volatility overlay becomes policy, and at what halflife — RULED 2026-10-01
+**Owner, 2026-10-01: policy, at 26 weeks** (Cowork's recommendation: 13 and 26 can't be told apart, and 26 was specified before the sweep). Recorded in `decisions/0042`. Applied by HANDOFF task 42; SUBSTRATE v0.7 and `params/audit.yaml` were edited by Cowork. *Move this item to Closed once task 42 lands.*
+
 Built and tested: seed-paired over 5 seeds at h=13, a scalar 26-week overlay
 moved 2008 bias −0.36/−0.54, calm-year bias +0.10, `te_p95` −0.0141 at IC 0.20
 in all five seeds, and net IR up +0.10/+0.06. All ten paired calibration

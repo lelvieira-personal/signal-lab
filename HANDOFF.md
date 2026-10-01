@@ -56,7 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-30 (evening): tasks 35, 39, 40 and 41 are all done. The queue above (12-39) is now fully worked.** Receipts for 35/39/40/41 are in `## Done`; `OWNER-QUEUE.md` B1 and L16 carry their interpretation. Nothing new is queued here as of this stamp -- check `OWNER-QUEUE.md` and the Cowork project docs for what comes next.
+**As of 2026-10-01: queued, task 42 only.** It applies `decisions/0042` (the overlay is policy) and `0043` (the gate is generalized FWER), surfaces the turnover highlight, and gives 0040's shadow cost a single implementation. Cowork has already applied every owner-only edit to the working tree; read the task's preamble.
+
+*(Earlier note:)* **As of 2026-09-30 (evening): tasks 35, 39, 40 and 41 are all done. The queue above (12-39) is now fully worked.** Receipts for 35/39/40/41 are in `## Done`; `OWNER-QUEUE.md` B1 and L16 carry their interpretation. Nothing new is queued here as of this stamp -- check `OWNER-QUEUE.md` and the Cowork project docs for what comes next.
 
 *(Earlier note:)* **As of 2026-09-30 (morning): tasks 35, 40 and 41 are done. Queued: 39 only. Read its 2026-09-30 amendment first: Cowork has already applied every owner-only edit (`SUBSTRATE.md`, `params/`, `vetoes/`) to the working tree.**
 
@@ -1574,6 +1576,151 @@ Interpretation is Cowork's and the owner's (L16(a)). **Then go on to task
 35**, and from 35 to 39 under 35's own conditions. **Stop without going on**
 only if the check fails (rc ≠ 0) or step 1 or 2 fails. A step-3 stop as
 described above is not a failure.
+
+---
+
+### 42. Apply `decisions/0042` (overlay policy) and `0043` (the gate); show the turnover highlight; one implementation of the 0040 shadow cost
+
+Added 2026-10-01 by Cowork. **Owner rulings 2026-10-01:** B1 (the overlay is
+policy at a 26-week halflife, `decisions/0042`), L16(a) (the generalized
+stepdown, g = 2, α = 5%, 100 shuffles per test, `decisions/0043`), and
+"queue the task" for the two gaps Cowork found in task 39's work. **No audit
+runs.** Budget 2-3 h, daytime, no deadline.
+
+**Owner-only edits are already in the working tree, applied by Cowork at the
+owner's instruction** (your permissions deny them). Don't re-edit them, and
+don't route around the deny rule. Verify them with
+`git diff --ignore-cr-at-eol`:
+- **`SUBSTRATE.md` v0.7:**
+  - §4 gets a new "Risk model" paragraph after TE handling (0042).
+  - §9's multiple-testing bullet describes the generalized stepdown, and the
+    "rejects nothing" bullet no longer points at FDR (0043).
+  - §10's `multiple_testing` row is updated (0043).
+  - §13: "Romano-Wolf across that many draws" becomes "a stepdown across
+    that many draws".
+- **`params/audit.yaml`:** `covariance.vol_overlay: {form: scalar,
+  halflife_weeks: 26}`.
+- **`params/vetoes.yaml`:** `multiple_testing` gets
+  `procedure: romano_wolf_gfwer`, `g: 2`, `standardise: true` and
+  `min_shuffles: 100`; `fwer_alpha` and `level` are unchanged.
+- **`params_version`:** `0.7.0` → `0.8.0` in all seven files.
+- **`vetoes/rules.py`:** `veto_multiple_testing` also checks the verdict's
+  `g` against params, and its `n_shuffles` against `min_shuffles`. Either
+  one missing from the verdict fails as a missing input. The context key
+  stays `romano_wolf`.
+- **`decisions/0042`, `0043` and `0100`'s v0.7 rows, plus `OWNER-QUEUE.md`
+  B1 and L16 marked RULED.**
+
+**If any step needs a further change to an owner-only file, stop and write
+the exact change in the receipt.** Cowork applies it.
+
+**0. Commit first, alone:** `HANDOFF.md` and `OWNER-QUEUE.md`, as
+`queue: task 42; B1 and L16(a) ruled (owner 2026-10-01)`.
+**Then, alone:** `SUBSTRATE.md`, `decisions/0042`, `decisions/0043` and
+`decisions/0100`, as `substrate: v0.7 -- the volatility overlay is policy, the
+gate is generalized FWER (decisions/0042, decisions/0043)`.
+
+**1. The overlay as the default, the way task 39 did the shadow form.**
+- `AuditCell.vol_halflife` and `vol_overlay` get a "read params" default,
+  distinct from today's `None`. **`None` must keep meaning "no overlay"**,
+  because every historical key depends on it. Use a sentinel, for example
+  `FROM_PARAMS`.
+- Add `resolve_vol_overlay(cell, params)`. It returns the effective
+  `(halflife, overlay)`; an explicit value on the cell wins. Pass the
+  *resolved* values to `universe.covariance`.
+- **The key encodes the resolved values.** A default cell then reads
+  `…_vhl26scalar`, and an explicit-`None` cell keeps its pre-task-42 key
+  exactly.
+- **Pin `vol_halflife=None` explicitly** in every grid that claims identity
+  with a named historical run: the cells `power_cells`, `power10_cells`,
+  `friction_cells`, `friction_created_cells` and `halflife_cells` produce.
+  The halflife grid already sets its arms explicitly; check it. **Go through
+  every grid builder, not only these**, and list in the receipt which ones you
+  pinned and why. `knee_cells` and `baseline_cells` follow params, as with
+  task 39, unless one of them claims identity with a named run.
+- **Live and baseline twins must resolve to the same overlay.** Add a test.
+- **Golden values:** keep `GOLDEN_NET_IR` and
+  `GOLDEN_NET_IR_CREATED_MARGINAL` reproducible bit for bit, through explicit
+  overrides (`vol_halflife=None` plus the shadow overrides each already
+  uses). Add `GOLDEN_NET_IR_V080` for the same cell at today's full default,
+  verified against a live `run_cell` call.
+
+**2. The gate, as one callable.** Add `stats.multiple_testing.gate(t, T0,
+params=None)`. It reads `vetoes.multiple_testing` and calls
+`romano_wolf_gfwer(t, T0, alpha, g, standardise)`, or `romano_wolf` if
+params says so. It returns the dict the veto reads:
+- `procedure`, `fwer_alpha`, `g`, `n_shuffles` (k), `n_tests` (m);
+- the per-hypothesis `rejected` array and `p_adjusted`.
+
+It raises if `k < min_shuffles`. Tests:
+- it reads params, not constants;
+- it reproduces `romano_wolf_gfwer` exactly;
+- `veto_multiple_testing` passes on its output for a rejected hypothesis;
+- the veto fails for each of: wrong `g`, too few shuffles, missing `g`,
+  missing `n_shuffles`.
+
+Update `tests/test_vetoes.py`'s existing `multiple_testing` tests: their
+verdict dicts need `procedure: romano_wolf_gfwer`, `g` and `n_shuffles`.
+`family_then_within` stays as it is (OWNER-QUEUE L12).
+
+**3. The turnover highlight, surfaced** (task 39 computed it but never showed
+it).
+- `turnover_highlight` is marked in `audit/report.py`'s markdown and HTML,
+  per cell and as a count per grid. It's marked on the leaderboard
+  (`render/`), next to the veto legend.
+- An unknown name in `highlight_windows` **raises** rather than being
+  silently ignored.
+- **Tests:** a cell above 2.00 on annual only, one on rolling p95 only, one
+  on rolling max only (not highlighted), and one exactly at 2.00 (not
+  highlighted). Plus the unknown-window error, and the report and leaderboard
+  rendering the flag.
+
+**4. One implementation of `decisions/0040`'s shadow cost.**
+- Move the created-turnover pricing into `harness/objective.py` as the
+  single implementation:
+  - `created_marginal_shadow(prev_traded, x, params, periods_per_year)`,
+    the scalar `S(x)` of 0040;
+  - `created_marginal_quadratic(prev_traded, params, periods_per_year)`,
+    the `(a, b)` pair the solver's convex term takes.
+- `audit.ladder._OptimiserRule._shadow_quadratic_coeffs` calls the latter.
+  The prefill-at-target rule (0040 ruling item 2) lives in objective too.
+- **Tests:**
+  - `GOLDEN_NET_IR_CREATED_MARGINAL` is unchanged bit for bit;
+  - the derivative of `S` equals `turnover_penalty` at the post-trade level,
+    numerically;
+  - `S` is convex;
+  - a lump costs more than the same trading split over two weeks.
+
+`turnover_penalty`'s docstring then points to these functions, not to the
+ladder.
+
+**5. A note for phase 2.** `harness/experiment.py` has no solver yet:
+`build_weight_rule` raises. Add a dated bullet to `HANDOFF.md`'s "Not queued
+yet" section. It should say that the phase-2 solver must:
+- read `covariance.vol_overlay` through `resolve_vol_overlay` or its
+  equivalent (0042);
+- price turnover through objective's `created_marginal_*` functions (0040);
+- run the gate through `stats.multiple_testing.gate` (0043);
+- and come with a test pinning each.
+
+**6. Check, then commit.**
+- Run `scripts/unattended.sh check-full --digest` **through the script**, so
+  there's a log. Task 39's check-full left none.
+- Then commit `params/`, `vetoes/`, `src/`, `render/` and `tests/` together,
+  citing `decisions/0042` and `decisions/0043`.
+- Record the old and new `params_hash` as a dated line in the "Consequences"
+  of 0042 and 0043, as their own small commit.
+
+**Receipt:**
+- rc, commits, the check-full log directory, and the old and new
+  `params_hash`.
+- The grids pinned, and why.
+- The three golden values.
+- Every test changed, and why.
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop. OWNER-QUEUE B1 and L16 move to `## Closed` in the same commit as
+the receipt.
 
 ---
 
