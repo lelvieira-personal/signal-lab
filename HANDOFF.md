@@ -3213,3 +3213,128 @@ alongside B1's ruling (not something this task resolves):**
 Interpretation is Cowork's and the owner's. **Whether the overlay becomes
 policy is B1, an owner decision** -- not ruled here. Per the amendment,
 **stopping after this task tonight; task 39 does not run.**
+
+### Task 39 -- turnover disclosed not vetoed, created-marginal shadow at 40bp (decisions/0038, decisions/0040) -- 2026-09-30, rc=0
+
+**rc=0 throughout.** `make check-full`: rc=0, 582 tests (was 581; one new
+test, `test_created_marginal_reads_the_same_marginal_rate_as_linear`), 6m11s.
+Four commits, in the order the 2026-09-30 amendment specified:
+- `a22aebb` queue: the amendment itself (Cowork's owner-only edits already
+  applied to the working tree).
+- `b43a22f` substrate: v0.6 (`SUBSTRATE.md`, `decisions/0100`) -- also carries
+  task 40's `decisions/0041` block-shuffle edit, blocked by permissions that
+  night, applied by Cowork this morning in the same pass.
+- `3d437d0` params+vetoes: the owner-only `params/`/`vetoes/` files plus every
+  `src/`, `render/` and `tests/` change this task needed outside the owner-only
+  paths.
+- `b7876a8` decisions: the `params_hash` move recorded in 0038 and 0040.
+
+**`params_hash`:**
+`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c` (v0.6.0)
+-> `ba19198d4e9048abb82a0ece868881561f008f7c6f3043d4cdbfdf44dbfade93` (v0.7.0).
+
+**Who did what.** Cowork applied every edit to `SUBSTRATE.md`, `params/vetoes.yaml`,
+`params/constraints.yaml` and `vetoes/{__init__,registry,rules}.py` directly to
+the working tree, at the owner's instruction, after my permissions refused
+them (`Edit(/SUBSTRATE.md)`, `Edit(/params/**)`, `Edit(/vetoes/**)` in
+`.claude/settings.json` -- the same wall task 40 hit). I verified each diff
+against `decisions/0038`/`0040`/`0041`'s literal text (all matched, including
+the recomputed 40bp magnitude table) before building on it, then did
+everything outside the owner-only paths: code, tests, verification and these
+commits.
+
+**Diff summary, params/ (`--ignore-cr-at-eol`):**
+- `params/vetoes.yaml`: the `turnover:` block deleted; `turnover` dropped
+  from `evaluation.order`. `params_version` 0.6.0 -> 0.7.0.
+- `params/constraints.yaml`: `turnover.penalty.form: linear` ->
+  `created_marginal`; `coefficient: 10.0` -> `40.0`; the comment's magnitude
+  table recomputed at 40bp (0.0 / 13.3 / 40.0 / 66.7 / 120.0 / 173.3 bps at
+  turnover 0.75/1.00/1.50/2.00/3.00/4.00); new keys
+  `turnover.highlight_annualised: 2.00` and
+  `turnover.highlight_windows: [annual, rolling_1y_p95]` (reporting only).
+  `params_version` bumped to match.
+- `params/agents.yaml`, `audit.yaml`, `costs.yaml`, `data.yaml`,
+  `data_sources.yaml`: `params_version` bump only, no content change.
+
+**Diff summary, SUBSTRATE.md (`--ignore-cr-at-eol`):** status line v0.5 ->
+v0.6; §4 turnover row and "Turnover handling" paragraph rewritten per
+decisions/0038 and 0040's exact text (one non-verbatim consequential edit,
+flagged by Cowork and recorded in `decisions/0100`: "the veto threshold is a
+far backstop" became "There is no turnover veto either"); §9's two
+block-bootstrap-to-block-shuffle edits and the §15 `stats/` layout line, from
+decisions/0041 (task 40's blocked step, applied here); §10 turnover row
+deleted, "Ten vetoes" -> "Nine vetoes".
+
+**Step 5, verifying past verdicts.** Scanned every `results/audit/A-*/cells.csv`
+for `veto_detail` containing "turnover". **80 cells, not zero** -- all from
+last night's task-35 halflife sweep (`A-20260930-033812`), all at horizon 4
+(every h4 cell, all halflife arms, both ICs, all ten seeds), turnover
+490-680% annualised against the then-live 400% ceiling. `decisions/0038`'s
+own "no recorded verdict should change" note predates that run and no longer
+holds; recorded as an addendum there. No other historical run ever failed
+the veto. These 80 verdicts are left as recorded -- a true statement about
+the params in force when they ran, not rewritten retroactively.
+
+**Golden values** (`tests/test_baseline.py`): `GOLDEN_NET_IR =
+-0.8793457503233992` is now reproduced only via an explicit
+`shadow_form="trailing", shadow_coefficient=10.0` override (the OLD default);
+a new golden, `GOLDEN_NET_IR_CREATED_MARGINAL = -0.3916592047250338`, is the
+SAME cell (`AuditCell(0.10, 13, 0)`) under today's actual default
+(`shadow_form=None` -> reads params -> `created`). Both verified directly
+against a live `run_cell` call before writing the tests, not derived.
+
+**The default-shadow-form bug this task exists to close, and who else it
+touched.** `AuditCell.shadow_form` was hard-defaulted to `"trailing"`
+(task 36); reading `constraints.turnover.penalty.form` from params only
+happens now (`resolve_shadow_form`, `audit/ladder.py`), via `None`. Three
+grid builders besides the main ladder claim bit-for-bit or construction
+identity against `POWER_LIVE_RUN` (`A-20260922-005316`, computed under the
+old default) and would have silently drifted to `created_marginal` on any
+future re-run had I not pinned them: `friction_cells` (caught by a failing
+test, `test_the_friction_created_grid_is_60_cells_pairing_the_friction_grid`),
+and `power_cells`/`power10_cells`/`halflife_cells` (no failing test existed
+for these -- found by inspection, same bug class, fixed the same way: an
+explicit `shadow_form="trailing"`). `knee_cells` and `baseline_cells` need no
+pin: they define a grid's own standard rather than claiming identity to a
+named historical run.
+
+**Every test changed, and why:**
+- `tests/test_vetoes.py`: `veto_turnover` import and its four dedicated tests
+  removed; "ten vetoes" -> "nine" throughout; `evaluation_order`'s first-five
+  check drops `turnover`; `apply_vetoes`'s multi-failure test swaps its
+  turnover breach for a positions breach; the crashing-veto test monkeypatches
+  `cash` instead of `turnover`; the zero-sd test pools `t` into the mean now
+  (task 41 context, unrelated to this task but touched the same file).
+- `tests/test_engine.py`: the veto-level one-way-vs-traded-notional test
+  removed (redundant with the cost-model-level test, which survives); the
+  "completed path populates the veto inputs" test asserts
+  `ctx.annualised_turnover()` directly instead of going through the removed
+  veto.
+- `tests/test_objective.py`: `turnover_penalty`/`annual_turnover_penalty`
+  accept `created_marginal` (same marginal-rate formula as `linear` -- this
+  function was never the convex per-trade implementation); the
+  "bites without dominating" arithmetic guard is pinned to the legacy 10bp via
+  `variant()` rather than read from live params (now 40bp, calibrated
+  differently, by task 36's measurement, not this ratio argument); the
+  unsupported-form and unset-coefficient tests' `variant()` substrings
+  updated to match the live file's actual text; one test added confirming
+  `created_marginal` and `linear` share the marginal rate exactly.
+- `tests/test_params.py`: drops the `vetoes.turnover.max_annualised`
+  assertion from the SUBSTRATE-threshold roundtrip test.
+- `tests/test_render.py`: `veto_legend` test drops the turnover assertion,
+  adds one confirming it is absent.
+- `tests/test_baseline.py`: `shadow_coefficient_none_matches_params_exactly`
+  reads the live coefficient instead of hardcoding 10.0; the two golden-value
+  tests (above); `friction_cells`'s pin (above).
+- `tests/test_experiment.py`: the validation-path veto test rewritten --
+  its premise ("the turnover veto must kill it") is gone; it now confirms
+  cash and positions still pass on a genuinely extreme (~500% turnover) path,
+  and that nothing fails because of the turnover level itself.
+
+**Also touched, not in the task's own checklist:** `render/mock_data.py`'s
+demo `VETOES` list and fake verdicts (untested, UI-only); `src/signal_lab/params.py`'s
+one docstring example; `src/signal_lab/audit/report.py`'s "four portfolio
+vetoes" -> "three" in three places (markdown and HTML renderers) and
+`required_ic`'s docstring.
+
+Per the task's own instruction: **stopping here.** No audit runs in this task.
