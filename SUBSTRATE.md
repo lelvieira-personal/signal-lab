@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.6, 2026-09-30. Owner: Leo. This document is the constitution of
+Status: v0.7, 2026-10-01. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -17,6 +17,12 @@ priced at the turnover a trade creates, 40bp at 150%) and `decisions/0041`
 (the joint null is a block shuffle), all decided by the owner on 2026-09-28/29.
 Applied by Cowork on 2026-09-30 at the owner's instruction. The v0.5 text is in
 git history.
+
+v0.7 amended §4, §9, §10 and §13, transcribing `decisions/0042` (the
+volatility overlay is policy, 26-week halflife) and `decisions/0043` (the
+gate holds two or more false passes at 5%, 100 shuffles per test), decided
+by the owner on 2026-10-01. Applied by Cowork at the owner's instruction. The
+v0.6 text is in git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -147,6 +153,13 @@ rather than reaching zero, so an overconfident estimate cannot buy unlimited
 tracking error (`decisions/0019`). How conviction is measured — the certainty of
 a state estimate, the dispersion of the resulting views, or some combination of
 the two — is a registered research question, H-2026-0012, not a setting.
+
+Risk model (`decisions/0042`): the ex-ante covariance carries a **scalar
+volatility overlay with a 26-week halflife**, so the risk the solver sizes
+against follows recent realised volatility rather than a three-year average.
+It took `risk_calibration` failures from a quarter to half of cells to almost
+none across horizons, with no measurable cost to net IR. One risk model
+serves every book the lab builds.
 
 Turnover handling (`decisions/0024`): there is **no annual wall**. A one-sided
 shadow cost in basis points (`decisions/0018`), linear in trailing one-year
@@ -408,12 +421,15 @@ its place (`decisions/0004`).
   blocks of at least the longest signal horizon, the same book on the same
   history with only the signal's alignment to future returns destroyed
   (`decisions/0041`).
-- **Multiple testing is controlled with Romano-Wolf stepdown** at
-  family-wise error rate α (params, v0.3: 5%). The joint distribution of
+- **Multiple testing is controlled with the Romano-Wolf generalized
+  stepdown** (Romano and Wolf 2007): the probability of **two or more** false
+  passes in a search is held at α (params: g = 2, α = 5%; `decisions/0043`).
+  Each statistic is standardised against its pooled null before the maximum
+  is taken, and each test draws k block shuffles (params: 100). The joint distribution of
   all test statistics in a search is obtained from block shuffles of the
   signals, one permutation shared by every hypothesis in each draw, so
   dependence between experiments is learned from the data, not assumed. The procedure runs at the family level first, then within
-  surviving families. A hypothesis that is not rejected under Romano-Wolf
+  surviving families. A hypothesis that is not rejected under the stepdown
   is not a result.
 - The single-step search null (distribution of the maximum IR over
   block-shuffled signals) is reported for intuition; the stepdown
@@ -423,9 +439,10 @@ its place (`decisions/0004`).
   of active-return streams. It is not a veto: with hundreds of correlated
   trials it is excessively punitive, a finding already made in the
   Research OS.
-- If Romano-Wolf rejects nothing across several cycles, the correct
-  discussion is FDR control (an owner decision recorded in `decisions/`),
-  never a lower bar on the same test.
+- If the stepdown rejects nothing across several cycles, the correct
+  discussion is the error rate and the shuffle budget (an owner decision
+  recorded in `decisions/`, as `0043` was), never a lower bar on the same
+  test.
 - Effective sample size is counted in macro cycles, not observations.
   Daily sampling of a slow signal does not increase it; the harness
   reports it.
@@ -449,7 +466,7 @@ statistic is shown. Failing any one kills the run with the reason logged.
 | lookahead | bitemporal check passes: no observation used before its knowledge date, and no estimated parameter fitted on data unavailable when it is used |
 | frequency | no series contributes returns before its true daily start |
 | seed_stability | IR range across resampling seeds ≤ 0.15 |
-| multiple_testing | `net_ir_excess` > 0 **and** survives Romano-Wolf stepdown at FWER α (family level, then within family). The statistic is the excess of §3's bar 2, not the level (`decisions/0036` §6) |
+| multiple_testing | `net_ir_excess` > 0 **and** survives the generalized Romano-Wolf stepdown, P(two or more false passes) ≤ α (`decisions/0043`; family level, then within family). The statistic is the excess of §3's bar 2, not the level (`decisions/0036` §6) |
 | direction | realised sign matches pre-registered direction |
 
 Nine vetoes (`decisions/0038` removed `turnover`; `decisions/0026` removed `active_drawdown`; `decisions/0030`
@@ -510,7 +527,7 @@ hypothesis, applies vetoes, records results, writes the digest.
 
 The **proposer runs weekly, not nightly**; the deterministic steps may run
 nightly. Seven proposals × 30 nights is 210 correlated tests a month, and
-Romano-Wolf across that many draws sets a bar a real macro signal will not
+a stepdown across that many draws sets a bar a real macro signal will not
 clear. The cadence is a statistical decision that happens also to be the cost
 lever (`decisions/0007`).
 

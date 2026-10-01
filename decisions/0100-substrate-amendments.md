@@ -38,6 +38,13 @@ the code and the constitution agree.**
 | 4, 10 | Turnover is disclosed and highlighted above 200%, never vetoed. The `turnover` veto row goes, so there are nine vetoes. No per-session cap. | 0038 |
 | 4 | Shadow cost of 40bp at 150%, charged at the trailing turnover each trade creates; the "Turnover handling" paragraph is rewritten to match. Its "far backstop" sentence becomes "There is no turnover veto either", which is Cowork's consequential edit and not verbatim from either record. | 0040, 0038 |
 
+## Applied in v0.7 (2026-10-01, by Cowork at the owner's instruction)
+
+| Section | Amendment | Decision |
+|---|---|---|
+| 4 | A "Risk model" paragraph after TE handling: the ex-ante covariance carries a scalar volatility overlay, 26-week halflife, in every book the lab builds. | 0042 |
+| 9, 10, 13 | The gate is the generalized Romano-Wolf stepdown: P(two or more false passes) ≤ α = 5%, statistics standardised against the pooled null, k = 100 shuffles per test (in params). The "no rejections" bullet points to the error rate and shuffle budget instead of FDR. §13's "Romano-Wolf" becomes "a stepdown". | 0043 |
+
 ## Open questions — NOT amendments, and deliberately not applied
 
 The constitution should not pretend to settle what the lab has not learned.
