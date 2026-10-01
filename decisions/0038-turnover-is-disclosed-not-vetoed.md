@@ -78,3 +78,20 @@ only.
 **Applied together with `decisions/0040`** by HANDOFF task 39, which
 supersedes task 33, so `params_hash` moves once.
 
+## Applied 2026-09-30 (HANDOFF task 39)
+
+`params_hash` moved once, together with `decisions/0040`:
+`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c` (v0.6.0) ->
+`ba19198d4e9048abb82a0ece868881561f008f7c6f3043d4cdbfdf44dbfade93` (v0.7.0).
+Owner-only edits (`SUBSTRATE.md`, `params/vetoes.yaml`, `params/constraints.yaml`,
+`vetoes/`) applied by Cowork directly to the working tree at the owner's
+instruction, after Claude Code's permissions refused them (the same wall task
+40 hit); Claude Code did steps 4-6 (code, verification, this record) and the
+commits. **Consequence confirmed:** this decision's own note above ("in the
+Bloomberg audits, annual turnover never exceeded 400%... no recorded verdict
+should change") no longer holds -- HANDOFF task 35's halflife sweep
+(`A-20260930-033812`, run after that note was written) has 80 h4 cells at
+490-680% annualised turnover, all of which failed the now-removed veto. Their
+`veto_detail` stays as recorded (a true statement about the params in force
+when they ran); no verdict is rewritten retroactively.
+

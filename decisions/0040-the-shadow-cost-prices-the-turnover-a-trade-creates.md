@@ -109,3 +109,23 @@ the reference (1.50) and `κ = coefficient × 1e-4`.
 of "The ruling, made precise". The magnitude table in that comment is
 recomputed at 40 bp.
 
+## Applied 2026-09-30 (HANDOFF task 39)
+
+`params_hash` moved once, together with `decisions/0038`:
+`ebdfb70e44ed05f624949344532f85257bae9add01a702f75f85e9fe432ab77c` (v0.6.0) ->
+`ba19198d4e9048abb82a0ece868881561f008f7c6f3043d4cdbfdf44dbfade93` (v0.7.0).
+Owner-only edits applied by Cowork directly to the working tree at the
+owner's instruction (Claude Code's permissions refused them, as they did
+task 40's `SUBSTRATE.md` step). Code: `AuditCell.shadow_form` defaults to
+`None`, reading `constraints.turnover.penalty.form` from params exactly as
+`shadow_coefficient` already did (`resolve_shadow_form`,
+`audit/ladder.py`) -- `created_marginal` is now what a default cell reaches,
+not `linear`. `harness.objective.turnover_penalty` accepts
+`created_marginal` (its marginal-RATE curve is unchanged from `linear`;
+the convex per-trade integral stays in `_OptimiserRule`, which never called
+that function). `GOLDEN_NET_IR` (`tests/test_baseline.py`,
+`-0.8793457503233992`) is now reproduced only by an explicit
+`shadow_form="trailing", shadow_coefficient=10.0` override; a new golden,
+`GOLDEN_NET_IR_CREATED_MARGINAL = -0.3916592047250338`, records the same
+cell (`AuditCell(0.10, 13, 0)`) under today's default.
+
