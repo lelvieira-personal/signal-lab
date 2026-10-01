@@ -28,11 +28,15 @@ the code and the constitution agree.**
 | 10 | The `lookahead` veto extends to estimated parameters, not only observed vintages — an exposure matrix or a set of regime probabilities fitted on the full sample leaks without misdating anything. | 0015, 0019 |
 | 4 | The tracking-error penalty coefficient is a function of conviction, not a number. | 0019 |
 
-## Applied 2026-09-29
+## Applied in v0.6 (2026-09-30, by Cowork at the owner's instruction)
+
+*(Tracked from 2026-09-29; the text was applied on 2026-09-30, after Claude Code's permissions refused the write in task 40.)*
 
 | Section | Amendment | Decision |
 |---|---|---|
 | 9, 15 | Every null used by a test (bar 2's excess, the search null, the multiple-testing gate) comes from a **block shuffle** of the signal, not a block bootstrap; confidence intervals stay on the block bootstrap. The §15 `stats/` layout line gains "block shuffle" and "multiple testing". | 0041 |
+| 4, 10 | Turnover is disclosed and highlighted above 200%, never vetoed. The `turnover` veto row goes, so there are nine vetoes. No per-session cap. | 0038 |
+| 4 | Shadow cost of 40bp at 150%, charged at the trailing turnover each trade creates; the "Turnover handling" paragraph is rewritten to match. Its "far backstop" sentence becomes "There is no turnover veto either", which is Cowork's consequential edit and not verbatim from either record. | 0040, 0038 |
 
 ## Open questions — NOT amendments, and deliberately not applied
 

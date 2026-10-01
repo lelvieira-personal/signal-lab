@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.5, 2026-09-21. Owner: Leo. This document is the constitution of
+Status: v0.6, 2026-09-30. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -10,6 +10,13 @@ pen, never the argument.
 v0.5 amended §3 and §10, transcribing `decisions/0036` §6, decided by the owner
 on 2026-09-21: the objective becomes two bars rather than one metric. The v0.4
 text is in git history.
+
+v0.6 amended §4, §9, §10 and the §15 layout, transcribing `decisions/0038`
+(turnover is disclosed, not vetoed), `decisions/0040` (the shadow cost is
+priced at the turnover a trade creates, 40bp at 150%) and `decisions/0041`
+(the joint null is a block shuffle), all decided by the owner on 2026-09-28/29.
+Applied by Cowork on 2026-09-30 at the owner's instruction. The v0.5 text is in
+git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -119,7 +126,7 @@ not distinguishable from that null is not a result.
 | Direction | Long-only, no leverage |
 | Cash | 0–20% of NAV |
 | Positions | ≤ 30 instruments with non-zero weight |
-| Turnover | **Priced, not capped** (`decisions/0024`). A progressive shadow cost on trailing one-year **traded notional** (buys plus sells), zero at 75%, 10bp at 150%, rising without bound (§8, `decisions/0017`, `0018`). 100% is the level the curve is sized around, not a ceiling. A per-session cap stops any one rebalance consuming the year. |
+| Turnover | **Priced, not capped** (`decisions/0024`). A progressive shadow cost on trailing one-year **traded notional** (buys plus sells), zero at 75%, 40bp at 150%, rising without bound, **charged at the trailing turnover each trade creates**, so a lump costs more than the same trading spread out (§8, `decisions/0017`, `0018`, `0040`). 100% is the level the curve is sized around, not a ceiling. There is no per-session cap (`decisions/0038`). Turnover is disclosed on every run and highlighted above 200%; it is never vetoed. |
 | Tracking error | ≤ 6.0% **ex ante**, enforced at every rebalance by the solver. The realised trailing-3y figure is a reported characteristic and not a gate (`decisions/0030`): active volatility clusters, so a book sized to the budget runs above it in a crisis and below it in a calm decade. |
 | Active drawdown | Controlled ex ante, through the tracking-error budget (`decisions/0025`), not by a post-hoc cap (`decisions/0026`) |
 | Risk calibration | The one ex-post gate: the worst annual bias statistic, `std(r_t / sigma_ex_ante(t-1))` by calendar year, ≤ 1.72 (`decisions/0030`). It asks whether the risk model told the truth, not whether the book was risky. |
@@ -142,10 +149,11 @@ a state estimate, the dispersion of the resulting views, or some combination of
 the two — is a registered research question, H-2026-0012, not a setting.
 
 Turnover handling (`decisions/0024`): there is **no annual wall**. A one-sided
-linear penalty on trailing one-year turnover, priced as a shadow cost in basis
-points (`decisions/0018`), starts at 75%, reaches 10bp at 150% and keeps
-rising — so a quiet week restrains itself and a week carrying real conviction
-can always pay to trade. The veto threshold is a far backstop, not a budget. Shadow costs shape the weights and never
+shadow cost in basis points (`decisions/0018`), linear in trailing one-year
+turnover, starts at 75%, reaches 40bp at 150% and keeps rising. Each trade is
+charged the curve at the trailing turnover it creates, with the marginal unit
+paying the curve at the post-trade level (`decisions/0040`) — so a quiet week restrains itself and a week carrying real conviction
+can always pay to trade. There is no turnover veto either (`decisions/0038`). Shadow costs shape the weights and never
 enter the reported net return, or runs with different coefficients stop being
 comparable — which is the one thing the leaderboard exists to be.
 
@@ -393,13 +401,18 @@ its place (`decisions/0004`).
 
 - All standard errors are HAC (Newey-West, lag chosen by horizon) because
   weekly observations of slow signals overlap heavily.
-- Confidence intervals and the search null come from a **block bootstrap**
-  on the daily panel, block length ≥ the longest signal horizon.
+- Confidence intervals come from a **block bootstrap** on the daily panel,
+  block length ≥ the longest signal horizon. Every null used by a test —
+  bar 2's excess, the search null and the multiple-testing gate — comes
+  from a **block shuffle** of the signal: its rows permuted in contiguous
+  blocks of at least the longest signal horizon, the same book on the same
+  history with only the signal's alignment to future returns destroyed
+  (`decisions/0041`).
 - **Multiple testing is controlled with Romano-Wolf stepdown** at
   family-wise error rate α (params, v0.3: 5%). The joint distribution of
-  all test statistics in a search is obtained by block bootstrap on the
-  daily panel, so dependence between experiments is learned from the data,
-  not assumed. The procedure runs at the family level first, then within
+  all test statistics in a search is obtained from block shuffles of the
+  signals, one permutation shared by every hypothesis in each draw, so
+  dependence between experiments is learned from the data, not assumed. The procedure runs at the family level first, then within
   surviving families. A hypothesis that is not rejected under Romano-Wolf
   is not a result.
 - The single-step search null (distribution of the maximum IR over
@@ -429,7 +442,6 @@ statistic is shown. Failing any one kills the run with the reason logged.
 
 | Veto | v0.1 threshold |
 |---|---|
-| turnover | annualised traded notional ≤ 400% — a **backstop** for a malfunctioning book, not a budget (`decisions/0024`) |
 | cash | max weight ≤ 20% |
 | risk_calibration | worst annual bias statistic ≤ 1.72 — the p99 under a correctly specified model (`scripts/bias_map.py`, `decisions/0030`) |
 | positions | ≤ 30 non-zero |
@@ -440,7 +452,7 @@ statistic is shown. Failing any one kills the run with the reason logged.
 | multiple_testing | `net_ir_excess` > 0 **and** survives Romano-Wolf stepdown at FWER α (family level, then within family). The statistic is the excess of §3's bar 2, not the level (`decisions/0036` §6) |
 | direction | realised sign matches pre-registered direction |
 
-Ten vetoes (`decisions/0026` removed `active_drawdown`; `decisions/0030`
+Nine vetoes (`decisions/0038` removed `turnover`; `decisions/0026` removed `active_drawdown`; `decisions/0030`
 replaced `tracking_error` with `risk_calibration`; see section 4 for why both
 the drawdown and the tracking error are now controlled where the book is built
 rather than after the fact). They are not advisory and are not tuned per run. A veto whose
@@ -556,7 +568,8 @@ signal-lab/
       harness/       walk-forward engine, cost model, objective, conviction,
                      run_experiment()
       portfolio/     exposure mapping, long-only solver
-      stats/         HAC, block bootstrap, search null, deflated IR
+      stats/         HAC, block bootstrap, block shuffle, search null,
+                     multiple testing, deflated IR
       results/       append-only store
   hypotheses/        pending/ running/ done/
   results/           runs.db, artifacts/ (artifacts not committed)
