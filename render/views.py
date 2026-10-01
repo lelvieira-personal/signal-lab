@@ -306,6 +306,32 @@ def null_distribution(d, realised_ir):
     return f
 
 
+def turnover_disclosure(params=None):
+    """
+    The turnover line the veto legend carries beside the nine vetoes
+    (decisions/0038, HANDOFF task 42): disclosed on every run, HIGHLIGHTED above
+    `constraints.turnover.highlight_annualised`, never a veto. Returns the
+    threshold as a fraction and the sentence the report prints.
+    """
+    from signal_lab.params import get_params
+
+    p = params or get_params()
+    cap = float(p.require("constraints.turnover.highlight_annualised"))
+    return {
+        "cap": cap,
+        "text": f"Turnover is disclosed on every run and highlighted above {cap:.0%} "
+        "annual traded notional; it is never a veto (decisions/0038).",
+    }
+
+
+def turnover_highlighted(turnover_pct, params=None):
+    """Whether a run's annual turnover (percent, as the store holds it) is
+    above the highlight threshold. Unknown turnover is not highlighted."""
+    if turnover_pct is None or turnover_pct != turnover_pct:
+        return False
+    return float(turnover_pct) / 100.0 > turnover_disclosure(params)["cap"]
+
+
 def veto_legend(params=None):
     """
     The veto set as the report shows it: all nine of SUBSTRATE section 10
@@ -340,8 +366,8 @@ def veto_legend(params=None):
         ),
         (
             "multiple_testing",
-            f"Survives Romano-Wolf stepdown at FWER "
-            f"{pct(p.require('vetoes.multiple_testing.fwer_alpha'))}",
+            f"Survives the Romano-Wolf stepdown: P({int(p.get('vetoes.multiple_testing.g', 1))}"
+            f" or more false passes) ≤ {pct(p.require('vetoes.multiple_testing.fwer_alpha'))}",
         ),
         ("direction", "Realised sign matches the pre-registered direction"),
     ]
@@ -374,7 +400,7 @@ def holdout_panel(params=None):
     }
 
 
-def run_summary_stats(run):
+def run_summary_stats(run, params=None):
     """
     The stat tiles for a run detail.
 
@@ -403,7 +429,8 @@ def run_summary_stats(run):
             {
                 "label": label,
                 "value": "n/a" if value is None else fmt.format(value),
-                "highlight": key == "net_ir",
+                "highlight": key == "net_ir"
+                or (key == "turnover" and turnover_highlighted(value, params)),
             }
         )
     assert not (set(run) & NEVER_PLOTTED & {"__drawn__"})

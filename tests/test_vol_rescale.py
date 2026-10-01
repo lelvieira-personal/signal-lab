@@ -44,8 +44,12 @@ def test_default_trailing_covariance_is_byte_identical() -> None:
 
 
 def test_default_cell_has_no_halflife_and_an_unchanged_key() -> None:
-    """A cell key written before this existed still names the same cell."""
-    cell = AuditCell(ic=0.05, horizon=13, seed=0)
+    """A cell key written before this existed still names the same cell.
+
+    HANDOFF task 42 (decisions/0042): the DEFAULT now follows params, which carry
+    the 26-week scalar overlay, so it is `vol_halflife=None` -- explicit "no
+    overlay" -- that keeps every pre-task-42 key."""
+    cell = AuditCell(ic=0.05, horizon=13, seed=0, vol_halflife=None)
     assert cell.vol_halflife is None
     assert cell.key() == "ic0.05_h13_s0_c1.0_tnone_rnone"
     assert AuditCell(ic=0.05, horizon=13, seed=0, vol_halflife=26).key().endswith("_vhl26")

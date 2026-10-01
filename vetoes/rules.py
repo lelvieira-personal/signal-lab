@@ -335,7 +335,9 @@ def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdic
 
 def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verdict:
     """
-    Survives Romano-Wolf stepdown at the family-wise error rate in params.
+    Survives the multiple-testing stepdown in params: since decisions/0043 the
+    generalized Romano-Wolf stepdown, P(g or more false passes) <= alpha, with
+    g = 2 and at least `min_shuffles` block shuffles per test.
 
     This veto reads a verdict; it does not run the procedure. The stepdown lives
     in src/stats/ (phase 3) because it needs the joint distribution of every
@@ -344,7 +346,11 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
     produced at the configured alpha, and rejected the null.
 
     The alpha is checked rather than trusted: a stepdown run at 10% and reported
-    against a 5% ceiling would otherwise pass silently.
+    against a 5% ceiling would otherwise pass silently. So are `g` (a g = 3
+    verdict is a weaker test than the g = 2 one params require) and the shuffle
+    count (a verdict drawn on fewer shuffles than `min_shuffles` is not this
+    test either). Either one absent from the verdict fails, as any missing
+    input does. The context key stays `romano_wolf` for every procedure.
     """
     p = _p(params)
     alpha = float(p.require("vetoes.multiple_testing.fwer_alpha"))
@@ -375,6 +381,30 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
             detail=f"verdict came from {reported_procedure!r}, params require {procedure!r}",
         )
 
+    required_g = p.get("vetoes.multiple_testing.g")
+    if required_g is not None:
+        if result.get("g") is None:
+            return _missing("multiple_testing", MissingInput("romano_wolf.g"))
+        if int(result["g"]) != int(required_g):
+            return Verdict(
+                passed=False,
+                veto="multiple_testing",
+                detail=f"verdict at g={result['g']}, params require g={int(required_g)}",
+            )
+    min_shuffles = p.get("vetoes.multiple_testing.min_shuffles")
+    if min_shuffles is not None:
+        if result.get("n_shuffles") is None:
+            return _missing("multiple_testing", MissingInput("romano_wolf.n_shuffles"))
+        if int(result["n_shuffles"]) < int(min_shuffles):
+            return Verdict(
+                passed=False,
+                veto="multiple_testing",
+                detail=(
+                    f"verdict drawn on {int(result['n_shuffles'])} shuffles per test, "
+                    f"params require at least {int(min_shuffles)}"
+                ),
+            )
+
     rejected = bool(result["rejected"])
     level = result.get("level", p.get("vetoes.multiple_testing.level", "family_then_within"))
     n_tests = result.get("n_tests", "unknown")
@@ -382,7 +412,8 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
         passed=rejected,
         veto="multiple_testing",
         detail=(
-            f"{procedure} at FWER {alpha:.0%} ({level}, {n_tests} tests): "
+            f"{procedure} at alpha {alpha:.0%}"
+            f"{f', g={int(required_g)}' if required_g is not None else ''} ({level}, {n_tests} tests): "
             f"{'rejected the null' if rejected else 'did not reject the null'}"
         ),
     )

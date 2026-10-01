@@ -22,6 +22,7 @@ exists to be.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -80,10 +81,10 @@ def turnover_penalty(
     the rate at a given trailing level -- `created_marginal` integrates this
     rate across the trade's own size instead of charging it once at the
     post-trade level, so one lump costs more than the same trading spread out.
-    That integral (`AuditCell.shadow_form="created"`) is implemented in
-    `audit.ladder._OptimiserRule`, not here; this function only ever returns
-    the marginal rate, which decisions/0040 keeps unchanged from the retired
-    `linear` form's calibration.
+    That integral (`AuditCell.shadow_form="created"`) is `created_marginal_shadow`
+    below, and `created_marginal_quadratic` is the form the solver takes; this
+    function only ever returns the marginal rate, which decisions/0040 keeps
+    unchanged from the retired `linear` form's calibration.
 
     There is no annual wall and no turnover veto either (decisions/0024,
     0038): turnover is disclosed on every run and highlighted above
@@ -113,6 +114,79 @@ def turnover_penalty(
         )
     excess = max(0.0, float(annualised_turnover) - start)
     return float(coefficient) * BPS * excess / span / periods_per_year
+
+
+def prefilled_trailing_traded(
+    prev_traded: Sequence[float], params: Params | None = None, periods_per_year: float = 52.0
+) -> float:
+    """
+    `P`, decisions/0040 "the ruling, made precise": traded notional over the
+    PREVIOUS `W - 1` rebalances (`W = round(periods_per_year)`), with any
+    missing entry (before a full window of history exists) filled at
+    `target_annualised / periods_per_year` -- the owner's "prefill at 100%
+    target" (item 2). The window it feeds is always `W` long once this
+    rebalance's own trade is added, which is what keeps a week-2 trade from
+    counting ~26 times over.
+    """
+    params = params or get_params()
+    target = float(params.require("constraints.turnover.target_annualised"))
+    w_periods = int(round(periods_per_year))
+    recent = list(prev_traded)[-(w_periods - 1) :] if w_periods > 1 else []
+    missing = max(0, (w_periods - 1) - len(recent))
+    # Per-period fill, then times the count: bit-for-bit with the pre-task-42 arithmetic.
+    fill = target / periods_per_year
+    return float(np.sum(recent)) + missing * fill
+
+
+def created_marginal_quadratic(
+    prev_traded: Sequence[float],
+    params: Params | None = None,
+    periods_per_year: float = 52.0,
+    coefficient: float | None = None,
+) -> tuple[float, float]:
+    """
+    `(a, b)` for `S(x) = a * (pos(b + x)**2 - pos(b)**2)`, `x` this rebalance's
+    total traded notional -- decisions/0040 item 1, rearranged so the solver
+    never has to know about turnover windows:
+
+        T(x) - s = (ppy / W) * (x + P - s*W/ppy) = (ppy / W) * (x + b)
+        a = kappa * ppy / (2 * span * W),   b = P - s*W/ppy
+
+    The solver's convex term takes `(a, b)`; the constant `-a*pos(b)**2` does
+    not affect the solve and is added back by `created_marginal_shadow`.
+    `coefficient` overrides `constraints.turnover.penalty.coefficient` (a cell's
+    `shadow_coefficient`); `None` reads params. This is the one implementation
+    of the created-turnover shadow cost: `audit.ladder` calls it.
+    """
+    params = params or get_params()
+    if coefficient is None:
+        coefficient = float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
+    start = float(params.require("constraints.turnover.shadow_start_annualised"))
+    reference = float(params.require("constraints.turnover.shadow_reference_annualised"))
+    w_periods = int(round(periods_per_year))
+    span = reference - start
+    kappa = float(coefficient) * BPS
+    p_trailing = prefilled_trailing_traded(prev_traded, params, periods_per_year)
+    a = kappa * periods_per_year / (2.0 * span * w_periods) if span > 0 else 0.0
+    b = p_trailing - start * w_periods / periods_per_year
+    return a, b
+
+
+def created_marginal_shadow(
+    prev_traded: Sequence[float],
+    x: float,
+    params: Params | None = None,
+    periods_per_year: float = 52.0,
+    coefficient: float | None = None,
+) -> float:
+    """
+    `S(x)` of decisions/0040: the shadow cost, in return units, of trading `x`
+    (traded notional, buys plus sells) this rebalance, the marginal unit paying
+    the curve at the turnover it creates. Zero at `x = 0`, convex in `x`, and
+    `dS/dx` is `annual_turnover_penalty` at the post-trade trailing level.
+    """
+    a, b = created_marginal_quadratic(prev_traded, params, periods_per_year, coefficient)
+    return a * (max(0.0, b + x) ** 2 - max(0.0, b) ** 2)
 
 
 def annual_turnover_penalty(annualised_turnover: float, params: Params | None = None) -> float:

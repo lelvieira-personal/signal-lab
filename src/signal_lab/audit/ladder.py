@@ -51,6 +51,11 @@ from signal_lab.harness.engine import (
     rebalance_dates,
     run_walk_forward,
 )
+from signal_lab.harness.objective import (
+    created_marginal_quadratic,
+    created_marginal_shadow,
+    prefilled_trailing_traded,
+)
 from signal_lab.loaders.base import ReturnPanel
 from signal_lab.params import Params, get_params
 from signal_lab.portfolio.covariance import ShrunkCovariance, period_returns, trailing_covariance
@@ -248,6 +253,30 @@ def build_universe(
 # --- one cell ------------------------------------------------------------------
 
 
+class _FromParams:
+    """Singleton marker: "read this from params" -- distinct from `None`, which
+    on `vol_halflife` means "no overlay" and must keep meaning it."""
+
+    _instance: _FromParams | None = None
+
+    def __new__(cls) -> _FromParams:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "FROM_PARAMS"
+
+    def __copy__(self) -> _FromParams:
+        return self
+
+    def __deepcopy__(self, memo: dict) -> _FromParams:
+        return self
+
+
+FROM_PARAMS = _FromParams()
+
+
 @dataclass(frozen=True)
 class AuditCell:
     ic: float
@@ -265,11 +294,16 @@ class AuditCell:
     # the full window. `None` is the equal-weighted estimate every run before
     # 2026-09-17 used. See `portfolio.covariance.rescale_volatility` and the TE
     # path probe, which is what this exists to test.
-    vol_halflife: float | None = None
+    vol_halflife: float | None | _FromParams = FROM_PARAMS
     # How that halflife is applied: `per_series` moves each volatility and so
     # the composition too; `scalar` moves only the risk level. Ignored when
     # `vol_halflife` is None.
-    vol_overlay: str = "per_series"
+    #
+    # decisions/0042 (HANDOFF task 42): both default to `FROM_PARAMS`, which reads
+    # `audit.covariance.vol_overlay` -- the overlay is policy. `None` keeps meaning "no
+    # overlay", the equal-weighted estimate, so every historical key still
+    # decodes; see `resolve_vol_overlay`.
+    vol_overlay: str | _FromParams = FROM_PARAMS
     # decisions/0036 section 4b: the score is blended from a block-shuffled truth.
     # Everything else about the cell is its live twin's, so the key must say so.
     baseline: bool = False
@@ -303,7 +337,10 @@ class AuditCell:
                 f"shadow_form must be None, 'trailing' or 'created', got {self.shadow_form!r}"
             )
 
-    def key(self) -> str:
+    def key(self, params: Params | None = None) -> str:
+        """The cell's identity, with the overlay and its halflife RESOLVED
+        (decisions/0042): a cell that follows params reads `..._vhl26scalar`, an
+        explicit `vol_halflife=None` cell keeps its pre-task-42 key."""
         cap = "none" if self.turnover_cap is None else f"{self.turnover_cap:.2f}"
         per = "none" if self.per_rebalance_cap is None else f"{self.per_rebalance_cap:.2f}"
         key = (
@@ -312,10 +349,11 @@ class AuditCell:
         )
         if self.standardise != POOLED:
             key = f"{key}_{self.standardise}"
-        if self.vol_halflife is not None:
-            key = f"{key}_vhl{self.vol_halflife:g}"
-            if self.vol_overlay != "per_series":
-                key = f"{key}{self.vol_overlay}"
+        halflife, overlay = resolve_vol_overlay(self, params)
+        if halflife is not None:
+            key = f"{key}_vhl{halflife:g}"
+            if overlay != "per_series":
+                key = f"{key}{overlay}"
         if self.baseline:
             key = f"{key}_baseline"
             if self.shuffle != TRUTH_SHUFFLE:
@@ -325,6 +363,37 @@ class AuditCell:
         if self.shadow_form not in (None, "trailing"):
             key = f"{key}_{self.shadow_form}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
+
+
+def resolve_vol_overlay(cell: AuditCell, params: Params | None = None) -> tuple[float | None, str]:
+    """
+    `(halflife_weeks, overlay)` the cell's covariance is built with
+    (decisions/0042, HANDOFF task 42). An explicit value on the cell wins, and
+    `None` is an explicit "no overlay" -- the equal-weighted estimate every run
+    before task 42 used -- so `vol_halflife=None` keeps every historical key.
+    `FROM_PARAMS` reads `audit.covariance.vol_overlay` (`halflife_weeks`, `form`);
+    params with no such block mean no overlay.
+
+    An explicit halflife with the overlay left at `FROM_PARAMS` is the legacy
+    `per_series` form, not params' form: it is the call every pre-task-42 cell
+    meant, and a halflife of 26 must not silently change shape under it. With no
+    halflife the overlay is `per_series` by convention, as the key ignores it.
+    """
+    halflife = cell.vol_halflife
+    overlay = cell.vol_overlay
+    if halflife is FROM_PARAMS or overlay is FROM_PARAMS:
+        params = params or get_params()
+        cfg = params.get("audit.covariance.vol_overlay", None) or {}
+        if halflife is FROM_PARAMS:
+            hl = cfg.get("halflife_weeks")
+            halflife = None if hl is None else float(hl)
+            if overlay is FROM_PARAMS:
+                overlay = str(cfg.get("form", "scalar")) if halflife is not None else "per_series"
+        else:
+            overlay = "per_series"
+    if halflife is None:
+        overlay = "per_series"
+    return halflife, str(overlay)
 
 
 def resolve_shadow_form(cell: AuditCell, params: Params) -> str:
@@ -390,6 +459,7 @@ class _OptimiserRule:
         self.ppy = float(params.get("costs.application.weeks_per_year", 52))
         self.costs = audit_cost_model(universe, params, cell.cost_multiplier)
         self.shadow_form = resolve_shadow_form(cell, params)
+        self.vol_halflife, self.vol_overlay = resolve_vol_overlay(cell, params)
         override = cell.shadow_coefficient
         self.shadow_coeff = (
             float(override)
@@ -468,43 +538,19 @@ class _OptimiserRule:
         return self.shadow_coeff * BPS * excess / span
 
     def _prefilled_P(self) -> float:
-        """
-        `P`, decisions/0040 s"the ruling, made precise": traded notional over the
-        PREVIOUS `W - 1` rebalances (`W = round(periods_per_year)`), with any
-        missing entry (before a full window of history exists) filled at
-        `target_annualised / ppy` -- the owner's "prefill at 100% target". The
-        window this feeds is always `W` long once this rebalance's own trade `x`
-        is added, which is exactly what makes a week-2 trade not count ~26 times
-        over under the new pricing (see decisions/0040's "Why").
-        """
-        w_periods = int(round(self.ppy))
-        recent = self.turnover_log[-(w_periods - 1) :] if w_periods > 1 else []
-        missing = max(0, (w_periods - 1) - len(recent))
-        fill = self.target_annualised / self.ppy
-        return float(np.sum(recent)) + missing * fill
+        """`P` of decisions/0040, prefill included: `harness.objective` owns it."""
+        return prefilled_trailing_traded(self.turnover_log, self.params, self.ppy)
 
     def _shadow_quadratic_coeffs(self) -> tuple[float, float]:
         """
-        `(a, b)` for `S(x) = a * pos(b + x)**2`, `x` this rebalance's total
-        traded notional -- decisions/0040's "the ruling, made precise", item 1,
-        rearranged so `long_only.solve` never has to know about turnover windows:
-
-            T(x) - s = (ppy / W) * (x + P - s*W/ppy) = (ppy / W) * (x + b)
-            S(x) = kappa/(2*span) * (W/ppy) * [pos(T(x)-s)^2 - pos(T(0)-s)^2]
-                 = a * [pos(b+x)^2 - pos(b)^2]
-
-        so `a = kappa*ppy / (2*span*W)`, `b = P - s*W/ppy`. The constant
-        `-a*pos(b)**2` term does not affect the solve and is not returned; the
-        caller (`__call__`, for diagnostics) subtracts it explicitly where the
-        actual shadow PAID needs it.
+        `(a, b)` for the solver's convex shadow term, `S(x) = a * pos(b + x)**2`
+        (decisions/0040). The single implementation is
+        `harness.objective.created_marginal_quadratic`; this passes the cell's
+        own history and coefficient override to it.
         """
-        w_periods = int(round(self.ppy))
-        span = self.shadow_reference - self.shadow_start
-        kappa = self.shadow_coeff * BPS
-        p_trailing = self._prefilled_P()
-        a = kappa * self.ppy / (2.0 * span * w_periods) if span > 0 else 0.0
-        b = p_trailing - self.shadow_start * w_periods / self.ppy
-        return a, b
+        return created_marginal_quadratic(
+            self.turnover_log, self.params, self.ppy, self.shadow_coeff
+        )
 
     def ex_ante_te(self) -> pd.Series | None:
         """The annualised TE each solved book was sized to, by rebalance date.
@@ -533,7 +579,7 @@ class _OptimiserRule:
 
     def __call__(self, date: pd.Timestamp, _panel: ReturnPanel, drifted: pd.Series | None = None):
         date = pd.Timestamp(date)
-        cov = self.u.covariance(date, self.cell.vol_halflife, self.cell.vol_overlay)
+        cov = self.u.covariance(date, self.vol_halflife, self.vol_overlay)
         ids = cov.ids
         hold = [h for h in self.u.holdable if h in ids]
         legs = [g for g in self.u.leg_ids if g in ids]
@@ -592,7 +638,11 @@ class _OptimiserRule:
             x = sol.turnover
             shadow_bps = 2.0 * a_coef * max(0.0, b_coef + x) / BPS  # S'(x): the marginal rate paid
             shadow_paid_bps = (
-                (a_coef * max(0.0, b_coef + x) ** 2 - a_coef * max(0.0, b_coef) ** 2) / x / BPS
+                created_marginal_shadow(
+                    self.turnover_log[:-1], x, self.params, self.ppy, self.shadow_coeff
+                )
+                / x
+                / BPS
                 if x > 0
                 else 0.0
             )
@@ -653,6 +703,7 @@ def run_cell(
 
     signal = _plant(universe, cell)
     rule = _OptimiserRule(universe, signal, cell, params, solver)
+    vol_halflife, vol_overlay = rule.vol_halflife, rule.vol_overlay
     engine_panel = universe.engine_panel()
     exposures = constant_exposures(pd.DataFrame(0.0, index=universe.holdable, columns=["f0"]))
     path = run_walk_forward(
@@ -685,8 +736,8 @@ def run_cell(
         "per_rebalance_cap": cell.per_rebalance_cap,
         "shadow_coefficient": cell.shadow_coefficient,
         "shadow_form": rule.shadow_form,
-        "vol_halflife": cell.vol_halflife,
-        "vol_overlay": cell.vol_overlay if cell.vol_halflife is not None else "",
+        "vol_halflife": vol_halflife,
+        "vol_overlay": vol_overlay if vol_halflife is not None else "",
         "turnover_per_rebalance_max": float(path.turnover.max()),
         "turnover_per_rebalance_p95": float(path.turnover.quantile(0.95)),
         "turnover_from_repairs_annual": rule.repair_turnover * rule.ppy / max(len(path.dates), 1),
@@ -750,7 +801,11 @@ def run_cell(
             ex_ante_mean=row["te_ex_ante_mean"],
         )
     )
-    row.update(path_transfer(path, universe, cell))
+    row.update(
+        path_transfer(
+            path, universe, replace(cell, vol_halflife=vol_halflife, vol_overlay=vol_overlay)
+        )
+    )
     row.update(portfolio_veto_verdicts(row, params))
     return row, path
 
@@ -905,13 +960,14 @@ def run_frictionless(
     budget = float(params.require("constraints.tracking_error.max_trailing_3y"))
     te_var = budget**2 / ppy
     signal = _plant(universe, cell)
+    vol_halflife, vol_overlay = resolve_vol_overlay(cell, params)
     dates = universe.audit_dates()
     legs = universe.leg_ids
 
     returns: dict[pd.Timestamp, float] = {}
     ex_ante: dict[pd.Timestamp, float] = {}
     for held_from, marked_at in zip(dates[:-1], dates[1:], strict=True):
-        cov = universe.covariance(held_from, cell.vol_halflife, cell.vol_overlay)
+        cov = universe.covariance(held_from, vol_halflife, vol_overlay)
         ids = cov.ids
         hold = [h for h in universe.holdable if h in ids]
         if not hold:
@@ -1168,6 +1224,12 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
         "annual": row.get("turnover_annual"),
         "rolling_1y_p95": row.get("turnover_p95_rolling_1y"),
     }
+    unknown = [w for w in windows if w not in candidates]
+    if unknown:
+        raise ValueError(
+            f"constraints.turnover.highlight_windows names {unknown}; "
+            f"known windows are {sorted(candidates)}"
+        )
     turnover_highlight = any(
         (v := candidates.get(w)) is not None and np.isfinite(v) and v > highlight_cap
         for w in windows
@@ -1390,7 +1452,9 @@ def power_cells(params: Params | None = None) -> list[AuditCell]:
     `shadow_form="trailing"` pinned explicitly (HANDOFF task 39, same reason as
     `friction_cells`): `POWER_LIVE_RUN` was computed under the pre-0040
     trailing form, and the implicit default now reads live params'
-    `created_marginal` instead.
+    `created_marginal` instead. `vol_halflife=None` pinned explicitly too
+    (HANDOFF task 42, decisions/0042): the live twins were computed with no
+    volatility overlay, and the default now reads the 26-week scalar overlay.
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
@@ -1408,6 +1472,7 @@ def power_cells(params: Params | None = None) -> list[AuditCell]:
             shuffle=SCORE_SHUFFLE,
             perm=p,
             shadow_form="trailing",
+            vol_halflife=None,
         )
         for ic in POWER_IC_RUNGS
         for s in POWER_SEEDS
@@ -1423,7 +1488,7 @@ def power10_cells(params: Params | None = None) -> list[AuditCell]:
     live twin and a truth-shuffle twin in `POWER_LIVE_RUN`.
 
     `shadow_form="trailing"` pinned explicitly (HANDOFF task 39), for the same
-    reason as `power_cells`.
+    reason as `power_cells` (and `vol_halflife=None`, HANDOFF task 42).
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
@@ -1441,6 +1506,7 @@ def power10_cells(params: Params | None = None) -> list[AuditCell]:
             shuffle=SPAN_SHUFFLE,
             perm=p,
             shadow_form="trailing",
+            vol_halflife=None,
         )
         for ic in POWER10_IC_RUNGS
         for s in POWER10_SEEDS
@@ -1461,7 +1527,10 @@ def friction_cells(params: Params | None = None) -> list[AuditCell]:
     which is `created_marginal` since decisions/0040 -- this grid is
     specifically the LEGACY trailing-form sweep `friction_created_cells()`
     pairs against, and `POWER_LIVE_RUN` was computed under `trailing`, so an
-    implicit default would silently break both.
+    implicit default would silently break both. `vol_halflife=None` is pinned
+    for the same reason (HANDOFF task 42, decisions/0042): both runs were
+    computed with no volatility overlay, and the default is now the 26-week
+    scalar overlay. `friction_created_cells()` inherits the pin.
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
@@ -1477,6 +1546,7 @@ def friction_cells(params: Params | None = None) -> list[AuditCell]:
             "base",
             shadow_coefficient=coef,
             shadow_form="trailing",
+            vol_halflife=None,
         )
         for ic in FRICTION_IC_RUNGS
         for s in FRICTION_SEEDS
@@ -1517,7 +1587,9 @@ def halflife_cells(params: Params | None = None) -> list[AuditCell]:
     this grid first ran under the pre-task-39 implicit default, which was
     `trailing` at the time): `POWER_LIVE_RUN` was computed under `trailing`,
     and an implicit default would silently diverge to `created_marginal` on
-    any future re-run, now that live params carry decisions/0040.
+    any future re-run, now that live params carry decisions/0040. Its arms set
+    `vol_halflife` and `vol_overlay` explicitly (task 42: the `None` arm is
+    "no overlay", not "follow params"), so the sweep stays reproducible.
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)

@@ -4,7 +4,7 @@
 # measured before any hypothesis is generated. A computation on returns, the
 # covariance, the constraint set and the cost model; it contains no hypothesis,
 # consumes no trial and carries no multiple-testing charge.
-params_version: "0.7.0"
+params_version: "0.8.0"
 
 # The bar. Net information ratio versus the 50/50 benchmark over the development
 # window, after the section 8 cost model, at the section 4 tracking-error budget.
@@ -59,6 +59,15 @@ stress_horizon_weeks: 13
 covariance:
   estimator: ledoit_wolf         # closed-form shrinkage toward CONSTANT CORRELATION (2003)
   window_periods: 156            # trailing 3 years of weekly returns
+  # decisions/0042 (owner, 2026-10-01, OWNER-QUEUE B1): the ex-ante covariance
+  # carries a SCALAR volatility overlay, halflife 26 weeks, in every book the
+  # lab builds -- the audit's default cells now, the phase-2 solver when it
+  # exists. Measured by task 35 (A-20260930-033812): risk_calibration fails
+  # 5-10/20 -> 0-1/20 per horizon, net IR unchanged within noise. 26, not 13,
+  # because 26 was specified (decisions/0030) before the sweep could select it.
+  vol_overlay:
+    form: scalar
+    halflife_weeks: 26
   # A series without a full window at a date is unholdable at that date.
 
 # One rebalance day for the audit. Alternates are averaged in phase 3 (section 4

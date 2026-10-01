@@ -1,7 +1,7 @@
 # Veto thresholds. SUBSTRATE.md section 10, as amended by decisions/0003,
 # 0026 and 0038 (turnover is disclosed, never vetoed: nine vetoes). Owner-only.
 # Agents may not change a threshold to make a run pass (SUBSTRATE section 2).
-params_version: "0.7.0"
+params_version: "0.8.0"
 
 cash:
   max_weight: 0.20
@@ -34,8 +34,20 @@ frequency:
 seed_stability:
   max_ir_range: 0.15
 multiple_testing:
-  procedure: romano_wolf
+  # decisions/0043 (owner, 2026-10-01, OWNER-QUEUE L16(a)): the generalized
+  # stepdown of Romano and Wolf (2007), stats.multiple_testing.romano_wolf_gfwer.
+  # It holds P(g or more false passes in a search) <= fwer_alpha -- with g = 2,
+  # a single false pass is tolerated (17-21% of null cycles); two are not.
+  # Statistics standardised against their pooled null (decisions/0041).
+  procedure: romano_wolf_gfwer
   fwer_alpha: 0.05
+  g: 2
+  standardise: true
+  # Block shuffles per test, the lab's binding cost: ~12 x k x 84 s a cycle,
+  # ~28 h at 100. The generalized stepdown's power is nearly flat in k
+  # (task 41: 0.28 at 50, 0.32 at 100, 0.35 at 1000, IC 0.70). A verdict
+  # drawn on fewer shuffles than this fails the veto.
+  min_shuffles: 100
   level: family_then_within
 direction:
   strict: true                   # realised sign must match the pre-registered direction

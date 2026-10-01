@@ -33,7 +33,11 @@ import itertools
 
 import numpy as np
 
+from signal_lab.params import Params, get_params
+
 __all__ = [
+    "gate",
+    "verdict_for",
     "marginal_pvalues",
     "holm",
     "romano_wolf",
@@ -412,3 +416,68 @@ def romano_shaikh_wolf_fdr(t: np.ndarray, T0: np.ndarray, q: float):
         "benjamini_yekutieli for a dependence-robust FDR bound, or benjamini_hochberg under "
         "PRDS, or romano_wolf for FWER."
     )
+
+
+# --- the gate: params-driven, one callable (decisions/0043, HANDOFF task 42) ----
+
+
+def gate(t: np.ndarray, T0: np.ndarray, params: Params | None = None) -> dict:
+    """
+    The multiple-testing gate, as params specify it (`vetoes.multiple_testing`):
+    `romano_wolf_gfwer(t, T0, fwer_alpha, g, standardise)` for
+    `procedure: romano_wolf_gfwer`, or `romano_wolf(t, T0, fwer_alpha,
+    standardise)` for `procedure: romano_wolf`; nothing else is a gate.
+
+    Raises `ValueError` if `T0` has fewer than `min_shuffles` rows: a verdict
+    drawn on fewer shuffles than params require is not the test params describe,
+    and `veto_multiple_testing` would fail it anyway -- this fails earlier, where
+    the shuffles can still be drawn. Returns, for the whole search:
+
+        procedure, fwer_alpha, g, n_shuffles (k), n_tests (m),
+        rejected (bool array, (m,)), p_adjusted ((m,))
+
+    `veto_multiple_testing` reads ONE hypothesis's verdict, `rejected` a scalar;
+    `verdict_for(result, i)` is that dict for hypothesis `i`.
+    """
+    params = params or get_params()
+    cfg = params.require("vetoes.multiple_testing")
+    procedure = str(cfg["procedure"])
+    alpha = float(cfg["fwer_alpha"])
+    standardise = bool(cfg.get("standardise", True))
+    t = np.asarray(t, dtype=float)
+    T0 = np.asarray(T0, dtype=float)
+    if T0.ndim != 2:
+        raise ValueError(f"T0 must be (k, m), got {T0.shape}")
+    k = T0.shape[0]
+    min_shuffles = cfg.get("min_shuffles")
+    if min_shuffles is not None and k < int(min_shuffles):
+        raise ValueError(
+            f"{k} shuffles per test, params require at least {int(min_shuffles)} "
+            "(vetoes.multiple_testing.min_shuffles, decisions/0043)"
+        )
+    if procedure == "romano_wolf_gfwer":
+        g = int(cfg["g"])
+        reject, p_adj = romano_wolf_gfwer(t, T0, alpha, g, standardise)
+    elif procedure == "romano_wolf":
+        g = 1
+        reject, p_adj = romano_wolf(t, T0, alpha, standardise)
+    else:
+        raise ValueError(f"vetoes.multiple_testing.procedure {procedure!r} is not a gate")
+    return {
+        "procedure": procedure,
+        "fwer_alpha": alpha,
+        "g": g,
+        "n_shuffles": int(k),
+        "n_tests": int(t.shape[0]),
+        "rejected": np.asarray(reject, dtype=bool),
+        "p_adjusted": np.asarray(p_adj, dtype=float),
+    }
+
+
+def verdict_for(result: dict, index: int) -> dict:
+    """`gate`'s dict narrowed to hypothesis `index`: the `romano_wolf` context
+    entry `veto_multiple_testing` reads, `rejected` and `p_adjusted` scalars."""
+    out = {k: v for k, v in result.items() if k not in ("rejected", "p_adjusted")}
+    out["rejected"] = bool(result["rejected"][index])
+    out["p_adjusted"] = float(result["p_adjusted"][index])
+    return out

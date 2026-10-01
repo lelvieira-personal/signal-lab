@@ -97,6 +97,7 @@ tbody tr.lead:hover td {{ background:#FFF1E6; }}
 .stats b {{ display:block; font-size:19px; font-weight:600; color:var(--ink);
             font-variant-numeric:tabular-nums; }}
 .stats b.hl {{ color:var(--orange); }}
+td.hot {{ color:var(--orange); font-weight:600; }}
 
 .locked {{ border:1px dashed #C9D0D4; padding:22px; text-align:center;
            color:var(--mute); font-size:13px; margin-top:26px; }}
@@ -137,7 +138,7 @@ def _first_failure(verdicts, order=None):
     return ""
 
 
-def leaderboard_html(rows, order=None):
+def leaderboard_html(rows, order=None, params=None):
     body = io.StringIO()
     lead_id = next((r["run_id"] for r in rows if r["passed"]), None)
     for r in rows:
@@ -148,6 +149,7 @@ def leaderboard_html(rows, order=None):
             cls.append("lead")
         ir = r.get("net_ir")
         ir_cls = "ir-strong" if r["passed"] and ir is not None and ir >= 0.45 else ""
+        hot = v.turnover_highlighted(r.get("turnover"), params)
         body.write(f"""
 <tr class="{" ".join(cls)}">
   <td class="id">{r["run_id"]}</td>
@@ -155,7 +157,7 @@ def leaderboard_html(rows, order=None):
   <td class="agg">{r["aggregation"]}</td>
   <td class="num {ir_cls}">{_num(ir, "{:.2f}")}</td>
   <td class="num">{_num(r.get("te"), "{:.1f}")}</td>
-  <td class="num">{_num(r.get("turnover"), "{:.0f}")}</td>
+  <td class="num{" hot" if hot else ""}" title="{"turnover above the highlight threshold" if hot else ""}">{_num(r.get("turnover"), "{:.0f}")}{" ▲" if hot else ""}</td>
   <td class="num">{_num(r.get("max_cash"), "{:.1f}")}</td>
   <td class="num">{_num(r.get("n_positions"), "{:.0f}")}</td>
   <td>{_veto_dots(r["verdicts"])}</td>
@@ -254,6 +256,7 @@ def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
     # made the realised tracking error a disclosed characteristic.
     te_cap = float(params.require("constraints.tracking_error.max_trailing_3y")) * 100
 
+    turnover_note = v.turnover_disclosure(params)["text"]
     veto_list = "".join(
         f"<li><b>{name}</b> — {label}</li>" for name, label in v.veto_legend(params)
     )
@@ -285,7 +288,7 @@ def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
     if have_detail and champ:
         stats = "".join(
             f"<div>{s['label']}<b{' class="hl"' if s['highlight'] else ''}>{s['value']}</b></div>"
-            for s in v.run_summary_stats(champ)
+            for s in v.run_summary_stats(champ, params)
         )
         detail_section = f"""
 <h2><span class="n">2</span>Run detail</h2>
@@ -360,7 +363,7 @@ def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
 <p class="lede">All {data.n_runs} experiments, survivors first. Failures stay visible with
   the veto that stopped them — knowing what died and why is most of the diagnostic value,
   and hiding it invites the same idea to be proposed again next cycle.</p>
-{leaderboard_html(rows, order)}
+{leaderboard_html(rows, order, params)}
 
 <div class="grid2" style="margin-top:30px">
   <div class="panel">
@@ -374,6 +377,7 @@ def build(path="leaderboard.html", synthetic=False, db_path=None, params=None):
        one is killed with the reason logged; none of these are advisory.</p>
     <ol style="font-size:12.5px;color:var(--slate);padding-left:20px;margin:8px 0 0;
                line-height:1.75">{veto_list}</ol>
+    <p class="turnover-note" style="font-size:12.5px;color:var(--orange);margin:10px 0 0">▲ {turnover_note}</p>
   </div>
 </div>
 

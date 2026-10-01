@@ -88,10 +88,18 @@ def test_realised_ic_reports_four_readings():
 
 
 def test_the_cell_key_is_unchanged_in_the_default_mode():
-    assert AuditCell(ic=0.1, horizon=13, seed=0).key() == "ic0.10_h13_s0_c1.0_tnone_rnone"
+    # `vol_halflife=None`: the pre-task-42 key (the default now reads the params overlay)
     assert (
-        AuditCell(ic=0.1, horizon=13, seed=0, standardise=CROSS_SECTIONAL)
+        AuditCell(ic=0.1, horizon=13, seed=0, vol_halflife=None).key()
+        == "ic0.10_h13_s0_c1.0_tnone_rnone"
+    )
+    assert (
+        AuditCell(ic=0.1, horizon=13, seed=0, standardise=CROSS_SECTIONAL, vol_halflife=None)
         .key()
         .endswith("_cross_sectional")
     )
-    assert AuditCell(ic=0.1, horizon=13, seed=0, tag=FRICTIONLESS).key().endswith("_frictionless")
+    assert (
+        AuditCell(ic=0.1, horizon=13, seed=0, tag=FRICTIONLESS, vol_halflife=None)
+        .key()
+        .endswith("_frictionless")
+    )

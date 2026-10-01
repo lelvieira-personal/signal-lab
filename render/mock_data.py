@@ -61,7 +61,7 @@ VETOES = [
     ("lookahead", "Bitemporal check: no future vintages"),
     ("frequency", "No return before a series' true daily start"),
     ("seed_stability", "IR range across resampling seeds \u2264 0.15"),
-    ("multiple_testing", "Survives Romano-Wolf stepdown at FWER 5%"),
+    ("multiple_testing", "Survives the Romano-Wolf stepdown: P(2 or more false passes) \u2264 5%"),
     ("direction", "Realised sign matches the pre-registered direction"),
 ]
 

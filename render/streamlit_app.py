@@ -102,6 +102,7 @@ def main() -> None:
             "Net IR": r["net_ir"],
             "TE %": r["te"],
             "Turnover %": r["turnover"],
+            "Turnover flag": "▲" if v.turnover_highlighted(r["turnover"], params) else "",
             "Max cash %": r["max_cash"],
             "Holdings": r["n_positions"],
             "Stopped by": "" if r["passed"] else v.first_failed_veto(r, order),

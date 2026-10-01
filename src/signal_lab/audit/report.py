@@ -208,6 +208,101 @@ def _md_diagnostics(summary: dict[str, Any]) -> list[str]:
     return out
 
 
+TURNOVER_HIGHLIGHT_LIST_CAP = 40
+
+
+def _turnover_highlight(table: pd.DataFrame, params: Any = None) -> dict[str, Any]:
+    """
+    Which judged cells ran above the turnover highlight (decisions/0038): a
+    count for the grid and the cells themselves. A REPORTING flag -- it gates
+    nothing -- read from the `turnover_highlight` column `run_cell` records. A
+    table from before that column existed has no reading, and says so rather
+    than reporting zero.
+    """
+    from signal_lab.params import get_params
+
+    p = params or get_params()
+    cap = float(p.require("constraints.turnover.highlight_annualised"))
+    judged = table[table["tag"] != FRICTIONLESS] if "tag" in table.columns else table
+    out: dict[str, Any] = {"cap": cap, "n_cells": int(len(judged)), "recorded": False}
+    if "turnover_highlight" not in judged.columns or judged.empty:
+        return out
+    flag = judged["turnover_highlight"].fillna(False).astype(bool)
+    cols = [
+        c
+        for c in ("key", "turnover_annual", "turnover_p95_rolling_1y", "turnover_max_rolling_1y")
+        if c in judged.columns
+    ]
+    hot = judged.loc[flag, cols]
+    out.update(
+        recorded=True,
+        n_highlighted=int(flag.sum()),
+        cells=hot.head(TURNOVER_HIGHLIGHT_LIST_CAP).to_dict(orient="records"),
+        n_listed=int(min(len(hot), TURNOVER_HIGHLIGHT_LIST_CAP)),
+    )
+    return out
+
+
+def _md_turnover_highlight(th: dict[str, Any]) -> list[str]:
+    head = f"## Turnover — highlighted above {th['cap']:.0%} (disclosed, never a veto)"
+    if not th.get("recorded"):
+        return [head, "", "_No `turnover_highlight` column in this table; nothing to report._", ""]
+    out = [
+        head,
+        "",
+        f"▲ **{th['n_highlighted']} of {th['n_cells']}** cells ran above {th['cap']:.0%} on "
+        "annual traded notional or on the rolling one-year p95 "
+        "(`constraints.turnover.highlight_windows`). The rolling maximum is reported, not "
+        "highlighted. decisions/0038.",
+        "",
+    ]
+    if th["cells"]:
+        out += [
+            "| cell | annual | rolling 1y p95 | rolling 1y max |",
+            "|---|---|---|---|",
+        ]
+        for r in th["cells"]:
+            out.append(
+                f"| ▲ `{r.get('key', '')}` | {_fmt(r.get('turnover_annual'), 2)} "
+                f"| {_fmt(r.get('turnover_p95_rolling_1y'), 2)} "
+                f"| {_fmt(r.get('turnover_max_rolling_1y'), 2)} |"
+            )
+        if th["n_highlighted"] > th["n_listed"]:
+            out.append("")
+            out.append(f"…and {th['n_highlighted'] - th['n_listed']} more, in `cells.csv`.")
+        out.append("")
+    return out
+
+
+def _html_turnover_highlight(th: dict[str, Any]) -> str:
+    if not th.get("recorded"):
+        return "<p class='muted'>No <code>turnover_highlight</code> column in this table.</p>"
+    parts = [
+        f"<p><span class='accent'>▲</span> <b>{th['n_highlighted']} of {th['n_cells']}</b> cells "
+        f"ran above {th['cap']:.0%} on annual traded notional or on the rolling one-year p95. "
+        "The rolling maximum is reported, not highlighted. Disclosed, never a veto "
+        "(decisions/0038).</p>"
+    ]
+    if th["cells"]:
+        rows = "".join(
+            f"<tr><th class='hit'>▲ <code>{r.get('key', '')}</code></th>"
+            f"<td>{_fmt(r.get('turnover_annual'), 2)}</td>"
+            f"<td>{_fmt(r.get('turnover_p95_rolling_1y'), 2)}</td>"
+            f"<td>{_fmt(r.get('turnover_max_rolling_1y'), 2)}</td></tr>"
+            for r in th["cells"]
+        )
+        parts.append(
+            "<table><thead><tr><th>cell</th><th>annual</th><th>rolling 1y p95</th>"
+            f"<th>rolling 1y max</th></tr></thead><tbody>{rows}</tbody></table>"
+        )
+        if th["n_highlighted"] > th["n_listed"]:
+            parts.append(
+                f"<p class='muted'>…and {th['n_highlighted'] - th['n_listed']} more, "
+                "in <code>cells.csv</code>.</p>"
+            )
+    return "\n".join(parts)
+
+
 CALIBRATION_COLUMNS = (
     "bias_worst_annual",
     "bias_stat",
@@ -315,6 +410,7 @@ def summarise(
         "oracle_net_ir": _pivot(table, "oracle").to_dict(),
         "required_ic_surviving": req_surviving.to_dict(orient="records"),
         "risk_calibration": _calibration(table),
+        "turnover_highlight": _turnover_highlight(table),
         "transfer_by_horizon": _transfer_frame(table).to_dict(),
         "ic_readings": _ic_frame(table).to_dict(),
         "covariance_diagnostic": _covariance_frame(table).to_dict(),
@@ -493,6 +589,8 @@ def to_markdown(summary: dict[str, Any], table: pd.DataFrame) -> str:
             "",
             _md_table(piv2, 2, "IC \\ cap"),
         ]
+    out += [""]
+    out += _md_turnover_highlight(summary.get("turnover_highlight") or {"cap": 0.0})
     out += [
         "",
         "## Every cell",
@@ -792,6 +890,8 @@ This page measures the pipeline at the section 4 budget; nothing on it is a resu
 {cost_html}
 <h2>Turnover-shortfall curve — net IR by annual turnover cap (horizon {stress_h}w)</h2>
 {turn_html}
+<h2>Turnover — highlighted above {summary.get("turnover_highlight", {}).get("cap", 0):.0%}</h2>
+{_html_turnover_highlight(summary.get("turnover_highlight") or {})}
 <p class="muted">Every cell, with realised IC, TE, turnover, cost drag, drawdown and binding shares, is in <code>cells.csv</code>.</p>
 </body></html>"""
 

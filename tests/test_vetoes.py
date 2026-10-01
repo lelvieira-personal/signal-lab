@@ -393,20 +393,25 @@ def test_seed_stability_needs_at_least_two_seeds(params):
 # --- 8. multiple_testing -----------------------------------------------------
 
 
+# decisions/0043: the verdict carries the procedure, g and the shuffle count k.
+# The context key stays `romano_wolf` for every procedure.
+GFWER = {"procedure": "romano_wolf_gfwer", "g": 2, "n_shuffles": 100}
+
+
 def test_multiple_testing_passes_when_the_stepdown_rejects(params):
-    rw = {"rejected": True, "fwer_alpha": 0.05, "procedure": "romano_wolf", "n_tests": 120}
+    rw = {"rejected": True, "fwer_alpha": 0.05, "n_tests": 120, **GFWER}
     assert veto_multiple_testing(ctx(romano_wolf=rw), params).passed
 
 
 def test_multiple_testing_fails_when_the_stepdown_does_not_reject(params):
-    rw = {"rejected": False, "fwer_alpha": 0.05, "procedure": "romano_wolf", "n_tests": 120}
+    rw = {"rejected": False, "fwer_alpha": 0.05, "n_tests": 120, **GFWER}
     v = veto_multiple_testing(ctx(romano_wolf=rw), params)
     assert not v.passed and "did not reject" in v.detail
 
 
 def test_multiple_testing_rejects_a_verdict_from_a_looser_alpha(params):
     """The boundary that matters: a stepdown run at 10% is not this test."""
-    rw = {"rejected": True, "fwer_alpha": 0.10, "procedure": "romano_wolf"}
+    rw = {"rejected": True, "fwer_alpha": 0.10, **GFWER}
     v = veto_multiple_testing(ctx(romano_wolf=rw), params)
     assert not v.passed and "0.1" in v.detail
 
@@ -416,8 +421,44 @@ def test_multiple_testing_rejects_a_verdict_from_another_procedure(params):
     assert not veto_multiple_testing(ctx(romano_wolf=rw), params).passed
 
 
+def test_multiple_testing_rejects_the_retired_single_fwer_verdict(params):
+    """A g = 1 `romano_wolf` verdict is not the test params now require."""
+    rw = {
+        "rejected": True,
+        "fwer_alpha": 0.05,
+        "procedure": "romano_wolf",
+        "g": 1,
+        "n_shuffles": 100,
+    }
+    assert not veto_multiple_testing(ctx(romano_wolf=rw), params).passed
+
+
 def test_multiple_testing_without_input_fails_closed(params):
     assert not veto_multiple_testing(ctx(), params).passed
+
+
+def test_multiple_testing_fails_on_the_wrong_g(params):
+    rw = {"rejected": True, "fwer_alpha": 0.05, **{**GFWER, "g": 3}}
+    v = veto_multiple_testing(ctx(romano_wolf=rw), params)
+    assert not v.passed and "g=3" in v.detail and "g=2" in v.detail
+
+
+def test_multiple_testing_fails_on_too_few_shuffles(params):
+    rw = {"rejected": True, "fwer_alpha": 0.05, **{**GFWER, "n_shuffles": 99}}
+    v = veto_multiple_testing(ctx(romano_wolf=rw), params)
+    assert not v.passed and "99" in v.detail and "100" in v.detail
+
+
+def test_multiple_testing_fails_closed_when_g_is_missing(params):
+    rw = {"rejected": True, "fwer_alpha": 0.05, "procedure": "romano_wolf_gfwer", "n_shuffles": 100}
+    v = veto_multiple_testing(ctx(romano_wolf=rw), params)
+    assert not v.passed and "romano_wolf.g" in v.detail
+
+
+def test_multiple_testing_fails_closed_when_n_shuffles_is_missing(params):
+    rw = {"rejected": True, "fwer_alpha": 0.05, "procedure": "romano_wolf_gfwer", "g": 2}
+    v = veto_multiple_testing(ctx(romano_wolf=rw), params)
+    assert not v.passed and "romano_wolf.n_shuffles" in v.detail
 
 
 # --- 9. direction -----------------------------------------------------------
@@ -475,8 +516,8 @@ def full_context(panel, **overrides) -> RunContext:
         romano_wolf={
             "rejected": True,
             "fwer_alpha": 0.05,
-            "procedure": "romano_wolf",
             "n_tests": 90,
+            **GFWER,
         },
         preregistered_direction="positive",
         realised_direction="positive",
