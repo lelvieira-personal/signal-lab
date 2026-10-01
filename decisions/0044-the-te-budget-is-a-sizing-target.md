@@ -47,3 +47,5 @@ approximation) plus volatility clustering that the overlay doesn't fully track.
 - **Worth knowing, not ruled:** 0025 inverts the *median* max drawdown, so at
   IR 0.30 about half of 19-year paths exceed the 18% tolerance by
   construction.
+
+- **params_hash, 2026-10-01 (HANDOFF task 43):** params_version 0.8.0 -> 0.9.0 (CRLF form throughout; `.gitattributes` pins `params/*.yaml` to `eol=crlf`); `params_hash` moved `9a3b002e95b8fa596b3273de7bb4cf259e075c836128853b3698a82ca4a1e5a8` -> `b3d41267a752b9d76e2ddf17264cccb5b5b9ea6f0f45edc8bf1517524674376a`.
