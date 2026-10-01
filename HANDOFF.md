@@ -56,7 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-29 (late evening): task 40 is done (SUBSTRATE step blocked by permissions; Cowork holds it). Tonight: 41 → 35, with a hard stop. The grid stops by 06:30 ET and the receipt is committed by 06:45 ET (see the amendment at the top of 35). 39 does NOT run tonight.**
+**As of 2026-09-30 (morning): tasks 35, 40 and 41 are done. Queued: 39 only. Read its 2026-09-30 amendment first: Cowork has already applied every owner-only edit (`SUBSTRATE.md`, `params/`, `vetoes/`) to the working tree.**
+
+*(Earlier note:)* **As of 2026-09-29 (late evening): task 40 is done (SUBSTRATE step blocked by permissions; Cowork holds it). Tonight: 41 → 35, with a hard stop. The grid stops by 06:30 ET and the receipt is committed by 06:45 ET (see the amendment at the top of 35). 39 does NOT run tonight.**
 - **41:** pool the observed value into `romano_wolf`'s standardising. Task 40's version breaks FWER at small k.
 
 *(Earlier note:)* **As of 2026-09-29 (evening): tasks 37 and 38 are done. Queued, in order, 40 → 35 → 39.**
@@ -1228,6 +1230,66 @@ Interpretation is Cowork's and the owner's. **Then stop.**
 ---
 
 ### 39. Apply `decisions/0038` (with its 2026-09-29 addendum) and `decisions/0040`, in one params change
+
+> **AMENDMENT 2026-09-30, morning (owner, via Cowork). Read this before the
+> steps below. Claude Code's permissions deny edits to `SUBSTRATE.md`,
+> `params/**` and `vetoes/**`** (`.claude/settings.json`), which is what blocked
+> task 40's step 1. **At the owner's instruction, Cowork has applied every
+> owner-only edit in this task to the working tree.** Don't re-edit those
+> files, and don't route around the deny rule with shell tools.
+>
+> Already done in the working tree (verify with
+> `git diff --ignore-cr-at-eol`):
+> - **`SUBSTRATE.md` v0.6:** step 3 below (0038 items 2-3, 0040 items 1-2),
+>   plus 0041's §9 and §15 edits from task 40's step 1. One consequential
+>   edit isn't verbatim from either record: §4's "The veto threshold is a far
+>   backstop, not a budget." became "There is no turnover veto either
+>   (`decisions/0038`)." `decisions/0100` records it.
+> - **`decisions/0100`:** rows for 0038, 0040 and 0041 under "Applied in
+>   v0.6".
+> - **`params/vetoes.yaml`:** step 1 is done. The `turnover:` block is gone,
+>   and `turnover` is out of `evaluation.order`.
+> - **`params/constraints.yaml`:** step 2 is done.
+>   - `form: created_marginal` and `coefficient: 40.0`.
+>   - The comment block is rewritten from 0040 "The ruling, made precise",
+>     with the marginal-rate table recomputed at 40 bp.
+>   - `highlight_annualised: 2.00` and
+>     `highlight_windows: [annual, rolling_1y_p95]`.
+>   - `per_rebalance_caps` is untouched.
+> - **`params_version`:** `0.6.0` → `0.7.0` in all seven `params/*.yaml`
+>   (`params.py` requires them to agree).
+> - **`vetoes/`:** `veto_turnover` is removed from `rules.py`, `registry.py`
+>   (`VETOES` and `SUBSTRATE_VETOES`) and `__init__.py`, and the docstrings
+>   now say nine.
+>
+> **What's left for you: steps 4, 5 and 6, all outside the owner-only paths.**
+> Known readers of the removed keys:
+> - `audit/ladder.py:1129` (`vetoes.turnover.max_annualised`), and
+>   `portfolio_veto_verdicts`;
+> - `harness/objective.py:75` (a docstring);
+> - `render/views.py:321`;
+> - `tests/test_engine.py`, `test_vetoes.py`, `test_params.py` and
+>   `test_governance.py:52`.
+>
+> `harness.objective` must accept `created_marginal`, which today's params
+> select. **If anything needs a further change to `SUBSTRATE.md`, `params/` or
+> `vetoes/`, stop and describe the exact change in the receipt.** Cowork
+> applies it.
+>
+> **Commits, in this order:**
+> 0. `HANDOFF.md` and `OWNER-QUEUE.md` alone:
+>    `queue: task 39 amended, owner-only edits applied by Cowork (2026-09-30)`.
+> 1. `SUBSTRATE.md` and `decisions/0100` alone:
+>    `substrate: v0.6 -- turnover disclosed not vetoed, created-marginal shadow
+>    at 40bp, block-shuffle null (decisions/0038, decisions/0040,
+>    decisions/0041)`.
+> 2. After `check-full` passes: `params/`, `vetoes/`, and your `src/`,
+>    `render/` and `tests/` changes together, citing `decisions/0038` and
+>    `decisions/0040`. Then step 6's hash lines in 0038 and 0040, as their own
+>    small commit.
+>
+> If git refuses to stage an owner-only path, stop and report; the owner will
+> commit it. This runs in the daytime, with no deadline. Then stop.
 
 Added 2026-09-29 by Cowork. It **supersedes task 33**. **Owner rulings:** B2
 and B3 (0038); L17 on 2026-09-29 (addendum: highlight on annual and rolling
