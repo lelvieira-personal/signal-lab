@@ -7,54 +7,6 @@ that SUBSTRATE §2 reserves to the owner.
 
 **Maintained by Cowork, read by the Monday/Thursday push.** Agents may add an
 item, restate one, or move a closed item to `## Closed` with the decision and
-
-### L4. Holdout power belongs in SUBSTRATE §3 — CLOSED 2026-10-01 (HANDOFF task 43 landed)
-**Owner, 2026-10-01:** Cowork's draft §3 paragraph (0039 §3 + L4) is accepted. It is applied in SUBSTRATE v0.8, and `decisions/0039` carries the note. *Move to Closed when HANDOFF task 43 lands.*
-
-~350 weeks gives t ≈ 0.8 at a true IR of 0.30, so the holdout can only ever
-fail a strategy, never confirm one. That is a material property of the lab's
-own final test and it is currently recorded only in these notes. Transcribing
-it into §3 is an owner act.
-*Cowork, 2026-10-01: a draft §3 paragraph combining 0039 §3 and this item is in
-the Project doc `claude/task-42-review-2026-10-01.md` §4. It follows 0043's
-gate, not 0039's FDR wording.*
-
-### L19. What the 6% tracking-error budget means: a sizing target or a ceiling (added 2026-10-01) — CLOSED 2026-10-01 (HANDOFF task 43 landed)
-**Owner, 2026-10-01 ("I accept your recs"):** (a), the 6% is the ex-ante sizing target σ, and the p95 is disclosed. Recorded in `decisions/0044`. *Move to Closed when HANDOFF task 43 lands.*
-
-Task 35 (`A-20260930-033812`), policy arm (h26 scalar), recomputed by Cowork:
-the mean ex-ante TE is 5.8-5.9% and realised/ex-ante is 0.95-0.99, so the book
-is sized correctly on average. But the **p95 of trailing-3y realised TE is
-1.12-1.19x the 6% budget** (seeds up to 1.39x). With no overlay it is 1.27-1.34x.
-
-The ratio sits above 1 because a 3-year window swings around its mean. It is
-not a sizing error. The choice:
-- **(a) 6% is σ, the sizing target.** That is how `decisions/0025` derives
-  it. Nothing changes; p95 is disclosed (0030).
-- **(b) 6% is a ceiling a client sees on trailing-3y TE.** Size to about 5.1%
-  (6%/1.18) and re-anchor 0025's map.
-
-`params/constraints.yaml` names it `max_trailing_3y`, and its comment still
-says §10 vetoes it (stale since 0030), which reads like (b). Cowork leans (a)
-if the number is the lab's own and (b) if it is an investor-facing mandate.
-**Retired by:** the owner's reading of the 6%, recorded in `decisions/`.
-
-### L20. The gate passes every hypothesis in a search smaller than g (added 2026-10-01) — CLOSED 2026-10-01 (HANDOFF task 43 landed)
-**Owner, 2026-10-01 ("I accept your recs"):** g = 1 below m = 8, and g = 2 at or above it. Recorded in `decisions/0045`. *Move to Closed when HANDOFF task 43 lands.*
-
-`romano_wolf_gfwer` with g = 2 sets the critical value to −∞ when a set has
-fewer than 2 tests. So **a single-hypothesis search is rejected (passes)
-unconditionally**, and bar 2 reduces to `net_ir_excess > 0`.
-
-This is correct for g-FWER, since one test can't make two false passes. But
-the first planned real test (0009 alone) is m = 1, and L12's
-`family_then_within` runs inside one-hypothesis families. Cowork's check
-(independent nulls, k = 100, step 1): the false-pass rate per null hypothesis
-is 1.00 at m = 1, 0.22 at m = 2, 0.10 at m = 4, 0.05 at m = 8 and 0.03 at
-m = 12. Proposed amendment to 0043: **g = 1 below a floor of about m = 8, and
-g = 2 at or above it**, with L12 deciding which m counts. Detail is in the
-Project doc `claude/task-42-review-2026-10-01.md` (F1). **This must be settled
-before the phase-2 solver runs a real hypothesis.**
 its date. An agent may never answer one. If an item can be settled by measuring
 something, it does not belong here — it belongs in `HANDOFF.md` as a task, and
 the item should say what measurement would retire it.
@@ -265,6 +217,53 @@ directory that gets cloned and archived. Hygiene, owner's call.
 
 ## Closed
 
+### L4. Holdout power belongs in SUBSTRATE §3 — CLOSED 2026-10-01 (HANDOFF task 43 landed)
+**Owner, 2026-10-01:** Cowork's draft §3 paragraph (0039 §3 + L4) is accepted. It is applied in SUBSTRATE v0.8, and `decisions/0039` carries the note. *Move to Closed when HANDOFF task 43 lands.*
+
+~350 weeks gives t ≈ 0.8 at a true IR of 0.30, so the holdout can only ever
+fail a strategy, never confirm one. That is a material property of the lab's
+own final test and it is currently recorded only in these notes. Transcribing
+it into §3 is an owner act.
+*Cowork, 2026-10-01: a draft §3 paragraph combining 0039 §3 and this item is in
+the Project doc `claude/task-42-review-2026-10-01.md` §4. It follows 0043's
+gate, not 0039's FDR wording.*
+
+### L19. What the 6% tracking-error budget means: a sizing target or a ceiling (added 2026-10-01) — CLOSED 2026-10-01 (HANDOFF task 43 landed)
+**Owner, 2026-10-01 ("I accept your recs"):** (a), the 6% is the ex-ante sizing target σ, and the p95 is disclosed. Recorded in `decisions/0044`. *Move to Closed when HANDOFF task 43 lands.*
+
+Task 35 (`A-20260930-033812`), policy arm (h26 scalar), recomputed by Cowork:
+the mean ex-ante TE is 5.8-5.9% and realised/ex-ante is 0.95-0.99, so the book
+is sized correctly on average. But the **p95 of trailing-3y realised TE is
+1.12-1.19x the 6% budget** (seeds up to 1.39x). With no overlay it is 1.27-1.34x.
+
+The ratio sits above 1 because a 3-year window swings around its mean. It is
+not a sizing error. The choice:
+- **(a) 6% is σ, the sizing target.** That is how `decisions/0025` derives
+  it. Nothing changes; p95 is disclosed (0030).
+- **(b) 6% is a ceiling a client sees on trailing-3y TE.** Size to about 5.1%
+  (6%/1.18) and re-anchor 0025's map.
+
+`params/constraints.yaml` names it `max_trailing_3y`, and its comment still
+says §10 vetoes it (stale since 0030), which reads like (b). Cowork leans (a)
+if the number is the lab's own and (b) if it is an investor-facing mandate.
+**Retired by:** the owner's reading of the 6%, recorded in `decisions/`.
+
+### L20. The gate passes every hypothesis in a search smaller than g (added 2026-10-01) — CLOSED 2026-10-01 (HANDOFF task 43 landed)
+**Owner, 2026-10-01 ("I accept your recs"):** g = 1 below m = 8, and g = 2 at or above it. Recorded in `decisions/0045`. *Move to Closed when HANDOFF task 43 lands.*
+
+`romano_wolf_gfwer` with g = 2 sets the critical value to −∞ when a set has
+fewer than 2 tests. So **a single-hypothesis search is rejected (passes)
+unconditionally**, and bar 2 reduces to `net_ir_excess > 0`.
+
+This is correct for g-FWER, since one test can't make two false passes. But
+the first planned real test (0009 alone) is m = 1, and L12's
+`family_then_within` runs inside one-hypothesis families. Cowork's check
+(independent nulls, k = 100, step 1): the false-pass rate per null hypothesis
+is 1.00 at m = 1, 0.22 at m = 2, 0.10 at m = 4, 0.05 at m = 8 and 0.03 at
+m = 12. Proposed amendment to 0043: **g = 1 below a floor of about m = 8, and
+g = 2 at or above it**, with L12 deciding which m counts. Detail is in the
+Project doc `claude/task-42-review-2026-10-01.md` (F1). **This must be settled
+before the phase-2 solver runs a real hypothesis.**
 ### L16. A screen at a confirmation standard, and what confirms a candidate — CLOSED 2026-10-01 (HANDOFF task 42 landed)
 **Owner, 2026-10-01, L16(a):** the generalized stepdown, P(two or more false passes) ≤ 5%, at 100 shuffles per test. Cowork picked 100 within the approved 50-100 range. Recorded in `decisions/0043`. Applied by HANDOFF task 42; SUBSTRATE v0.7 and `params/vetoes.yaml` were edited by Cowork. *Task 42 landed 2026-10-01.*
 
