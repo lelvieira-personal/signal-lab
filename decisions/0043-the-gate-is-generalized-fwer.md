@@ -48,3 +48,5 @@ about 140 engine-hours per cycle.
 - `params_hash` changes.
 - The family-then-within structure of §9 is unchanged and still undefined in
   practice (OWNER-QUEUE L12). It becomes measurable once `signals/` exists.
+
+- **params_hash, 2026-10-01 (HANDOFF task 42):** params_version 0.7.0 -> 0.8.0; `params_hash` moved `571f33fc6afee7273b45359ab310ff89025e353b8e7e5f959a6c5507e00b35d0` -> `9a3b002e95b8fa596b3273de7bb4cf259e075c836128853b3698a82ca4a1e5a8`. Runs before and after are not hash-comparable without the explicit overrides (`vol_halflife=None`).
