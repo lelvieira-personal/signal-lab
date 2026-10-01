@@ -56,7 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-09-30 (morning): tasks 35, 40 and 41 are done. Queued: 39 only. Read its 2026-09-30 amendment first: Cowork has already applied every owner-only edit (`SUBSTRATE.md`, `params/`, `vetoes/`) to the working tree.**
+**As of 2026-09-30 (evening): tasks 35, 39, 40 and 41 are all done. The queue above (12-39) is now fully worked.** Receipts for 35/39/40/41 are in `## Done`; `OWNER-QUEUE.md` B1 and L16 carry their interpretation. Nothing new is queued here as of this stamp -- check `OWNER-QUEUE.md` and the Cowork project docs for what comes next.
+
+*(Earlier note:)* **As of 2026-09-30 (morning): tasks 35, 40 and 41 are done. Queued: 39 only. Read its 2026-09-30 amendment first: Cowork has already applied every owner-only edit (`SUBSTRATE.md`, `params/`, `vetoes/`) to the working tree.**
 
 *(Earlier note:)* **As of 2026-09-29 (late evening): task 40 is done (SUBSTRATE step blocked by permissions; Cowork holds it). Tonight: 41 → 35, with a hard stop. The grid stops by 06:30 ET and the receipt is committed by 06:45 ET (see the amendment at the top of 35). 39 does NOT run tonight.**
 - **41:** pool the observed value into `romano_wolf`'s standardising. Task 40's version breaks FWER at small k.
