@@ -126,18 +126,26 @@ def test_validation_metrics_never_include_gross_ir(validation):
 
 
 @pytest.mark.slow
-def test_the_vetoes_run_on_the_validation_path_and_bite(validation, params):
+def test_a_500_percent_turnover_path_is_disclosed_not_vetoed(validation, params):
     """
-    The planted path trades ~500% of NAV a year, so the turnover veto must kill
-    it. A veto set that passed everything on a deliberately extreme path would
-    not be enforcing anything.
+    decisions/0038: the planted path trades ~500% of NAV a year, which used to
+    be exactly what the turnover veto caught. It no longer gates anything --
+    the portfolio vetoes that CAN be evaluated here (cash, positions) pass on
+    their own merits regardless of the turnover level. What does fail is the
+    missing-input family (risk_calibration and the rest, fail-closed per
+    SUBSTRATE section 10), the same behaviour the next test documents -- not a
+    judgement about this book's turnover.
     """
     from vetoes import apply_vetoes
 
     verdicts, failure = apply_vetoes(validation.run_context, params)
-    assert len(verdicts) == 10
-    assert failure == "turnover", {k: v.detail for k, v in verdicts.items() if not v.passed}
+    assert len(verdicts) == 9
+    assert "turnover" not in verdicts, "decisions/0038 removed it: disclosed, never vetoed"
+    assert verdicts["cash"].passed
     assert verdicts["positions"].passed
+    assert failure not in ("cash", "positions"), {
+        k: v.detail for k, v in verdicts.items() if not v.passed
+    }
 
 
 @pytest.mark.slow

@@ -22,10 +22,10 @@ def test_veto_legend_covers_every_veto_and_reads_params(params):
     from vetoes import VETOES
 
     assert {name for name, _ in legend} == set(VETOES)
-    assert "400%" in dict(legend)["turnover"] and "backstop" in dict(legend)["turnover"]
     assert "1.72" in dict(legend)["risk_calibration"]
     assert "sized for" in dict(legend)["risk_calibration"]
     assert "active_drawdown" not in dict(legend), "decisions/0026"
+    assert "turnover" not in dict(legend), "decisions/0038: disclosed, never vetoed"
 
 
 def test_leaderboard_puts_survivors_first_then_objective():

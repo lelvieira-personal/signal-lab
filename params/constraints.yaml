@@ -1,6 +1,6 @@
 # Portfolio constraints. SUBSTRATE.md section 4.
 # Owner-only. Agents may not edit this file (SUBSTRATE section 2).
-params_version: "0.6.0"
+params_version: "0.7.0"
 
 direction: long_only
 leverage_allowed: false
@@ -14,7 +14,7 @@ positions:
 
 turnover:
   # decisions/0017: turnover is TRADED NOTIONAL, sum |dw| -- buys plus sells.
-  # Both the cost formula and the backstop veto read this same figure.
+  # The cost formula and the disclosure both read this same figure.
   definition: traded_notional
   #
   # decisions/0024: THERE IS NO ANNUAL WALL. The annual figure is priced, never
@@ -24,29 +24,48 @@ turnover:
   # without bound restrains the quiet week and can always be paid by the week
   # carrying real alpha.
   #
-  # `vetoes.turnover.max_annualised` survives only as a far backstop, at a level
-  # this cost curve already makes uneconomic. It is not a budget.
+  # decisions/0038: there is no turnover veto either, and no per-rebalance
+  # cap. Turnover is DISCLOSED on every run and highlighted above 200%
+  # (reporting only, below).
   target_annualised: 1.00     # reported, and the level the curve is sized around
+  # decisions/0038 and its 2026-09-29 addendum (L17): a REPORTING threshold,
+  # never a veto. A cell is highlighted when its annual traded notional or its
+  # rolling one-year p95 exceeds it. The rolling max is reported, not highlighted.
+  highlight_annualised: 2.00
+  highlight_windows: [annual, rolling_1y_p95]
   shadow_start_annualised: 0.75   # the cost begins HERE, below the target
   shadow_reference_annualised: 1.50   # slope anchor: `coefficient` bps at this level
   penalty:
-    # decisions/0018, re-anchored by decisions/0024. A one-sided cost on
-    # TRAILING one-year turnover, so the optimiser can buy lower turnover with a
-    # little expected alpha.
+    # decisions/0018, re-anchored by decisions/0024, priced by decisions/0040.
+    # A one-sided cost on trailing one-year turnover, so the optimiser can buy
+    # lower turnover with a little expected alpha.
     #
     # It shapes the weights. It does NOT enter the reported net IR, which is
     # computed from actual costs only -- otherwise a heavily penalised run looks
     # worse for a reason that is not performance and the leaderboard stops being
     # comparable across runs.
     shape: one_sided_above_start
-    form: linear
-    #   shadow(T) = coefficient * max(0, T - start) / (reference - start)
+    form: created_marginal      # decisions/0040; `linear` (0018/0024) stays in code for old runs
+    #   The marginal rate at trailing annual turnover T is
+    #     shadow(T) = coefficient * max(0, T - start) / (reference - start)
+    #   and each trade is charged the curve at the turnover IT CREATES
+    #   (decisions/0040, "The ruling, made precise"):
+    #   1. W = round(periods_per_year). P is traded notional over the previous
+    #      W-1 rebalances, x this rebalance's, T(x) = (P + x) * ppy / W. The
+    #      shadow for a trade of size x is the integral of the curve along it,
+    #        S(x) = k / (2 (r - s)) * [max(0, T(x) - s)^2 - max(0, T(0) - s)^2] * W / ppy
+    #      with k = coefficient * 1e-4, s = start, r = reference. S'(x) =
+    #      shadow(T(x)): the marginal unit pays the curve at the post-trade
+    #      level. S is convex, so one lump costs more than the same trading
+    #      spread over several weeks.
+    #   2. Before a full window exists, each missing rebalance counts at
+    #      target_annualised / ppy, so the window is always W long.
     units: bps_per_unit_traded
-    coefficient: 10.0         # owner, 2026-09-09; bps at the reference level
-    # Magnitude, for the reader, at start 0.75 / reference 1.50 / coefficient 10:
+    coefficient: 40.0         # owner, 2026-09-29 (decisions/0040, L18); bps at the reference level
+    # Marginal rate, for the reader, at start 0.75 / reference 1.50 / coefficient 40:
     #
     #   trailing annual turnover   0.75   1.00   1.50   2.00   3.00   4.00
-    #   shadow cost (bps)          0.0    3.3    10.0   16.7   30.0   43.3
+    #   marginal shadow (bps)      0.0    13.3   40.0   66.7   120.0  173.3
     #
     # against 15bp of real mid-bucket spread on that same trading. The curve
     # starts below the 100% target on purpose (decisions/0024): a cost that

@@ -4,7 +4,8 @@ One function per veto in SUBSTRATE section 10, as amended by decisions/0026
 budget, which decisions/0025 derives from the drawdown tolerance) and by
 decisions/0030 (tracking_error removed, risk_calibration added: the realised
 tracking error is a disclosed characteristic, and what gates is whether the
-book ran the risk it was sized for). Ten vetoes.
+book ran the risk it was sized for), and by decisions/0038 (turnover
+removed: it is disclosed and highlighted, never vetoed). Nine vetoes.
 
 Signature: veto(ctx: RunContext, params: Params | None) -> Verdict.
 Thresholds are read from params/vetoes.yaml on every call, never cached and
@@ -64,24 +65,7 @@ def _at_most(realised: float, cap: float) -> bool:
     return float(realised) <= float(cap) * (1.0 + _REL_TOL)
 
 
-# --- 1. turnover -------------------------------------------------------------
-
-
-def veto_turnover(ctx: RunContext, params: Params | None = None) -> Verdict:
-    """Annualised traded notional (buys plus sells, decisions/0017) against the backstop."""
-    cap = float(_p(params).require("vetoes.turnover.max_annualised"))
-    try:
-        realised = ctx.annualised_turnover()
-    except MissingInput as exc:
-        return _missing("turnover", exc)
-    return Verdict(
-        passed=_at_most(realised, cap),
-        veto="turnover",
-        detail=f"annualised turnover {realised:.1%} against a {cap:.0%} ceiling",
-    )
-
-
-# --- 2. cash -----------------------------------------------------------------
+# --- 1. cash -----------------------------------------------------------------
 
 
 def veto_cash(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -99,7 +83,7 @@ def veto_cash(ctx: RunContext, params: Params | None = None) -> Verdict:
     )
 
 
-# --- 3. risk_calibration -----------------------------------------------------
+# --- 2. risk_calibration -----------------------------------------------------
 
 
 def veto_risk_calibration(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -177,7 +161,7 @@ def veto_risk_calibration(ctx: RunContext, params: Params | None = None) -> Verd
     )
 
 
-# --- 4. positions ------------------------------------------------------------
+# --- 3. positions ------------------------------------------------------------
 
 
 def veto_positions(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -196,7 +180,7 @@ def veto_positions(ctx: RunContext, params: Params | None = None) -> Verdict:
     )
 
 
-# --- 5. coverage -------------------------------------------------------------
+# --- 4. coverage -------------------------------------------------------------
 
 
 def veto_coverage(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -232,7 +216,7 @@ def veto_coverage(ctx: RunContext, params: Params | None = None) -> Verdict:
     )
 
 
-# --- 6. lookahead ------------------------------------------------------------
+# --- 5. lookahead ------------------------------------------------------------
 
 
 def veto_lookahead(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -276,7 +260,7 @@ def veto_lookahead(ctx: RunContext, params: Params | None = None) -> Verdict:
     )
 
 
-# --- 7. frequency ------------------------------------------------------------
+# --- 6. frequency ------------------------------------------------------------
 
 
 def veto_frequency(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -320,7 +304,7 @@ def veto_frequency(ctx: RunContext, params: Params | None = None) -> Verdict:
     )
 
 
-# --- 8. seed_stability -------------------------------------------------------
+# --- 7. seed_stability -------------------------------------------------------
 
 
 def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -346,7 +330,7 @@ def veto_seed_stability(ctx: RunContext, params: Params | None = None) -> Verdic
     )
 
 
-# --- 9. multiple_testing ------------------------------------------------------
+# --- 8. multiple_testing -----------------------------------------------------
 
 
 def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verdict:
@@ -404,7 +388,7 @@ def veto_multiple_testing(ctx: RunContext, params: Params | None = None) -> Verd
     )
 
 
-# --- 10. direction ------------------------------------------------------------
+# --- 9. direction ------------------------------------------------------------
 
 
 def veto_direction(ctx: RunContext, params: Params | None = None) -> Verdict:

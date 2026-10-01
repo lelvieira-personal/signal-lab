@@ -308,19 +308,16 @@ def null_distribution(d, realised_ir):
 
 def veto_legend(params=None):
     """
-    The veto set as the report shows it: all ten of SUBSTRATE section 10, with
-    their live thresholds read from params rather than retyped into the HTML.
+    The veto set as the report shows it: all nine of SUBSTRATE section 10
+    (decisions/0038 removed `turnover`: disclosed and highlighted, never
+    vetoed — see `turnover_disclosure`), with their live thresholds read from
+    params rather than retyped into the HTML.
     """
     from signal_lab.params import get_params
 
     p = params or get_params()
     pct = lambda x: f"{float(x):.0%}"  # noqa: E731
     return [
-        (
-            "turnover",
-            f"Annualised turnover ≤ {pct(p.require('vetoes.turnover.max_annualised'))} "
-            f"— a backstop, not a budget (decisions/0024); turnover is priced, not capped",
-        ),
         ("cash", f"Max cash weight ≤ {pct(p.require('vetoes.cash.max_weight'))}"),
         (
             "risk_calibration",

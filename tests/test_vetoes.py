@@ -1,5 +1,5 @@
 """
-All ten vetoes of SUBSTRATE section 10.
+All nine vetoes of SUBSTRATE section 10 (decisions/0038 removed `turnover`).
 
 Each gets a passing case, a failing case and a boundary case, because a
 threshold implemented as `<` instead of `<=` is a silent, permanent, invisible
@@ -25,7 +25,6 @@ from vetoes.rules import (
     veto_positions,
     veto_risk_calibration,
     veto_seed_stability,
-    veto_turnover,
 )
 
 DATES = pd.bdate_range("2010-01-04", periods=52)
@@ -38,11 +37,11 @@ def ctx(**kw) -> RunContext:
 # --- the set itself ----------------------------------------------------------
 
 
-def test_exactly_the_ten_vetoes_of_substrate_section_10_as_amended():
-    """SUBSTRATE section 10, less active_drawdown (decisions/0026), with
-    tracking_error swapped for risk_calibration (decisions/0030)."""
+def test_exactly_the_nine_vetoes_of_substrate_section_10_as_amended():
+    """SUBSTRATE section 10, less active_drawdown (decisions/0026) and turnover
+    (decisions/0038), with tracking_error swapped for risk_calibration
+    (decisions/0030)."""
     assert set(VETOES) == {
-        "turnover",
         "cash",
         "risk_calibration",
         "positions",
@@ -53,8 +52,9 @@ def test_exactly_the_ten_vetoes_of_substrate_section_10_as_amended():
         "multiple_testing",
         "direction",
     }
-    assert len(VETOES) == 10
+    assert len(VETOES) == 9
     assert "active_drawdown" not in VETOES, "decisions/0026 removed it"
+    assert "turnover" not in VETOES, "decisions/0038 removed it: disclosed, never vetoed"
 
 
 def test_every_veto_is_ordered(params):
@@ -64,45 +64,11 @@ def test_every_veto_is_ordered(params):
 def test_evaluation_order_follows_the_substrate_table(params):
     """decisions/0005: the section 10 table order is authoritative."""
     order = VETO_ORDER(params)
-    assert order[:5] == ["turnover", "cash", "risk_calibration", "positions", "coverage"]
+    assert order[:4] == ["cash", "risk_calibration", "positions", "coverage"]
     assert order[-1] == "direction"
 
 
-# --- 1. turnover -------------------------------------------------------------
-
-
-def test_turnover_passes_under_the_ceiling(params):
-    c = ctx(turnover=pd.Series(0.02, index=DATES))  # 104% annualised
-    assert veto_turnover(c, params).passed
-
-
-def test_turnover_fails_over_the_ceiling(params):
-    """
-    decisions/0024: the ceiling is a BACKSTOP at 400%, not a budget. 260% a year
-    is expensive -- roughly 25bp of shadow cost -- and entirely permitted.
-    """
-    assert veto_turnover(ctx(turnover=pd.Series(0.05, index=DATES)), params).passed, (
-        "260% a year is priced, not vetoed"
-    )
-    c = ctx(turnover=pd.Series(0.10, index=DATES))  # 520% annualised
-    v = veto_turnover(c, params)
-    assert not v.passed and "520" in v.detail
-
-
-def test_turnover_boundary_is_inclusive(params):
-    cap = params.require("vetoes.turnover.max_annualised")
-    c = ctx(turnover=pd.Series(cap / 52.0, index=DATES))
-    assert veto_turnover(c, params).passed, "the ceiling itself must pass"
-    c_over = ctx(turnover=pd.Series(cap / 52.0 * 1.001, index=DATES))
-    assert not veto_turnover(c_over, params).passed
-
-
-def test_turnover_without_input_fails_closed(params):
-    v = veto_turnover(ctx(), params)
-    assert not v.passed and "cannot evaluate" in v.detail
-
-
-# --- 2. cash -----------------------------------------------------------------
+# --- 1. cash -----------------------------------------------------------------
 
 
 def test_cash_passes_fails_and_boundary(params):
@@ -117,7 +83,7 @@ def test_cash_without_input_fails_closed(params):
     assert not veto_cash(ctx(), params).passed
 
 
-# --- 3. risk_calibration -----------------------------------------------------
+# --- 2. risk_calibration -----------------------------------------------------
 
 CAL_DATES = pd.date_range("2010-01-08", periods=156, freq="W-FRI")
 EX_ANTE = 0.05
@@ -224,7 +190,7 @@ def test_risk_calibration_reports_the_year_and_the_full_sample_beside_it(params)
     assert "2011" in v.detail and "full-sample" in v.detail and "3 years read" in v.detail
 
 
-# --- 4. positions ------------------------------------------------------------
+# --- 3. positions ------------------------------------------------------------
 
 
 def weights_with(n_nonzero: int, n_cols: int = 40) -> pd.DataFrame:
@@ -244,7 +210,7 @@ def test_positions_without_input_fails_closed(params):
     assert not veto_positions(ctx(), params).passed
 
 
-# --- 5. coverage -------------------------------------------------------------
+# --- 4. coverage -------------------------------------------------------------
 
 
 def availability(universe_frac: float, date_frac: float, n_series: int = 50) -> pd.DataFrame:
@@ -293,7 +259,7 @@ def test_coverage_without_input_fails_closed(params):
     assert not veto_coverage(ctx(), params).passed
 
 
-# --- 6. lookahead ------------------------------------------------------------
+# --- 5. lookahead ------------------------------------------------------------
 
 
 def test_lookahead_passes_when_nothing_is_used_early(params):
@@ -362,7 +328,7 @@ def test_lookahead_without_input_fails_closed(params):
     assert not veto_lookahead(ctx(), params).passed
 
 
-# --- 7. frequency ------------------------------------------------------------
+# --- 6. frequency ------------------------------------------------------------
 
 
 def contributions_for(panel, series_ids, offset_days: int) -> pd.DataFrame:
@@ -409,7 +375,7 @@ def test_frequency_without_input_fails_closed(params):
     assert not veto_frequency(ctx(), params).passed
 
 
-# --- 8. seed_stability -------------------------------------------------------
+# --- 7. seed_stability -------------------------------------------------------
 
 
 def test_seed_stability_passes_fails_and_boundary(params):
@@ -424,7 +390,7 @@ def test_seed_stability_needs_at_least_two_seeds(params):
     assert not veto_seed_stability(ctx(seed_irs={1: 0.30}), params).passed
 
 
-# --- 9. multiple_testing -----------------------------------------------------
+# --- 8. multiple_testing -----------------------------------------------------
 
 
 def test_multiple_testing_passes_when_the_stepdown_rejects(params):
@@ -454,7 +420,7 @@ def test_multiple_testing_without_input_fails_closed(params):
     assert not veto_multiple_testing(ctx(), params).passed
 
 
-# --- 10. direction -----------------------------------------------------------
+# --- 9. direction -----------------------------------------------------------
 
 
 def test_direction_passes_on_a_match(params):
@@ -523,19 +489,20 @@ def full_context(panel, **overrides) -> RunContext:
 def test_apply_vetoes_passes_a_clean_run(panel, params):
     verdicts, failure = apply_vetoes(full_context(panel), params)
     assert failure is None, {k: v.detail for k, v in verdicts.items() if not v.passed}
-    assert len(verdicts) == 10
+    assert len(verdicts) == 9
     assert all(v.passed for v in verdicts.values())
 
 
 def test_apply_vetoes_records_every_verdict_not_only_the_failure(panel, params):
+    cap = int(params.require("vetoes.positions.max_nonzero"))
     c = full_context(
-        panel, cash_weights=pd.Series(0.35, index=DATES), turnover=pd.Series(0.10, index=DATES)
-    )  # 520% a year: past the 0024 backstop
+        panel, cash_weights=pd.Series(0.35, index=DATES), weights=weights_with(cap + 1)
+    )
     verdicts, failure = apply_vetoes(c, params)
-    assert len(verdicts) == 10
+    assert len(verdicts) == 9
     failed = {k for k, v in verdicts.items() if not v.passed}
-    assert failed == {"cash", "turnover"}, "both breaches must be visible, not only the first"
-    assert failure == "turnover", "first failure follows the configured order"
+    assert failed == {"cash", "positions"}, "both breaches must be visible, not only the first"
+    assert failure == "cash", "first failure follows the configured order"
 
 
 def test_apply_vetoes_returns_first_failure_in_configured_order(panel, params):
@@ -566,7 +533,7 @@ def test_apply_vetoes_writes_verdicts_to_the_store(panel, params, store):
     apply_vetoes(ctx_full, params, store=store)
     rows = store.list_runs()
     assert rows.loc[0, "passed"]
-    assert len(rows.loc[0, "verdicts"]) == 10
+    assert len(rows.loc[0, "verdicts"]) == 9
 
 
 def test_a_crashing_veto_fails_rather_than_passing(panel, params, monkeypatch):
@@ -575,11 +542,11 @@ def test_a_crashing_veto_fails_rather_than_passing(panel, params, monkeypatch):
     def explode(ctx, params=None):
         raise RuntimeError("boom")
 
-    monkeypatch.setitem(registry.VETOES, "turnover", explode)
+    monkeypatch.setitem(registry.VETOES, "cash", explode)
     verdicts, failure = registry.apply_vetoes(full_context(panel), params)
-    assert not verdicts["turnover"].passed
-    assert "RuntimeError" in verdicts["turnover"].detail
-    assert failure == "turnover"
+    assert not verdicts["cash"].passed
+    assert "RuntimeError" in verdicts["cash"].detail
+    assert failure == "cash"
 
 
 def test_first_failure_is_none_when_all_pass():

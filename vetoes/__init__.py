@@ -2,7 +2,7 @@
 The veto set. SUBSTRATE.md section 10. Owner-only: agents may not edit this
 package, and may not change a threshold to make a run pass (section 2).
 
-Ten boolean functions, each `veto(run_context, params) -> Verdict`. They are
+Nine boolean functions, each `veto(run_context, params) -> Verdict`. They are
 applied to every run and evaluated BEFORE any return statistic is computed or
 displayed, so that a run that should not be looked at is never looked at.
 
@@ -31,7 +31,6 @@ from vetoes.rules import (
     veto_positions,
     veto_risk_calibration,
     veto_seed_stability,
-    veto_turnover,
 )
 
 __all__ = [
@@ -48,5 +47,4 @@ __all__ = [
     "veto_positions",
     "veto_risk_calibration",
     "veto_seed_stability",
-    "veto_turnover",
 ]

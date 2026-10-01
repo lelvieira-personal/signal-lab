@@ -69,7 +69,7 @@ class Params:
 
     def get(self, dotted: str, default: Any = _REQUIRED) -> Any:
         """
-        Fetch by dotted path, e.g. params.get("vetoes.turnover.max_annualised").
+        Fetch by dotted path, e.g. params.get("vetoes.cash.max_weight").
 
         Raises ParamsError on an unknown path unless a default is supplied.
         A null value is returned as None; callers that must have a value use

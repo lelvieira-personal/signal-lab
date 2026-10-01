@@ -281,12 +281,15 @@ class AuditCell:
     # HANDOFF task 32: override `constraints.turnover.penalty.coefficient` for this
     # cell only. `None` (the default) reads params, exactly as every cell before it.
     shadow_coefficient: float | None = None
-    # HANDOFF task 36 / decisions/0040: which shadow-cost form the cell prices
-    # turnover with. `trailing` (the default, and every cell before this task) is
-    # the existing flat per-unit cost on PRE-trade trailing turnover. `created`
+    # HANDOFF task 36 / 39, decisions/0040: which shadow-cost form the cell
+    # prices turnover with. `None` (the default) reads
+    # `constraints.turnover.penalty.form` from params, exactly as
+    # `shadow_coefficient` already does -- see `resolve_shadow_form`. `trailing`
+    # is the pre-0040 flat per-unit cost on PRE-trade trailing turnover, kept in
+    # code as an explicit override so earlier runs stay reproducible. `created`
     # prices the marginal unit at the turnover IT creates (decisions/0040's
     # ruling), as a convex term the solver sees instead of a per-unit cost.
-    shadow_form: str = "trailing"
+    shadow_form: str | None = None
 
     def __post_init__(self) -> None:
         if self.shuffle not in SHUFFLES:
@@ -295,9 +298,9 @@ class AuditCell:
             raise ValueError("a score shuffle is a baseline; set baseline=True")
         if self.shuffle == TRUTH_SHUFFLE and self.perm != 0:
             raise ValueError("perm indexes the score shuffle only")
-        if self.shadow_form not in ("trailing", "created"):
+        if self.shadow_form not in (None, "trailing", "created"):
             raise ValueError(
-                f"shadow_form must be 'trailing' or 'created', got {self.shadow_form!r}"
+                f"shadow_form must be None, 'trailing' or 'created', got {self.shadow_form!r}"
             )
 
     def key(self) -> str:
@@ -319,9 +322,25 @@ class AuditCell:
                 key = f"{key}_{self.shuffle.replace('_', '')}_p{self.perm:02d}"
         if self.shadow_coefficient is not None:
             key = f"{key}_shadow{self.shadow_coefficient:g}"
-        if self.shadow_form != "trailing":
+        if self.shadow_form not in (None, "trailing"):
             key = f"{key}_{self.shadow_form}"
         return f"{key}_frictionless" if self.tag == FRICTIONLESS else key
+
+
+def resolve_shadow_form(cell: AuditCell, params: Params) -> str:
+    """
+    `cell.shadow_form`'s effective value: `"trailing"` or `"created"`,
+    `AuditCell.key()`'s vocabulary. An explicit override on the cell wins;
+    `None` (the default) reads `constraints.turnover.penalty.form` from
+    params, exactly as `shadow_coefficient` already does -- `linear` maps to
+    `trailing`, `created_marginal` to `created` (decisions/0040). HANDOFF
+    task 39: this is what makes `linear` not the one reached by default once
+    params adopts `created_marginal`.
+    """
+    if cell.shadow_form is not None:
+        return cell.shadow_form
+    form = str(params.get("constraints.turnover.penalty.form", "linear") or "linear")
+    return "created" if form == "created_marginal" else "trailing"
 
 
 class _OptimiserRule:
@@ -370,6 +389,7 @@ class _OptimiserRule:
         self.solver = solver
         self.ppy = float(params.get("costs.application.weeks_per_year", 52))
         self.costs = audit_cost_model(universe, params, cell.cost_multiplier)
+        self.shadow_form = resolve_shadow_form(cell, params)
         override = cell.shadow_coefficient
         self.shadow_coeff = (
             float(override)
@@ -536,7 +556,7 @@ class _OptimiserRule:
             cap = None
         else:
             cap = self.session_cap()
-            if self.cell.shadow_form == "created":
+            if self.shadow_form == "created":
                 # HANDOFF task 36: the shadow leaves the linear cost vector entirely
                 # -- only the real half-spread stays in `cost` -- and becomes a
                 # convex term on total traded notional instead (decisions/0040).
@@ -563,7 +583,7 @@ class _OptimiserRule:
 
         if first:
             shadow_bps = shadow_paid_bps = 0.0
-        elif self.cell.shadow_form == "created":
+        elif self.shadow_form == "created":
             # `shadow_quad` was fixed BEFORE this trade (it prices off the
             # trailing history, not this trade itself), so it is reused here
             # rather than recomputed -- recomputing after the append above would
@@ -664,7 +684,7 @@ def run_cell(
         "turnover_cap": cell.turnover_cap,
         "per_rebalance_cap": cell.per_rebalance_cap,
         "shadow_coefficient": cell.shadow_coefficient,
-        "shadow_form": cell.shadow_form,
+        "shadow_form": rule.shadow_form,
         "vol_halflife": cell.vol_halflife,
         "vol_overlay": cell.vol_overlay if cell.vol_halflife is not None else "",
         "turnover_per_rebalance_max": float(path.turnover.max()),
@@ -1091,7 +1111,10 @@ def rolling_annual_turnover_quantile(
 
 def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, Any]:
     """
-    Evaluate the four PORTFOLIO vetoes against a cell, at the real thresholds.
+    Evaluate the three PORTFOLIO vetoes against a cell, at the real thresholds
+    (decisions/0038 removed the fourth, `turnover`: disclosed and highlighted
+    above `constraints.turnover.highlight_annualised`, never vetoed -- see
+    `turnover_highlight` below).
 
     The audit is not a run and never records one, but a cell that clears the net
     IR bar while breaching the tracking-error veto would be killed in phase 3 --
@@ -1124,10 +1147,6 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
             row.get("bias_worst_annual"),
             float(params.require("vetoes.risk_calibration.max_worst_annual_bias")),
         ),
-        "turnover": (
-            row["turnover_annual"],
-            float(params.require("vetoes.turnover.max_annualised")),
-        ),
         "cash": (row["max_cash"], float(params.require("vetoes.cash.max_weight"))),
         "positions": (
             float(row["n_positions_max"]),
@@ -1140,9 +1159,23 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
             failed.append(f"{name}:no-input")
         elif value > cap * (1.0 + 1e-9):
             failed.append(f"{name}:{value:.4g}>{cap:g}")
+    # decisions/0038 (L17 addendum): a REPORTING flag, never a gate. A cell is
+    # highlighted when its annual traded notional or its rolling one-year p95
+    # exceeds the threshold; the rolling max is reported but not highlighted.
+    highlight_cap = float(params.require("constraints.turnover.highlight_annualised"))
+    windows = params.get("constraints.turnover.highlight_windows", ["annual", "rolling_1y_p95"])
+    candidates = {
+        "annual": row.get("turnover_annual"),
+        "rolling_1y_p95": row.get("turnover_p95_rolling_1y"),
+    }
+    turnover_highlight = any(
+        (v := candidates.get(w)) is not None and np.isfinite(v) and v > highlight_cap
+        for w in windows
+    )
     return {
         "passes_portfolio_vetoes": not failed,
-        "veto_detail": "; ".join(failed) if failed else "all four pass",
+        "veto_detail": "; ".join(failed) if failed else "all three pass",
+        "turnover_highlight": turnover_highlight,
     }
 
 
@@ -1353,6 +1386,11 @@ def power_cells(params: Params | None = None) -> list[AuditCell]:
     seed in `POWER_SEEDS`, `POWER_PERMS` permutations each. Constraints and costs
     match the knee grid's cells, so each set of 20 sits beside a live twin in
     `POWER_LIVE_RUN`.
+
+    `shadow_form="trailing"` pinned explicitly (HANDOFF task 39, same reason as
+    `friction_cells`): `POWER_LIVE_RUN` was computed under the pre-0040
+    trailing form, and the implicit default now reads live params'
+    `created_marginal` instead.
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
@@ -1369,6 +1407,7 @@ def power_cells(params: Params | None = None) -> list[AuditCell]:
             baseline=True,
             shuffle=SCORE_SHUFFLE,
             perm=p,
+            shadow_form="trailing",
         )
         for ic in POWER_IC_RUNGS
         for s in POWER_SEEDS
@@ -1382,6 +1421,9 @@ def power10_cells(params: Params | None = None) -> list[AuditCell]:
     `POWER10_IC_RUNGS`, seeds `POWER10_SEEDS`, `POWER10_PERMS` permutations each.
     Constraints and costs match the knee cells', so each set of 20 sits beside a
     live twin and a truth-shuffle twin in `POWER_LIVE_RUN`.
+
+    `shadow_form="trailing"` pinned explicitly (HANDOFF task 39), for the same
+    reason as `power_cells`.
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
@@ -1398,6 +1440,7 @@ def power10_cells(params: Params | None = None) -> list[AuditCell]:
             baseline=True,
             shuffle=SPAN_SHUFFLE,
             perm=p,
+            shadow_form="trailing",
         )
         for ic in POWER10_IC_RUNGS
         for s in POWER10_SEEDS
@@ -1412,6 +1455,13 @@ def friction_cells(params: Params | None = None) -> list[AuditCell]:
     each of `FRICTION_COEFFICIENTS`. The 10 bp arm has the same constraints,
     costs and RNG draw as `POWER_LIVE_RUN`'s base cell at the same (ic, seed), so
     it should reproduce that cell's net IR exactly.
+
+    `shadow_form="trailing"` is pinned explicitly (HANDOFF task 39): `None`
+    (the default) now reads `constraints.turnover.penalty.form` from params,
+    which is `created_marginal` since decisions/0040 -- this grid is
+    specifically the LEGACY trailing-form sweep `friction_created_cells()`
+    pairs against, and `POWER_LIVE_RUN` was computed under `trailing`, so an
+    implicit default would silently break both.
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
@@ -1426,6 +1476,7 @@ def friction_cells(params: Params | None = None) -> list[AuditCell]:
             default_per,
             "base",
             shadow_coefficient=coef,
+            shadow_form="trailing",
         )
         for ic in FRICTION_IC_RUNGS
         for s in FRICTION_SEEDS
@@ -1461,6 +1512,12 @@ def halflife_cells(params: Params | None = None) -> list[AuditCell]:
     A `vol_halflife=None` cell's key is unchanged (the pre-task-35 key), so its
     h13 cells are byte-identical in key to `POWER_LIVE_RUN`'s live cells at the
     same (ic, seed) -- the identity check the receipt reports.
+
+    `shadow_form="trailing"` pinned explicitly (HANDOFF task 39, added after
+    this grid first ran under the pre-task-39 implicit default, which was
+    `trailing` at the time): `POWER_LIVE_RUN` was computed under `trailing`,
+    and an implicit default would silently diverge to `created_marginal` on
+    any future re-run, now that live params carry decisions/0040.
     """
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
@@ -1476,6 +1533,7 @@ def halflife_cells(params: Params | None = None) -> list[AuditCell]:
             "base",
             vol_halflife=hl,
             vol_overlay="scalar" if hl is not None else "per_series",
+            shadow_form="trailing",
         )
         for h in HALFLIFE_HORIZONS
         for ic in HALFLIFE_IC_RUNGS
@@ -1550,9 +1608,9 @@ def required_ic(
     linearly interpolated between grid points. Outside the grid the answer is
     a bound, and the table says which.
 
-    `surviving_only` restricts to cells that would pass the four portfolio
-    vetoes. A cell that clears the bar on net IR but breaches the tracking-error
-    veto would be killed in phase 3, so counting it makes the bar optimistic;
+    `surviving_only` restricts to cells that would pass the three portfolio
+    vetoes. A cell that clears the bar on net IR but breaches one of them
+    would be killed in phase 3, so counting it makes the bar optimistic;
     the report shows both readings side by side.
     """
     base = table[table["tag"] == tag]

@@ -64,18 +64,21 @@ def test_the_per_period_penalty_is_the_annual_one_divided_by_the_year(params):
     )
 
 
-def test_the_penalty_at_the_reference_bites_without_dominating(params):
+def test_the_penalty_at_the_reference_bites_without_dominating(tmp_path, params):
     """
-    An arithmetic guard, not an opinion. The calibration in decisions/0018 is
-    that the shadow cost should be a material fraction of the real spread on the
-    same trading -- enough to trade one thing against another, not enough to
-    dominate. Too small and the term is inert; too large and it stops being a
-    soft constraint. Changing the coefficient fails this and forces a look.
-
-    Read at the 150% reference, which decisions/0024 kept as the anchor after
-    removing the wall that used to sit there.
+    An arithmetic guard, not an opinion, on the LEGACY `linear` curve's
+    original decisions/0018 calibration (10bp at the 150% reference): the
+    shadow cost should be a material fraction of the real spread on the same
+    trading -- enough to trade one thing against another, not enough to
+    dominate. decisions/0040 keeps this coefficient and form in code,
+    unchanged, so a `shadow_form="trailing"` cell reproduces pre-0040 runs
+    exactly -- pinned here via `variant()` rather than read from live params,
+    because live params now carry `created_marginal`'s separately-calibrated
+    40bp (task 36's friction sweep, not this ratio argument), and this guard
+    is specifically about the retired flat-at-post-trade form's own number.
     """
-    penalty_bp = annual_turnover_penalty(1.50, params) * 1e4
+    legacy = variant(tmp_path, params, "coefficient: 40.0", "coefficient: 10.0")
+    penalty_bp = annual_turnover_penalty(1.50, legacy) * 1e4
     mid_spread_bp = 1.50 * float(params.require("costs.buckets.mid.half_spread_bps"))
     ratio = penalty_bp / mid_spread_bp
 
@@ -115,15 +118,27 @@ def test_the_curve_never_becomes_a_wall(params):
 
 
 def test_an_unset_turnover_coefficient_refuses(tmp_path, params):
-    unset = variant(tmp_path, params, "coefficient: 10.0", "coefficient: null")
+    unset = variant(tmp_path, params, "coefficient: 40.0", "coefficient: null")
     with pytest.raises(ObjectiveNotConfigured, match="turnover.penalty.coefficient"):
         annual_turnover_penalty(1.50, unset)
 
 
 def test_an_unsupported_penalty_form_refuses(tmp_path, params):
-    odd = variant(tmp_path, params, "form: linear", "form: cubic")
+    odd = variant(tmp_path, params, "form: created_marginal", "form: cubic")
     with pytest.raises(ObjectiveNotConfigured, match="cubic"):
         annual_turnover_penalty(1.50, odd)
+
+
+def test_created_marginal_reads_the_same_marginal_rate_as_linear(tmp_path, params):
+    """
+    decisions/0040: the two forms share the marginal-rate curve exactly: what
+    differs is how a whole trade is charged (the convex integral in
+    `audit.ladder._OptimiserRule`), not this function's output.
+    """
+    as_linear = variant(tmp_path, params, "form: created_marginal", "form: linear")
+    assert annual_turnover_penalty(1.50, params) == pytest.approx(
+        annual_turnover_penalty(1.50, as_linear)
+    )
 
 
 def test_the_tracking_error_penalty_still_refuses(params):

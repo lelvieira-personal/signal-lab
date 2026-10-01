@@ -115,27 +115,6 @@ def test_turnover_is_traded_notional_and_section_8_is_then_literal():
     assert b.spread_cost == pytest.approx(b.traded_notional * 5e-4), "section 8, literally"
 
 
-def test_the_veto_reads_traded_notional_not_the_one_way_figure(params):
-    """
-    Reading one-way here would let a strategy trade twice what the ceiling
-    permits. Built to sit just inside and just outside, at whatever the ceiling
-    currently is -- decisions/0024 moved it to a 400% backstop.
-    """
-    from signal_lab.harness.run_context import RunContext
-    from vetoes.rules import veto_turnover
-
-    cap = float(params.require("vetoes.turnover.max_annualised"))
-    inside = RunContext(run_id="t", turnover=pd.Series([cap / 52] * 52))
-    assert veto_turnover(inside, params).passed
-
-    outside = RunContext(run_id="t", turnover=pd.Series([cap / 52 * 1.01] * 52))
-    assert not veto_turnover(outside, params).passed
-
-    # The one-way figure for the failing book is 0.75x the ceiling. A veto that
-    # read it would wave this through.
-    assert (outside.turnover.mean() / 2) * 52 < cap
-
-
 def test_drag_is_one_week_of_the_annual_fee_on_what_is_held():
     cm = CostModel(buckets={"A": "low"})
     b = cm.rebalance_cost(pd.Series({"A": 1.0}), pd.Series({"A": 1.0}))
@@ -347,13 +326,14 @@ def test_the_recovery_test_would_fail_if_costs_were_dropped(panel, planted):
 
 @pytest.mark.slow
 def test_a_completed_path_populates_the_veto_inputs(panel, params, planted_path):
-    from vetoes.rules import veto_positions, veto_turnover
+    from vetoes.rules import veto_positions
 
     ctx = to_run_context(planted_path, "R-engine", panel)
 
     assert veto_positions(ctx, params).passed, "20 instruments is inside the 30 ceiling"
-    verdict = veto_turnover(ctx, params)
-    assert "cannot evaluate" not in verdict.detail, verdict.detail
+    # decisions/0038 removed the turnover veto, but turnover is still disclosed
+    # on every run, so the completed path must still populate the input for it.
+    assert ctx.annualised_turnover() > 0, "turnover is disclosed, not vetoed, but still measured"
     assert ctx.active_returns is not None and not ctx.active_returns.empty, (
         "the active stream still reaches the context: decisions/0026 stopped gating on its "
         "drawdown, it did not stop measuring it"

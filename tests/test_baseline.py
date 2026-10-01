@@ -231,11 +231,23 @@ def test_the_knee_grid_pairs_a_live_cell_with_its_baseline_at_rungs_outside_para
 def test_the_shuffle_switched_off_reproduces_todays_score_and_net_ir_bit_for_bit(
     weekly, benchmark, small_universe
 ):
+    """
+    GOLDEN_NET_IR was recorded under the pre-task-39 default (`trailing` at
+    10bp); pinned explicitly here so this test stays about the SCORE
+    construction, not about which shadow-cost form `params/` currently picks
+    (decisions/0038, 0040 changed that default; see
+    test_the_default_now_reads_created_marginal_from_params).
+    """
     sig = plant_signal(weekly, benchmark, ic=0.10, horizon=13, seed=1, vol_window=52)
     digest = hashlib.sha256(np.ascontiguousarray(sig.score.to_numpy()).tobytes()).hexdigest()
     assert digest[:16] == GOLDEN_SCORE_HASH
     universe, params = small_universe
-    row, _ = run_cell(universe, AuditCell(0.10, 13, 0), params, solver="scipy")
+    row, _ = run_cell(
+        universe,
+        AuditCell(0.10, 13, 0, shadow_form="trailing", shadow_coefficient=10.0),
+        params,
+        solver="scipy",
+    )
     assert row["net_ir"] == GOLDEN_NET_IR
 
 
@@ -490,10 +502,15 @@ def test_the_power10_preflight_reads_a_cells_csv_from_before_the_shuffle_column(
 
 @pytest.mark.slow
 def test_shadow_coefficient_none_matches_params_exactly(small_universe):
+    """An explicit override at the SAME value params already supplies must
+    reproduce the default cell exactly -- read live rather than hardcoded, since
+    `constraints.turnover.penalty.coefficient` is 40.0 as of decisions/0040,
+    not task 32's original 10.0."""
     universe, params = small_universe
+    coefficient = float(params.require("constraints.turnover.penalty.coefficient"))
     default_row, _ = run_cell(universe, AuditCell(0.20, 13, 0), params, solver="scipy")
     same, _ = run_cell(
-        universe, AuditCell(0.20, 13, 0, shadow_coefficient=10.0), params, solver="scipy"
+        universe, AuditCell(0.20, 13, 0, shadow_coefficient=coefficient), params, solver="scipy"
     )
     assert same["net_ir"] == default_row["net_ir"]
     assert same["shadow_bps_mean"] == pytest.approx(default_row["shadow_bps_mean"])
@@ -542,16 +559,44 @@ def test_the_friction_grid_is_60_live_cells_outside_params(params):
 
 
 @pytest.mark.slow
-def test_the_trailing_default_is_unchanged_bit_for_bit(small_universe):
-    """`AuditCell.shadow_form`'s default must leave every cell before this task alone."""
+def test_an_explicit_trailing_override_reproduces_the_legacy_golden_bit_for_bit(small_universe):
+    """
+    `shadow_form="trailing"` is kept in code so a pre-0040 run reproduces
+    exactly -- but the COEFFICIENT must also be pinned to 10.0, since
+    `constraints.turnover.penalty.coefficient` in live params now carries
+    0040's 40bp (there is no longer a separate "old" coefficient in params/).
+    """
     universe, params = small_universe
-    row, _ = run_cell(universe, AuditCell(0.10, 13, 0), params, solver="scipy")
-    assert row["net_ir"] == GOLDEN_NET_IR
-    assert row["shadow_form"] == "trailing"
     explicit, _ = run_cell(
-        universe, AuditCell(0.10, 13, 0, shadow_form="trailing"), params, solver="scipy"
+        universe,
+        AuditCell(0.10, 13, 0, shadow_form="trailing", shadow_coefficient=10.0),
+        params,
+        solver="scipy",
     )
     assert explicit["net_ir"] == GOLDEN_NET_IR
+    assert explicit["shadow_form"] == "trailing"
+
+
+# GOLDEN_NET_IR_CREATED_MARGINAL: recorded 2026-09-30 (HANDOFF task 39), the
+# first default-cell run after decisions/0038 and 0040 (created_marginal at
+# 40bp). If this moves, something about the live default's pricing changed.
+GOLDEN_NET_IR_CREATED_MARGINAL = -0.3916592047250338
+
+
+@pytest.mark.slow
+def test_the_default_now_reads_created_marginal_from_params(small_universe):
+    """
+    HANDOFF task 39: `AuditCell.shadow_form=None` (the default, unset by any
+    cell builder before this task) reads `constraints.turnover.penalty.form`
+    from params rather than hard-coding `trailing` -- so `linear`
+    (decisions/0018/0024's retired form) is not what a default cell reaches
+    once `params/` adopts `created_marginal` (decisions/0040).
+    """
+    universe, params = small_universe
+    row, _ = run_cell(universe, AuditCell(0.10, 13, 0), params, solver="scipy")
+    assert row["shadow_form"] == "created"
+    assert row["net_ir"] == GOLDEN_NET_IR_CREATED_MARGINAL
+    assert row["net_ir"] != GOLDEN_NET_IR, "the default's pricing changed, so its net IR must too"
 
 
 def test_a_shadow_form_cell_says_what_it_is_and_existing_keys_are_unchanged():

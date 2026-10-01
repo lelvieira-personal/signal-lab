@@ -72,9 +72,22 @@ def turnover_penalty(
     so the cost is already biting as turnover approaches it and there is no kink
     at the target for the optimiser to sit in.
 
-    There is no annual wall (decisions/0024). `vetoes.turnover.max_annualised`
-    is a far backstop for a malfunctioning book, not a budget, and this function
-    never consults it.
+    Accepts `constraints.turnover.penalty.form` of `linear` (decisions/0018,
+    0024's original flat-at-post-trade charge, kept in code so pre-0040 runs
+    reproduce exactly -- `AuditCell.shadow_form="trailing"`) or
+    `created_marginal` (decisions/0040): both read the SAME marginal-rate curve
+    above. What differs between the two is how a whole TRADE is charged, not
+    the rate at a given trailing level -- `created_marginal` integrates this
+    rate across the trade's own size instead of charging it once at the
+    post-trade level, so one lump costs more than the same trading spread out.
+    That integral (`AuditCell.shadow_form="created"`) is implemented in
+    `audit.ladder._OptimiserRule`, not here; this function only ever returns
+    the marginal rate, which decisions/0040 keeps unchanged from the retired
+    `linear` form's calibration.
+
+    There is no annual wall and no turnover veto either (decisions/0024,
+    0038): turnover is disclosed on every run and highlighted above
+    `constraints.turnover.highlight_annualised`, never gated.
 
     `annualised_turnover` is traded notional (decisions/0017).
     """
@@ -86,8 +99,9 @@ def turnover_penalty(
             "constraints.turnover.penalty.coefficient is null in params/. The lab "
             "does not invent thresholds; set it and record the decision."
         )
-    if str(cfg.get("form", "linear")) != "linear":
-        raise ObjectiveNotConfigured(f"unsupported penalty form {cfg.get('form')!r}")
+    form = str(cfg.get("form", "linear"))
+    if form not in ("linear", "created_marginal"):
+        raise ObjectiveNotConfigured(f"unsupported penalty form {form!r}")
 
     start = float(params.require("constraints.turnover.shadow_start_annualised"))
     reference = float(params.require("constraints.turnover.shadow_reference_annualised"))

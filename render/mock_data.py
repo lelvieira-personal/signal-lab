@@ -50,10 +50,10 @@ AGGREGATIONS = [
     "rank-IC weighted",
 ]
 
-# All ten of SUBSTRATE section 10. The labels are only for the mock; the live
+# All nine of SUBSTRATE section 10 (decisions/0038 removed `turnover`: disclosed
+# and highlighted, never vetoed). The labels are only for the mock; the live
 # report reads them from params via views.veto_legend().
 VETOES = [
-    ("turnover", "Annualised turnover \u2264 400% \u2014 a backstop, not a budget"),
     ("cash", "Max cash weight \u2264 20%"),
     ("risk_calibration", "Worst annual bias statistic \u2264 1.72"),
     ("positions", "Non-zero holdings \u2264 30"),
@@ -110,7 +110,6 @@ def build_runs():
             "lookahead": bool(lookahead_ok),
             "frequency": bool(rng.random() > 0.04),
             "coverage": coverage >= 0.80,
-            "turnover": turnover <= 150,
             "cash": max_cash <= 20,
             "risk_calibration": worst_annual_bias <= 1.72,
             "positions": n_positions <= 30,

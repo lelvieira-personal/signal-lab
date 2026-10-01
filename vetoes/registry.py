@@ -3,7 +3,7 @@ apply_vetoes: run the whole set, record every verdict, return the first failure.
 
 Ordering comes from params/vetoes.yaml. Data-integrity vetoes run first, because
 a lookahead or frequency breach makes every downstream number meaningless and
-should be the reason logged, rather than a turnover breach that happens to sit
+should be the reason logged, rather than a constraint breach that happens to sit
 earlier in a table.
 """
 
@@ -17,7 +17,6 @@ from signal_lab.results.store import ResultsStore, Verdict
 from vetoes import rules
 
 VETOES: dict[str, Callable[..., Verdict]] = {
-    "turnover": rules.veto_turnover,
     "cash": rules.veto_cash,
     "risk_calibration": rules.veto_risk_calibration,
     "positions": rules.veto_positions,
@@ -30,12 +29,12 @@ VETOES: dict[str, Callable[..., Verdict]] = {
 }
 
 # SUBSTRATE section 10 as amended by decisions/0003 (eleven), decisions/0026
-# (ten) and decisions/0030 (tracking_error out, risk_calibration in; still ten).
+# (ten), decisions/0030 (tracking_error out, risk_calibration in; still ten)
+# and decisions/0038 (turnover out; nine).
 # Asserted rather than assumed, so that a row added to the constitution and not
 # to this package is a loud failure rather than a silent gap.
 SUBSTRATE_VETOES = frozenset(
     {
-        "turnover",
         "cash",
         "risk_calibration",
         "positions",
@@ -48,7 +47,7 @@ SUBSTRATE_VETOES = frozenset(
     }
 )
 assert set(VETOES) == SUBSTRATE_VETOES, (
-    "veto set does not match SUBSTRATE section 10 + decisions/0026 + decisions/0030"
+    "veto set does not match SUBSTRATE section 10 + decisions/0026 + decisions/0030 + decisions/0038"
 )
 
 
