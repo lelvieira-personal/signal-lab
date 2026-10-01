@@ -56,7 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-01: queued, task 42 only.** It applies `decisions/0042` (the overlay is policy) and `0043` (the gate is generalized FWER), surfaces the turnover highlight, and gives 0040's shadow cost a single implementation. Cowork has already applied every owner-only edit to the working tree; read the task's preamble.
+**As of 2026-10-01 (evening): queued, task 43 only.** Task 42 is done, and Cowork verified it (Project doc `claude/task-42-review-2026-10-01.md`). Task 43 applies `decisions/0044` and `0045`, SUBSTRATE v0.8 and the review's fixes. Cowork has already applied every owner-only edit to the working tree; read the task's preamble. **Nothing after 43 is queued: phase 2 waits on an owner decision about SUBSTRATE §5.6** (see "Not queued yet").
+
+*(Earlier note:)* **As of 2026-10-01: queued, task 42 only.** It applies `decisions/0042` (the overlay is policy) and `0043` (the gate is generalized FWER), surfaces the turnover highlight, and gives 0040's shadow cost a single implementation. Cowork has already applied every owner-only edit to the working tree; read the task's preamble.
 
 *(Earlier note:)* **As of 2026-09-30 (evening): tasks 35, 39, 40 and 41 are all done. The queue above (12-39) is now fully worked.** Receipts for 35/39/40/41 are in `## Done`; `OWNER-QUEUE.md` B1 and L16 carry their interpretation. Nothing new is queued here as of this stamp -- check `OWNER-QUEUE.md` and the Cowork project docs for what comes next.
 
@@ -1724,6 +1726,162 @@ the receipt.
 
 ---
 
+### 43. Apply `decisions/0044` and `0045`, SUBSTRATE v0.8; the task 42 review's fixes (F2-F4, F6-F8); `decisions/0039` items 2 and 3
+
+Added 2026-10-01 by Cowork. **Owner ruling 2026-10-01: "I accept your recs."**
+That covers OWNER-QUEUE L19 (`decisions/0044`), L20 (`decisions/0045`), L4 with
+0039 §3 (SUBSTRATE v0.8), and the fixes in the Cowork doc
+`claude/task-42-review-2026-10-01.md` (mirror:
+`Claude outputs/project-mirror/task-42-review-2026-10-01.md`). Read that doc's
+§3 before you start; the finding numbers below are its numbers. **No audit
+runs, no vendor calls.** Budget 2-3 h, daytime, no deadline.
+
+**Owner-only edits are already in the working tree, applied by Cowork at the
+owner's instruction.** Don't re-edit them, and don't route around the deny
+rule. Verify them with `git diff --ignore-cr-at-eol`:
+- **`SUBSTRATE.md` v0.8:**
+  - the status line and a v0.8 paragraph;
+  - §3 gets the "The lab screens; it does not confirm" paragraph after bar 2,
+    and its closing sentence now ends "…is not a candidate";
+  - §4's Tracking-error row says the 6% is the sizing target σ (0044);
+  - §9's multiple-testing bullet and §10's `multiple_testing` row carry the
+    small-search rule (0045).
+- **`params/`:** `params_version` `0.8.0` → `0.9.0` in all seven files.
+  - `vetoes.yaml` `multiple_testing` gains `small_search_below: 8` and
+    `small_search_g: 1`.
+  - `constraints.yaml`: the `tracking_error` comment is rewritten (0044), and
+    the S(x) comment no longer claims convexity makes a lump dearer (0040
+    addendum).
+- **`vetoes/rules.py` `veto_multiple_testing`:**
+  - When `small_search_below` is set, the verdict must carry `n_tests`; if
+    `n_tests` < 8, the required g is `small_search_g` (1).
+  - The verdict must carry `standardise`, matching params.
+  - A missing `n_tests` or `standardise` fails as a missing input.
+- **`decisions/`:** new `0044` and `0045`; addenda to `0039`, `0040`, `0042`
+  and `0043`; and `0100`'s v0.8 rows. `OWNER-QUEUE.md` marks L4, L19 and L20
+  RULED, and `HANDOFF.md` carries this task and the corrected overlay standing
+  refusal. `OWNER-QUEUE.md` B5 was also rewritten and moved to Live (owner,
+  2026-10-01); it needs nothing from this task.
+
+**If any step needs a further change to an owner-only file, stop and write
+the exact change in the receipt.** Cowork applies it.
+
+**0. Commit first, alone:** `HANDOFF.md` and `OWNER-QUEUE.md`, as
+`queue: task 43; L4, L19 and L20 ruled (owner 2026-10-01)`.
+**Then, alone:** `SUBSTRATE.md` and exactly these in `decisions/`: `0039`, `0040`,
+`0042`, `0043`, `0044` (new), `0045` (new) and `0100`. `0023`-`0030` show as
+modified only through CRLF noise, so leave them out. Commit as `substrate: v0.8 -- the lab screens, the TE budget is a sizing target, small
+searches are gated at FWER (decisions/0039, decisions/0044, decisions/0045)`.
+Spell out each `decisions/NNNN` in full, as the commit hook reads them.
+
+**1. The gate follows 0045** (`stats.multiple_testing.gate`).
+- m = `t.shape[0]`. If m < `small_search_below`, run
+  `romano_wolf_gfwer(..., g=small_search_g)`; otherwise use `g`. The
+  `procedure` reported stays `romano_wolf_gfwer`.
+- Also add `standardise` (bool) to the returned dict, and carry it through
+  `verdict_for`.
+- **Tests:**
+  - m = 1 reports g = 1, and m = 8 reports g = 2.
+  - **Under a complete null at m = 1, k = 100, the gate's rejection rate over
+    2,000 seeded draws is within [0.03, 0.07].** This pins F1: before this
+    task it was 1.00.
+  - The veto passes a gate verdict at m = 1 and g = 1, and fails one at m = 1
+    and g = 2.
+  - The veto fails a verdict with no `n_tests`, a verdict with no
+    `standardise`, and a verdict with `standardise=False`.
+- **Existing gate tests use m = 6** (`_draws` in
+  `tests/test_policy_defaults.py`), which now runs at g = 1. Where a test
+  asserts g = 2 behaviour, move it to m = 12; don't change what it asserts.
+- **Until this step is done, the suite is red by design:** Cowork's
+  `vetoes/rules.py` edit already requires `n_tests` and `standardise`.
+- **Update the existing veto tests' verdict dicts** (`GFWER` and friends in
+  `tests/test_vetoes.py`) to carry `n_tests` and `standardise: True`. List each
+  one in the receipt. Don't weaken any assertion to make one pass.
+
+**2. F2: `params_hash` must not depend on line endings.**
+- Add a `.gitattributes` line `params/*.yaml text eol=crlf`. The working tree
+  is already CRLF, so every recorded hash stays valid.
+- Add a test asserting that every `params/*.yaml` is CRLF on disk, with a
+  message saying why (the hash is over raw bytes; see the 0042/0043 addenda).
+- **Don't** normalise inside `hash_params_dir`: that would change every
+  recorded hash.
+- In the receipt, give `git check-attr eol params/audit.yaml` and confirm that
+  the v0.9.0 hash is the one Cowork computed from the working tree:
+  `b3d41267a752b9d76e2ddf17264cccb5b5b9ea6f0f45edc8bf1517524674376a` (CRLF). If
+  it differs, stop and report both.
+
+**3. F3: a cell's key says how it priced turnover.** In `AuditCell.key()`,
+append `_created` when the **resolved** shadow form is `created`
+(`resolve_shadow_form(self, params)`), not only when it is explicit.
+- Explicit-`created` cells (`friction_created_cells`) keep their keys exactly.
+- Trailing cells keep theirs.
+- Default cells gain `_created`. No audit run since `3d437d0` holds default
+  cells (the newest is `A-20260930-033812`, a pinned-trailing grid), so no
+  recorded key changes. **Check this yourself and stop if it's false.**
+- **Test:** a default cell's key and the halflife grid's h26 arm's key differ.
+  Update `GOLDEN_NET_IR_V080`'s `endswith` assertion.
+
+**4. F4: keys are computed with the run's params.**
+- `run_cell` and `run_frictionless` call `cell.key(params)`, and so does every
+  other `key()` call that has a params in scope (`scripts/run_audit.py`,
+  `scripts/ic_probe.py`; grep for the rest).
+- **Test:** `run_frictionless` (it's cheap) with a params variant that has no
+  `vol_overlay` block records a key without `_vhl`.
+
+**5. Small fixes.**
+- **F6:** the leaderboard's turnover flag reads annual turnover only. Say so
+  wherever it is shown (`render/views.turnover_disclosure`'s text and the
+  streamlit column header): "highlighted on annual turnover; the audit report
+  also flags rolling-1y p95". Don't add a new stored column.
+- **F8:** `created_marginal_quadratic` raises `ObjectiveNotConfigured` when
+  `constraints.turnover.penalty.coefficient` is null and no override is given,
+  as `turnover_penalty` does. Add a test.
+- **0040 wording:** `test_a_lump_costs_more_than_the_same_trading_split_over_two_weeks`
+  stays. Add a sibling test showing that with a window that drops nothing
+  (`prev=[0.0]*60`, below the start), lump and split cost the same. Its
+  docstring cites the 0040 addendum. Update `created_marginal_shadow`'s
+  docstring and any comment in `src/` that says convexity makes a lump dearer.
+
+**6. `decisions/0039` items 2 and 3, reporting only.**
+- Wherever a report, the leaderboard or the digest labels a run that passed
+  both bars, the label is **"candidate"**. A run that fails bar 2 (the
+  `multiple_testing` veto) is **"not detected"**. "Confirmed", "proven" and
+  "rejected" (for a hypothesis) never appear. Grep `src/`, `render/` and
+  `scripts/` and list every string changed.
+  - The veto's own detail text ("did not reject the null") is statistical
+    language about the null, so leave it.
+- The hypothesis lifecycle: when a hypothesis moves to `hypotheses/done/`
+  after a bar-2 failure, it carries `verdict: not_detected` and a
+  `power_at_nearest_ic` field. A pass carries `verdict: candidate`. If no code
+  path moves files to `done/` yet, add the vocabulary where the schema lives
+  (`harness/hypotheses.py`), with a test. Say in the receipt which it was.
+  **Don't invent the power figure.** Leave the field `null` with a comment
+  pointing to the power tables until phase 3 computes it.
+
+**7. Check, then commit.**
+- Run `scripts/unattended.sh check-full --digest`, through the script. **Run
+  it after every edit, so the log's `head=` and the tree it tested are what you
+  commit.** If you must commit first, say so in the receipt.
+- Commit `params/`, `vetoes/`, `src/`, `render/`, `scripts/`, `tests/` and
+  `.gitattributes` together, citing `decisions/0044`, `decisions/0045` and
+  `decisions/0040` in full.
+- Record the old and new `params_hash` (CRLF form; old is
+  `9a3b002e95b8fa596b3273de7bb4cf259e075c836128853b3698a82ca4a1e5a8`) as a dated
+  line in the Consequences of 0044 and 0045, as their own small commit.
+
+**Receipt:**
+- rc, commits, the check-full log directory, and the old and new
+  `params_hash`.
+- Every test changed or added, and why.
+- The strings changed for 0039.
+- The F3 check of audit runs since `3d437d0`.
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop. OWNER-QUEUE L4, L19 and L20 move to `## Closed` in the same commit
+as the receipt.
+
+---
+
 ### 41. Fix `romano_wolf`'s standardising: pool the observed value with the null draws (task 40 follow-up, `decisions/0041`)
 
 Added 2026-09-29 (late evening) by Cowork. **Owner ruling 2026-09-29: fix it,
@@ -1959,6 +2117,8 @@ task 36 and lands with task 33.
 
 **The validator (0034).** Not decided by the owner. Do not build it.
 
+**SUBSTRATE §5.6 and §16 still close the search (Cowork, 2026-10-01 evening).** Until JPMaQS lands, "no signal search runs", and price-only families such as trend (0009) "are not tested in isolation first". So the phase-2 solver can be built and validated on planted signals, but no registered hypothesis runs on real data before phase 3. The owner is being asked whether the next build step is the JPMaQS loader or the solver.
+
 **The phase-2 solver (added 2026-10-01, task 42).** `harness/experiment.py` has no
 solver yet: `build_weight_rule` raises. When it is written it must, and each point
 comes with a test pinning it:
@@ -1980,9 +2140,11 @@ run would have said.
 
 ### Standing refusals
 
-- **Turning the volatility overlay on.** It is opt-in code with no parameter
-  reading it, tested at one horizon, two IC rungs and one halflife. Switching
-  it on is an owner decision that does not exist yet.
+- **Changing the volatility overlay.** It is policy since `decisions/0042`
+  (owner, 2026-10-01): scalar, 26-week halflife, read from
+  `audit.covariance.vol_overlay` (task 42). Changing its form or halflife, or
+  turning it off for a default cell, is an owner decision. *(Cowork,
+  2026-10-01: this replaces the pre-0042 refusal to turn it on.)*
 - **`decisions/0029` §2 only.** §1, §3, §4 and §5 were decided 2026-09-19 and
   are in task 9. **§2 -- conditioning the frictionless covariance -- stays
   deferred**; do not add a ridge or eigenvalue floor on your own initiative.
