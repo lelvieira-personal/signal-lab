@@ -105,35 +105,27 @@ chosen". The JPMaQS loader alone does not open phase 3. `H-2026-0010` also
 names the risk decomposition as its own safeguard, so 0010 is testable while
 its safeguard is not.
 
-**Settled, 2026-10-01 — the fidelity metric (owner accepted Cowork's
-suggestion).** Fidelity is the **out-of-sample fit of next-period returns on
-factor returns, using loadings estimated only on data up to the earlier
-date**: for instrument i, the loading β_i,t estimated at t predicts r_i,t+1
-from the factor returns f_t+1, and candidates are scored on that prediction
-error, walk-forward. It is not a comparison against a "realised beta", because
-that is itself a noisy estimate and would reward whichever estimator shares
-its noise. *Not yet in a `decisions/` record. It goes into one with the three
-points below. Still to be written down there: the loss (for example,
-out-of-sample R² or squared error), the horizon, and how instruments and dates
-are pooled.*
+**Decided 2026-10-01: `decisions/0046`, approved by the owner ("046 is
+approved").** The owner said "let's test these factor estimates
+methodologies", with joint partial betas and factors covering "equity beta,
+credit spreads, yields, currency effect, inflation, commodities". The record
+fixes:
+- **six factors:** equity, real yield, inflation (breakeven), credit (IG OAS),
+  dollar and commodities, all from series already in the snapshot, and not
+  orthogonalised;
+- **the score:** a Huber loss on one-week-ahead prediction errors against a
+  rolling-OLS incumbent, gated at g = 1 on a block-bootstrap null, with a
+  pass-or-fail uncertainty check and reported regime slices;
+- **four candidates,** drafted in `hypotheses/proposed/`: Huber regression,
+  Theil-Goldberger shrinkage to a peer prior, HMM regime-conditional loadings,
+  and a Kalman filter. Michaud resampling is left out.
 
-**Still open, for the owner:**
-- **The incumbent.** 0016 has each candidate claim better fidelity "than the
-  incumbent's", and no incumbent is defined. Cowork's guess is a plain rolling
-  OLS on the covariance window (156 weeks). It is a guess, not a
-  recommendation with evidence behind it.
-- **The factor returns.** What each instrument is regressed on, per exposure
-  axis (duration, credit, region, sector, style, real/nominal, cash;
-  SUBSTRATE §6). Measured cells (a bond index's duration, a region label) need
-  no estimator.
-- **Which candidates are registered, and by whom.** Named in 0016, none
-  registered: shrinkage toward a prior (Bayesian or Theil-Goldberger), Michaud
-  resampling applied to loadings, robust regression, and regime-conditional
-  loadings via HMM. With four candidates the gate runs at g = 1
-  (`decisions/0045`).
+HANDOFF task 45 runs the test and is released.
 
-**Retired by:** a `decisions/` record covering the metric and the three open
-points, then the measurement hypotheses' own results.
+**Still the owner's, after the run:** which estimator, if any, enters the
+exposure matrix. Task 45 recommends nothing.
+
+**Retired by:** task 45's report, then that decision.
 
 ---
 

@@ -56,7 +56,11 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-01 (evening): queued, task 43 only.** Task 42 is done, and Cowork verified it (Project doc `claude/task-42-review-2026-10-01.md`). Task 43 applies `decisions/0044` and `0045`, SUBSTRATE v0.8 and the review's fixes. Cowork has already applied every owner-only edit to the working tree; read the task's preamble. **Nothing after 43 is queued: phase 2 waits on an owner decision about SUBSTRATE §5.6** (see "Not queued yet").
+**As of 2026-10-01 (22:25 ET): queued, 44 then 45. TASK 45 IS RELEASED: the owner reviewed and approved `decisions/0046` on 2026-10-01 ("046 is approved").** Task 45 tests four factor-loading estimators against rolling OLS (OWNER-QUEUE B5). Run 44's part A first, then 45 while the owner's JPMaQS pull is pending; 45 doesn't depend on the pull.
+
+*(Earlier note:)* **As of 2026-10-01 (night): queued, task 44 only.** Task 43 is done, and Cowork verified it (`state-of-play.md`). Task 44 is the JPMaQS loader. It has an owner step in the middle: the vendor pull, which the owner runs. It needs no owner-only edit. The search stays closed after it: opening it needs the owner, and also the exposure matrix (OWNER-QUEUE B5) and `signals/`.
+
+*(Earlier note:)* **As of 2026-10-01 (evening): queued, task 43 only.** Task 42 is done, and Cowork verified it (Project doc `claude/task-42-review-2026-10-01.md`). Task 43 applies `decisions/0044` and `0045`, SUBSTRATE v0.8 and the review's fixes. Cowork has already applied every owner-only edit to the working tree; read the task's preamble. **Nothing after 43 is queued: phase 2 waits on an owner decision about SUBSTRATE §5.6** (see "Not queued yet").
 
 *(Earlier note:)* **As of 2026-10-01: queued, task 42 only.** It applies `decisions/0042` (the overlay is policy) and `0043` (the gate is generalized FWER), surfaces the turnover highlight, and gives 0040's shadow cost a single implementation. Cowork has already applied every owner-only edit to the working tree; read the task's preamble.
 
@@ -1882,6 +1886,312 @@ as the receipt.
 
 ---
 
+### 44. The JPMaQS loader: `load_macro`, the pull, a macro snapshot and a coverage report
+
+Added 2026-10-01 by Cowork. **Owner, 2026-10-01:** the JPMaQS loader is the
+next build step, and SUBSTRATE §5.6 is not amended. This is the phase-3 loader
+of §16. **It has an owner step in the middle** (the vendor pull), as tasks 23
+and 31 did. Budget: part A 2-3 h; part B 30 min after the pull. No audit runs.
+
+**What exists already** (don't rebuild it): `loaders/jpmaqs.py` has
+`split_ticker(s)`, `cross_product_size`, `credentials()`, `proxies()` and
+`required_metrics()`; `loaders/env.py` refuses malformed secrets;
+`VintagePanel` (`loaders/base.py`) carries the bitemporal convention of
+`decisions/0014`; `data/jpmaqs/request.txt` lists the 26 tickers, all resolved
+(task 31). `load_macro` raises, and `filter_panel` is named in two docstrings
+but doesn't exist.
+
+**Hard rules for this task, on top of `CLAUDE.md`'s:**
+- **Never source, read or export `.env`.** The owner runs the vendor command.
+- **No value from the vendor is printed, logged or written outside
+  `data/raw/` and `data/snapshots/`.** Scripts report shapes, counts and date
+  ranges only.
+- **Nothing on or after 2020-01-01 is requested, stored or loaded.**
+- **Don't touch `params/`.** `data.jpmaqs.status` stays `credentials_supplied`
+  and `search_is_open()` stays false. Opening the search is an owner decision
+  that comes later.
+- **Tests use synthetic frames shaped like the vendor's**, built in the test
+  file. No test reads `data/raw/`.
+
+**0. Commit first, alone:** `HANDOFF.md` and `OWNER-QUEUE.md`, as
+`queue: task 44, the JPMaQS loader (owner 2026-10-01)`.
+
+#### Part A — build, with no vendor call
+
+**1. From the vendor's frame to `VintagePanel` rows.** Add to
+`loaders/jpmaqs.py` a pure function (no I/O) taking the long frame the
+download returns (`cid`, `xcat`, `real_date`, `value`, `grading`, `eop_lag`):
+- `series_id = f"{cid}_{xcat}"`, `knowledge_date = real_date`, and
+  `period_end = real_date − eop_lag` days (`decisions/0014`).
+- **Refuse, don't repair:** raise if any of the three metric columns is
+  absent, if `eop_lag` is negative or non-finite on a row that has a value, or
+  if `grading` is missing on a row that has a value.
+- Rows with no `value` are dropped and **counted** (a day on which nothing was
+  published is not an observation).
+- **Compress to change points:** within a series, keep a row only when
+  `(period_end, value, grading)` differs from the previous day's. The
+  information-state series repeats the same vintage daily, and
+  `VintagePanel.as_of` needs only the first day each vintage was known.
+- **Test that compression changes nothing:** `as_of(d)` on the compressed
+  panel equals `as_of(d)` on the uncompressed one, for a spread of dates.
+
+**2. `filter_panel(frame, tickers)`.** Keep exactly the requested tickers.
+Raise if a requested ticker is absent from the frame. Return the count of
+cross-product series dropped.
+
+**3. The grade filter.** `data.jpmaqs.grade_3: exclude` drops rows whose
+`grading` is 3, and counts them per ticker.
+- **Cowork isn't sure whether fractional grades occur** (a composite series
+  may carry, say, 2.5). Don't invent a threshold. Exclude `grading >= 3` only,
+  and have the coverage report list the distinct grading values per ticker so
+  the owner can see whether a rule is needed.
+- Any other value of `grade_3` in params raises as not implemented.
+
+**4. Legacy euro prefixes.** `data.jpmaqs.legacy_euro_prefix_map` maps `DEM_`,
+`FRF_`, `ITL_`, `ESP_` and `NLG_` to a country in the series' **meta**. The
+`series_id` is not renamed, because hypotheses register the vendor's name.
+
+**5. The holdout.** The loader calls `enforce_holdout` on both
+`knowledge_date` and `period_end`. **If the raw pull reaches the holdout, it
+raises; it doesn't clip.** The pull never requests those dates (step 6), so
+finding them means something is wrong. Mark the test `holdout`.
+
+**6. `scripts/jpmaqs_pull.py` and `make jpmaqs-pull`.** You write this; the
+owner runs it.
+- Read `data/jpmaqs/request.txt`.
+- Download `metrics = required_metrics()` (value, grading, eop_lag),
+  `start_date` from `data_sources.sources.jpmaqs.start_date`, and
+  **`end_date` = the last calendar day before `holdout_start`**.
+- **Check the installed `macrosynergy` client's `download` signature.** Cowork
+  believes it accepts `tickers=` directly, but hasn't verified it. If it does,
+  pass the 26 tickers. If not, pass `cids` and `xcats` and run `filter_panel`.
+  Say in the receipt which it was.
+- Refuse (exit non-zero, write nothing) if any requested ticker or any metric
+  is missing from the result.
+- Write `data/raw/jpmaqs/<pull_id>/qdf.parquet` and a `pull_manifest.json`:
+  the tickers, dates requested, metrics, the package version, row counts per
+  ticker and the file's sha256. `<pull_id>` is `P-<UTC stamp>`. An existing
+  `pull_id` is never overwritten.
+- Print shapes, counts and date ranges only.
+- It doesn't touch `params/`, and it doesn't build a snapshot.
+
+**7. `JPMaQSLoader.load_macro`.** It reads one raw pull (the newest, or a
+named `pull_id`), applies steps 1-5 and returns a `VintagePanel` with
+`source="jpmaqs"`. Mirror how `BloombergLoader` finds its raw input. Missing
+raw raises a clear "run `make jpmaqs-pull`" error, never an empty panel.
+
+**8. A macro snapshot, separate from the return snapshot.**
+- **Don't add `macro.parquet` to the existing Bloomberg snapshot.** A snapshot
+  is immutable, and every audit run cites that panel's hash.
+- Add `build_macro_snapshot(snapshot_id, pull_id=None)` in
+  `harness/snapshot.py`. It writes `data/snapshots/<snapshot_id>/macro.parquet`
+  and a manifest: source, `pull_id`, the raw file's sha256, the directory hash,
+  `params_hash`, the windows, `macro_ids`, and the counts from steps 1-3.
+- It runs `enforce_holdout` on the way in, as `build_snapshot` does, and it
+  refuses to overwrite.
+- Add `make macro-snapshot`.
+
+**9. `scripts/jpmaqs_coverage.py` and `make jpmaqs-coverage`.** From a macro
+snapshot, write `results/jpmaqs_coverage.csv` and `.md`, one row per ticker:
+- the hypothesis that registered it;
+- first and last `knowledge_date`, and first and last `period_end`;
+- the number of vintages and of distinct periods;
+- rows with no value, and rows dropped by the grade filter;
+- the distinct grading values and the row count at each;
+- row counts by `eop_lag` bucket (0, 1-31, 32-92, over 92 days);
+- the longest gap in days between consecutive knowledge dates;
+- whether the first knowledge date is on or before `dev_start` (2001-01-05).
+
+**Dates and counts only. No `value`.**
+
+**10. Tests** (new `tests/test_jpmaqs_loader.py`, all on synthetic frames):
+- the conversion, including a revision (same `period_end`, later
+  `knowledge_date`, different value);
+- the naming inversion: every row has `period_end <= knowledge_date`;
+- each refusal in step 1;
+- `filter_panel` drops extras and raises on a missing ticker;
+- compression preserves `as_of`;
+- grade exclusion and its counts;
+- the legacy-prefix meta;
+- the holdout raise;
+- `load_macro` and `build_macro_snapshot` on a `tmp_path` raw directory,
+  including the refusal to overwrite and the missing-raw error;
+- the pull script's refusal paths, with the vendor client replaced by a fake.
+  **No test makes a network call.**
+
+**11. Check, then commit part A.** Run `scripts/unattended.sh check-full
+--digest` after the last edit, so the log tests what you commit. Commit `src/`,
+`scripts/`, `tests/` and `build.mk` together. Write a part A receipt, then
+**stop and ask the owner to run**, in his own shell:
+
+    set -a; source .env; set +a; make jpmaqs-pull
+
+#### Part B — after the owner's pull
+
+**12.** Run `make macro-snapshot`, then `make jpmaqs-coverage`. Commit
+`results/jpmaqs_coverage.csv` and `.md`. Don't commit anything under
+`data/raw/` or `data/snapshots/`.
+
+**13. Receipt:**
+- rc, commits, and the check-full log directory;
+- which `download` call shape the client took;
+- the `pull_id`, the macro snapshot id and its hash;
+- **counts only:** tickers pulled (expect 26), rows before and after
+  compression, rows with no value, rows dropped by grade, and how many tickers
+  start after `dev_start`;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop. **Don't** flip `data.jpmaqs.status`, and don't start on `signals/`
+or FRED.
+
+---
+
+### 45. The loading-estimator test (`decisions/0046`): six factors, four candidates against rolling OLS, one report
+
+Added 2026-10-01 by Cowork. **Owner, 2026-10-01:** "let's test these factor
+estimates methodologies", with joint partial betas and the factor list in
+`decisions/0046`. This is OWNER-QUEUE B5 and phase-2 work (SUBSTRATE §16:
+"characteristic map, factor loadings"). It is a **measurement** test
+(`decisions/0016`): no portfolio, no net IR, no signal.
+
+**Released 2026-10-01: the owner has approved `decisions/0046`** (see the
+queue note at the top of `## Queue`). Run it after task 44's part A. It
+doesn't depend on the JPMaQS pull. Budget 4-6 h of build, then one run. No
+owner-only edit is needed; if you find one is, stop and write it down.
+
+**Read first:** `decisions/0046` (all of it), `0015` and `0016`.
+
+**Hard rules for this task, on top of `CLAUDE.md`'s:**
+- **The configurations in `decisions/0046` §4 are fixed.** Don't tune a window,
+  a constant, a grid or a prior, and don't try a second configuration "to
+  see". If one can't be built as written, stop and say so.
+- **No lookahead.** A loading used for week t+1 uses data up to the Friday of
+  week t only. Nothing on or after 2020-01-01 is read.
+- **Factor series are vendor data.** Don't print them or write them under
+  `results/`. Correlations, losses and loadings are model output and may be
+  written.
+- **Don't recommend an estimator.** Report the numbers. Adoption is the
+  owner's decision.
+
+**0. Commit first, alone:** `HANDOFF.md`, `OWNER-QUEUE.md`, `decisions/0046`
+and `hypotheses/proposed/`, as `queue: task 45, the loading-estimator test
+(decisions/0046)`.
+
+**1. Register the four hypotheses, before any estimator touches real data.**
+- Move `hypotheses/proposed/H-2026-0013` to `0016` into `hypotheses/pending/`.
+  In each file's `notes`, replace the "DRAFT … reviewed decisions/0046."
+  sentence with "Registered 2026-MM-DD (HANDOFF task 45)." Change nothing else.
+- They must pass the registry's validation as `kind: measurement`.
+- `tests/test_fdr_vs_fwer.py` asserts twelve pending hypotheses.
+  `read_axis_groups` should skip `family: exposure_estimation`, so the study
+  keeps the shape it was run on. Say so in its docstring.
+- **Commit the registration alone,** as `hypotheses: register H-2026-0013 to
+  0016, loading estimators (decisions/0046)`. Its timestamp is the
+  pre-registration.
+
+**2. The factors** (new package `src/signal_lab/measurement/`, module
+`factors.py`).
+- Build the six weekly factors of `decisions/0046` §1 from the Bloomberg
+  loader's returns and analytics panels, Friday to Friday, signed as the table
+  says.
+- Enforce the holdout on the way in.
+- Return the frame, the common-sample start, and the count of weeks.
+- **Tests on synthetic panels:** each sign convention; a missing series
+  raises; the holdout raise.
+
+**3. The estimators** (`measurement/estimators.py`). One interface: given an
+instrument's returns and the factor frame up to t, return the loading vector
+and its covariance. Five implementations, as `decisions/0046` §4 states them:
+- `rolling_ols` (the incumbent);
+- `huber_m` (`statsmodels` RLM is already a dependency);
+- `theil_goldberger_peer_prior`, where the prior at t is built from the other
+  members of the instrument's `reporting_class` and excludes the instrument
+  itself;
+- `hmm2_regime_conditional`, with a fixed seed and ten restarts;
+- `kalman_dlm_discount`.
+
+**Prefer no new dependency.** If you add one (for the HMM, say), run
+`make lock` and name it in the receipt.
+
+**Tests, each on synthetic data with a planted truth:**
+- constant loadings: every estimator recovers them;
+- planted outliers: Huber's error is below OLS's;
+- planted peer structure with noisy individuals: the shrinkage's error is
+  below OLS's;
+- a planted regime switch: the HMM's error is below OLS's after the switch;
+- planted drift: the Kalman filter's error is below OLS's;
+- **no lookahead, for all five:** changing every observation after t leaves
+  the loading at t bit-for-bit unchanged;
+- a returned covariance is symmetric and positive semi-definite.
+
+**4. The score** (`measurement/fidelity.py`), as `decisions/0046` §3:
+- the scaled Huber loss and the weekly loss differential against the
+  incumbent;
+- **the gate:** the statistic per candidate, and `T0` from a centred block
+  bootstrap of the weekly differentials (26-week blocks, 1,000 draws, one
+  resampling shared by all candidates in each draw, seeded), passed to
+  `stats.multiple_testing.gate`. With four candidates it must report g = 1;
+- the uncertainty check: the worst-calendar-year bias statistic of the
+  standardised prediction errors against
+  `vetoes.risk_calibration.max_worst_annual_bias`, reusing the existing bias
+  code and not a second copy;
+- the two regime slices.
+
+**Tests:**
+- a candidate identical to the incumbent scores exactly zero;
+- under a null (the incumbent plus independent noise in its loadings), the
+  gate's rejection rate over 1,000 seeded synthetic runs is within
+  [0.03, 0.07];
+- a candidate with a planted advantage is rejected in most runs;
+- an estimator whose covariance is understated fails the uncertainty check.
+
+**5. The run** (`scripts/run_measurement.py`, `make measurement-loadings`).
+- Instruments: investable, backbone and second tier.
+- **Time it first** on ten instruments. If the full run projects beyond 3 h,
+  stop and report the projection.
+- Each estimate records the last data date it used, and the script raises if
+  that date is after t.
+- Write `results/measurement/M-<stamp>/`:
+  - `summary.json`: the hashes, the sample, per estimator the statistic, the
+    adjusted p-value, the gate's verdict, the bias statistic and its verdict,
+    and the slices;
+  - `loadings.parquet`: instrument, date, estimator, factor, loading and its
+    standard error;
+  - `report.md`: the same, readable, plus the factors' correlation matrix
+    (full sample and the range of its rolling 156-week values) and the
+    measured-against-estimated check of `decisions/0046` §1 for the Treasury
+    buckets and the IG corporate index.
+- Move each hypothesis `pending → running → done` through
+  `HypothesisRegistry.move`, with `verdict="candidate"` if it passed both the
+  gate and the uncertainty check, and `"not_detected"` otherwise.
+
+**6. Check, then commit.** Run `scripts/unattended.sh check-full --digest`
+after the last edit. Commit `src/`, `scripts/`, `tests/`, `build.mk`, the moved
+hypothesis files and `results/measurement/M-<stamp>/report.md` and
+`summary.json`. Don't commit the parquet.
+
+**Not in this task:**
+- extending the `lookahead` veto to estimated parameters (`decisions/0015`).
+  `vetoes/` is owner-only, and Cowork brings that patch separately;
+- a measurement leaderboard in the render layer;
+- adopting any estimator into `data/characteristics/`.
+
+**Receipt:**
+- rc, commits, the check-full log directory, the run id and its runtime;
+- the registration commit's hash and time, and the first commit that ran an
+  estimator on real data, so the order is on the record;
+- the common-sample start and the number of weeks and instruments scored;
+- **per estimator, in one table:** the statistic, the adjusted p-value, gate
+  pass or fail, the worst-year bias statistic, pass or fail, and the two
+  slices;
+- whether the HMM's regimes were stable across restarts;
+- any dependency added;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
 ### 41. Fix `romano_wolf`'s standardising: pool the observed value with the null draws (task 40 follow-up, `decisions/0041`)
 
 Added 2026-09-29 (late evening) by Cowork. **Owner ruling 2026-09-29: fix it,
@@ -2117,7 +2427,9 @@ task 36 and lands with task 33.
 
 **The validator (0034).** Not decided by the owner. Do not build it.
 
-**SUBSTRATE §5.6 and §16 still close the search (Cowork, 2026-10-01 evening).** Until JPMaQS lands, "no signal search runs", and price-only families such as trend (0009) "are not tested in isolation first". So the phase-2 solver can be built and validated on planted signals, but no registered hypothesis runs on real data before phase 3. The owner is being asked whether the next build step is the JPMaQS loader or the solver.
+**SUBSTRATE §5.6 and §16 still close the search (Cowork, 2026-10-01 evening).** Until JPMaQS lands, "no signal search runs", and price-only families such as trend (0009) "are not tested in isolation first". So the phase-2 solver can be built and validated on planted signals, but no registered hypothesis runs on real data before phase 3. **Owner, 2026-10-01: the JPMaQS loader first (task 44), then the phase-2 solver validated on planted signals. §5.6 is not amended.**
+
+**FRED point-in-time (not queued).** `H-2026-0008` needs four FRED series, and `loaders/fred.py` is a stub. A point-in-time FRED loader (ALFRED vintages) comes after task 44. It needs its own spec.
 
 **The phase-2 solver (added 2026-10-01, task 42).** `harness/experiment.py` has no
 solver yet: `build_weight_rule` raises. When it is written it must, and each point
