@@ -25,6 +25,9 @@
 #   make audit-power10                           span-limited score shuffles, IC 0.70 x seeds 0-9 x 20 perms, h13 (200 cells)
 #   make audit-power                             score-shuffle baselines, IC 0.35/0.70 x seeds 0/1 x 20 perms, h13 (80 cells)
 #   make audit-halflife                          volatility-overlay halflife sweep, h4/13/26 x IC 0.35/0.70 x seeds 0-9 x halflife None/13/26/52 (240 cells, task 35)
+#   make jpmaqs-pull                             THE OWNER RUNS THIS: set -a; source .env; set +a; make jpmaqs-pull (HANDOFF task 44)
+#   make macro-snapshot                          freeze the newest raw JPMaQS pull as a macro snapshot
+#   make jpmaqs-coverage                         coverage report from the macro snapshot -- dates and counts only
 #   make jpmaqs-catalogue                        the 27 registered JPMaQS tickers against the vendor catalogue
 #   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make jpmaqs-name-search                      name search of the cached catalogue for H-2026-0004, 0005, 0010
@@ -61,7 +64,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search fdr-study
+.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -147,6 +150,18 @@ jpmaqs-candidates: ## catalogue names sharing each unresolved JPMaQS ticker's ci
 
 jpmaqs-name-search: ## name search of the cached JPMaQS catalogue for 0004, 0005, 0010 -- names only, no choice (HANDOFF task 29)
 	$(PY) --group dev python scripts/jpmaqs_name_search.py
+
+MACRO_SNAPSHOT ?= jpmaqs-macro-v1
+PULL_ID ?=
+
+jpmaqs-pull: ## the vendor pull -- THE OWNER RUNS THIS, with .env sourced in their own shell (HANDOFF task 44)
+	$(PY) --group dev python scripts/jpmaqs_pull.py
+
+macro-snapshot: ## freeze a raw JPMaQS pull as an immutable macro snapshot (HANDOFF task 44)
+	$(PY) --group dev python scripts/build_macro_snapshot.py --id $(MACRO_SNAPSHOT) $(if $(PULL_ID),--pull-id $(PULL_ID))
+
+jpmaqs-coverage: ## coverage report from the macro snapshot -- dates and counts only (HANDOFF task 44)
+	$(PY) --group dev python scripts/jpmaqs_coverage.py --id $(MACRO_SNAPSHOT)
 
 fdr-study: ## Monte Carlo: FDR vs FWER on the registry's shape -- no engine runs (HANDOFF task 34)
 	$(PY) --group dev python scripts/fdr_vs_fwer.py

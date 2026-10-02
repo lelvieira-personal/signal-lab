@@ -1,8 +1,10 @@
 """
 JPMaQS / Macrosynergy backend. Phase 3 (SUBSTRATE sections 5.6 and 16).
 
-The download is not implemented; everything around it is, because the parts
-that are easy to get wrong are the conventions, not the HTTP call.
+The download is `scripts/jpmaqs_pull.py` (the owner runs it; it writes one raw
+pull under `data/raw/jpmaqs/<pull_id>/`). This module turns a raw pull into a
+`VintagePanel`, because the parts that are easy to get wrong are the
+conventions, not the HTTP call.
 
 Three conventions, all of which will silently corrupt a panel if mishandled:
 
@@ -28,13 +30,31 @@ until the macro block is in the snapshot, no signal search runs.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
+from pathlib import Path
+from typing import Any
 
-from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, VintagePanel
+import numpy as np
+import pandas as pd
+
+from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, SeriesMeta, VintagePanel
 from signal_lab.loaders.bloomberg import LoaderNotImplemented
 from signal_lab.loaders.env import check_secret
+from signal_lab.loaders.holdout import enforce_holdout
 from signal_lab.params import Params, get_params
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+RAW_ROOT = REPO_ROOT / "data" / "raw" / "jpmaqs"
+REQUEST_TXT = REPO_ROOT / "data" / "jpmaqs" / "request.txt"
+QDF_NAME = "qdf.parquet"
+PULL_MANIFEST_NAME = "pull_manifest.json"
+
+QDF_COLUMNS = ("cid", "xcat", "real_date", "value", "grading", "eop_lag")
+# eop_lag buckets for the coverage report, in days: (label, low, high inclusive).
+EOP_LAG_BUCKETS = (("0", 0, 0), ("1-31", 1, 31), ("32-92", 32, 92), (">92", 93, None))
 
 # cid is exactly three characters, then the xcat. Anchored so a Bloomberg
 # ticker (LUACTRUU, MXUS0EN) cannot match by accident.
@@ -85,12 +105,244 @@ def cross_product_size(tickers: list[str]) -> tuple[int, int]:
     return len(tickers), len(cids) * len(xcats)
 
 
+# --- raw pull -> VintagePanel ------------------------------------------------
+
+
+class RawPullMissing(FileNotFoundError):
+    """No raw JPMaQS pull to load."""
+
+
+def file_sha256(path: Path | str) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def read_request_tickers(path: Path | str = REQUEST_TXT) -> list[str]:
+    """The pull list: one ticker per line, `#` comments and blank lines ignored."""
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    tickers = [ln.strip() for ln in lines if ln.strip() and not ln.strip().startswith("#")]
+    for t in tickers:
+        split_ticker(t)
+    if len(set(tickers)) != len(tickers):
+        raise ValueError(f"{path} lists a ticker twice")
+    return tickers
+
+
+def find_pull(raw_root: Path | str, pull_id: str | None = None) -> Path:
+    """The named pull, or the newest one. A missing pull is an error, never an empty panel."""
+    root = Path(raw_root)
+    hint = "run `make jpmaqs-pull` (the owner runs it; it needs the vendor credentials)"
+    if pull_id is not None:
+        pull_dir = root / pull_id
+        if not (pull_dir / QDF_NAME).exists() or not (pull_dir / PULL_MANIFEST_NAME).exists():
+            raise RawPullMissing(f"no raw JPMaQS pull {pull_id!r} under {root}; {hint}")
+        return pull_dir
+    candidates = (
+        sorted(
+            d.name
+            for d in root.iterdir()
+            if d.is_dir()
+            and d.name.startswith("P-")
+            and (d / QDF_NAME).exists()
+            and (d / PULL_MANIFEST_NAME).exists()
+        )
+        if root.exists()
+        else []
+    )
+    if not candidates:
+        raise RawPullMissing(f"no raw JPMaQS pull under {root}; {hint}")
+    return root / candidates[-1]
+
+
+def filter_panel(frame: pd.DataFrame, tickers: list[str]) -> tuple[pd.DataFrame, int]:
+    """
+    Keep exactly the requested tickers of a long frame with `cid` and `xcat`.
+
+    The download API returns the cross product of the requested cids and xcats,
+    so a pull made that way carries series no hypothesis registered. Raises if a
+    requested ticker is absent, because a silently thinner panel is a `coverage`
+    failure nobody sees. Returns the filtered frame and the number of series
+    (distinct tickers) dropped.
+    """
+    for c in ("cid", "xcat"):
+        if c not in frame.columns:
+            raise ValueError(f"frame has no {c!r} column")
+    ticker = frame["cid"].astype(str) + "_" + frame["xcat"].astype(str)
+    present = set(ticker.unique())
+    missing = sorted(set(tickers) - present)
+    if missing:
+        raise ValueError(f"{len(missing)} requested ticker(s) absent from the frame: {missing}")
+    keep = ticker.isin(set(tickers))
+    return frame.loc[keep].copy(), len(present) - len(set(tickers))
+
+
+def _bucket_counts(lags: pd.Series) -> dict[str, int]:
+    out = {}
+    for label, lo, hi in EOP_LAG_BUCKETS:
+        mask = lags >= lo if hi is None else (lags >= lo) & (lags <= hi)
+        out[label] = int(mask.sum())
+    return out
+
+
+def qdf_to_vintage_frame(qdf: pd.DataFrame) -> pd.DataFrame:
+    """
+    The vendor's long frame -> VintagePanel rows, uncompressed. Pure; no I/O.
+
+    `series_id = cid_xcat`, `knowledge_date = real_date`,
+    `period_end = real_date - eop_lag days` (decisions/0014). Rows with no value
+    are dropped (a day on which nothing was published is not an observation);
+    the caller counts them. Refuses, rather than repairs, a frame missing a
+    metric column, or a valued row whose `eop_lag` is negative or non-finite or
+    whose `grading` is missing.
+    """
+    missing = [c for c in QDF_COLUMNS if c not in qdf.columns]
+    if missing:
+        raise ValueError(
+            f"the JPMaQS frame is missing column(s) {missing}; value, grading and eop_lag "
+            f"are all required (SUBSTRATE section 5.6)"
+        )
+    valued = qdf.loc[qdf["value"].notna()]
+    lag = pd.to_numeric(valued["eop_lag"], errors="coerce")
+    bad_lag = ~np.isfinite(lag) | (lag < 0)
+    if bool(bad_lag.any()):
+        raise ValueError(
+            f"{int(bad_lag.sum())} valued row(s) have a negative or non-finite eop_lag; "
+            f"the period cannot be recovered from them"
+        )
+    if bool(valued["grading"].isna().any()):
+        raise ValueError(
+            f"{int(valued['grading'].isna().sum())} valued row(s) have no grading; the grade "
+            f"filter cannot run on them"
+        )
+    knowledge = pd.to_datetime(valued["real_date"]).dt.normalize()
+    out = pd.DataFrame(
+        {
+            "series_id": valued["cid"].astype(str) + "_" + valued["xcat"].astype(str),
+            "period_end": (knowledge - pd.to_timedelta(lag, unit="D")).dt.normalize(),
+            "knowledge_date": knowledge,
+            "value": valued["value"].astype("float64"),
+            "grading": valued["grading"].astype("float64"),
+            "eop_lag": lag.astype("float64"),
+        }
+    )
+    return out.sort_values(["series_id", "knowledge_date"], kind="stable").reset_index(drop=True)
+
+
+def compress_to_change_points(frame: pd.DataFrame) -> pd.DataFrame:
+    """
+    Keep a row only when (period_end, value, grading) differs from the previous
+    row of the same series. The information-state series repeats the same vintage
+    every day; `VintagePanel.as_of` needs only the first day each was known.
+    """
+    f = frame.sort_values(["series_id", "knowledge_date"], kind="stable")
+    key = f[["period_end", "value", "grading"]]
+    changed = (key != key.groupby(f["series_id"]).shift(1)).any(axis=1)
+    first = ~f["series_id"].duplicated()
+    return f.loc[changed | first].reset_index(drop=True)
+
+
+def legacy_meta(series_id: str, first_known: pd.Timestamp, params: Params) -> SeriesMeta:
+    """
+    Meta for a macro series. A legacy euro prefix (`DEM_`, ...) maps to a country
+    here, in the meta; the `series_id` keeps the vendor's name because hypotheses
+    register the vendor's name.
+    """
+    prefix_map = params.get("data.jpmaqs.legacy_euro_prefix_map", {}) or {}
+    region = series_id.split("_", 1)[0]
+    for prefix, country in prefix_map.items():
+        if series_id.startswith(prefix):
+            region = country
+            break
+    return SeriesMeta(
+        series_id=series_id,
+        true_daily_start=pd.Timestamp(first_known),
+        tier="backbone",
+        section="macro",
+        region=region,
+    )
+
+
+def build_macro_panel(
+    qdf: pd.DataFrame,
+    tickers: list[str],
+    params: Params | None = None,
+    snapshot_id: str = "jpmaqs-v1",
+) -> tuple[VintagePanel, dict[str, Any]]:
+    """
+    Steps: filter to the requested tickers, drop and count no-value rows, convert,
+    apply the grade filter, compress to change points, enforce the holdout.
+
+    Counts are per ticker and are counts only -- no vendor value appears in them,
+    except the distinct grading values the owner asked to see.
+    """
+    params = params or get_params()
+    grade_rule = params.get("data.jpmaqs.grade_3", "exclude")
+    if grade_rule != "exclude":
+        raise LoaderNotImplemented(
+            f"data.jpmaqs.grade_3 = {grade_rule!r} is not implemented; only 'exclude' is"
+        )
+
+    # Holdout first, on the raw dates: if the pull reaches it, something is wrong.
+    if "real_date" in qdf.columns:
+        enforce_holdout(pd.to_datetime(qdf["real_date"]), params, what="jpmaqs raw pull real_date")
+
+    qdf, n_dropped_series = filter_panel(qdf, tickers)
+    ticker = qdf["cid"].astype(str) + "_" + qdf["xcat"].astype(str)
+    raw_rows = ticker.value_counts()
+    no_value = ticker[qdf["value"].isna()].value_counts()
+
+    full = qdf_to_vintage_frame(qdf)
+    grading_counts = {
+        sid: {str(k): int(v) for k, v in g["grading"].value_counts().sort_index().items()}
+        for sid, g in full.groupby("series_id")
+    }
+    excluded_mask = full["grading"] >= 3
+    excluded = full.loc[excluded_mask, "series_id"].value_counts()
+    kept = full.loc[~excluded_mask].reset_index(drop=True)
+    eop_buckets = {sid: _bucket_counts(g["eop_lag"]) for sid, g in kept.groupby("series_id")}
+    compressed = compress_to_change_points(kept)
+
+    enforce_holdout(compressed["knowledge_date"], params, what="jpmaqs macro knowledge_date")
+    enforce_holdout(compressed["period_end"], params, what="jpmaqs macro period_end")
+
+    first_known = compressed.groupby("series_id")["knowledge_date"].min()
+    meta = {sid: legacy_meta(sid, first_known[sid], params) for sid in sorted(first_known.index)}
+    panel = VintagePanel(compressed, meta, snapshot_id=snapshot_id, source="jpmaqs")
+
+    per_ticker = {}
+    for t in sorted(tickers):
+        per_ticker[t] = {
+            "rows_raw": int(raw_rows.get(t, 0)),
+            "rows_no_value": int(no_value.get(t, 0)),
+            "rows_grade_excluded": int(excluded.get(t, 0)),
+            "rows_kept_before_compression": int((kept["series_id"] == t).sum()),
+            "rows_after_compression": int((compressed["series_id"] == t).sum()),
+            "grading_counts": grading_counts.get(t, {}),
+            "eop_lag_buckets": eop_buckets.get(t, {label: 0 for label, _, _ in EOP_LAG_BUCKETS}),
+        }
+    counts = {
+        "n_tickers": len(tickers),
+        "cross_product_series_dropped": n_dropped_series,
+        "rows_raw": int(sum(v["rows_raw"] for v in per_ticker.values())),
+        "rows_no_value": int(sum(v["rows_no_value"] for v in per_ticker.values())),
+        "rows_grade_excluded": int(sum(v["rows_grade_excluded"] for v in per_ticker.values())),
+        "rows_kept_before_compression": int(len(kept)),
+        "rows_after_compression": int(len(compressed)),
+        "per_ticker": per_ticker,
+    }
+    return panel, counts
+
+
 class JPMaQSLoader:
     source = "jpmaqs"
     phase = 3
 
-    def __init__(self, params: Params | None = None):
+    def __init__(self, params: Params | None = None, raw_root: Path | str | None = None):
         self.params = params or get_params()
+        self.raw_root = Path(raw_root) if raw_root else RAW_ROOT
 
     # --- credentials -------------------------------------------------------
 
@@ -140,13 +392,34 @@ class JPMaQSLoader:
     def load_analytics(self, snapshot_id: str) -> AnalyticsPanel:
         raise LoaderNotImplemented("JPMaQS is a macro source, not an analytics source")
 
-    def load_macro(self, snapshot_id: str) -> VintagePanel:
-        raise LoaderNotImplemented(
-            "JPMaQS download lands in phase 3. When it does: split_tickers() to get "
-            "cids/xcats, download with metrics=value,grading,eop_lag, map real_date -> "
-            "knowledge_date and (real_date - eop_lag) -> period_end, then filter to the "
-            "requested tickers."
+    def load_macro(
+        self, snapshot_id: str = "jpmaqs-v1", pull_id: str | None = None
+    ) -> VintagePanel:
+        return self.load_macro_with_counts(snapshot_id, pull_id)[0]
+
+    def load_macro_with_counts(
+        self, snapshot_id: str = "jpmaqs-v1", pull_id: str | None = None
+    ) -> tuple[VintagePanel, dict[str, Any]]:
+        """
+        One raw pull -> a VintagePanel, plus the counts the snapshot manifest and
+        the coverage report need. `pull_id=None` takes the newest pull.
+        """
+        pull_dir = find_pull(self.raw_root, pull_id)
+        manifest = json.loads((pull_dir / PULL_MANIFEST_NAME).read_text(encoding="utf-8"))
+        qdf_path = pull_dir / QDF_NAME
+        actual = file_sha256(qdf_path)
+        if actual != manifest.get("sha256"):
+            raise RuntimeError(
+                f"{qdf_path} does not match the sha256 in its pull manifest; the raw pull "
+                f"has changed since it was written. Refusing to load it."
+            )
+        qdf = pd.read_parquet(qdf_path)
+        panel, counts = build_macro_panel(
+            qdf, list(manifest["tickers"]), self.params, snapshot_id=snapshot_id
         )
+        counts["pull_id"] = pull_dir.name
+        counts["raw_sha256"] = actual
+        return panel, counts
 
 
 def search_is_open(params: Params | None = None) -> tuple[bool, str]:

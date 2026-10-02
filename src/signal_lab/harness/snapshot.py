@@ -164,6 +164,63 @@ def build_snapshot(
     return Snapshot(snapshot_id, out, data_hash, manifest)
 
 
+def build_macro_snapshot(
+    snapshot_id: str,
+    pull_id: str | None = None,
+    params: Params | None = None,
+    snapshots_dir: Path | str | None = None,
+    raw_root: Path | str | None = None,
+) -> Snapshot:
+    """
+    Freeze one raw JPMaQS pull as a macro snapshot, apart from the return snapshot.
+
+    Deliberately not an addition to a Bloomberg snapshot: a snapshot is immutable
+    and every audit run cites that panel's hash. Never overwrites. The holdout is
+    enforced on the way in, as `build_snapshot` does.
+    """
+    from signal_lab.loaders.jpmaqs import JPMaQSLoader
+
+    params = params or get_params()
+    out = snapshots_root(snapshots_dir) / snapshot_id
+    if out.exists():
+        raise FileExistsError(
+            f"{out} exists. A snapshot is immutable; build a new id rather than "
+            f"overwriting one that runs may already reference."
+        )
+    # Load before creating the directory, so a missing raw pull leaves nothing behind.
+    loader = JPMaQSLoader(params, raw_root=raw_root)
+    macro, counts = loader.load_macro_with_counts(snapshot_id, pull_id)
+    enforce_holdout(macro.frame["knowledge_date"], params, what=f"snapshot {snapshot_id} macro")
+    enforce_holdout(macro.frame["period_end"], params, what=f"snapshot {snapshot_id} macro")
+
+    out.mkdir(parents=True)
+    macro.frame.to_parquet(out / "macro.parquet", index=False)
+    data_hash = hash_directory(out)
+    manifest = {
+        "snapshot_id": snapshot_id,
+        "source": "jpmaqs",
+        "kind": "macro",
+        "pull_id": counts["pull_id"],
+        "raw_sha256": counts["raw_sha256"],
+        "data_snapshot_hash": data_hash,
+        "params_version": params.params_version,
+        "params_hash": params.params_hash,
+        "dev_start": str(params.require("data.windows.dev_start")),
+        "dev_end": str(params.require("data.windows.dev_end")),
+        "holdout_start": str(params.require("data.windows.holdout_start")),
+        "first_date": str(macro.frame["knowledge_date"].min().date()),
+        "last_date": str(macro.frame["knowledge_date"].max().date()),
+        "series_ids": [],
+        "macro_ids": sorted(macro.frame["series_id"].unique().tolist()),
+        "counts": counts,
+    }
+    (out / "manifest.yaml").write_text(
+        yaml.safe_dump(json.loads(json.dumps(manifest, default=str)), sort_keys=False),
+        encoding="utf-8",
+    )
+    return Snapshot(snapshot_id, out, data_hash, manifest)
+
+
 def load_snapshot(snapshot_id: str, snapshots_dir: Path | str | None = None) -> Snapshot:
     path = snapshots_root(snapshots_dir) / snapshot_id
     manifest_path = path / "manifest.yaml"
