@@ -31,6 +31,7 @@
 #   make jpmaqs-catalogue                        the 27 registered JPMaQS tickers against the vendor catalogue
 #   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make jpmaqs-name-search                      name search of the cached catalogue for H-2026-0004, 0005, 0010
+#   make measurement-loadings                    the loading-estimator test, decisions/0046 (HANDOFF task 45); ARGS=--time-only to time it
 #   make fdr-study                                Monte Carlo: FDR vs FWER on the registry's shape, no engine runs (HANDOFF task 34)
 #   make governance SUBSTRATE section 2, checked mechanically
 #   make check         fast tier -- wiring checks only (HANDOFF task 37, OWNER-QUEUE D2)
@@ -64,7 +65,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage fdr-study
+.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -162,6 +163,9 @@ macro-snapshot: ## freeze a raw JPMaQS pull as an immutable macro snapshot (HAND
 
 jpmaqs-coverage: ## coverage report from the macro snapshot -- dates and counts only (HANDOFF task 44)
 	$(PY) --group dev python scripts/jpmaqs_coverage.py --id $(MACRO_SNAPSHOT)
+
+measurement-loadings: ## six factors, rolling OLS against four candidate estimators, one report (HANDOFF task 45, decisions/0046)
+	$(PY) --group dev python scripts/run_measurement.py $(ARGS)
 
 fdr-study: ## Monte Carlo: FDR vs FWER on the registry's shape -- no engine runs (HANDOFF task 34)
 	$(PY) --group dev python scripts/fdr_vs_fwer.py

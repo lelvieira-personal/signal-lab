@@ -60,6 +60,7 @@ from signal_lab.loaders.base import ReturnPanel
 from signal_lab.params import Params, get_params
 from signal_lab.portfolio.covariance import ShrunkCovariance, period_returns, trailing_covariance
 from signal_lab.portfolio.long_only import BPS, LongOnlySpec, solve
+from signal_lab.stats.calibration import annual_bias
 
 BENCHMARK_SECTION_PREFIX = "18."
 
@@ -887,13 +888,7 @@ def risk_calibration(
         )
 
     min_obs = int(params_min_obs())
-    annual: dict[int, float] = {}
-    if n > 1 and isinstance(z.index, pd.DatetimeIndex):
-        annual = {
-            int(year): float(group.std(ddof=1))
-            for year, group in z.groupby(z.index.year)
-            if len(group) >= min_obs
-        }
+    annual = annual_bias(z, min_obs) if n > 1 else {}
     worst_year = max(annual, key=annual.__getitem__) if annual else None
     return {
         "te_realised_to_ex_ante": ratio(active_vol, ex_ante_mean),

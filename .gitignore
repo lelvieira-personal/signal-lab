@@ -5,6 +5,7 @@ data/snapshots/
 results/artifacts/
 results/audit/          # regenerable: decisions/0023
 results/fdr_vs_fwer/    # regenerable: HANDOFF task 34
+results/measurement/*/loadings.parquet   # regenerable model output: HANDOFF task 45
 results/*.db
 results/*.db-journal
 
