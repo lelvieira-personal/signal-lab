@@ -19,7 +19,9 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L21. Negative `eop_lag` on seven JPMaQS tickers (added 2026-10-02, HANDOFF task 44 part B)
+### L21. Negative `eop_lag` on seven JPMaQS tickers (added 2026-10-02, HANDOFF task 44 part B) — RULED 2026-10-02
+**Owner, 2026-10-02 ("accept"):** keep the seven tickers; for JPMaQS a period may end after the number is known; the holdout binds on the knowledge date. Recorded in `decisions/0047`, with a checkpoint: a lag below −92 days stops the build. *Move to Closed when HANDOFF task 46 lands.*
+
 The JPMaQS pull `P-20261002T032635Z` landed (150,644 rows, 26 tickers). The
 loader refused it, as task 44 specifies: **13,562 valued rows have a negative
 `eop_lag`**, which puts `period_end` after `knowledge_date`, and `VintagePanel`
@@ -42,7 +44,9 @@ convention of `decisions/0014`. Which hypotheses each ticker serves is in
 
 *What would retire it:* the owner's choice, then a small task. No measurement.
 
-### L22. The loading-estimator test's score is dominated by the cash index (added 2026-10-02, HANDOFF task 45)
+### L22. The loading-estimator test's score is dominated by the cash index (added 2026-10-02, HANDOFF task 45) — RULED 2026-10-02
+**Owner, 2026-10-02:** "yes exclude cash". Recorded as the addendum to `decisions/0046`; the run without Cash is the result of record. *Move to Closed when HANDOFF task 46 lands.*
+
 `decisions/0046` scores every investable backbone and second-tier instrument
 and scales each error by the instrument's robust volatility "so no instrument
 dominates". `LD20TRUU` (the T-bill index, class `Cash`) has a robust volatility
@@ -162,12 +166,27 @@ fixes:
   Theil-Goldberger shrinkage to a peer prior, HMM regime-conditional loadings,
   and a Kalman filter. Michaud resampling is left out.
 
-HANDOFF task 45 runs the test and is released.
+**The result (task 45, verified by Cowork; Cash excluded per the 0046
+addendum):** no candidate beats rolling OLS. Huber +0.0016 (adjusted p 0.18)
+and the shrinkage +0.0009 (0.16) are slightly better, with gains in stress
+weeks. The HMM (−0.0066) and Kalman (−0.0005) are worse, and worst in stress.
+Rolling OLS itself fails the uncertainty check (1.80 against 1.72, in 2008).
+Huber (1.68), Kalman (1.58) and the HMM (1.38) pass. Detail is in the Project
+doc `claude/tasks-44-45-review-2026-10-02.md`.
 
-**Still the owner's, after the run:** which estimator, if any, enters the
-exposure matrix. Task 45 recommends nothing.
+**Still open: which estimator enters the exposure matrix.** Cowork leans
+Huber on robustness grounds, not on measured superiority.
 
-**Retired by:** task 45's report, then that decision.
+**Owner, 2026-10-02:** asked whether any method tried combines Bayesian
+regression, a time-varying component and shrinkage toward a long-run mean.
+None does. He then ruled: **register and test one, shrinking to the
+instrument's own long-run mean.** It is H-2026-0017, specified in the second
+2026-10-02 addendum to `decisions/0046`, and HANDOFF task 47 runs it. The gate
+covers all five candidates, because it was designed after the first results.
+*The state-space form, the half-life grid and the deviation scale are Cowork's
+choices; the owner can change them before task 47 starts.*
+
+**Retired by:** task 47's report, then the owner's choice of estimator.
 
 ---
 

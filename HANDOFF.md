@@ -56,7 +56,11 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-01 (22:25 ET): queued, 44 then 45. TASK 45 IS RELEASED: the owner reviewed and approved `decisions/0046` on 2026-10-01 ("046 is approved").** Task 45 tests four factor-loading estimators against rolling OLS (OWNER-QUEUE B5). Run 44's part A first, then 45 while the owner's JPMaQS pull is pending; 45 doesn't depend on the pull.
+**As of 2026-10-02 (mid-morning): queued, 46 then 47.** Task 47 adds a fifth loading estimator, H-2026-0017 (mean-reverting Bayesian loadings; owner, 2026-10-02), and must run after 46.
+
+*(Earlier note:)* **As of 2026-10-02 (morning): queued, task 46 only.** Tasks 44 (part A) and 45 are done and Cowork verified them. The owner ruled on L21 and L22. Task 46 applies `decisions/0047`, finishes task 44's part B on the existing pull, and re-runs the estimator test without the Cash class. One owner-only edit (SUBSTRATE v0.9) is already in the working tree. *(The fifth estimator is now task 47; see the note above.)*
+
+*(Earlier note:)* **As of 2026-10-01 (22:25 ET): queued, 44 then 45. TASK 45 IS RELEASED: the owner reviewed and approved `decisions/0046` on 2026-10-01 ("046 is approved").** Task 45 tests four factor-loading estimators against rolling OLS (OWNER-QUEUE B5). Run 44's part A first, then 45 while the owner's JPMaQS pull is pending; 45 doesn't depend on the pull.
 
 *(Earlier note:)* **As of 2026-10-01 (night): queued, task 44 only.** Task 43 is done, and Cowork verified it (`state-of-play.md`). Task 44 is the JPMaQS loader. It has an owner step in the middle: the vendor pull, which the owner runs. It needs no owner-only edit. The search stays closed after it: opening it needs the owner, and also the exposure matrix (OWNER-QUEUE B5) and `signals/`.
 
@@ -2186,6 +2190,214 @@ hypothesis files and `results/measurement/M-<stamp>/report.md` and
   slices;
 - whether the HMM's regimes were stable across restarts;
 - any dependency added;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
+### 46. Apply `decisions/0047` (negative `eop_lag`) and finish task 44 part B; make the Cash exclusion the default of the estimator test (`decisions/0046` addendum)
+
+Added 2026-10-02 by Cowork. **Owner rulings 2026-10-02:** L21 "accept" (keep
+the seven tickers; a JPMaQS period may end after it is known; the holdout
+binds on the knowledge date; `decisions/0047`) and L22 "yes exclude cash"
+(`decisions/0046` addendum). Cowork's review of tasks 44 and 45 is in
+`Claude outputs/project-mirror/tasks-44-45-review-2026-10-02.md`. **No vendor
+call and no audit.** Budget 2-3 h.
+
+**One owner-only edit is already in the working tree, applied by Cowork at the
+owner's instruction:** `SUBSTRATE.md` v0.9, two sentences in §5.6 and a v0.9
+paragraph (`decisions/0047`). Verify it with `git diff --ignore-cr-at-eol`.
+Nothing in `params/` or `vetoes/` changes. If a step needs one, stop and write
+it down.
+
+**0. Commit first, alone:** `HANDOFF.md` and `OWNER-QUEUE.md`, as `queue: task
+46; L21 and L22 ruled (owner 2026-10-02)`. **Then, alone:** `SUBSTRATE.md`,
+`decisions/0046`, `decisions/0047` (new) and `decisions/0100`, as `substrate:
+v0.9 -- a JPMaQS period may end after it is known (decisions/0047); the Cash
+class is not scored (decisions/0046)`.
+
+#### Part 1 — `decisions/0047`, then task 44's part B
+
+**1. `VintagePanel`** (`loaders/base.py`) gains a field
+`period_may_follow_knowledge: bool = False`.
+- When it is `False`, the existing check stands, with its message.
+- The JPMaQS loader sets it to `True`. No other loader does.
+- **Tests:** the default still raises; a JPMaQS panel with a period after the
+  knowledge date builds; `as_of` on it returns the row on and after its
+  knowledge date and not before.
+
+**2. `qdf_to_vintage_frame`** no longer refuses a negative `eop_lag`.
+- A non-finite `eop_lag` on a valued row is still refused.
+- **The checkpoint of `decisions/0047` §3:** if any valued row has an
+  `eop_lag` below −92 days, raise, and build nothing.
+- Count the negative-lag rows per ticker in three buckets: −1 to −31, −32 to
+  −92, and below −92 (the last must be zero for anything to be built).
+- Update the test that asserted the refusal, and say in the receipt which
+  test it was. Add tests for the checkpoint and the buckets.
+
+**3. The holdout, on the knowledge date.**
+- Keep `enforce_holdout` on the raw `real_date` and on `knowledge_date`,
+  exactly as now.
+- **Remove the `enforce_holdout` call on `period_end`** in `build_macro_panel`
+  and in `build_macro_snapshot`. Leave `build_snapshot` (the return snapshot)
+  and `loaders/holdout.py` untouched. **Add no bypass argument anywhere.**
+- The macro manifest records `max_period_end` and
+  `rows_with_period_end_in_holdout`.
+- **Tests, marked `holdout`:** a row known on 2019-12-20 about a period ending
+  2020-03-31 loads; a row known on 2020-01-02 raises; the existing synthetic
+  macro-panel holdout test is unchanged and still passes.
+
+**4. The coverage report** gains the three negative-lag buckets and each
+ticker's latest `period_end`.
+
+**5. Task 44's part B.** Run `make macro-snapshot`, then `make
+jpmaqs-coverage`, on the existing pull `P-20261002T032635Z`. Don't pull again.
+- **If the checkpoint raises, stop.** Report the counts per ticker and bucket,
+  and build nothing.
+- Commit `results/jpmaqs_coverage.csv` and `.md`. Commit nothing under
+  `data/raw/` or `data/snapshots/`.
+- Don't flip `data.jpmaqs.status`.
+
+#### Part 2 — the estimator test without Cash
+
+**6. The exclusion becomes the spec.** In `scripts/run_measurement.py` the
+reporting class `Cash` is excluded by default, as a named constant citing the
+`decisions/0046` addendum. A run with the default exclusion is **not** a
+sensitivity run and carries no `-sens` suffix. `--exclude-class` still marks a
+run as a sensitivity when it adds classes beyond the default.
+
+**7. Two additions to the report and `summary.json`, reported and never
+gated:**
+- each estimator's **mean Huber loss**, the incumbent's included, so a
+  statistic can be read as a share of the incumbent's loss;
+- each candidate's statistic **by reporting class**, with the number of
+  instruments in each class.
+
+**8. Re-run once:** `make measurement-loadings ARGS=--no-registry`. The four
+hypotheses stay in `hypotheses/done/`; move nothing.
+- **The four statistics, adjusted p-values and worst-year bias readings must
+  equal `M-20261002T034221Z-sens`'s to every printed digit.** If one differs,
+  stop and report both. Don't investigate by re-running with changes.
+- **Change no estimator, no constant and no configuration.**
+- Commit the new run's `report.md` and `summary.json`.
+
+**9. Check, then commit.** Run `scripts/unattended.sh check-full --digest`
+after the last edit. Commit `src/`, `scripts/`, `tests/`, `build.mk` and the
+`results/` files named above, citing `decisions/0047` and `decisions/0046` in
+full.
+
+**Receipt:**
+- rc, commits and the check-full log directory;
+- **JPMaQS, counts only:** the macro snapshot id and hash; tickers; rows raw,
+  with no value, dropped by grade, before and after compression; the
+  negative-lag rows per ticker and bucket; `max_period_end` and the rows with
+  a period end in the holdout; the distinct grading values; how many tickers
+  start after `dev_start`;
+- **the estimator test:** the new run id, whether it reproduced the
+  sensitivity run exactly, the incumbent's mean loss, and the by-class table;
+- every test changed, and why;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop. OWNER-QUEUE L21 and L22 move to `## Closed` in the same commit as
+the receipt.
+
+---
+
+### 47. A fifth loading estimator: mean-reverting Bayesian loadings, H-2026-0017 (`decisions/0046`, addendum of 2026-10-02)
+
+Added 2026-10-02 by Cowork. **Owner, 2026-10-02:** register and test a method
+that is Bayesian, time-varying and shrinks to the instrument's own long-run
+mean. **Run it after task 46**, because it needs the Cash exclusion and the
+report additions that task makes. No owner-only edit, no vendor call, no
+audit. Budget 2-3 h.
+
+**Read first:** the two 2026-10-02 addenda at the end of `decisions/0046`, and
+`hypotheses/proposed/H-2026-0017.yaml`.
+
+**Hard rules, as in task 45:**
+- **The configuration in the addendum is fixed.** Don't tune the grids, the
+  scale or the prior, and don't try a second configuration. If it can't be
+  built as written, stop and say so.
+- **No lookahead.** The filter is recursive; the loading for week t+1 uses data
+  up to the Friday of week t only.
+- **Don't change the other five estimators, the factors or the score.**
+- **Don't recommend an estimator.**
+
+**0. Commit first, alone:** `HANDOFF.md`, `OWNER-QUEUE.md`, `decisions/0046`
+and `hypotheses/proposed/H-2026-0017.yaml`, as `queue: task 47, a fifth loading
+estimator (decisions/0046)`. *(If task 46's step 0 already committed some of
+these, commit what is left.)*
+
+**1. Register, before the estimator touches real data.** Move
+`hypotheses/proposed/H-2026-0017.yaml` to `hypotheses/pending/`. In its
+`notes`, replace the sentence "DRAFT, in hypotheses/proposed/. Not registered
+until HANDOFF task 47 moves it to hypotheses/pending/." with "Registered
+2026-MM-DD (HANDOFF task 47)." Change nothing else. Commit it alone, as
+`hypotheses: register H-2026-0017, mean-reverting loadings (decisions/0046)`.
+
+**2. The estimator** (`measurement/estimators.py`, name
+`mean_reverting_dlm_own_mean`), as the addendum states it:
+- State `(a, mu, d_t)`: the intercept, the long-run loading `mu` (constant,
+  diffuse prior) and the deviation `d_t = phi * d_(t-1) + w_t`. The loading is
+  `mu + d_t`.
+- Innovation covariance `(1 − phi²) * q * C_t`, with `C_t` the scaled
+  covariance of the 156-week rolling OLS loading known at t. Before a rolling
+  OLS exists, the filter doesn't start.
+- Observation variance learned as `_kalman_filter` does it.
+- The grid: half-lives 13, 26, 52 and 104 weeks (`phi = 0.5 ** (1 / h)`) and
+  `q` of 0.25, 1 and 4. At each t, take the pair with the highest cumulative
+  one-step predictive log likelihood on data up to t. One recursive pass per
+  pair.
+- **What the path stores for week t:** the one-step forecast of the loading,
+  `mu_hat + phi * d_hat_t`, and that forecast's covariance. Say so in the
+  docstring, because the other estimators store a filtered or fitted value.
+- The 104-valid-week rule applies, as for the others.
+
+**Tests, on synthetic data with a planted truth:**
+- constant loadings are recovered;
+- **planted mean-reverting loadings:** its error is below rolling OLS's and
+  below `kalman_dlm_discount`'s;
+- a planted permanent level shift: it converges to the new level, and the
+  test records how many weeks that takes (reported, no threshold);
+- no lookahead: changing every observation after t leaves the stored value at
+  t bit-for-bit unchanged;
+- the returned covariance is symmetric and positive semi-definite;
+- the forecast, not the filtered value, is what is stored (a direct test).
+
+**3. The score.** Add it to `CANDIDATES`, so the gate runs over five.
+- The gate must report `n_tests = 5` and `g = 1`.
+- Update the tests that assert four candidates. List each in the receipt.
+
+**4. The run:** `make measurement-loadings`, with the default Cash exclusion
+from task 46.
+- **Before anything is recorded, compare:** the incumbent's and the first four
+  candidates' statistics, bias readings and mean losses must equal task 46's
+  run to every printed digit. Their adjusted p-values may differ, because the
+  search is now five. If a statistic differs, stop.
+- **If the five-way gate would give any of H-2026-0013 to 0016 a verdict other
+  than `not_detected`, stop and report.** Their recorded verdicts stand.
+- Move only H-2026-0017: `pending → running → done`, with `candidate` if it
+  passes both the gate and the uncertainty check, and `not_detected`
+  otherwise.
+- The report also gives, for this estimator: how often each `(half-life, q)`
+  pair was chosen, as a table of shares; and its statistic in the first and
+  second half of the scored weeks, since its claim is that the gain grows with
+  history.
+
+**5. Check, then commit.** `scripts/unattended.sh check-full --digest` after the
+last edit. Commit `src/`, `scripts/`, `tests/`, the moved hypothesis file, and
+the run's `report.md` and `summary.json`.
+
+**Receipt:**
+- rc, commits, the check-full log directory, the run id and its runtime;
+- the registration commit's hash and time, and the run's;
+- whether the first four reproduced exactly;
+- **the six-row table:** statistic, mean loss, adjusted p, gate, worst-year
+  bias, check, and the slices, with the by-class breakdown for the new
+  estimator;
+- the grid shares and the two half-sample statistics;
+- every test changed, and why;
 - **Anything in this task you didn't do, said plainly.**
 
 Then stop.
