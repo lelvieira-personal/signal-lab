@@ -1,0 +1,477 @@
+{
+  "run_id": "M-20261002T131820Z",
+  "decision": "decisions/0046",
+  "sensitivity": false,
+  "excluded_classes": [
+    "Cash"
+  ],
+  "default_excluded_classes": [
+    "Cash"
+  ],
+  "hashes": {
+    "params_hash": "b3d41267a752b9d76e2ddf17264cccb5b5b9ea6f0f45edc8bf1517524674376a",
+    "params_version": "0.9.0",
+    "weekly_returns_hash": "14a03fd587f6dd2e592a065942203ca8e40a0ef29ea0fd32971644e8823eaf02",
+    "factors_hash": "3401475eb25cd3c0a1c4858110732e97929ae550576767c8ad7f7138245fafa9"
+  },
+  "sample": {
+    "common_start": "2001-01-05",
+    "last_week": "2019-12-27",
+    "n_weeks_all_factors": 991,
+    "n_instruments": 86
+  },
+  "units": {
+    "real_yield": "percent -> decimal",
+    "inflation": "percent -> decimal",
+    "credit": "percent -> decimal"
+  },
+  "estimators": [
+    "rolling_ols",
+    "huber_m",
+    "theil_goldberger_peer_prior",
+    "hmm2_regime_conditional",
+    "kalman_dlm_discount"
+  ],
+  "bias_ceiling": 1.72,
+  "score": {
+    "gate": {
+      "procedure": "romano_wolf_gfwer",
+      "fwer_alpha": 0.05,
+      "g": 1,
+      "n_tests": 4,
+      "n_shuffles": 1000,
+      "block_weeks": 26
+    },
+    "n_weeks_scored": 835,
+    "n_cells_scored": 70326,
+    "estimators": {
+      "rolling_ols": {
+        "mean_huber_loss": 0.2319061999874924,
+        "worst_year": 2008,
+        "worst_annual_bias": 1.8030466650167658,
+        "bias_ok": false,
+        "annual_bias": {
+          "2004": 0.8142648910575007,
+          "2005": 0.9762939559019895,
+          "2006": 0.9633816425340649,
+          "2007": 1.2517571187549412,
+          "2008": 1.8030466650167658,
+          "2009": 1.171369372970219,
+          "2010": 0.6985214457939612,
+          "2011": 0.8427872295614353,
+          "2012": 0.8053290286100927,
+          "2013": 0.9637142240833563,
+          "2014": 0.9999005672165384,
+          "2015": 1.1513831800486845,
+          "2016": 1.1545112005924312,
+          "2017": 0.8368052692757008,
+          "2018": 1.142365690796809,
+          "2019": 0.9921663413830991
+        }
+      },
+      "huber_m": {
+        "mean_huber_loss": 0.23033442386469188,
+        "worst_year": 2008,
+        "worst_annual_bias": 1.6802831996287397,
+        "bias_ok": true,
+        "annual_bias": {
+          "2004": 0.8073580495792978,
+          "2005": 0.9615167949803116,
+          "2006": 0.9587244675330041,
+          "2007": 1.2420113108376765,
+          "2008": 1.6802831996287397,
+          "2009": 1.0805689745790514,
+          "2010": 0.6829168544165036,
+          "2011": 0.823079789942708,
+          "2012": 0.7978928461996452,
+          "2013": 0.9575691720781604,
+          "2014": 0.999566898002387,
+          "2015": 1.1507445887497012,
+          "2016": 1.1529482692027595,
+          "2017": 0.8336497098050224,
+          "2018": 1.1326486024730993,
+          "2019": 0.9829283367660385
+        },
+        "statistic": 0.0015680982735508796,
+        "p_adjusted": 0.17782217782217782,
+        "gate_passed": false,
+        "slices": {
+          "top_decile_factor_moves": 0.01015803899080078,
+          "2004-2007": -5.4289465947054894e-05,
+          "2008-2009": 0.007041473027588887,
+          "2010-2019": 0.0011271941799399895
+        },
+        "eligible": false,
+        "verdict": "not_detected"
+      },
+      "theil_goldberger_peer_prior": {
+        "mean_huber_loss": 0.23104632139577178,
+        "worst_year": 2008,
+        "worst_annual_bias": 1.8345515175508746,
+        "bias_ok": false,
+        "annual_bias": {
+          "2004": 0.8127705832684265,
+          "2005": 0.9779101521185007,
+          "2006": 0.9698537507181839,
+          "2007": 1.2541683995904307,
+          "2008": 1.8345515175508746,
+          "2009": 1.1735300554803,
+          "2010": 0.695999811935125,
+          "2011": 0.8401292243470496,
+          "2012": 0.80613747553457,
+          "2013": 0.9678763276636965,
+          "2014": 1.0071119341562478,
+          "2015": 1.1615632734634564,
+          "2016": 1.1691972627786316,
+          "2017": 0.8388772981916234,
+          "2018": 1.147252006603791,
+          "2019": 0.9964144593254428
+        },
+        "statistic": 0.000877759927708908,
+        "p_adjusted": 0.15984015984015984,
+        "gate_passed": false,
+        "slices": {
+          "top_decile_factor_moves": 0.008142219656620773,
+          "2004-2007": 0.001338470894085258,
+          "2008-2009": 0.004514173867856332,
+          "2010-2019": -3.11972403906883e-05
+        },
+        "eligible": false,
+        "verdict": "not_detected"
+      },
+      "hmm2_regime_conditional": {
+        "mean_huber_loss": 0.23852831902247074,
+        "worst_year": 2008,
+        "worst_annual_bias": 1.3827550575429284,
+        "bias_ok": true,
+        "annual_bias": {
+          "2004": 0.8355793504592801,
+          "2005": 0.9633802497200632,
+          "2006": 0.9488692603427392,
+          "2007": 0.9930418971560545,
+          "2008": 1.3827550575429284,
+          "2009": 0.9874599695041589,
+          "2010": 0.9294546103535068,
+          "2011": 0.9293879194375407,
+          "2012": 0.8334201038909061,
+          "2013": 0.8518618635726791,
+          "2014": 0.8252913775335606,
+          "2015": 0.9915689621837996,
+          "2016": 1.00473118574445,
+          "2017": 0.7529917552541432,
+          "2018": 0.982671172560006,
+          "2019": 0.8245984942026646
+        },
+        "statistic": -0.006615039183807821,
+        "p_adjusted": 1.0,
+        "gate_passed": false,
+        "slices": {
+          "top_decile_factor_moves": -0.014137638437332593,
+          "2004-2007": -0.007563332429658425,
+          "2008-2009": -0.009214740469146,
+          "2010-2019": -0.005717410405919032
+        },
+        "eligible": false,
+        "verdict": "not_detected"
+      },
+      "kalman_dlm_discount": {
+        "mean_huber_loss": 0.23247750587920377,
+        "worst_year": 2008,
+        "worst_annual_bias": 1.5787746535325993,
+        "bias_ok": true,
+        "annual_bias": {
+          "2004": 0.7008749024536777,
+          "2005": 0.7148453609812416,
+          "2006": 0.6781256653380874,
+          "2007": 0.8758885974469355,
+          "2008": 1.5787746535325993,
+          "2009": 1.266391470327097,
+          "2010": 0.8068458616264842,
+          "2011": 0.9165146190606274,
+          "2012": 0.6651991756940514,
+          "2013": 0.7329643657033907,
+          "2014": 0.6966783060919758,
+          "2015": 0.8129948239596749,
+          "2016": 0.8779437190136248,
+          "2017": 0.6501978056022767,
+          "2018": 0.8357536878508394,
+          "2019": 0.6994664176534118
+        },
+        "statistic": -0.00053008041424551,
+        "p_adjusted": 0.938061938061938,
+        "gate_passed": false,
+        "slices": {
+          "top_decile_factor_moves": -0.01475723706896519,
+          "2004-2007": 0.003124511965817913,
+          "2008-2009": -0.016282748992874494,
+          "2010-2019": 0.001145145112084296
+        },
+        "eligible": false,
+        "verdict": "not_detected"
+      }
+    },
+    "by_class": {
+      "APAC ex-Japan Equities": {
+        "n_instruments": 1,
+        "huber_m": -0.002793829493464718,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": 0.00511791989685751,
+        "kalman_dlm_discount": 0.004068809599066599
+      },
+      "Commodities": {
+        "n_instruments": 1,
+        "huber_m": -4.023414309006945e-06,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": -2.7166073505014508e-05,
+        "kalman_dlm_discount": 3.7215799077738206e-06
+      },
+      "DM ex-US Equities": {
+        "n_instruments": 9,
+        "huber_m": 0.0011196845358651787,
+        "theil_goldberger_peer_prior": -0.0013521650170145226,
+        "hmm2_regime_conditional": -0.0005083516036335334,
+        "kalman_dlm_discount": -0.0007476376680579144
+      },
+      "EM Corporate Bonds": {
+        "n_instruments": 1,
+        "huber_m": 0.02434195289505498,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": -0.02033446886032009,
+        "kalman_dlm_discount": 0.0070551389758161135
+      },
+      "EM Equities": {
+        "n_instruments": 12,
+        "huber_m": 0.0015751259080197895,
+        "theil_goldberger_peer_prior": 0.0022217874891758394,
+        "hmm2_regime_conditional": -0.0033001054688415383,
+        "kalman_dlm_discount": -0.001880601173576401
+      },
+      "EM Sovereign Bonds": {
+        "n_instruments": 2,
+        "huber_m": 0.023133401073743395,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": 0.003194014617908554,
+        "kalman_dlm_discount": 0.012362014522873749
+      },
+      "European Equities": {
+        "n_instruments": 13,
+        "huber_m": 0.0026207454444580757,
+        "theil_goldberger_peer_prior": 0.002894581636061947,
+        "hmm2_regime_conditional": -0.007907195864171528,
+        "kalman_dlm_discount": -0.004391640503264352
+      },
+      "Ex-USD Bonds": {
+        "n_instruments": 8,
+        "huber_m": 0.0014901827218713399,
+        "theil_goldberger_peer_prior": 0.0019461038403205467,
+        "hmm2_regime_conditional": -0.014697672606306847,
+        "kalman_dlm_discount": 0.0009643706006234727
+      },
+      "Gold": {
+        "n_instruments": 1,
+        "huber_m": 0.002159324444774888,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": 0.0009084336005866674,
+        "kalman_dlm_discount": 0.013294221967207916
+      },
+      "HY Corporates": {
+        "n_instruments": 5,
+        "huber_m": -0.00545533460024595,
+        "theil_goldberger_peer_prior": -0.005683853315214899,
+        "hmm2_regime_conditional": -0.01087257416959973,
+        "kalman_dlm_discount": 0.007362471818327274
+      },
+      "IG Corporates": {
+        "n_instruments": 2,
+        "huber_m": 0.003134136072808365,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": -0.00876686970699374,
+        "kalman_dlm_discount": -0.0019460848095578674
+      },
+      "Japanese Equities": {
+        "n_instruments": 1,
+        "huber_m": 0.0005931335658175419,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": 0.0012338658175475923,
+        "kalman_dlm_discount": 0.004847611940922822
+      },
+      "Long Treasuries": {
+        "n_instruments": 2,
+        "huber_m": -0.0015605955687371539,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": -0.0173970189016877,
+        "kalman_dlm_discount": 0.0012157964088197872
+      },
+      "MBS": {
+        "n_instruments": 1,
+        "huber_m": -0.007478265032116018,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": 0.01163229840191076,
+        "kalman_dlm_discount": 0.018534142424644618
+      },
+      "Real Assets": {
+        "n_instruments": 4,
+        "huber_m": 0.002788256926560089,
+        "theil_goldberger_peer_prior": 5.448216985963774e-05,
+        "hmm2_regime_conditional": -0.008991379103400008,
+        "kalman_dlm_discount": -0.010116584669630276
+      },
+      "TIPS": {
+        "n_instruments": 1,
+        "huber_m": 0.0035581909167973647,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": 0.003560534775908808,
+        "kalman_dlm_discount": 7.660226931757263e-05
+      },
+      "Treasuries": {
+        "n_instruments": 3,
+        "huber_m": 0.0004198413548890022,
+        "theil_goldberger_peer_prior": 0.0,
+        "hmm2_regime_conditional": -0.02322275766756611,
+        "kalman_dlm_discount": 0.007960405035483025
+      },
+      "US Equities": {
+        "n_instruments": 19,
+        "huber_m": 0.00157335467692854,
+        "theil_goldberger_peer_prior": 0.0017663513805976192,
+        "hmm2_regime_conditional": -0.005521103630422422,
+        "kalman_dlm_discount": -0.0021810912580992486
+      }
+    }
+  },
+  "verdicts": {
+    "H-2026-0013": "not_detected",
+    "H-2026-0014": "not_detected",
+    "H-2026-0015": "not_detected",
+    "H-2026-0016": "not_detected"
+  },
+  "hmm_stability": {
+    "n_fits": 836,
+    "agreement_min_over_restarts_median_over_weeks": 1.0,
+    "agreement_min_over_restarts_worst_week": 0.6416184971098265,
+    "agreement_median_over_restarts_median_over_weeks": 1.0,
+    "weeks_with_a_restart_below_90pct_agreement": 62
+  },
+  "factor_correlations": {
+    "full_sample": {
+      "equity": {
+        "equity": 1.0,
+        "real_yield": 0.0232,
+        "inflation": 0.4672,
+        "credit": -0.4811,
+        "dollar": -0.3113,
+        "commodities": 0.448
+      },
+      "real_yield": {
+        "equity": 0.0232,
+        "real_yield": 1.0,
+        "inflation": -0.1776,
+        "credit": -0.0136,
+        "dollar": 0.2928,
+        "commodities": -0.0993
+      },
+      "inflation": {
+        "equity": 0.4672,
+        "real_yield": -0.1776,
+        "inflation": 1.0,
+        "credit": -0.4122,
+        "dollar": -0.1609,
+        "commodities": 0.3531
+      },
+      "credit": {
+        "equity": -0.4811,
+        "real_yield": -0.0136,
+        "inflation": -0.4122,
+        "credit": 1.0,
+        "dollar": 0.0995,
+        "commodities": -0.2695
+      },
+      "dollar": {
+        "equity": -0.3113,
+        "real_yield": 0.2928,
+        "inflation": -0.1609,
+        "credit": 0.0995,
+        "dollar": 1.0,
+        "commodities": -0.4337
+      },
+      "commodities": {
+        "equity": 0.448,
+        "real_yield": -0.0993,
+        "inflation": 0.3531,
+        "credit": -0.2695,
+        "dollar": -0.4337,
+        "commodities": 1.0
+      }
+    },
+    "rolling_156w_range": {
+      "equity~real_yield": {
+        "min": -0.28099300687431045,
+        "max": 0.36971734968690867
+      },
+      "equity~inflation": {
+        "min": 0.04598638887482952,
+        "max": 0.679413588171274
+      },
+      "equity~credit": {
+        "min": -0.7211680954753932,
+        "max": -0.27285278027866666
+      },
+      "equity~dollar": {
+        "min": -0.5965900648467916,
+        "max": 0.11449153272448323
+      },
+      "equity~commodities": {
+        "min": 0.060681454650632266,
+        "max": 0.7239817860099794
+      },
+      "real_yield~inflation": {
+        "min": -0.5024480394913785,
+        "max": 0.21445204043524227
+      },
+      "real_yield~credit": {
+        "min": -0.400900757240398,
+        "max": 0.2814557316749234
+      },
+      "real_yield~dollar": {
+        "min": 0.003394503211921115,
+        "max": 0.4553929858866277
+      },
+      "real_yield~commodities": {
+        "min": -0.3413075453909396,
+        "max": 0.18277485369017743
+      },
+      "inflation~credit": {
+        "min": -0.538592734875834,
+        "max": -0.034286108508166276
+      },
+      "inflation~dollar": {
+        "min": -0.48978756428606524,
+        "max": 0.1974310839984262
+      },
+      "inflation~commodities": {
+        "min": 0.08688846661334905,
+        "max": 0.6301494093275144
+      },
+      "credit~dollar": {
+        "min": -0.206283816378634,
+        "max": 0.4283698543321952
+      },
+      "credit~commodities": {
+        "min": -0.46813013155733296,
+        "max": 0.06115751180617162
+      },
+      "dollar~commodities": {
+        "min": -0.5979066738266533,
+        "max": -0.22605494393789421
+      }
+    }
+  },
+  "projection": {
+    "hmm_seconds_per_fit": 0.09280252374992415,
+    "hmm_fits": 836.0,
+    "seconds_per_instrument": 1.1191524194000522,
+    "instruments": 86.0,
+    "projected_seconds": 173.83001792334107
+  },
+  "runtime_seconds": 268.0336494445801
+}

@@ -183,3 +183,19 @@ def test_the_worst_year_is_read_with_the_shared_calibration_helper():
     assert set(annual) == {2005, 2006}  # 2007 has too few readings to read
     assert worst_year(annual)[0] == 2006
     assert worst_year({}) == (None, float("nan")) or worst_year({})[0] is None
+
+
+def test_mean_huber_loss_and_the_by_class_table_are_reported(params):
+    ev, F, weeks = _evaluate(5, dict.fromkeys(NAMES, 0.3))
+    classes = ["A", "A", "B", "B"]
+    out = fid.score(ev, pd.DataFrame(F, index=weeks), params, draws=200, classes=classes)
+    for name in NAMES:  # the incumbent's included, so a statistic reads as a share of it
+        loss = out["estimators"][name]["mean_huber_loss"]
+        assert loss == pytest.approx(float(ev.loss[NAMES.index(name)][ev.mask].mean()))
+        assert loss > 0
+    assert set(out["by_class"]) == {"A", "B"}
+    assert out["by_class"]["A"]["n_instruments"] == 2
+    # the by-class statistics are a breakdown, not a second test: nothing in the gate moved
+    plain = fid.score(ev, pd.DataFrame(F, index=weeks), params, draws=200)
+    assert "by_class" not in plain
+    assert plain["estimators"]["huber_m"]["statistic"] == out["estimators"]["huber_m"]["statistic"]

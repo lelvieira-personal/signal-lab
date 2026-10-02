@@ -43,7 +43,7 @@ import pandas as pd
 from signal_lab.loaders.base import AnalyticsPanel, ReturnPanel, SeriesMeta, VintagePanel
 from signal_lab.loaders.bloomberg import LoaderNotImplemented
 from signal_lab.loaders.env import check_secret
-from signal_lab.loaders.holdout import enforce_holdout
+from signal_lab.loaders.holdout import enforce_holdout, holdout_start
 from signal_lab.params import Params, get_params
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -55,6 +55,15 @@ PULL_MANIFEST_NAME = "pull_manifest.json"
 QDF_COLUMNS = ("cid", "xcat", "real_date", "value", "grading", "eop_lag")
 # eop_lag buckets for the coverage report, in days: (label, low, high inclusive).
 EOP_LAG_BUCKETS = (("0", 0, 0), ("1-31", 1, 31), ("32-92", 32, 92), (">92", 93, None))
+# decisions/0047: a negative eop_lag is a period that ends after the number is known.
+# Counted in three buckets (days), and the third must be empty for anything to be built.
+NEGATIVE_LAG_BUCKETS = ("-1..-31", "-32..-92", "below -92")
+NEGATIVE_LAG_CHECKPOINT_DAYS = -92
+
+
+class NegativeLagCheckpoint(ValueError):
+    """decisions/0047 section 3: a valued row's period ends more than 92 days after it is known."""
+
 
 # cid is exactly three characters, then the xcat. Anchored so a Bloomberg
 # ticker (LUACTRUU, MXUS0EN) cannot match by accident.
@@ -179,6 +188,19 @@ def filter_panel(frame: pd.DataFrame, tickers: list[str]) -> tuple[pd.DataFrame,
     return frame.loc[keep].copy(), len(present) - len(set(tickers))
 
 
+def negative_lag_buckets(lag: pd.Series, ticker: pd.Series) -> dict[str, dict[str, int]]:
+    """Valued rows with a negative `eop_lag`, per ticker, in the three buckets of decisions/0047."""
+    neg = lag < 0
+    out: dict[str, dict[str, int]] = {}
+    for t, lags in lag[neg].groupby(ticker[neg]):
+        out[str(t)] = {
+            NEGATIVE_LAG_BUCKETS[0]: int((lags >= -31).sum()),
+            NEGATIVE_LAG_BUCKETS[1]: int(((lags < -31) & (lags >= -92)).sum()),
+            NEGATIVE_LAG_BUCKETS[2]: int((lags < -92).sum()),
+        }
+    return out
+
+
 def _bucket_counts(lags: pd.Series) -> dict[str, int]:
     out = {}
     for label, lo, hi in EOP_LAG_BUCKETS:
@@ -195,8 +217,11 @@ def qdf_to_vintage_frame(qdf: pd.DataFrame) -> pd.DataFrame:
     `period_end = real_date - eop_lag days` (decisions/0014). Rows with no value
     are dropped (a day on which nothing was published is not an observation);
     the caller counts them. Refuses, rather than repairs, a frame missing a
-    metric column, or a valued row whose `eop_lag` is negative or non-finite or
-    whose `grading` is missing.
+    metric column, or a valued row whose `eop_lag` is non-finite or whose
+    `grading` is missing. A NEGATIVE `eop_lag` is allowed (decisions/0047: the
+    period ends after the number is known) up to the checkpoint: a valued row
+    with an `eop_lag` below -92 days raises `NegativeLagCheckpoint` and nothing
+    is built.
     """
     missing = [c for c in QDF_COLUMNS if c not in qdf.columns]
     if missing:
@@ -206,11 +231,20 @@ def qdf_to_vintage_frame(qdf: pd.DataFrame) -> pd.DataFrame:
         )
     valued = qdf.loc[qdf["value"].notna()]
     lag = pd.to_numeric(valued["eop_lag"], errors="coerce")
-    bad_lag = ~np.isfinite(lag) | (lag < 0)
+    bad_lag = ~np.isfinite(lag)
     if bool(bad_lag.any()):
         raise ValueError(
-            f"{int(bad_lag.sum())} valued row(s) have a negative or non-finite eop_lag; "
+            f"{int(bad_lag.sum())} valued row(s) have a non-finite eop_lag; "
             f"the period cannot be recovered from them"
+        )
+    deep = lag < NEGATIVE_LAG_CHECKPOINT_DAYS
+    if bool(deep.any()):
+        ticker = valued["cid"].astype(str) + "_" + valued["xcat"].astype(str)
+        by_ticker = negative_lag_buckets(lag, ticker)
+        raise NegativeLagCheckpoint(
+            f"{int(deep.sum())} valued row(s) have an eop_lag below {NEGATIVE_LAG_CHECKPOINT_DAYS} "
+            f"days (decisions/0047 section 3); nothing is built. Negative-lag rows by ticker "
+            f"and bucket: {by_ticker}"
         )
     if bool(valued["grading"].isna().any()):
         raise ValueError(
@@ -305,12 +339,21 @@ def build_macro_panel(
     eop_buckets = {sid: _bucket_counts(g["eop_lag"]) for sid, g in kept.groupby("series_id")}
     compressed = compress_to_change_points(kept)
 
+    # decisions/0047: the holdout binds on the knowledge date. A period may end after it
+    # is known, so period_end is NOT checked; it is recorded in the manifest instead.
     enforce_holdout(compressed["knowledge_date"], params, what="jpmaqs macro knowledge_date")
-    enforce_holdout(compressed["period_end"], params, what="jpmaqs macro period_end")
 
     first_known = compressed.groupby("series_id")["knowledge_date"].min()
     meta = {sid: legacy_meta(sid, first_known[sid], params) for sid in sorted(first_known.index)}
-    panel = VintagePanel(compressed, meta, snapshot_id=snapshot_id, source="jpmaqs")
+    panel = VintagePanel(
+        compressed,
+        meta,
+        snapshot_id=snapshot_id,
+        source="jpmaqs",
+        period_may_follow_knowledge=True,
+    )
+    neg_buckets = negative_lag_buckets(full["eop_lag"], full["series_id"])
+    holdout = holdout_start(params)
 
     per_ticker = {}
     for t in sorted(tickers):
@@ -322,6 +365,7 @@ def build_macro_panel(
             "rows_after_compression": int((compressed["series_id"] == t).sum()),
             "grading_counts": grading_counts.get(t, {}),
             "eop_lag_buckets": eop_buckets.get(t, {label: 0 for label, _, _ in EOP_LAG_BUCKETS}),
+            "negative_lag_buckets": neg_buckets.get(t, dict.fromkeys(NEGATIVE_LAG_BUCKETS, 0)),
         }
     counts = {
         "n_tickers": len(tickers),
@@ -331,6 +375,11 @@ def build_macro_panel(
         "rows_grade_excluded": int(sum(v["rows_grade_excluded"] for v in per_ticker.values())),
         "rows_kept_before_compression": int(len(kept)),
         "rows_after_compression": int(len(compressed)),
+        "negative_lag_rows": int(
+            sum(sum(v["negative_lag_buckets"].values()) for v in per_ticker.values())
+        ),
+        "max_period_end": str(compressed["period_end"].max().date()),
+        "rows_with_period_end_in_holdout": int((compressed["period_end"] >= holdout).sum()),
         "per_ticker": per_ticker,
     }
     return panel, counts

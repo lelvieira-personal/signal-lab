@@ -190,8 +190,8 @@ def build_macro_snapshot(
     # Load before creating the directory, so a missing raw pull leaves nothing behind.
     loader = JPMaQSLoader(params, raw_root=raw_root)
     macro, counts = loader.load_macro_with_counts(snapshot_id, pull_id)
+    # decisions/0047: the holdout binds on the knowledge date; a period may end after it.
     enforce_holdout(macro.frame["knowledge_date"], params, what=f"snapshot {snapshot_id} macro")
-    enforce_holdout(macro.frame["period_end"], params, what=f"snapshot {snapshot_id} macro")
 
     out.mkdir(parents=True)
     macro.frame.to_parquet(out / "macro.parquet", index=False)
@@ -212,6 +212,9 @@ def build_macro_snapshot(
         "last_date": str(macro.frame["knowledge_date"].max().date()),
         "series_ids": [],
         "macro_ids": sorted(macro.frame["series_id"].unique().tolist()),
+        # decisions/0047: period_end is not holdout-checked; it is recorded.
+        "max_period_end": counts["max_period_end"],
+        "rows_with_period_end_in_holdout": counts["rows_with_period_end_in_holdout"],
         "counts": counts,
     }
     (out / "manifest.yaml").write_text(

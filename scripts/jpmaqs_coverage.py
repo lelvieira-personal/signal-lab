@@ -77,6 +77,9 @@ def coverage_rows(snapshot, hyps: dict[str, list[str]]) -> list[dict]:
                 "eop_lag_1_31": c["eop_lag_buckets"].get("1-31", 0),
                 "eop_lag_32_92": c["eop_lag_buckets"].get("32-92", 0),
                 "eop_lag_over_92": c["eop_lag_buckets"].get(">92", 0),
+                "neg_lag_1_31": c["negative_lag_buckets"]["-1..-31"],
+                "neg_lag_32_92": c["negative_lag_buckets"]["-32..-92"],
+                "neg_lag_below_92": c["negative_lag_buckets"]["below -92"],
                 "longest_gap_days": int(gaps.max()) if len(gaps) else 0,
                 "starts_by_dev_start": bool(len(g) and kd.min() <= dev_start),
             }
@@ -111,11 +114,15 @@ def write_reports(rows: list[dict], snapshot, out_dir: Path) -> tuple[Path, Path
         f"- Tickers: {len(rows)}. Starting after dev_start ({m['dev_start']}): {len(late)}"
         + (f" ({', '.join(late)})" if late else "")
         + ".",
+        f"- Latest period_end in the snapshot: {m['max_period_end']}; rows with a period_end in the "
+        f"holdout: {m['rows_with_period_end_in_holdout']} (decisions/0047: the lock binds on the "
+        f"knowledge date).",
         f"- Grading values other than 1, 2, 3: {fractional if fractional else 'none'}.",
         "",
         "| ticker | hypotheses | first kd | last kd | first pe | last pe | vintages | periods | "
-        "no value | grade-excl | gradings | eop 0 | 1-31 | 32-92 | >92 | longest gap (d) | by dev_start |",
-        "|" + "---|" * 17,
+        "no value | grade-excl | gradings | eop 0 | 1-31 | 32-92 | >92 | neg -1..-31 | "
+        "neg -32..-92 | neg <-92 | longest gap (d) | by dev_start |",
+        "|" + "---|" * 20,
     ]
     for r in rows:
         lines.append(
@@ -124,6 +131,7 @@ def write_reports(rows: list[dict], snapshot, out_dir: Path) -> tuple[Path, Path
             f"{r['n_vintages']} | {r['n_periods']} | {r['rows_no_value']} | "
             f"{r['rows_grade_excluded']} | {r['gradings']} | {r['eop_lag_0']} | "
             f"{r['eop_lag_1_31']} | {r['eop_lag_32_92']} | {r['eop_lag_over_92']} | "
+            f"{r['neg_lag_1_31']} | {r['neg_lag_32_92']} | {r['neg_lag_below_92']} | "
             f"{r['longest_gap_days']} | {'yes' if r['starts_by_dev_start'] else 'NO'} |"
         )
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

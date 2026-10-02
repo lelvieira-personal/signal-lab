@@ -27,10 +27,12 @@ from signal_lab.harness.snapshot import (  # noqa: E402
     load_snapshot,
     verify_snapshot,
 )
+from signal_lab.loaders.base import VintagePanel  # noqa: E402
 from signal_lab.loaders.holdout import HoldoutViolation  # noqa: E402
 from signal_lab.loaders.jpmaqs import (  # noqa: E402
     JPMaQSLoader,
     LoaderNotImplemented,
+    NegativeLagCheckpoint,
     RawPullMissing,
     build_macro_panel,
     compress_to_change_points,
@@ -124,8 +126,8 @@ def test_a_missing_metric_column_is_refused(drop):
         qdf_to_vintage_frame(_qdf(T1, _daily(n=3), [1.0] * 3).drop(columns=drop))
 
 
-@pytest.mark.parametrize("bad", [-1.0, np.nan, np.inf])
-def test_a_bad_eop_lag_on_a_valued_row_is_refused(bad):
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+def test_a_non_finite_eop_lag_on_a_valued_row_is_refused(bad):
     with pytest.raises(ValueError, match="eop_lag"):
         qdf_to_vintage_frame(_qdf(T1, _daily(n=3), [1.0] * 3, lags=[10.0, bad, 10.0]))
 
@@ -398,3 +400,113 @@ def test_the_coverage_report_has_dates_and_counts_and_no_values(params, raw_root
     header = csv_path.read_text().splitlines()[0].split(",")
     assert "value" not in header
     assert md_path.exists()
+
+
+# --- decisions/0047: a period may end after it is known ---------------------------
+
+
+def _negative(lag_days, n=3):
+    """A ticker whose period ends `-lag_days` days AFTER the number is known (a survey)."""
+    d = _daily(n=n)
+    return _qdf(T1, d, [1.0] * n, period_ends=[x + pd.Timedelta(days=-lag_days) for x in d])
+
+
+def test_a_panel_refuses_a_period_after_knowledge_by_default():
+    frame = pd.DataFrame(
+        {
+            "series_id": ["X"],
+            "period_end": pd.to_datetime(["2010-02-28"]),
+            "knowledge_date": pd.to_datetime(["2010-02-01"]),
+            "value": [1.0],
+        }
+    )
+    with pytest.raises(ValueError, match="before period_end"):
+        VintagePanel(frame, {})
+
+
+def test_a_jpmaqs_panel_builds_with_a_period_after_knowledge(params):
+    panel, counts = build_macro_panel(_negative(-20.0), [T1], params)
+    assert panel.period_may_follow_knowledge
+    assert (panel.frame["period_end"] > panel.frame["knowledge_date"]).all()
+    assert counts["per_ticker"][T1]["negative_lag_buckets"] == {
+        "-1..-31": 3,
+        "-32..-92": 0,
+        "below -92": 0,
+    }
+    assert counts["negative_lag_rows"] == 3
+
+
+def test_as_of_returns_the_row_on_and_after_its_knowledge_date_and_not_before(params):
+    days = pd.to_datetime(["2010-02-01"])
+    panel, _ = build_macro_panel(_qdf(T1, days, [4.2], period_ends=["2010-03-31"]), [T1], params)
+    assert panel.as_of("2010-01-29").empty
+    assert panel.as_of("2010-02-01").iloc[0, 0] == 4.2  # known the day it was published
+    assert panel.as_of("2010-06-01").iloc[0, 0] == 4.2
+    assert panel.as_of("2010-02-01").index[0] == pd.Timestamp("2010-03-31")
+
+
+def test_the_buckets_split_negative_lags_per_ticker(params):
+    q = pd.concat(
+        [
+            _qdf(T1, _daily(n=2), [1.0] * 2, lags=[-1.0, -31.0]),
+            _qdf(T2, _daily(n=3), [1.0] * 3, lags=[-32.0, -92.0, -45.5]),
+            _qdf(EXTRA, _daily(n=1), [1.0], lags=[10.0]),
+        ],
+        ignore_index=True,
+    )
+    _, counts = build_macro_panel(q, [T1, T2, EXTRA], params)
+    pt = counts["per_ticker"]
+    assert pt[T1]["negative_lag_buckets"] == {"-1..-31": 2, "-32..-92": 0, "below -92": 0}
+    assert pt[T2]["negative_lag_buckets"] == {"-1..-31": 0, "-32..-92": 3, "below -92": 0}
+    assert pt[EXTRA]["negative_lag_buckets"] == {"-1..-31": 0, "-32..-92": 0, "below -92": 0}
+
+
+def test_the_checkpoint_raises_below_minus_92_and_builds_nothing(params):
+    q = pd.concat(
+        [_qdf(T1, _daily(n=2), [1.0] * 2, lags=[-40.0, -93.0]), _qdf(T2, _daily(n=2), [1.0] * 2)],
+        ignore_index=True,
+    )
+    with pytest.raises(NegativeLagCheckpoint, match="below -92") as err:
+        build_macro_panel(q, [T1, T2], params)
+    assert T1 in str(err.value) and T2 not in str(err.value)  # counts per ticker and bucket
+    with pytest.raises(NegativeLagCheckpoint):
+        qdf_to_vintage_frame(q)
+    # exactly -92 is inside the checkpoint
+    qdf_to_vintage_frame(_qdf(T1, _daily(n=2), [1.0] * 2, lags=[-92.0, -92.0]))
+
+
+# --- decisions/0047 section 3: the holdout binds on the knowledge date ----------------
+
+
+@pytest.mark.holdout
+def test_a_row_known_in_2019_about_a_period_ending_in_2020_loads(params):
+    # The task text's example, a period ending 2020-03-31, is 102 days after 2019-12-20 and
+    # decisions/0047's own checkpoint (-92 days) refuses it; 2020-02-29 is 71 days.
+    days = pd.to_datetime(["2019-12-20"])
+    q = _qdf(T1, days, [1.0], period_ends=["2020-02-29"])
+    panel, counts = build_macro_panel(q, [T1], params)
+    assert len(panel.frame) == 1
+    assert counts["max_period_end"] == "2020-02-29"
+    assert counts["rows_with_period_end_in_holdout"] == 1
+
+
+@pytest.mark.holdout
+def test_a_row_known_in_2020_still_raises(params):
+    q = _qdf(T1, pd.to_datetime(["2020-01-02"]), [1.0], period_ends=["2020-02-29"])
+    with pytest.raises(HoldoutViolation):
+        build_macro_panel(q, [T1], params)
+
+
+@pytest.mark.holdout
+def test_a_macro_snapshot_with_a_period_in_the_holdout_builds_and_records_it(params, tmp_path):
+    root = tmp_path / "raw"
+    q = _qdf(
+        T1,
+        pd.to_datetime(["2019-12-18", "2019-12-19"]),
+        [1.0, 1.0],
+        period_ends=["2020-02-29", "2020-02-29"],
+    )
+    assert jpmaqs_pull.pull(params, [T1], root, _FakeFactory(q, []), now=NOW) == 0
+    snap = build_macro_snapshot("m", params=params, snapshots_dir=tmp_path / "s", raw_root=root)
+    assert snap.manifest["max_period_end"] == "2020-02-29"
+    assert snap.manifest["rows_with_period_end_in_holdout"] == 1  # compressed to one vintage

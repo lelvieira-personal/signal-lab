@@ -50,6 +50,11 @@ BY_HYPOTHESIS = dict(
     )
 )
 MAX_SECONDS = 3 * 3600
+# decisions/0046 addendum of 2026-10-02 (owner, OWNER-QUEUE L22): the Cash class is not scored.
+# LD20TRUU's robust volatility is near zero, so a loading error scaled by it dominates the
+# cross-sectional mean (M-20261002T033239Z). A run with this exclusion is the registered
+# test's spec, not a sensitivity run.
+DEFAULT_EXCLUDED_CLASSES = ("Cash",)
 TREASURY_CLASSES = ("Treasuries", "Long Treasuries")
 CREDIT_CLASSES = ("IG Corporates",)
 
@@ -153,13 +158,17 @@ def write_report(out: Path, summary: dict, corr: dict, checks: list[dict]) -> No
         "",
         *(
             [
-                f"**SENSITIVITY RUN, not the registered test.** Excludes reporting class "
-                f"{summary['excluded_classes']}. No hypothesis was moved by this run; the "
-                f"registered run is the one without exclusions.",
+                f"**SENSITIVITY RUN, not the registered test.** Excludes reporting classes "
+                f"{summary['excluded_classes']}, beyond the default {summary['default_excluded_classes']}. "
+                f"No hypothesis was moved by this run.",
                 "",
             ]
             if summary["sensitivity"]
-            else []
+            else [
+                f"Reporting classes not scored (decisions/0046 addendum, 2026-10-02): "
+                f"{summary['excluded_classes']}.",
+                "",
+            ]
         ),
         "A measurement run (decisions/0016, decisions/0046): out-of-sample loading fidelity "
         "against rolling OLS. No portfolio, no net IR. **The run chooses nothing**; adoption "
@@ -183,15 +192,16 @@ def write_report(out: Path, summary: dict, corr: dict, checks: list[dict]) -> No
         "Statistic: mean over weeks of the cross-sectional mean of (incumbent loss - candidate "
         "loss), Huber loss on volatility-scaled errors; positive is better than rolling OLS.",
         "",
-        "| estimator | statistic | adj. p | gate | worst-year bias | year | bias check | "
-        "top-decile moves | 2004-07 | 2008-09 | 2010-19 |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| estimator | mean Huber loss | statistic | adj. p | gate | worst-year bias | year | "
+        "bias check | top-decile moves | 2004-07 | 2008-09 | 2010-19 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for name, e in est.items():
         if "statistic" in e:
             s = e["slices"]
             lines.append(
-                f"| {name} | {e['statistic']:.3e} | {e['p_adjusted']:.3f} | "
+                f"| {name} | {e['mean_huber_loss']:.4f} | {e['statistic']:.3e} | "
+                f"{e['p_adjusted']:.3f} | "
                 f"{'pass' if e['gate_passed'] else 'fail'} | {e['worst_annual_bias']:.2f} | "
                 f"{e['worst_year']} | {'pass' if e['bias_ok'] else 'fail'} | "
                 f"{s['top_decile_factor_moves']:.2e} | {s['2004-2007']:.2e} | "
@@ -199,10 +209,23 @@ def write_report(out: Path, summary: dict, corr: dict, checks: list[dict]) -> No
             )
         else:
             lines.append(
-                f"| {name} (incumbent) | - | - | - | {e['worst_annual_bias']:.2f} | "
+                f"| {name} (incumbent) | {e['mean_huber_loss']:.4f} | - | - | - | "
+                f"{e['worst_annual_bias']:.2f} | "
                 f"{e['worst_year']} | {'pass' if e['bias_ok'] else 'fail'} | - | - | - | - |"
             )
+    cands = [n for n in summary["estimators"] if n != "rolling_ols"]
     lines += [
+        "",
+        "## Statistic by reporting class (reported, never gated)",
+        "",
+        "| class | instruments | " + " | ".join(cands) + " |",
+        "|" + "---|" * (2 + len(cands)),
+        *(
+            f"| {k} | {v['n_instruments']} | "
+            + " | ".join("-" if v[c] is None else f"{v[c]:.2e}" for c in cands)
+            + " |"
+            for k, v in summary["score"].get("by_class", {}).items()
+        ),
         "",
         f"Bias ceiling: {summary['bias_ceiling']} (`vetoes.risk_calibration.max_worst_annual_bias`).",
         "",
@@ -285,7 +308,8 @@ def main(argv=None) -> int:
         "--exclude-class",
         action="append",
         default=[],
-        help="a SENSITIVITY run without a reporting class; never moves hypotheses",
+        help="exclude a reporting class IN ADDITION to the default (Cash); such a run is a "
+        "SENSITIVITY run and never moves hypotheses",
     )
     args = parser.parse_args(argv)
 
@@ -293,10 +317,11 @@ def main(argv=None) -> int:
     started = time.time()
     panel, analytics, ff, universe_rows, flags = load_inputs(params)
     ids, classes = select_instruments(panel, universe_rows, flags)
-    sensitivity = bool(args.exclude_class)
+    excluded = sorted(set(DEFAULT_EXCLUDED_CLASSES) | set(args.exclude_class))
+    sensitivity = bool(set(args.exclude_class) - set(DEFAULT_EXCLUDED_CLASSES))
+    keep = [i for i, c in enumerate(classes) if c not in excluded]
+    ids, classes = [ids[i] for i in keep], [classes[i] for i in keep]
     if sensitivity:
-        keep = [i for i, c in enumerate(classes) if c not in args.exclude_class]
-        ids, classes = [ids[i] for i in keep], [classes[i] for i in keep]
         args.no_registry = True  # a sensitivity run is not the registered test
     weekly = weekly_inputs(panel, ids, ff)
     R, F = weekly.to_numpy(dtype=float), ff.frame.to_numpy(dtype=float)
@@ -342,7 +367,7 @@ def main(argv=None) -> int:
     print(f"  estimated at {time.time() - started:.0f}s; scoring...", flush=True)
 
     ev = fidelity.evaluate(R, F, paths, run.ALL_NAMES, weeks)
-    score = fidelity.score(ev, ff.frame, params)
+    score = fidelity.score(ev, ff.frame, params, classes=classes)
     verdicts = {hid: score["estimators"][name]["verdict"] for hid, name in BY_HYPOTHESIS.items()}
     corr = run.factor_correlations(ff.frame)
     checks = check_table(analytics, ids, classes, paths, weeks, ff)
@@ -354,7 +379,8 @@ def main(argv=None) -> int:
         "run_id": run_id,
         "decision": "decisions/0046",
         "sensitivity": sensitivity,
-        "excluded_classes": list(args.exclude_class),
+        "excluded_classes": excluded,
+        "default_excluded_classes": list(DEFAULT_EXCLUDED_CLASSES),
         "hashes": {
             "params_hash": params.params_hash,
             "params_version": params.params_version,

@@ -145,12 +145,36 @@ def block_bootstrap_null(
     return Dc[idx].mean(axis=1)
 
 
+def by_class_statistics(ev: Evaluation, classes: list[str]) -> dict[str, dict]:
+    """
+    Each candidate's statistic within each reporting class, and the number of
+    instruments the class contributes (those with at least one scored cell).
+    Reported, never gated.
+    """
+    inc = ev.loss[0]
+    out: dict[str, dict] = {}
+    for klass in sorted(set(classes)):
+        cols = np.array([c == klass for c in classes])
+        m = ev.mask[:, cols]
+        n_inst = int((m.any(axis=0)).sum())
+        row: dict = {"n_instruments": n_inst}
+        for e, name in enumerate(ev.names[1:], start=1):
+            diff = np.where(m, inc[:, cols] - ev.loss[e][:, cols], 0.0)
+            count = m.sum(axis=1)
+            with np.errstate(all="ignore"):
+                weekly = np.where(count > 0, diff.sum(axis=1) / count, np.nan)
+            row[name] = float(np.nanmean(weekly)) if np.isfinite(weekly).any() else None
+        out[klass] = row
+    return out
+
+
 def score(
     ev: Evaluation,
     factors: pd.DataFrame,
     params: Params | None = None,
     draws: int = BOOTSTRAP_DRAWS,
     seed: int = BOOTSTRAP_SEED,
+    classes: list[str] | None = None,
 ) -> dict:
     """The statistic, the gate, the uncertainty check and the slices, per candidate."""
     params = params or get_params()
@@ -185,6 +209,7 @@ def score(
         annual = annual_bias(zs, min_obs)
         year, worst = worst_year(annual)
         row = {
+            "mean_huber_loss": float(ev.loss[e][ev.mask].mean()),
             "worst_year": year,
             "worst_annual_bias": worst,
             "bias_ok": bool(np.isfinite(worst) and worst <= cap),
@@ -210,4 +235,6 @@ def score(
             row["eligible"] = bool(row["gate_passed"] and row["bias_ok"])
             row["verdict"] = "candidate" if row["eligible"] else "not_detected"
         out["estimators"][name] = row
+    if classes is not None:
+        out["by_class"] = by_class_statistics(ev, classes)
     return out

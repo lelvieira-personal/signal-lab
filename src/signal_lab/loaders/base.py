@@ -199,6 +199,10 @@ class VintagePanel:
     meta: dict[str, SeriesMeta]
     snapshot_id: str = "unknown"
     source: str = "unknown"
+    # decisions/0047: a JPMaQS number can describe a period that has not ended when
+    # it is published (a survey, a nowcast: eop_lag below zero). Only the JPMaQS
+    # loader sets this. What was known when is the knowledge_date either way.
+    period_may_follow_knowledge: bool = False
 
     REQUIRED_COLUMNS = ("series_id", "period_end", "knowledge_date", "value")
 
@@ -207,7 +211,7 @@ class VintagePanel:
         if missing:
             raise ValueError(f"VintagePanel is missing columns {missing}")
         bad = self.frame["knowledge_date"] < self.frame["period_end"]
-        if bool(bad.any()):
+        if bool(bad.any()) and not self.period_may_follow_knowledge:
             raise ValueError(
                 f"{int(bad.sum())} observation(s) have knowledge_date before "
                 f"period_end, which would be knowing a number before the period it "
