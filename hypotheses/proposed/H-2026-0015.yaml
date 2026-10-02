@@ -1,0 +1,40 @@
+id: H-2026-0015
+kind: measurement
+family: exposure_estimation
+signal: hmm2_regime_conditional_loadings
+direction: positive
+target_axis: loadings
+rationale: >
+  Some loadings are not constant with noise; they switch. The equity-rate beta
+  changed sign across the last two decades, and credit and equity move together
+  far more in a crisis than in a calm market. A rolling window averages across
+  the switch and is wrong on both sides of it. A two-state hidden Markov model
+  on the factor returns identifies the market state from the factors alone, and
+  loadings are then estimated within each state and mixed by the probability of
+  each state next week. The claim is positive: regime-conditional loadings
+  predict next-week returns with a lower robust loss than rolling OLS, and the
+  gain should be concentrated in the weeks with the largest factor moves. The
+  cost is effective sample size, since each regime is estimated on a fraction
+  of the history, and a regime model fitted to noise will be confidently wrong.
+  The state probabilities used for week t+1 come only from data up to t.
+horizon_weeks: 1
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - NDUEACWF
+  - LD20TRUU
+  - GTII10
+  - USGGBE10
+  - LUACOAS
+  - DXY
+  - BCOMTR
+notes: >
+  DRAFT, in hypotheses/proposed/. Not registered until HANDOFF task 45 moves it
+  to hypotheses/pending/ after the owner has reviewed decisions/0046. Judged on
+  out-of-sample loading fidelity against the rolling-OLS incumbent, never on
+  net IR (decisions/0016, decisions/0046). The configuration is fixed in
+  decisions/0046 section 4 and is not to be tuned. The inputs are the factor
+  series only; the instruments scored are the investable backbone and second
+  tiers. Drafted by Cowork from the owner's stated concerns of 2026-10-01.

@@ -1,0 +1,40 @@
+id: H-2026-0014
+kind: measurement
+family: exposure_estimation
+signal: theil_goldberger_peer_prior_156w
+direction: positive
+target_axis: loadings
+rationale: >
+  A loading estimated on three years of weekly data for one index is noisy, and
+  noisiest exactly where the factors are collinear, as equity and credit are.
+  Indices in the same reporting class share most of their economics, so the
+  class's average loading is real prior information about any one of them.
+  Theil-Goldberger mixed estimation combines the sample with that prior as a
+  stochastic restriction, weighting each by its precision, which pulls a noisy
+  loading toward its peers by more when the sample says less. The claim is
+  positive: the shrunk loadings predict next-week returns with a lower robust
+  loss than rolling OLS. It also yields a posterior covariance, so the
+  uncertainty check is a direct test of whether that covariance is honest. The
+  risk is a wrong prior: an index that truly differs from its class, such as a
+  sector with unusual rate sensitivity, is pulled the wrong way.
+horizon_weeks: 1
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - NDUEACWF
+  - LD20TRUU
+  - GTII10
+  - USGGBE10
+  - LUACOAS
+  - DXY
+  - BCOMTR
+notes: >
+  DRAFT, in hypotheses/proposed/. Not registered until HANDOFF task 45 moves it
+  to hypotheses/pending/ after the owner has reviewed decisions/0046. Judged on
+  out-of-sample loading fidelity against the rolling-OLS incumbent, never on
+  net IR (decisions/0016, decisions/0046). The configuration is fixed in
+  decisions/0046 section 4 and is not to be tuned. The inputs are the factor
+  series only; the instruments scored are the investable backbone and second
+  tiers. Drafted by Cowork from the owner's stated concerns of 2026-10-01.

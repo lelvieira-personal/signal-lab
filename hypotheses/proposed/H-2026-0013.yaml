@@ -1,0 +1,41 @@
+id: H-2026-0013
+kind: measurement
+family: exposure_estimation
+signal: huber_m_rolling_156w
+direction: positive
+target_axis: loadings
+rationale: >
+  Weekly index returns carry a small number of very large observations: the
+  weeks of 2008, the flash moves, single-day gaps in thin indices. Least squares
+  minimises squared error, so a handful of those weeks can set a loading that
+  the other hundred and fifty do not support, and the loading then jumps again
+  when the week leaves the window. A Huber M-estimator keeps least squares for
+  ordinary weeks and gives a large residual only linear weight, so the loading
+  describes how the instrument usually responds to the factor. The claim is
+  positive: Huber loadings predict next-week returns from next-week factor
+  moves with a lower robust loss than rolling OLS on the same window. The risk
+  is that the large weeks are the informative ones. If an instrument's
+  sensitivity really is larger in stress, down-weighting stress discards the
+  signal, and the estimator will lose on the stress slice even if it wins
+  overall, which is why that slice is reported.
+horizon_weeks: 1
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - NDUEACWF
+  - LD20TRUU
+  - GTII10
+  - USGGBE10
+  - LUACOAS
+  - DXY
+  - BCOMTR
+notes: >
+  DRAFT, in hypotheses/proposed/. Not registered until HANDOFF task 45 moves it
+  to hypotheses/pending/ after the owner has reviewed decisions/0046. Judged on
+  out-of-sample loading fidelity against the rolling-OLS incumbent, never on
+  net IR (decisions/0016, decisions/0046). The configuration is fixed in
+  decisions/0046 section 4 and is not to be tuned. The inputs are the factor
+  series only; the instruments scored are the investable backbone and second
+  tiers. Drafted by Cowork from the owner's stated concerns of 2026-10-01.
