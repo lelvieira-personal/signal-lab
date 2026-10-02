@@ -2468,6 +2468,18 @@ run would have said.
 
 ## Done
 
+### 2026-10-01 (night) — task 44 part A, the JPMaQS loader build; STOPPED at the owner's pull (Claude Code, Sonnet 5.5)
+
+**rc=0.** Commits: `ea5e7b0` (step 0, queue) and `e07a9d1` (part A: `src/`, `scripts/`, `tests/`, `build.mk`). `check-full` log: `results/audit/_unattended/20261001-223012-check-full/` -- `make check-full` rc=0 (2079 s), 677 passed, governance OK, lint clean, holdout tier 18 passed.
+
+- **Download call shape:** the installed `macrosynergy` 1.8.1 `JPMaQSDownload.download` accepts `tickers=`; `scripts/jpmaqs_pull.py` passes the 26 tickers directly, so no cross-product filter is needed at pull time. `filter_panel` still runs in `load_macro` against the manifest's tickers.
+- **Built:** `build_macro_panel` / `qdf_to_vintage_frame` / `compress_to_change_points` / `filter_panel` / grade-3 exclusion / legacy-prefix meta / holdout raise in `loaders/jpmaqs.py`; `JPMaQSLoader.load_macro`; `scripts/jpmaqs_pull.py`; `build_macro_snapshot` in `harness/snapshot.py`; `scripts/build_macro_snapshot.py`; `scripts/jpmaqs_coverage.py`; `make jpmaqs-pull`, `macro-snapshot`, `jpmaqs-coverage`. 33 tests in `tests/test_jpmaqs_loader.py`, synthetic frames only, no network.
+- **Judgement calls, said plainly:** (1) the grade filter runs before compression, so compression sees only the rows that survive; (2) `load_macro` refuses a raw file whose sha256 differs from its pull manifest; (3) the pull script also refuses, and writes nothing, if the result reaches the holdout; (4) coverage counts for no-value rows, grading values and eop_lag buckets come from the snapshot manifest (raw-pull counts), the vintage counts and gaps from the compressed rows -- stated in the report's header; (5) compression assumes `eop_lag` grows daily while a vintage stands, so `period_end` is constant -- part B's row counts will show whether the real pull behaves so.
+- **Not done:** everything in part B (steps 12-13). `params/` untouched, `data.jpmaqs.status` still `credentials_supplied`.
+- **A stray run:** I ran `scripts/unattended.sh` with no argument by mistake; it ran `make check` against half-written files, rc=2 (`20261001-222821-check`). Superseded by the check-full above.
+
+**Owner step next, in their own shell:** `set -a; source .env; set +a; make jpmaqs-pull`
+
 ### 2026-10-01 — task 43: small searches gated at g = 1, CRLF params, resolved keys, candidate / not detected (Claude Code, Sonnet 5.5)
 
 - **rc 0.** `scripts/unattended.sh check-full --digest`, log `results/audit/_unattended/20261001-163421-check-full/` (`status.txt`: rc=0, 388 s; 644 passed, holdout 15 passed, governance OK). The log records `head=19db8c7`; no file changed between its start and the commit, so it tested exactly what `66bc6da` holds.
