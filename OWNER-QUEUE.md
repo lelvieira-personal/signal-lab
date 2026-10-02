@@ -19,52 +19,6 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L21. Negative `eop_lag` on seven JPMaQS tickers (added 2026-10-02, HANDOFF task 44 part B) — RULED 2026-10-02
-**Owner, 2026-10-02 ("accept"):** keep the seven tickers; for JPMaQS a period may end after the number is known; the holdout binds on the knowledge date. Recorded in `decisions/0047`, with a checkpoint: a lag below −92 days stops the build. *Move to Closed when HANDOFF task 46 lands.*
-
-The JPMaQS pull `P-20261002T032635Z` landed (150,644 rows, 26 tickers). The
-loader refused it, as task 44 specifies: **13,562 valued rows have a negative
-`eop_lag`**, which puts `period_end` after `knowledge_date`, and `VintagePanel`
-rejects that. None are NaN or infinite. Rows by ticker (of the ticker's rows):
-`USD_BLSCSCORE_NSA_D2Q2QL2` 4,354 (7,149); `USD_MBCSCORE_SA` 3,182 (7,813);
-`EUR_BLSCSCORE_NSA_D2Q2QL2` 3,131 (4,158); `JPY_INTRGDP_NSA_P1M1ML12_D3M3ML3`
-2,189 (5,447); `EUR_MBCSCORE_SA` 360 (7,806); `EUR_INTRGDP_NSA_P1M1ML12_D3M3ML3`
-224 (4,871); `GBP_INTRGDP_NSA_P1M1ML12_D3M3ML3` 122 (5,440). The other 19
-tickers are clean. Claude Code's guess, not verified: survey scores and some
-forecast-horizon series carry a reference period that ends after the date the
-number is published.
-
-Nothing was clipped, dropped or shifted, and no macro snapshot or coverage
-report exists. The options are the owner's: **drop those seven**; **define
-`period_end` for them some other way** (say, `min(real_date - eop_lag,
-real_date)`, which says they are known on the day their period ends); or
-**loosen `VintagePanel`'s check for them**, which touches the bitemporal
-convention of `decisions/0014`. Which hypotheses each ticker serves is in
-`data/requests/ticker_resolution.csv`.
-
-*What would retire it:* the owner's choice, then a small task. No measurement.
-
-### L22. The loading-estimator test's score is dominated by the cash index (added 2026-10-02, HANDOFF task 45) — RULED 2026-10-02
-**Owner, 2026-10-02:** "yes exclude cash". Recorded as the addendum to `decisions/0046`; the run without Cash is the result of record. *Move to Closed when HANDOFF task 46 lands.*
-
-`decisions/0046` scores every investable backbone and second-tier instrument
-and scales each error by the instrument's robust volatility "so no instrument
-dominates". `LD20TRUU` (the T-bill index, class `Cash`) has a robust volatility
-near zero, so any loading error scaled by it is enormous: in run
-`M-20261002T033239Z` it is about 100% of the loss differential for Huber, the
-HMM and Kalman (statistics of order 1e5 to 1e7, which mean nothing). The run was
-kept as specified. The sensitivity run `M-20261002T034221Z-sens` excludes the
-Cash class and gives the same four verdicts, all `not_detected`, so nothing
-recorded changes. The owner decides whether the registered spec excludes the
-Cash class (the factors are themselves returns net of cash, so a loading of cash
-on them is not an obvious measurement target) before any estimator is adopted or
-the test is re-run.
-
-*Also worth the owner's eye:* rolling OLS, the incumbent, reads 1.80 against the
-1.72 bias ceiling in 2008, so it would itself fail the uncertainty check.
-
-*What would retire it:* the owner's ruling on the Cash class.
-
 ### L12. Is the registry the right shape, now that the stepdown is the bar?
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
 SUBSTRATE §9 and §13, and on what is bought from Macrosynergy.
@@ -269,6 +223,52 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L21. Negative `eop_lag` on seven JPMaQS tickers (added 2026-10-02, HANDOFF task 44 part B) — CLOSED 2026-10-02 (HANDOFF task 46 landed)
+**Owner, 2026-10-02 ("accept"):** keep the seven tickers; for JPMaQS a period may end after the number is known; the holdout binds on the knowledge date. Recorded in `decisions/0047`, with a checkpoint: a lag below −92 days stops the build. *Landed in commit 3519b1c (HANDOFF task 46); the checkpoint passed: no row is below -92 days.*
+
+The JPMaQS pull `P-20261002T032635Z` landed (150,644 rows, 26 tickers). The
+loader refused it, as task 44 specifies: **13,562 valued rows have a negative
+`eop_lag`**, which puts `period_end` after `knowledge_date`, and `VintagePanel`
+rejects that. None are NaN or infinite. Rows by ticker (of the ticker's rows):
+`USD_BLSCSCORE_NSA_D2Q2QL2` 4,354 (7,149); `USD_MBCSCORE_SA` 3,182 (7,813);
+`EUR_BLSCSCORE_NSA_D2Q2QL2` 3,131 (4,158); `JPY_INTRGDP_NSA_P1M1ML12_D3M3ML3`
+2,189 (5,447); `EUR_MBCSCORE_SA` 360 (7,806); `EUR_INTRGDP_NSA_P1M1ML12_D3M3ML3`
+224 (4,871); `GBP_INTRGDP_NSA_P1M1ML12_D3M3ML3` 122 (5,440). The other 19
+tickers are clean. Claude Code's guess, not verified: survey scores and some
+forecast-horizon series carry a reference period that ends after the date the
+number is published.
+
+Nothing was clipped, dropped or shifted, and no macro snapshot or coverage
+report exists. The options are the owner's: **drop those seven**; **define
+`period_end` for them some other way** (say, `min(real_date - eop_lag,
+real_date)`, which says they are known on the day their period ends); or
+**loosen `VintagePanel`'s check for them**, which touches the bitemporal
+convention of `decisions/0014`. Which hypotheses each ticker serves is in
+`data/requests/ticker_resolution.csv`.
+
+*What would retire it:* the owner's choice, then a small task. No measurement.
+
+### L22. The loading-estimator test's score is dominated by the cash index (added 2026-10-02, HANDOFF task 45) — CLOSED 2026-10-02 (HANDOFF task 46 landed)
+**Owner, 2026-10-02:** "yes exclude cash". Recorded as the addendum to `decisions/0046`; the run without Cash is the result of record. *Landed in commit 3519b1c (HANDOFF task 46); the checkpoint passed: no row is below -92 days.*
+
+`decisions/0046` scores every investable backbone and second-tier instrument
+and scales each error by the instrument's robust volatility "so no instrument
+dominates". `LD20TRUU` (the T-bill index, class `Cash`) has a robust volatility
+near zero, so any loading error scaled by it is enormous: in run
+`M-20261002T033239Z` it is about 100% of the loss differential for Huber, the
+HMM and Kalman (statistics of order 1e5 to 1e7, which mean nothing). The run was
+kept as specified. The sensitivity run `M-20261002T034221Z-sens` excludes the
+Cash class and gives the same four verdicts, all `not_detected`, so nothing
+recorded changes. The owner decides whether the registered spec excludes the
+Cash class (the factors are themselves returns net of cash, so a loading of cash
+on them is not an obvious measurement target) before any estimator is adopted or
+the test is re-run.
+
+*Also worth the owner's eye:* rolling OLS, the incumbent, reads 1.80 against the
+1.72 bias ceiling in 2008, so it would itself fail the uncertainty check.
+
+*What would retire it:* the owner's ruling on the Cash class.
 
 ### L4. Holdout power belongs in SUBSTRATE §3 — CLOSED 2026-10-01 (HANDOFF task 43 landed)
 **Owner, 2026-10-01:** Cowork's draft §3 paragraph (0039 §3 + L4) is accepted. It is applied in SUBSTRATE v0.8, and `decisions/0039` carries the note. *Move to Closed when HANDOFF task 43 lands.*
