@@ -32,8 +32,7 @@ data_required:
   - DXY
   - BCOMTR
 notes: >
-  DRAFT, in hypotheses/proposed/. Not registered until HANDOFF task 45 moves it
-  to hypotheses/pending/ after the owner has reviewed decisions/0046. Judged on
+  Registered 2026-10-01 (HANDOFF task 45). Judged on
   out-of-sample loading fidelity against the rolling-OLS incumbent, never on
   net IR (decisions/0016, decisions/0046). The configuration is fixed in
   decisions/0046 section 4 and is not to be tuned. The inputs are the factor

@@ -113,12 +113,19 @@ def read_axis_groups(pending_dir: Path = PENDING_DIR):
     parallel arrays over the `m` hypotheses, sorted by hypothesis id; axis
     groups are ordered by descending size, ties broken alphabetically, which
     is also the order `spread_true` visits them in.
+
+    Skips `family: exposure_estimation`. H-2026-0013 to 0016 (decisions/0046)
+    are measurement hypotheses on the loading estimators, judged on loading
+    fidelity and gated separately (decisions/0016); they are not part of the
+    signal registry's shape this study was run on, which stays at twelve.
     """
     import yaml
 
     by_axis: dict[str, list[str]] = {}
     for path in sorted(pending_dir.glob("H-*.yaml")):
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if doc.get("family") == "exposure_estimation":
+            continue
         by_axis.setdefault(str(doc["target_axis"]), []).append(str(doc["id"]))
     axis_order = sorted(by_axis, key=lambda a: (-len(by_axis[a]), a))
     hyp_ids: list[str] = []
