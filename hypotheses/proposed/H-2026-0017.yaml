@@ -1,0 +1,51 @@
+id: H-2026-0017
+kind: measurement
+family: exposure_estimation
+signal: mean_reverting_dlm_own_mean
+direction: positive
+target_axis: loadings
+rationale: >
+  An index's sensitivity to a market factor has a level it belongs to and a
+  position around that level today. The level is set by what the index is: its
+  duration, its sector mix, the leverage and cyclicality of its constituents.
+  The position moves with the cycle, with composition and with stress, and then
+  comes back. A rolling window cannot tell the two apart, so it treats a
+  temporary move as the new level and is wrong again when the move reverses. A
+  random-walk filter has the same fault in a different form: it follows the move
+  and never returns. The Kalman candidate, which is a random walk, lost the most
+  in the weeks with the largest factor moves. This estimator separates the two parts.
+  The loading is a long-run mean, learned from all of the instrument's own
+  history to date, plus a deviation that decays toward zero at a fixed rate, and
+  both are updated each week by a Kalman filter that carries their uncertainty.
+  The loading used for next week is the forecast, which is the deviation shrunk
+  one step toward the mean. The claim is positive: these loadings predict
+  next-week returns from next-week factor moves with a lower robust loss than
+  rolling OLS. The gain should come after large moves, when the rolling and
+  random-walk estimates have been dragged away from the level, and it should
+  grow as each instrument's history lengthens. The risks are two. If a loading's
+  level really shifts, as the equity-rate beta did, mean reversion pulls toward
+  a level that no longer exists and adapts only as fast as the long-run mean
+  relearns. And early in the sample the long-run mean rests on three years of
+  data, so the estimator has little to shrink toward.
+horizon_weeks: 1
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - NDUEACWF
+  - LD20TRUU
+  - GTII10
+  - USGGBE10
+  - LUACOAS
+  - DXY
+  - BCOMTR
+notes: >
+  DRAFT, in hypotheses/proposed/. Not registered until HANDOFF task 47 moves it
+  to hypotheses/pending/. Judged on out-of-sample loading fidelity against the
+  rolling-OLS incumbent, never on net IR (decisions/0016, decisions/0046). The
+  configuration is fixed in the decisions/0046 addendum of 2026-10-02 and is not
+  to be tuned. Designed after the results of H-2026-0013 to 0016 were seen, so
+  the gate runs over all five candidates. The owner asked for a method that is
+  Bayesian, time-varying and shrinks to the instrument's own long-run mean
+  (2026-10-02); the state-space form and the grids are Cowork's.
