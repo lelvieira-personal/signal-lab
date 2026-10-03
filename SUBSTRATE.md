@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.8, 2026-10-01. Owner: Leo. This document is the constitution of
+Status: v0.9, 2026-10-02. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -30,6 +30,11 @@ OWNER-QUEUE L4 (the lab screens; the power of the gate and of the holdout),
 `decisions/0045` (a search of fewer than 8 tests is gated at ordinary FWER),
 decided by the owner on 2026-10-01. Applied by Cowork at the owner's
 instruction. The v0.7 text is in git history.
+
+v0.9 amended §5.6, transcribing `decisions/0047` (a JPMaQS period may end
+after the number is known; the holdout binds on the knowledge date), decided
+by the owner on 2026-10-02. Applied by Cowork at the owner's instruction. The
+v0.8 text is in git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -307,7 +312,11 @@ information state as observed by the markets" — which is the opposite of what
 `period_end`, with `period_end = real_date - eop_lag` and
 `knowledge_date = real_date`. Two columns sharing a name with inverted meanings
 would be a lookahead bug on every row that no test would catch
-(`decisions/0014`). Grade-3 vintages are downweighted
+(`decisions/0014`). A JPMaQS number can describe a period that has not ended
+when it is published (a survey, a nowcast: `eop_lag` below zero), so for this
+source `period_end` may fall after `knowledge_date`. What was known when is the
+`knowledge_date`, and that is the date the holdout lock of §3 binds on
+(`decisions/0047`). Grade-3 vintages are downweighted
 or excluded per `params/data.yaml`. Legacy euro-area prefixes (`DEM_`,
 `FRF_`, `ITL_`, `ESP_`, `NLG_`) are mapped to countries in the loader.
 

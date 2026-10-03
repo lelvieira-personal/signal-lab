@@ -53,6 +53,12 @@ the code and the constitution agree.**
 | 4 | The Tracking-error row: the 6% is the ex-ante sizing target σ, not a ceiling on realised TE, and the p95 ratio is disclosed. | 0044 |
 | 9, 10 | A search of fewer than 8 statistics is gated at g = 1 (ordinary FWER). | 0045 |
 
+## Applied in v0.9 (2026-10-02, by Cowork at the owner's instruction)
+
+| Section | Amendment | Decision |
+|---|---|---|
+| 5.6 | For JPMaQS, `period_end` may fall after `knowledge_date` (a survey or a nowcast, `eop_lag` below zero). The holdout lock binds on the `knowledge_date`. | 0047 |
+
 ## Open questions — NOT amendments, and deliberately not applied
 
 The constitution should not pretend to settle what the lab has not learned.
