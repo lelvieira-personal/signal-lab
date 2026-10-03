@@ -7,6 +7,7 @@ before any result existed: nothing here is tuned and nothing here is a knob.
     theil_goldberger_peer_prior H-2026-0014             OLS mixed with a reporting-class prior
     hmm2_regime_conditional     H-2026-0015             2-state Gaussian HMM, per-regime WLS
     kalman_dlm_discount         H-2026-0016             random-walk loadings, discount factor
+    mean_reverting_dlm_own_mean H-2026-0017             loading = own long-run mean + decaying deviation
 
 Model: `r_t = a + b' f_t + e_t`, weekly, all factors at once. Every estimator
 exposes ONE interface, `path(y, X, ctx) -> LoadingPath`: the loading vector, its
@@ -15,7 +16,7 @@ covariance and its residual variance at every week t, each computed from rows
 raises if that is ever after t; the tests change every observation after t and
 require the answer at t unchanged, bit for bit.
 
-Data sufficiency (the same for all five, so they are scored on the same cells):
+Data sufficiency (the same for all six, so they are scored on the same cells):
 an estimate exists at t only when the 156-week window ending at t holds at least
 `MIN_OBS` weeks in which the instrument and all six factors are observed. That is
 a rule about data, not a setting of any method.
@@ -37,6 +38,11 @@ MIN_OBS = 104  # two thirds of the window: the data-sufficiency rule above
 HUBER_C = 1.345
 MAD_TO_SD = 1.4826
 KALMAN_DISCOUNTS = (0.97, 0.98, 0.99, 0.995, 0.999)
+# decisions/0046 addendum, 2026-10-02. Half-lives in weeks, phi = 0.5 ** (1 / h); q is the
+# deviation variance in units of a 156-week OLS loading's sampling variance.
+MR_HALF_LIVES = (13, 26, 52, 104)
+MR_Q = (0.25, 1.0, 4.0)
+MR_PAIRS = tuple((h, q) for h in MR_HALF_LIVES for q in MR_Q)
 HMM_RESTARTS = 10
 HMM_SEED = 20261001
 HMM_MAX_ITER = 100
@@ -53,6 +59,7 @@ class LoadingPath:
     cov: np.ndarray  # (n, k, k)
     resid_var: np.ndarray  # (n,)
     last_index: np.ndarray  # (n,) int: the last row used, -1 if none
+    extra: dict = field(default_factory=dict)  # estimator-specific diagnostics, never scored
 
     @classmethod
     def empty(cls, n: int, k: int) -> LoadingPath:
@@ -521,6 +528,149 @@ class KalmanDLMDiscount:
         return out
 
 
+# --- H-2026-0017: mean-reverting loadings around the instrument's own long-run mean -------------
+
+
+def _ols_full(y: np.ndarray, X: np.ndarray) -> tuple[np.ndarray, np.ndarray, float, int]:
+    """(coefficients incl. intercept, unscaled (Z'Z)^-1, residual variance, n) of `y = a + X b`."""
+    Z = _design(X)
+    n, p = Z.shape
+    coef, *_ = np.linalg.lstsq(Z, y, rcond=None)
+    resid = y - Z @ coef
+    s2 = float(resid @ resid) / max(n - p, 1)
+    return coef, np.linalg.pinv(Z.T @ Z), s2, n
+
+
+def _mr_filter(y, X, Cs, ok, t0, seed, phi, q, k):
+    """
+    One recursive pass of the mean-reverting model for one (phi, q).
+
+    State s = (a, mu, d), scaled covariance C (the observation variance S multiplies it, as in
+    `_kalman_filter`). `mu` is constant; `d_t = phi d_(t-1) + w_t` with `w_t` of scaled
+    covariance `(1 - phi^2) q C_ols(t)`, so `q C_ols` is its stationary covariance. The
+    loading in week t is `mu + d_t`; the evolution into week t+1 uses `C_ols` known at t.
+
+    Returns, for t >= t0: the one-step FORECAST of the loading for week t+1,
+    `mu_hat + phi d_hat_t`, its scaled covariance, S_t, the cumulative one-step
+    Student-t predictive log likelihood of the observations t0+1..t, and the filtered
+    state mean after week t (kept so a test can tell the forecast from the filtered value).
+    """
+    n = len(y)
+    p = 1 + 2 * k
+    m, C, S, nu = seed(q)
+    F = np.diag(np.concatenate([[1.0], np.ones(k), np.full(k, phi)]))
+    J = np.zeros((k, p))
+    J[:, 1 : 1 + k] = np.eye(k)
+    J[:, 1 + k :] = np.eye(k)
+    fb = np.full((n, k), np.nan)
+    fc = np.full((n, k, k), np.nan)
+    Ss = np.full(n, np.nan)
+    ll = np.full(n, np.nan)
+    mf = np.full((n, p), np.nan)
+    total = 0.0
+    m_pr = C_pr = None
+    c_known = None
+    for t in range(t0, n):
+        if t > t0:
+            m, C = m_pr, C_pr
+            z = np.concatenate([[1.0], X[t], X[t]])
+            if np.isfinite(y[t]) and np.isfinite(z).all():
+                Rz = C @ z
+                Q = 1.0 + float(z @ Rz)
+                e = float(y[t]) - float(z @ m)
+                var = S * Q
+                total += (
+                    gammaln((nu + 1) / 2)
+                    - gammaln(nu / 2)
+                    - 0.5 * np.log(nu * np.pi * var)
+                    - (nu + 1) / 2 * np.log1p(e * e / (nu * var))
+                )
+                A = Rz / Q
+                nu_new = nu + 1.0
+                S_new = S * (nu + e * e / var) / nu_new
+                m = m + A * e
+                C = (S / S_new) * (C - np.outer(A, A) * Q)
+                C = 0.5 * (C + C.T)
+                nu, S = nu_new, S_new
+        if ok[t]:
+            c_known = Cs[t]
+        W = np.zeros((p, p))
+        W[1 + k :, 1 + k :] = (1.0 - phi * phi) * q * c_known
+        m_pr = F @ m
+        C_pr = F @ C @ F.T + W
+        C_pr = 0.5 * (C_pr + C_pr.T)
+        mf[t] = m
+        fb[t] = J @ m_pr
+        fc[t] = J @ C_pr @ J.T
+        Ss[t], ll[t] = S, total
+    return fb, fc, Ss, ll, mf
+
+
+class MeanRevertingDLMOwnMean:
+    """
+    r_t = a + b_t' f_t + e_t,  b_t = mu + d_t,  d_t = phi d_(t-1) + w_t.
+
+    **What the path stores for week t is the one-step FORECAST of the loading,
+    `mu_hat + phi d_hat_t`, and that forecast's covariance** (the covariance of
+    `b_(t+1)` given data to t, times the learned observation variance). The other
+    estimators store a filtered or fitted value for week t, which the score then
+    applies to week t+1; this one stores what it expects week t+1's loading to be, so
+    the shrinkage toward `mu` acts in the scored number.
+
+    Start (a clarification of the 2026-10-02 addendum, owner's choice 2026-10-03): the
+    filter needs the rolling-OLS covariance `C_ols(t)` for its innovations, so it begins at
+    the first week t0 a 156-week OLS exists, and is SEEDED there from that OLS: `a` and `mu`
+    take its coefficients and their covariance (so `mu` rests on that window, about three
+    years), `d` starts at zero with its stationary covariance `q C_ols(t0)`. Nothing before
+    the window is read, and every later week is a recursive update.
+
+    `(half-life, q)` is chosen at each t from `MR_PAIRS` by the cumulative one-step
+    predictive log likelihood on data up to t; ties (every pair is 0 at t0) go to the first
+    pair. Which pair was chosen is in `path.extra["pair"]` (an index into `MR_PAIRS`).
+    """
+
+    name = "mean_reverting_dlm_own_mean"
+
+    def path(self, y, X, ctx=None):
+        n, k = X.shape
+        out = LoadingPath.empty(n, k)
+        valid = valid_rows(y, X)
+        ok = window_ok(valid)
+        out.extra["pair"] = np.full(n, -1, dtype=int)
+        if not ok.any():
+            return out
+        t0 = int(np.flatnonzero(ok)[0])
+        Cs = np.full((n, k, k), np.nan)
+        seed_ols = None
+        for t in np.flatnonzero(ok):
+            t = int(t)
+            w = _window(t)
+            coef, G, s2, nobs = _ols_full(y[w][valid[w]], X[w][valid[w]])
+            Cs[t] = G[1:, 1:]
+            if t == t0:
+                seed_ols = (coef, G, s2, nobs)
+        coef, G, s2, nobs = seed_ols
+        p = 1 + 2 * k
+
+        def seed(q):
+            m = np.zeros(p)
+            m[: 1 + k] = coef
+            C = np.zeros((p, p))
+            C[: 1 + k, : 1 + k] = G
+            C[1 + k :, 1 + k :] = q * Cs[t0]
+            return m, C, s2, float(max(nobs - (1 + k), 1))
+
+        runs = [_mr_filter(y, X, Cs, ok, t0, seed, 0.5 ** (1.0 / h), q, k) for h, q in MR_PAIRS]
+        LL = np.stack([r[3] for r in runs])  # (pairs, n); NaN before t0
+        pick = np.argmax(np.nan_to_num(LL[:, t0:], nan=-np.inf), axis=0)  # first on ties
+        for t in np.flatnonzero(ok):
+            t = int(t)
+            fb, fc, Ss, _, _ = runs[int(pick[t - t0])]
+            _fill(out, t, fb[t], Ss[t] * fc[t], Ss[t], t)
+            out.extra["pair"][t] = int(pick[t - t0])
+        return out
+
+
 ESTIMATORS = {
     cls.name: cls
     for cls in (
@@ -529,6 +679,7 @@ ESTIMATORS = {
         TheilGoldbergerPeerPrior,
         HMM2RegimeConditional,
         KalmanDLMDiscount,
+        MeanRevertingDLMOwnMean,
     )
 }
 INCUMBENT = RollingOLS.name
@@ -537,4 +688,5 @@ CANDIDATES = (
     TheilGoldbergerPeerPrior.name,
     HMM2RegimeConditional.name,
     KalmanDLMDiscount.name,
+    MeanRevertingDLMOwnMean.name,
 )

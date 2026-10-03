@@ -5,8 +5,8 @@ The loading-estimator test of decisions/0046 (HANDOFF task 45).
     make measurement-loadings            # time it first; stop if it projects past 3 h
     make measurement-loadings ARGS=--time-only
 
-Six weekly factors, the rolling-OLS incumbent and four candidates (H-2026-0013 to
-0016), every investable backbone and second-tier instrument, development window
+Six weekly factors, the rolling-OLS incumbent and five candidates (H-2026-0013 to
+0017), every investable backbone and second-tier instrument, development window
 only. A MEASUREMENT test: no portfolio, no net IR, no signal. It chooses nothing;
 the report is numbers, and adopting an estimator is the owner's decision.
 
@@ -36,7 +36,22 @@ import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUT_ROOT = REPO_ROOT / "results" / "measurement"
-HYPOTHESES = ("H-2026-0013", "H-2026-0014", "H-2026-0015", "H-2026-0016")
+HYPOTHESES = ("H-2026-0013", "H-2026-0014", "H-2026-0015", "H-2026-0016", "H-2026-0017")
+# HANDOFF task 47: H-2026-0013 to 0016 already hold their recorded verdicts (task 45) and
+# stay where they are. Only the fifth candidate moves.
+MOVED = ("H-2026-0017",)
+# The run task 47's first four estimators must reproduce, field by field, before anything
+# is recorded (task 46's run, Cash excluded).
+REFERENCE_RUN = "M-20261002T131820Z"
+REFERENCE_FIELDS = (
+    "mean_huber_loss",
+    "worst_year",
+    "worst_annual_bias",
+    "bias_ok",
+    "annual_bias",
+    "statistic",
+    "slices",
+)
 BY_HYPOTHESIS = dict(
     zip(
         HYPOTHESES,
@@ -45,6 +60,7 @@ BY_HYPOTHESIS = dict(
             "theil_goldberger_peer_prior",
             "hmm2_regime_conditional",
             "kalman_dlm_discount",
+            "mean_reverting_dlm_own_mean",
         ),
         strict=True,
     )
@@ -151,6 +167,43 @@ def check_table(analytics, ids, classes, paths, weeks, ff) -> list[dict]:
     return rows
 
 
+def _same(a, b) -> bool:
+    """Exact equality of two JSON values, with NaN equal to NaN."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_same(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b, strict=True))
+    if isinstance(a, float) and isinstance(b, float) and a != a and b != b:
+        return True
+    return a == b
+
+
+def compare_to_reference(summary: dict, reference_path: Path) -> list[str]:
+    """
+    Differences between this run and the reference for the incumbent and every estimator
+    the reference holds. Adjusted p-values, the gate and the verdict are NOT compared: the
+    search is now five tests, so they may move. Everything the data alone determines must not.
+    """
+    ref = json.loads(reference_path.read_text(encoding="utf-8"))
+    summary = json.loads(json.dumps(summary, default=float))  # as it will read from summary.json
+    diffs: list[str] = []
+    for key in ("params_hash", "weekly_returns_hash", "factors_hash"):
+        if summary["hashes"][key] != ref["hashes"][key]:
+            diffs.append(f"hashes.{key}")
+    for key in ("n_weeks_scored", "n_cells_scored"):
+        if summary["score"][key] != ref["score"][key]:
+            diffs.append(f"score.{key}: {summary['score'][key]} != {ref['score'][key]}")
+    for name, r in ref["score"]["estimators"].items():
+        e = summary["score"]["estimators"].get(name)
+        if e is None:
+            diffs.append(f"{name}: missing")
+            continue
+        for f in REFERENCE_FIELDS:
+            if f in r and not _same(e.get(f), r[f]):
+                diffs.append(f"{name}.{f}: {e.get(f)!r} != {r[f]!r}")
+    return diffs
+
+
 def write_report(out: Path, summary: dict, corr: dict, checks: list[dict]) -> None:
     est = summary["score"]["estimators"]
     lines = [
@@ -233,7 +286,40 @@ def write_report(out: Path, summary: dict, corr: dict, checks: list[dict]) -> No
         "",
     ]
     for hid, v in summary["verdicts"].items():
-        lines.append(f"- {hid} ({BY_HYPOTHESIS[hid]}): {v}")
+        note = (
+            ""
+            if hid in MOVED
+            else " (task 45's recorded verdict stands; this is the five-way gate)"
+        )
+        lines.append(f"- {hid} ({BY_HYPOTHESIS[hid]}): {v}{note}")
+    mr = summary.get("mean_reverting")
+    if mr:
+        lines += [
+            "",
+            "## `mean_reverting_dlm_own_mean`: grid and halves (H-2026-0017)",
+            "",
+            f"Share of the {mr['pair_shares']['n_cells']} scored cells in which each (half-life in "
+            "weeks, q) pair was the one in force:",
+            "",
+            "| half-life \\ q | " + " | ".join(f"{q:g}" for q in mr["q_grid"]) + " | all q |",
+            "|" + "---|" * (len(mr["q_grid"]) + 2),
+            *(
+                f"| {h} | "
+                + " | ".join(
+                    f"{mr['pair_shares']['pairs'][f'h{h}_q{q:g}']:.3f}" for q in mr["q_grid"]
+                )
+                + f" | {mr['pair_shares']['by_half_life'][f'h{h}']:.3f} |"
+                for h in mr["half_lives"]
+            ),
+            "| all h | "
+            + " | ".join(f"{mr['pair_shares']['by_q'][f'q{q:g}']:.3f}" for q in mr["q_grid"])
+            + " | 1.000 |",
+            "",
+            f"Statistic in the first and second half of the scored weeks (split at "
+            f"{mr['halves']['split_at']}): first {mr['halves']['first_half']:.3e}, "
+            f"second {mr['halves']['second_half']:.3e}. Its claim is that the gain grows with "
+            "history.",
+        ]
     lines += [
         "",
         "## HMM regime stability across restarts",
@@ -303,6 +389,13 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--time-limit", type=float, default=MAX_SECONDS, help="projected seconds")
     parser.add_argument("--out-root", default=str(OUT_ROOT))
+    parser.add_argument(
+        "--reference",
+        default=str(OUT_ROOT / REFERENCE_RUN / "summary.json"),
+        help="summary.json the incumbent and first four candidates must reproduce exactly; "
+        "a difference stops the run before anything is recorded",
+    )
+    parser.add_argument("--no-reference", action="store_true", help="skip the reference check")
     parser.add_argument("--no-registry", action="store_true", help="do not move hypotheses")
     parser.add_argument(
         "--exclude-class",
@@ -357,8 +450,8 @@ def main(argv=None) -> int:
         print(f"{out} exists; never overwritten", file=sys.stderr)
         return 1
     if registry is not None:
-        for hid in HYPOTHESES:
-            registry.move(hid, "running", run_id=run_id, detail="HANDOFF task 45")
+        for hid in MOVED:
+            registry.move(hid, "running", run_id=run_id, detail="HANDOFF task 47")
 
     print("fitting the regime model (one HMM a week)...", flush=True)
     regimes = E.regime_path(F)
@@ -369,8 +462,41 @@ def main(argv=None) -> int:
     ev = fidelity.evaluate(R, F, paths, run.ALL_NAMES, weeks)
     score = fidelity.score(ev, ff.frame, params, classes=classes)
     verdicts = {hid: score["estimators"][name]["verdict"] for hid, name in BY_HYPOTHESIS.items()}
+    mr_name = BY_HYPOTHESIS["H-2026-0017"]
+    mr_extra = {
+        "pair_shares": run.pair_shares(paths, ev.mask, mr_name),
+        "halves": score["estimators"][mr_name]["halves"],
+        "half_lives": list(E.MR_HALF_LIVES),
+        "q_grid": list(E.MR_Q),
+    }
     corr = run.factor_correlations(ff.frame)
     checks = check_table(analytics, ids, classes, paths, weeks, ff)
+
+    # Before anything is written or moved: the estimators already tested must read what
+    # they read in task 46, and the four recorded verdicts must stand (HANDOFF task 47 step 4).
+    summary_probe = {"hashes": {}, "score": score}
+    if not args.no_reference:
+        summary_probe["hashes"] = {
+            "params_hash": params.params_hash,
+            "weekly_returns_hash": _frame_hash(weekly),
+            "factors_hash": _frame_hash(ff.frame),
+        }
+        diffs = compare_to_reference(summary_probe, Path(args.reference))
+        if diffs:
+            print(
+                "STOP: the first four estimators do not reproduce the reference run:",
+                file=sys.stderr,
+            )
+            for d in diffs:
+                print(f"  {d}", file=sys.stderr)
+            return 4
+        print(
+            f"reference check: the incumbent and the first four candidates equal {REFERENCE_RUN}."
+        )
+    flipped = {h: v for h, v in verdicts.items() if h not in MOVED and v != "not_detected"}
+    if flipped:
+        print(f"STOP: the five-way gate would change recorded verdicts: {flipped}", file=sys.stderr)
+        return 5
 
     out.mkdir(parents=True)
     long = run.loadings_long(paths, ids, weeks, list(ff.frame.columns))
@@ -398,6 +524,7 @@ def main(argv=None) -> int:
         "bias_ceiling": float(params.require("vetoes.risk_calibration.max_worst_annual_bias")),
         "score": score,
         "verdicts": verdicts,
+        "mean_reverting": mr_extra,
         "hmm_stability": run.hmm_stability(regimes),
         "factor_correlations": corr,
         "projection": proj,
@@ -409,8 +536,10 @@ def main(argv=None) -> int:
     write_report(out, summary, corr, checks)
 
     if registry is not None:
-        for hid, verdict in verdicts.items():
-            registry.move(hid, "done", run_id=run_id, detail="HANDOFF task 45", verdict=verdict)
+        for hid in MOVED:
+            registry.move(
+                hid, "done", run_id=run_id, detail="HANDOFF task 47", verdict=verdicts[hid]
+            )
     print(f"wrote {out} in {time.time() - started:.0f}s")
     for name, e in score["estimators"].items():
         if "statistic" in e:

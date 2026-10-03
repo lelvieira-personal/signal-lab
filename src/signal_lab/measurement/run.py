@@ -108,6 +108,37 @@ def project_runtime(
     }
 
 
+def pair_shares(
+    paths: dict[str, list[LoadingPath]], mask: np.ndarray, name: str
+) -> dict[str, object]:
+    """
+    How often each (half-life, q) pair of `name` was the one in force, over the scored
+    cells: instrument i, prediction made at t, for week t+1 (`mask[t + 1, i]`). Shares sum to 1.
+    """
+    counts = np.zeros(len(E.MR_PAIRS))
+    for i, p in enumerate(paths[name]):
+        t = np.flatnonzero(mask[1:, i])
+        picked = p.extra["pair"][t]
+        picked = picked[picked >= 0]
+        counts += np.bincount(picked, minlength=len(E.MR_PAIRS))
+    total = counts.sum()
+    share = counts / total if total else counts
+    return {
+        "n_cells": int(total),
+        "pairs": {f"h{h}_q{q:g}": float(s) for (h, q), s in zip(E.MR_PAIRS, share, strict=True)},
+        "by_half_life": {
+            f"h{h}": float(sum(s for (hh, _), s in zip(E.MR_PAIRS, share, strict=True) if hh == h))
+            for h in E.MR_HALF_LIVES
+        },
+        "by_q": {
+            f"q{q:g}": float(
+                sum(s for (_, qq), s in zip(E.MR_PAIRS, share, strict=True) if qq == q)
+            )
+            for q in E.MR_Q
+        },
+    }
+
+
 def hmm_stability(regimes: RegimePath) -> dict[str, float | int]:
     """Whether the regimes held across the ten restarts: label-aligned agreement with the best."""
     lo = np.array(list(regimes.agreement_min.values()), dtype=float)

@@ -10,7 +10,7 @@ the outliers they exist to resist.
 
 The statistic for a candidate is the mean, over weeks, of the cross-sectional mean
 of (incumbent loss - candidate loss): positive is better than the incumbent. The
-gate is `stats.multiple_testing.gate` over the four candidates, with its null from
+gate is `stats.multiple_testing.gate` over the candidates, with its null from
 a centred block bootstrap of the weekly differentials -- one resampling shared by
 all candidates in each draw. Estimators are compared on the same cells: a week and
 instrument count only when the incumbent and every candidate has an estimate there.
@@ -232,6 +232,12 @@ def score(
                     },
                 },
             )
+            half = len(d) // 2  # reported for every candidate, never gated
+            row["halves"] = {
+                "first_half": float(d.iloc[:half].mean()),
+                "second_half": float(d.iloc[half:].mean()),
+                "split_at": str(d.index[half].date()),
+            }
             row["eligible"] = bool(row["gate_passed"] and row["bias_ok"])
             row["verdict"] = "candidate" if row["eligible"] else "not_detected"
         out["estimators"][name] = row

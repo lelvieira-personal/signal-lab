@@ -19,6 +19,7 @@ NAMES = [
     "theil_goldberger_peer_prior",
     "hmm2_regime_conditional",
     "kalman_dlm_discount",
+    "mean_reverting_dlm_own_mean",
 ]
 START = 110  # weeks before an estimate exists, as a window would leave it
 
@@ -103,11 +104,21 @@ def test_the_block_bootstrap_is_centred_seeded_and_shared_by_candidates():
     assert not np.array_equal(T0, fid.block_bootstrap_null(D, draws=400, seed=6))
 
 
-def test_the_gate_reports_g_equal_one_for_four_candidates(params):
+def test_the_gate_reports_g_equal_one_for_five_candidates(params):
     ev, F, weeks = _evaluate(5, dict.fromkeys(NAMES, 0.3))
     out = fid.score(ev, pd.DataFrame(F, index=weeks), params, draws=200)
     assert out["gate"]["g"] == 1
-    assert out["gate"]["n_tests"] == 4
+    assert out["gate"]["n_tests"] == 5
+
+
+def test_each_candidate_reports_its_first_and_second_half(params):
+    ev, F, weeks = _evaluate(5, dict.fromkeys(NAMES, 0.3))
+    out = fid.score(ev, pd.DataFrame(F, index=weeks), params, draws=100)
+    for name in NAMES[1:]:
+        h = out["estimators"][name]["halves"]
+        assert np.isfinite(h["first_half"]) and np.isfinite(h["second_half"])
+        assert pd.Timestamp(h["split_at"]) in weeks
+    assert "halves" not in out["estimators"]["rolling_ols"]
 
 
 # --- the gate under a null, and with a planted advantage ----------------------------------

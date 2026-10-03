@@ -13,6 +13,7 @@ from signal_lab.measurement.estimators import (
     HMM2RegimeConditional,
     HuberM,
     KalmanDLMDiscount,
+    MeanRevertingDLMOwnMean,
     RollingOLS,
     TheilGoldbergerPeerPrior,
     peer_beta_array,
@@ -43,6 +44,7 @@ def _all_paths(y_peers, X, own=0, hmm=False, hmm_start=0):
         "huber_m": HuberM().path(y, X, ctx),
         "theil_goldberger_peer_prior": TheilGoldbergerPeerPrior().path(y, X, ctx),
         "kalman_dlm_discount": KalmanDLMDiscount().path(y, X, ctx),
+        "mean_reverting_dlm_own_mean": MeanRevertingDLMOwnMean().path(y, X, ctx),
     }
     if hmm:
         out["hmm2_regime_conditional"] = HMM2RegimeConditional().path(y, X, ctx)
@@ -137,10 +139,126 @@ def test_kalman_beats_ols_under_planted_drift():
     assert _mean_abs_err(kal, truth, ts) < _mean_abs_err(ols, truth, ts)
 
 
+# --- H-2026-0017: mean-reverting loadings around the instrument's own mean ----------------------
+
+
+def _mr_world(seed, n=520, noise=0.01, dev=0.15, half_life=26):
+    """Loadings = TRUTH + a stationary AR(1) deviation; returns (X, y, B) with B the planted path."""
+    rng = np.random.default_rng(seed)
+    X = _factors(n, seed=seed)
+    phi = 0.5 ** (1 / half_life)
+    d, B = np.zeros(K), np.empty((n, K))
+    for t in range(n):
+        d = phi * d + rng.normal(size=K) * dev * np.sqrt(1 - phi**2)
+        B[t] = TRUTH + d
+    return X, np.einsum("tk,tk->t", X, B) + rng.normal(size=n) * noise, B
+
+
+def _err_vs_next_week(path, B, ts):
+    """What a stored value at t is judged on: the planted loading of week t+1."""
+    return float(np.mean([np.abs(path.beta[t] - B[t + 1]).mean() for t in ts]))
+
+
+def test_mean_reverting_recovers_constant_loadings():
+    X = _factors(300, seed=21)
+    y = X @ TRUTH + np.random.default_rng(21).normal(size=300) * 0.003
+    p = MeanRevertingDLMOwnMean().path(y, X)
+    assert p.has()[-1] and not p.has()[: E.MIN_OBS - 2].any()
+    assert np.abs(p.beta[-1] - TRUTH).max() < 0.15
+
+
+def test_mean_reverting_beats_ols_and_kalman_on_average_under_planted_mean_reversion():
+    """
+    On average over twelve planted histories, not draw by draw: at these settings it beat
+    rolling OLS in 9 of 12 and the Kalman candidate in 7 of 12, so a single draw is close
+    to a coin flip against Kalman and the claim only holds in the mean.
+    """
+    ts = range(250, 519)
+    errs = {"mr": [], "ols": [], "kalman": []}
+    for seed in range(12):
+        X, y, B = _mr_world(seed)
+        errs["mr"].append(_err_vs_next_week(MeanRevertingDLMOwnMean().path(y, X), B, ts))
+        errs["ols"].append(_err_vs_next_week(RollingOLS().path(y, X), B, ts))
+        errs["kalman"].append(_err_vs_next_week(KalmanDLMDiscount().path(y, X), B, ts))
+    assert np.mean(errs["mr"]) < np.mean(errs["ols"])
+    assert np.mean(errs["mr"]) < np.mean(errs["kalman"])
+
+
+def test_mean_reverting_converges_after_a_permanent_level_shift(record_property):
+    """Reported, no threshold: how many weeks the stored loading takes to get most of the way."""
+    rng = np.random.default_rng(31)
+    n, shift_at = 700, 400
+    X = _factors(n, seed=31)
+    B = np.tile(TRUTH, (n, 1))
+    jump = np.array([0.6, 0.0, 0.0, 0.0, 0.0, 0.0])
+    B[shift_at:] += jump
+    y = np.einsum("tk,tk->t", X, B) + rng.normal(size=n) * 0.005
+    p = MeanRevertingDLMOwnMean().path(y, X)
+    gap = np.abs(p.beta[:, 0] - B[:, 0])
+    assert gap[shift_at - 5] < 0.1  # settled on the old level before the shift
+    assert gap[-1] < 0.5 * abs(jump[0])  # and it does converge to the new one
+    after = np.flatnonzero(gap[shift_at:] < 0.5 * abs(jump[0]))
+    weeks = int(after[0]) if len(after) else None
+    record_property("weeks_to_halve_the_gap_after_a_level_shift", weeks)
+    print(f"\nweeks to halve a permanent 0.6 level shift: {weeks}")
+    assert weeks is not None
+
+
+def test_mean_reverting_stores_the_forecast_not_the_filtered_loading():
+    X, y, B = _mr_world(5, n=330, dev=0.3)
+    n, k = X.shape
+    valid = E.valid_rows(y, X)
+    ok = E.window_ok(valid)
+    t0 = int(np.flatnonzero(ok)[0])
+    Cs = np.full((n, k, k), np.nan)
+    coefs = {}
+    for t in np.flatnonzero(ok):
+        w = E._window(int(t))
+        coef, G, s2, nobs = E._ols_full(y[w][valid[w]], X[w][valid[w]])
+        Cs[t] = G[1:, 1:]
+        coefs[int(t)] = (coef, G, s2, nobs)
+    coef, G, s2, nobs = coefs[t0]
+    phi, q = 0.5 ** (1 / 26), 1.0
+
+    def seed(q_):
+        m = np.zeros(1 + 2 * k)
+        m[: 1 + k] = coef
+        C = np.zeros((1 + 2 * k, 1 + 2 * k))
+        C[: 1 + k, : 1 + k] = G
+        C[1 + k :, 1 + k :] = q_ * Cs[t0]
+        return m, C, s2, float(nobs - (1 + k))
+
+    fb, _, _, _, mf = E._mr_filter(y, X, Cs, ok, t0, seed, phi, q, k)
+    t = n - 1
+    mu, d = mf[t][1 : 1 + k], mf[t][1 + k :]
+    assert np.abs(d).max() > 0.01  # a real deviation, so the two values differ
+    assert np.allclose(fb[t], mu + phi * d, rtol=0, atol=1e-12)
+    assert not np.allclose(fb[t], mu + d, atol=1e-6)  # the filtered loading is not what is stored
+
+
+def test_mean_reverting_covariance_is_symmetric_and_psd():
+    X, y, _ = _mr_world(6, n=330)
+    p = MeanRevertingDLMOwnMean().path(y, X)
+    for t in np.flatnonzero(p.has())[::7]:
+        V = p.cov[t]
+        assert np.allclose(V, V.T, rtol=1e-9, atol=1e-16)
+        assert np.linalg.eigvalsh(0.5 * (V + V.T)).min() >= -1e-9 * np.abs(V).max()
+        assert p.resid_var[t] > 0
+
+
+def test_mean_reverting_records_which_grid_pair_it_chose():
+    X, y, _ = _mr_world(7, n=330)
+    p = MeanRevertingDLMOwnMean().path(y, X)
+    chosen = p.extra["pair"][p.has()]
+    assert ((chosen >= 0) & (chosen < len(E.MR_PAIRS))).all()
+    assert (p.extra["pair"][~p.has()] == -1).all()
+    assert len(E.MR_PAIRS) == 12
+
+
 # --- no lookahead, bit for bit, for all five ---------------------------------------------
 
 
-def test_the_four_pooled_estimators_do_not_see_past_t():
+def test_the_five_pooled_estimators_do_not_see_past_t():
     _no_lookahead(hmm=False, n=330, t0=220, hmm_start=0)
 
 
@@ -169,6 +287,8 @@ def _no_lookahead(hmm, n, t0, hmm_start):
             a, b = getattr(p, field)[: t0 + 1], getattr(q, field)[: t0 + 1]
             assert np.array_equal(a, b, equal_nan=True), (name, field)
         assert (p.last_index[p.has()] <= np.flatnonzero(p.has())).all(), name
+        for key, a in p.extra.items():  # the diagnostics are causal too
+            assert np.array_equal(a[: t0 + 1], q.extra[key][: t0 + 1]), (name, key)
 
 
 @pytest.mark.slow

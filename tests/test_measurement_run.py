@@ -40,6 +40,19 @@ def test_every_estimator_runs_on_every_instrument_and_nothing_looks_ahead():
     )
 
 
+def test_pair_shares_count_scored_cells_and_sum_to_one():
+    R, F = _world()
+    paths = run.estimate_all(R, F, ["A"] * 5, E.regime_path(F, start=180))
+    mask = np.zeros(R.shape, dtype=bool)
+    mask[150:, :] = True
+    out = run.pair_shares(paths, mask, "mean_reverting_dlm_own_mean")
+    assert out["n_cells"] > 0
+    assert sum(out["pairs"].values()) == pytest.approx(1.0)
+    assert sum(out["by_half_life"].values()) == pytest.approx(1.0)
+    assert sum(out["by_q"].values()) == pytest.approx(1.0)
+    assert len(out["pairs"]) == len(E.MR_PAIRS)
+
+
 def test_a_lookahead_in_an_estimate_is_caught():
     p = LoadingPath.empty(10, K)
     p.last_index[5] = 7
