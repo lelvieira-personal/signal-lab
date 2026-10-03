@@ -157,3 +157,85 @@ exists to control.
 - A measurement run produces no portfolio, so the portfolio vetoes are
   `not_applicable` (`decisions/0016`).
 - The result is a report. It changes no parameter and opens no search.
+
+## Addendum, 2026-10-02: the Cash class is not scored (owner, OWNER-QUEUE L22)
+
+§2 scored "every investable series in the backbone and second tiers". That
+included the T-bill index (`LD20TRUU`, reporting class Cash). Its robust
+volatility is near zero, so its scaled errors are enormous: in the registered
+run `M-20261002T033239Z` it is about 100% of the loss differential for three
+of the four candidates, and their statistics there mean nothing. Cash is also
+what the equity and commodity factors are measured over, so its loading on
+them was never a measurement target. **This was Cowork's spec error.**
+
+**The owner's ruling: the Cash class is excluded** ("yes exclude cash").
+
+- **The result of record is the run without Cash,** `M-20261002T034221Z-sens`:
+  86 instruments, 835 weeks. All four candidates are `not_detected`, the same
+  verdicts the registered run recorded, so no hypothesis moves.
+- **This is a fix made after the results were seen,** and it is disclosed as
+  such. It changes which instruments are scored. It changes no estimator, no
+  configuration and no verdict.
+- HANDOFF task 46 makes the exclusion the default and re-runs once, to add
+  the incumbent's mean loss and a by-class breakdown to the report. Its four
+  statistics must equal the sensitivity run's.
+
+**Also recorded, not ruled:** rolling OLS itself reads 1.80 against the 1.72
+ceiling of the uncertainty check, in 2008. §3's "if none passes, the incumbent
+stays" did not anticipate an ineligible incumbent. Which estimator enters the
+exposure matrix is still the owner's decision (OWNER-QUEUE B5).
+
+## Addendum, 2026-10-02: a fifth candidate, mean-reverting Bayesian loadings (owner, OWNER-QUEUE B5)
+
+**The owner asked** whether any method tried combines Bayesian regression, a
+time-varying component and shrinkage toward a long-run mean. None does. The
+Kalman candidate is Bayesian and time-varying, but its loadings follow a
+random walk, so there is no mean to return to. The Theil-Goldberger candidate
+shrinks, but toward a peer average on a fixed window. **The owner's ruling:**
+register and test such a method, with **the instrument's own long-run mean**
+as the level it shrinks to ("the long run mean could be the instrument's own
+mean").
+
+**H-2026-0017, `mean_reverting_dlm_own_mean`.** One configuration, fixed here
+before it runs. *Everything below except the choice of the instrument's own
+mean is Cowork's design, for the owner to change before task 47 starts.*
+
+- **The model.** `r_t = a + b_t' f_t + e_t`, with `b_t = mu + d_t` and
+  `d_t = phi * d_(t-1) + w_t`. `mu` is the instrument's own long-run loading
+  and `d_t` is a deviation that decays back to zero.
+- **`mu` is in the state, not estimated separately.** The Kalman filter
+  carries `(a, mu, d_t)`, with `mu` constant and a diffuse prior. So the
+  long-run mean is learned from all of the instrument's own history to date,
+  its uncertainty is carried, and no step can see past t.
+- **The loading scored for week t+1 is the one-step forecast,**
+  `mu_hat + phi * d_hat_t`, with its forecast covariance. This is where the
+  shrinkage acts: each week the loading is pulled toward `mu` by `1 − phi`.
+- **The size of the deviations.** The innovation covariance is
+  `(1 − phi²) * q * C_t`, where `C_t` is the scaled covariance of the 156-week
+  rolling OLS loading at t. So `q` reads as how far a loading wanders from its
+  long-run mean, in units of a three-year OLS estimate's sampling variance.
+- **Two settings, chosen walk-forward and never tuned on the weeks scored.**
+  At each t, `(phi, q)` is the pair with the highest cumulative one-step
+  predictive likelihood on data up to t, from a fixed grid: half-lives of 13,
+  26, 52 and 104 weeks, and `q` of 0.25, 1 and 4. This is the same device as
+  the Kalman candidate's discount grid.
+- **Observation variance:** learned as in the existing Kalman candidate
+  (variance learning, Student-t predictive).
+- **Minimum history:** the lab's existing 104-valid-week rule.
+
+**How much history the long-run mean has.** The indices themselves go back
+well before 2001, but the six factors only exist together from 2001-01-05,
+which is also the start of the development window. So the long-run mean rests
+on about three years of data at the first scored week in 2004 and on nineteen
+by 2019, and on less for the twelve second-tier instruments. Early in the
+sample this candidate is close to a filtered OLS; its distinct behaviour grows
+with history.
+
+**The test.** Same factors, score, uncertainty check and slices as §1-§3, on
+the instruments of the Cash addendum.
+- **The gate runs over all five candidates, at g = 1.** This one was designed
+  after the first four results were seen, so it is charged for the whole
+  search and not tested alone.
+- **The recorded verdicts of H-2026-0013 to 0016 stand.** If the five-way run
+  would flip one, task 47 stops and reports.
+- The run chooses nothing. Adoption remains the owner's decision.
