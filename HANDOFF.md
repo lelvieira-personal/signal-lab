@@ -56,7 +56,11 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-06 (night): queued, 48 (in flight) then 49.** Task 49 (owner, 2026-10-06, OWNER-QUEUE L24) makes every check log per-test times and the machine's load, trials parallel tests, and adds `make check-scoped`, which leaves out the slow tests a change cannot reach. It has no owner-only edit, changes nothing under `src/` and moves no hypothesis. Run it after task 48's receipt is committed. **Still waiting on the owner:** OWNER-QUEUE B5 and L23.
+**As of 2026-10-07 (midday): queued, 50 then 51.** The owner ruled on OWNER-QUEUE L26, B5, L25 and L23 on 2026-10-07 ("i accept all of your suggestions for the pending decisions"). **Task 50** makes one thread the lab's reference (`decisions/0048`), re-records three constants, applies the grade ruling to two hypothesis files (`decisions/0006` addendum), fixes `.gitignore` and runs the first scoped check. **Task 51** builds the Huber loadings on the six factors as a versioned store (`decisions/0049`). Neither has an owner-only edit. **`resolve_exposures` stays raising after both:** the matrix's columns are OWNER-QUEUE L27, proposed in `decisions/proposed/0050` and not decided. Don't build from a file under `decisions/proposed/`.
+
+*(Earlier note:)* **As of 2026-10-07 (morning): nothing is queued.** Tasks 48 and 49 are done and Cowork verified both from the run directories, the logs and `git` (Project docs `claude/task-48-review-2026-10-06.md` and `claude/check-runtime-2026-10-06.md`; mirror copies in `Claude outputs/project-mirror/`). **Waiting on the owner:** OWNER-QUEUE L26 (the thread count changes four recorded goldens), B5 (the estimator), L25 (the factor set) and L23 (the grade filter). The next task will carry L26's ruling together with three hygiene fixes that need no ruling: the `.gitignore` lines with trailing comments, ignoring `data/universe/raw_meta.json` and `raw_structure.json`, and the first end-to-end run of `make check-scoped`. **Don't start any of them before the task is written,** and re-record no golden.
+
+*(Earlier note:)* **As of 2026-10-06 (night): queued, 48 (in flight) then 49.** Task 49 (owner, 2026-10-06, OWNER-QUEUE L24) makes every check log per-test times and the machine's load, trials parallel tests, and adds `make check-scoped`, which leaves out the slow tests a change cannot reach. It has no owner-only edit, changes nothing under `src/` and moves no hypothesis. Run it after task 48's receipt is committed. **Still waiting on the owner:** OWNER-QUEUE B5 and L23.
 
 *(Earlier note:)* **As of 2026-10-03 (evening): queued, task 48 only.** Task 47 is done and Cowork verified it (Project doc `claude/task-47-review-2026-10-03.md`; mirror copy in `Claude outputs/project-mirror/`). Task 48 reproduces the run of record from the committed code, names the two filters' variance update and runs one sensitivity on it, and describes how stable each estimator's loadings are. It needs no owner ruling and moves no hypothesis. **Waiting on the owner:** OWNER-QUEUE B5 (which estimator enters the exposure matrix) and L23 (the grade filter leaves three JPMaQS tickers empty). The exposure-matrix build is not queued until B5 is ruled.
 
@@ -2791,6 +2795,255 @@ Then stop.
 
 ---
 
+### 50. One thread is the reference (`decisions/0048`); re-record three constants; the grade ruling's two hypothesis edits (`decisions/0006` addendum); `.gitignore` hygiene; the first scoped check
+
+Added 2026-10-07 by Cowork. **Owner rulings 2026-10-07** on OWNER-QUEUE L26
+and L23 ("i accept all of your suggestions for the pending decisions"). No
+owner-only edit, no vendor call, no audit, no hypothesis changes state. Budget
+2 h. Run it before task 51.
+
+**Read first:** `decisions/0048`, the 2026-10-07 addendum to `decisions/0006`,
+and `Claude outputs/project-mirror/check-runtime-2026-10-06.md` (its outcome
+section).
+
+**Hard rules:**
+- **Exactly three constants are re-recorded,** all in `tests/test_baseline.py`:
+  `GOLDEN_NET_IR`, `GOLDEN_NET_IR_CREATED_MARGINAL` and `GOLDEN_NET_IR_V080`.
+  No hash, no other constant, no tolerance loosened, no test re-marked.
+- **If anything else fails at one thread, stop and list it.** Don't fix it and
+  don't re-record it.
+- **Numbers recorded before today stand as recorded.** Don't re-run an audit
+  and don't edit an old `summary.json` or report.
+- Nothing under `src/signal_lab/` changes its arithmetic. Step 5's one-line
+  fix is the only edit to a result-producing file.
+
+**0. Commit first, alone, after `make check`:** `HANDOFF.md`,
+`OWNER-QUEUE.md`, `decisions/0006-…`, `decisions/0048-…`, `decisions/0049-…`
+and `decisions/proposed/0050-…`, as
+`queue: tasks 50 and 51; decisions 0048 and 0049; OWNER-QUEUE L26, B5, L25, L23 ruled, L27 added (owner 2026-10-07)`.
+
+**1. `.gitignore`.**
+- Three pattern lines carry a trailing `# comment`, which git reads as part of
+  the pattern: `results/audit/`, `results/fdr_vs_fwer/` and
+  `results/measurement/*/loadings.parquet`. Move each comment to its own line
+  above the pattern.
+- Add `data/universe/raw_meta.json` and `data/universe/raw_structure.json`.
+  They are written by `make inspect-raw`, and `raw_meta.json` holds rows read
+  from the vendor workbook. **Don't open either.**
+- Add `results/audit-bloomberg.log`.
+- **Check:** `git check-ignore -v` names a rule for one path under each of the
+  six, and `git status --short` shows no untracked file. Report both.
+
+**2. The pin.**
+- Every `make` target runs with `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS` and
+  `MKL_NUM_THREADS` set to 1. Export them in `build.mk`, inside the
+  check-block, so the selector reads the change as a full run.
+- `scripts/unattended.sh` must show `=1` for all three in its `machine` line.
+  Don't reword the line.
+- **A run made at any other setting must say so.** The test session fails at
+  the start, with one clear message, if any of the three is not 1. A script
+  under `scripts/` that produces numbers refuses to start the same way. How
+  you do it is yours. No new dependency.
+- **Every run records the setting:** the measurement run's `summary.json`, and
+  the audit's summary beside its hashes. New key, no existing key renamed.
+- Add one line to `CLAUDE.md`'s hard rules: numbers are made at one thread
+  (`decisions/0048`); `make` sets it; a direct `python` call must set it too.
+- **Report what the solver does.** If the optimiser has a thread setting of
+  its own, say what it is and don't change it.
+
+**3. The three constants.**
+- Run `tests/test_baseline.py` twice, in two fresh processes, with the pin.
+- **Expected:** the same four tests fail both times, and each prints the same
+  value both times, to the last digit:
+  `GOLDEN_NET_IR` −0.8792060912640641, `GOLDEN_NET_IR_CREATED_MARGINAL`
+  −0.3916378876353463, `GOLDEN_NET_IR_V080` −0.4046626602695416.
+- **If the two runs disagree, or either disagrees with those values, stop.**
+  One thread is then not enough to make the number repeat, and the owner needs
+  to know before anything is recorded.
+- Otherwise re-record the three, and put `decisions/0048` and the old value in
+  the comment above each.
+
+**4. The two hypothesis files** (`decisions/0006`, addendum of 2026-10-07).
+- **`hypotheses/pending/H-2026-0004.yaml`:** append to `notes`, changing
+  nothing else: "Parked 2026-10-07 by owner ruling (OWNER-QUEUE L23,
+  decisions/0006 addendum): both JPMaQS inputs are grade 3 throughout and are
+  excluded by `grade_3: exclude`, so the hypothesis has no macro input. It
+  cannot run and is not counted as a test in any family or stepdown. A US leg
+  from a point-in-time source would be a new registration."
+- **`hypotheses/pending/H-2026-0001.yaml`:** remove `EUR_MBCSCORE_SA` from
+  `data_required`, and append to `notes`: "Amended 2026-10-07 by owner ruling
+  (OWNER-QUEUE L23, decisions/0006 addendum): EUR_MBCSCORE_SA is grade 3
+  throughout and is excluded, so it is removed from data_required.
+  USD_MBCSCORE_SA stays; about half of its rows are excluded. The composite
+  now has three US components and one each for the euro area, Japan and the
+  UK."
+- **A ticker with no usable row is not available.** After this step
+  `HypothesisRegistry.partition()` against the current snapshots must put
+  H-2026-0004 in `blocked`, with both `BLSCSCORE` tickers missing. Report
+  where H-2026-0001 lands and why. If the macro manifest lists an empty ticker
+  as available, fix that where the manifest is read or built, and test it on a
+  synthetic panel with one all-grade-3 ticker. **Don't rebuild a snapshot from
+  vendor data, and don't change `params/`.** If it needs either, stop.
+- If a data request file is written for H-2026-0004, its reason must name the
+  grade rule. It is not a request to the owner.
+- Update the tests that count hypotheses' series. List each.
+
+**5. Check, commit, then the first scoped run.**
+- `scripts/unattended.sh check-full --digest`. The tree is a full run by both
+  rules. **Report its runtime against 3,908 s.**
+- Commit as `checks: one thread is the reference; three goldens re-recorded;
+  grade ruling applied to H-2026-0001 and 0004; .gitignore (HANDOFF task 50,
+  decisions/0048, decisions/0006)`.
+- **Then one small change, to exercise the scoped tier end to end.**
+  `src/signal_lab/measurement/describe.py`, about line 110, divides `a[i]` by
+  `a[0]` and warns when `a[0]` is zero. Return NaN there without the warning.
+  The existing test must still pass with no `RuntimeWarning`.
+- Run `scripts/unattended.sh check-scoped --digest`. **Expected: tier
+  `SCOPED`,** with the two measurement slow files selected and the other six
+  left out. If it says `FULL`, report the selector's reason and don't force
+  it.
+- Commit that fix alone.
+
+**6. The estimator test at one thread.**
+`make measurement-loadings ARGS="--no-registry --reference results/measurement/M-20261003T181155Z/summary.json"`.
+- The run of record was made with threads unset, so the reference check may
+  fail. **That is a finding, not a fault.** If it stops on the check, re-run
+  with `--no-reference` and compare the two `summary.json` files yourself.
+- Report, per estimator, the largest absolute difference in the statistic, the
+  mean loss and the adjusted p, and whether any verdict or bias check reads
+  differently. No hypothesis moves, whichever way it reads.
+- Commit the run's `report.md` and `summary.json`.
+
+**Receipt:**
+- rc, commits, the two log directories, and both runtimes;
+- step 1's two checks;
+- how the pin and the refusal are done, and what the solver does;
+- step 3: the two runs' values, old against new for the three constants, and
+  any other failure;
+- step 4: where each hypothesis lands in `partition()`, and every test changed;
+- step 5: the tier, the files left out and the runtime of the scoped run;
+- step 6: the differences, and the first line says whether any verdict moved;
+- **Anything in this task you didn't do, said plainly.**
+
+Then go on to task 51.
+
+---
+
+### 51. The estimated half of the exposure matrix: Huber loadings on the six factors, walk-forward, with their uncertainty, each instrument's explained share, and the measured cells beside them (`decisions/0049`)
+
+Added 2026-10-07 by Cowork. **Owner rulings 2026-10-07** on OWNER-QUEUE B5 and
+L25. No owner-only edit, no vendor call, no audit, no hypothesis moves, **and
+`resolve_exposures` keeps raising.** Run it after task 50. Budget 3 h.
+
+**Read first:** `decisions/0049`, `decisions/0015`, and
+`decisions/proposed/0050` (so you know what is *not* being built).
+
+**What this is.** `decisions/0049` chose Huber loadings on six factors. It did
+not choose the matrix's columns (OWNER-QUEUE L27). This task builds the parts
+every answer to L27 needs, as a versioned store, and stops there.
+
+**Hard rules:**
+- **The estimator is `HuberM` as registered** (H-2026-0013): c = 1.345, MAD
+  scale, 156 weeks, at least 104 valid weeks, sandwich covariance, all six
+  factors in one regression. Import it from `measurement/estimators.py`. Don't
+  copy it, tune it or add an option.
+- **The factors are `measurement/factors.py`'s,** unchanged.
+- **Walk-forward.** The row for week t uses data up to the Friday of week t.
+  Nothing on or after 2020-01-01 is read.
+- **Don't build from `decisions/proposed/0050`.** No axis mapping, no merging
+  of measured into estimated, no label block, no change to
+  `harness/experiment.py`, `harness/engine.py` or `vetoes/`.
+- **The store holds vendor-derived values.** Its data files are git-ignored
+  and never printed. Only the manifest and the report are committed, and they
+  hold counts, dates, hashes and aggregates.
+- Don't recommend anything about L27.
+
+**1. The builder** (a new package; put it where SUBSTRATE §15 says, and if §15
+names no place use `src/signal_lab/characteristics/` and say so).
+- **Instruments:** every investable backbone and second-tier series, Cash
+  included. Tradable-only series are listed in the manifest as not estimated.
+- **Per instrument and week, where the data-sufficiency rule holds:**
+  - the six loadings and their standard errors;
+  - the residual variance, the number of valid weeks in the window and the
+    last data date used;
+  - **`explained_share`:** over the 156 weeks ending at t, with
+    `p_s = b_(s-1)' f_s` (last week's loading, this week's factors, no
+    intercept) and `r_s` the return: `1 − Σ(r_s − p_s)² / Σ r_s²`. It needs at
+    least 52 such weeks and is NaN before that. It is out of sample and uses
+    nothing after t. It may be negative; don't clip it.
+- **Every row is marked `estimated`,** with the estimator's name.
+- **The measured cells, beside them and not merged:** `INDEX_OAD_TSY` and
+  `INDEX_OAS_TSY` for every instrument that has them, as of each weekly date
+  (the last value on or before that Friday), marked `measured`.
+
+**2. The store** (`data/characteristics/<id>/`, id `huber6-v1`).
+- Data files, git-ignored (add the rule and check it with `git check-ignore`):
+  the estimated loadings, the per-row fit fields, and the measured cells.
+- `manifest.yaml`, committed: the id, the build time, `decisions/0049`, the
+  estimator and its constants, the factor names, the params hash, the returns
+  and factors hashes as the measurement runs compute them, the thread setting,
+  row counts per file, the number of instruments estimated and not, the first
+  and last date, and the directory hash by the snapshot module's
+  `hash_directory`.
+- A loader that reads a store, re-hashes it and refuses one that has changed.
+- `scripts/build_characteristics.py` and `make characteristics`.
+
+**3. Two checks the build makes on itself, before it writes.**
+- **It reproduces the test.** On the 70,326 cells the estimator test scored
+  (Cash excluded, as the test did, and scored with `measurement/fidelity.py`'s
+  own functions), the pooled `r2_oos` and mean Huber loss computed from this
+  build must equal
+  the `huber_m` row of `results/measurement/M-20261003T181155Z/fit.json`
+  (0.7030 and 0.2303). That file was made with threads unset, so allow 1e-6
+  and report the actual difference. A larger difference stops the build.
+- **No lookahead:** `assert_no_lookahead`, as the measurement run does.
+
+**4. The report** (`results/characteristics/huber6-v1/report.md`, committed;
+aggregates only).
+- Instruments estimated, by reporting class, and the first week each class has
+  loadings.
+- **`explained_share` by reporting class:** the median over instruments of
+  the full-sample value, and of the value at the last week.
+- **Standard error against loading, by factor and class:** the median of
+  `se / |loading|` at the last week.
+- **Estimated against measured, for every bond index** (the table OWNER-QUEUE
+  L27 needs): the median over weeks of the real-yield loading, the inflation
+  loading and the credit loading, beside minus the median `INDEX_OAD_TSY`,
+  and the ratio of each to it. One row per instrument, with its class.
+- First line: "Built from `decisions/0049`. It chooses nothing about the
+  matrix's columns (OWNER-QUEUE L27)."
+
+**5. Tests, on synthetic data.**
+- Constant true loadings are recovered, and `explained_share` is near 1 with
+  no noise and near 0 for an instrument unrelated to the factors.
+- **No lookahead:** changing every observation after t leaves every stored row
+  at or before t unchanged, bit for bit, `explained_share` included.
+- The measured value at a date is the last one on or before it, never a later
+  one.
+- A store that is edited after it is written is refused by the loader.
+- **In the `holdout` tier:** the builder raises on data dated on or after
+  2020-01-01, and a built store's last date is before it.
+- `resolve_exposures` still raises `ExposureMatrixMissing`.
+
+**6. Check, then commit.** `scripts/unattended.sh check-scoped --digest`. Say
+which tier ran. Commit `src/`, `scripts/`, `tests/`, `build.mk`,
+`.gitignore`, the manifest and the report, as
+`characteristics: Huber loadings on six factors, walk-forward, with explained share and the measured cells; store huber6-v1 (HANDOFF task 51, decisions/0049)`.
+
+**Receipt:**
+- rc, commits, the log directory, the tier and the runtime;
+- where the package went, and why;
+- the store's hash, its row counts, and the instruments not estimated;
+- step 3's two differences;
+- **the estimated-against-measured table in full,** and `explained_share` by
+  class;
+- every test added, and any you changed;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
 ### 41. Fix `romano_wolf`'s standardising: pool the observed value with the null draws (task 40 follow-up, `decisions/0041`)
 
 Added 2026-09-29 (late evening) by Cowork. **Owner ruling 2026-09-29: fix it,
@@ -3060,6 +3313,10 @@ run would have said.
   are in task 9. **§2 -- conditioning the frictionless covariance -- stays
   deferred**; do not add a ridge or eigenvalue floor on your own initiative.
 - **`decisions/proposed/0034`.** Proposed, not decided. Do not build it.
+- **`decisions/proposed/0050`** (the exposure matrix's columns). Proposed, not
+  decided (OWNER-QUEUE L27). `resolve_exposures` keeps raising until it is.
+- **Re-recording a golden.** `decisions/0048` allows three named constants,
+  once, in task 50. Any other needs the owner.
 - **Anything in `params/`, `vetoes/` or `SUBSTRATE.md` not arriving as a cited
   patch.** Refuse and say so.
 

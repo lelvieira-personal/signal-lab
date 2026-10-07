@@ -19,6 +19,40 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
+### L27. The columns of the exposure matrix, and which cells are measured
+Added 2026-10-07 by Cowork. The proposal is `decisions/proposed/0050`.
+
+**Why it is live.** `decisions/0049` chose the estimator (Huber) and the
+factors (six). It did not say what the matrix's columns are, and the matrix is
+the next thing to build. HANDOFF task 51 builds only what every answer needs:
+the Huber loadings, their standard errors, each instrument's explained share,
+and the measured duration and spread beside them. Wiring the matrix into
+`resolve_exposures` waits on this item.
+
+**The gap.** SUBSTRATE §6 forms views on seven axes (duration, credit, region,
+sector, style, real/nominal, cash). The regression has six factors (equity,
+real yield, inflation, credit, dollar, commodities). Three factors have an
+axis, three do not, and four axes are labels, not betas.
+
+**What the owner would be deciding,** with Cowork's lean on each:
+- **(a) The layout.** A factor block of six columns and a label block (region,
+  sector, style, cash). Duration reads minus the real-yield column,
+  real/nominal reads minus the inflation column, credit reads minus the credit
+  column. *Lean: yes.*
+- **(b) Whether equity, dollar and commodities become axes a hypothesis can
+  target.** That would amend SUBSTRATE §6. *Lean: no, for now. They stay as
+  columns for the risk decomposition.*
+- **(c) Which cells are measured.** *Lean:* the real-yield and inflation cells
+  of Treasuries, Long Treasuries, TIPS and IG Corporates come from the index's
+  effective duration. HY and MBS are decided after reading task 51's table of
+  estimated against measured. Credit stays estimated; duration times spread is
+  untested.
+- **(d) The region labels.** They are still placeholders (D3), and four of
+  twelve hypotheses target `region`. *No lean. This wakes D3.*
+
+**Partly retired by measuring.** Task 51's table settles the facts behind (c).
+The rest is design.
+
 ### L12. Is the registry the right shape, now that the stepdown is the bar?
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
 SUBSTRATE §9 and §13, and on what is bought from Macrosynergy.
@@ -69,28 +103,194 @@ version is to estimate the joint distribution and read the effective number of
 independent tests off it rather than guess — and the owner has asked that it be
 revisited then.
 
-### L10. The `seed_stability` veto is unreachable as written
-Added 2026-09-20 by Cowork.
+---
 
-`params/vetoes.yaml` sets `seed_stability.max_ir_range = 0.15`. Observed
-per-cell seed range in `A-20260919-155557` is **0.26 to 1.42**, and at the
-per-seed sd of 0.26 that `decisions/0028` already records, the expected range
-over ten seeds is about 0.78. The sd is not a simulation artefact: `1/sqrt(16.0
-years) = 0.250` is the sampling error of an IR over the development window.
+## Blocked — waiting on a measurement
 
-A threshold of 0.15 would require a near-deterministic IR, which 16 years cannot
-deliver. It is not applied to audit cells, so nothing has failed on it — but it
-would fail every real hypothesis it was ever applied to, and SUBSTRATE §10 is
-explicit that a veto whose input is absent **fails**.
+### B4. `decisions/0030`'s threshold sensitivity to kurtosis
+The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
+the measured excess kurtosis of 2.37. But p99 is 1.48 at κ=1 and 1.92 at κ=4,
+and one Bloomberg cell read κ=14.65. Whether the threshold should sit at a
+conservative κ, or be re-measured per run, is unsettled.
 
-Either the threshold is re-derived from the estimator's own sampling error, or
-the statistic changes (a range is the worst-behaved summary of ten draws; a
-standard error is not), or the veto is retired with its reasoning recorded.
-`vetoes/` and `params/` are owner-only.
+**Retired by:** the ten-seed audit's kurtosis distribution across cells. One
+outlier out of seventeen is not enough to choose on.
 
-**Cannot be retired by measuring.** The distribution is in hand.
+---
 
-### B5. The exposure matrix: how loading estimators are tested (`decisions/0015`, `0016`) — moved to Live and rewritten 2026-10-01
+## Dormant — deferred on purpose, with the trigger that wakes them
+
+### L10. The `seed_stability` threshold has no measurement behind it
+Added 2026-09-20 by Cowork. **Rewritten and moved to Dormant on 2026-10-07**
+at the owner's instruction (he accepted Cowork's offer to do both). The
+earlier text is in git history.
+
+- `params/vetoes.yaml` sets `seed_stability.max_ir_range = 0.15`.
+- **The earlier text judged that number against the wrong seeds.** It compared
+  0.15 with the spread across *audit* seeds (0.26 to 1.42 per cell in
+  `A-20260919-155557`). Each audit seed plants a different noise history, so
+  that spread is the sampling error of an IR over sixteen years, about 0.25.
+- **The veto is about *resampling* seeds** (`vetoes/rules.py`: "IR range
+  across resampling seeds"): one history, solved again with resampled inputs.
+  That spread should be much smaller. Nobody has measured it.
+- **Nothing is resampled for a real signal until the phase-2 solver exists.**
+  The veto has no input today, so 0.15 can't be judged either way.
+- SUBSTRATE §10: a veto whose input is absent fails. That bites on the first
+  real hypothesis.
+
+**Wakes when:** the phase-2 solver resamples a planted signal. Measure the
+range across resampling seeds there, then set the threshold from it or change
+the statistic (a range is the worst-behaved summary of ten draws). `vetoes/`
+and `params/` are owner-only.
+
+### D8. When to flip `data.jpmaqs.status`
+Added 2026-10-07 by Cowork. It was inside L23, which is now ruled.
+
+`params/data.yaml` holds `status: credentials_supplied`. The loader, the macro
+snapshot and the coverage report exist (HANDOFF tasks 44 and 46), and the
+grade rule is decided (`decisions/0006` addendum). Flipping the status is the
+owner's, and `params/` is owner-only.
+
+**It opens nothing by itself.** `decisions/0016`: the search cannot open until
+a matrix has been chosen. `src/signal_lab/signals/` is empty and there is no
+phase-2 solver.
+
+**For the owner to read first:** nine of 26 tickers start after 2001-01-05,
+most of them in late 2003 or early 2004, and three have no usable rows
+(`results/jpmaqs_coverage.md`).
+
+**Wakes when:** the exposure matrix is wired (L27) and one signal module
+exists.
+
+### D6. Does "phase 3" gate on the loader or on the data?
+Moved from Live to Dormant by the owner, 2026-09-21, without being answered —
+because on the evidence it does not bind either way.
+
+SUBSTRATE §16 says *"Signal testing may not begin before phase 3,"* and phase 3
+is the JPMaQS loader. Four registered hypotheses need no JPMaQS at all:
+`H-2026-0007` (12 Bloomberg OAS series), `0008` (MOVE plus four FRED), `0009`
+(six Bloomberg, post-`0032`) and `0012` (**zero** series — it is the conviction
+measurement question). So the permissive reading would let four run today.
+
+**It buys nothing.** `src/signal_lab/signals/` is empty — `__init__.py` at 44
+bytes and a `.keep` — so no code turns a hypothesis file into a signal.
+`src/signal_lab/stats/` holds only `blocks.py`, the block shuffle: no
+Romano-Wolf stepdown, no HAC, no search null, no deflated IR. And since
+SUBSTRATE v0.5 the `multiple_testing` veto **is** §3's evidence bar, so a
+hypothesis run today fails bar 2 by construction — §10 is explicit that a veto
+whose input is absent fails. Vetoed before it is judged, whichever reading of
+§16 applies.
+
+**Wakes when:** `src/signal_lab/signals/` can build a signal from a hypothesis
+file **and** the Romano-Wolf stepdown exists. At that point the question becomes
+real and should be re-raised as a Live item.
+
+### D1. The two tracking-error penalty coefficients
+`decisions/0100` open questions: SUBSTRATE §4's asymmetric TE penalty has two
+coefficients, both null, and the objective **refuses to build** until they are
+set. Deferred by the owner on 2026-09-09 until a candidate model exists, and
+0100 records that refusing is the correct state rather than a gap.
+
+**Wakes when:** a candidate model exists. The form is already settled
+(conviction-scaled, linear between two endpoints, floored — `decisions/0019`).
+
+### D7. The two-step one-sided stepdown, and a bootstrap null for bar 2
+Added 2026-09-29 by Cowork. **Deferred by the owner the same day** ("keep
+things as is for now").
+
+The source is Romano, Shaikh & Wolf (2014, *Econometrica* 82(5)), which the
+owner supplied, and Romano & Wolf (2018), "Multiple Testing of One-Sided
+Hypotheses: Combining Bonferroni and the Bootstrap". Cowork has not read the
+2018 chapter. Two ideas:
+- **(a) The two-step correction.** Drop clearly negative hypotheses from
+  Romano-Wolf's critical value at a small β, for more power on one-sided
+  tests.
+- **(b) A block-bootstrap null.** Build the null from the weekly
+  live-minus-baseline series instead of engine shuffles, so k stops costing
+  engine hours. This would amend `decisions/0036`.
+
+**Wakes when:** the owner reopens it, or real signals exist and the shuffle
+budget (k) binds.
+
+### D3. Region labels are still placeholders (`decisions/0022`)
+**Wakes when:** a hypothesis needs a region axis it can trust —
+`H-2026-0001`, `0006`, `0009` and `0011` all target `region`.
+
+### D4. G3OC as the live 3–7y series
+The splice is live; the replacement is not actioned (`decisions/0022` area).
+
+### D5. `git_key` and `git_key.pub` in the repo root
+Ignored by `*key*`, so not at risk of being committed, but they sit in a
+directory that gets cloned and archived. Hygiene, owner's call.
+
+---
+
+## Closed
+
+### L26. Recorded numbers depend on the thread count — CLOSED 2026-10-07 (ruled; HANDOFF task 50 queued, not landed)
+**RULED 2026-10-07: option (a), one thread is the reference.** Owner: "i accept all of your suggestions for the pending decisions". Recorded as
+`decisions/0048`. HANDOFF task 50 applies it, re-records the three constants and
+carries the hygiene list below.
+
+*The item as it stood when ruled:*
+Added 2026-10-07 by Cowork, from task 49's receipt (step 2). Not verified by
+Cowork beyond the receipt: the two timing runs left no log.
+
+**What task 49 measured, on the slow tier, back to back.**
+- **Threads unset (32 cores): 1,319 s. One thread: 37 s.** The process ran
+  about 30 busy threads on matrices too small to use them. This is most of why
+  `check-full` swings from 388 s to 4,235 s.
+- **With one thread, four of the eight exact comparisons in
+  `tests/test_baseline.py` fail.** Net IR moves by 0.00002 to 0.00014
+  (−0.87921 against the recorded −0.87935; −0.39164 against −0.39166; −0.40466
+  against −0.40476). The receipt says "1e-4 to 1e-3"; the three pairs it
+  prints are smaller than that.
+- Nothing was re-recorded. Parallel tests were not trialled, by the task's own
+  rule.
+
+**Why it is the owner's.** Every number the lab has recorded was produced
+with the thread count this machine happens to have. On a machine with a
+different core count the same code would give slightly different numbers. The
+movement is far below the 0.30 bar and the 0.26 per-seed spread, so no verdict
+is at risk. The exact-equality tests, and the claim that a run reproduces, are.
+
+**The options.**
+- **(a) One thread is the lab's reference.** Set it in `build.mk`,
+  `scripts/unattended.sh` and the test configuration. Re-record the four
+  values once, under a `decisions/` record that prints old against new.
+  Re-run the estimator test's run of record once and record whether it still
+  reproduces. Checks drop from tens of minutes to about a minute.
+- **(b) Leave threads unset.** Nothing is re-recorded. Checks stay slow and
+  uneven, and results stay tied to this machine's core count.
+- **(c) Trial a middle setting** (say four threads) first. Claude Code offered
+  it. Cowork expects any change of count to move the same four values, and
+  has not tested that.
+
+**Cowork leans (a).** A single thread is the only setting another machine can
+match. *A guess, untested:* the 14-hour ruler audit may shorten by a large
+factor for the same reason, which would change what a search costs.
+
+**Also inside it, hygiene with no judgement needed** (to be queued with
+whichever option is ruled):
+- Three `.gitignore` lines carry a trailing comment, which git does not
+  support, so `results/audit/`, `results/fdr_vs_fwer/` and the
+  `loadings.parquet` files are not ignored. Nothing has been committed.
+- `data/universe/raw_meta.json` and `raw_structure.json` are untracked and
+  force every scoped check to the full suite. `raw_meta.json` holds rows read
+  from the vendor workbook, so both should be ignored, not committed.
+- `make check-scoped` is now `CLAUDE.md`'s definition of done and has never
+  been run end to end.
+
+**Cannot be retired by measuring.** Which configuration is the reference is a
+choice.
+
+### B5. The exposure matrix: how loading estimators are tested (`decisions/0015`, `0016`) — moved to Live and rewritten 2026-10-01 — CLOSED 2026-10-07 (ruled; HANDOFF task 51 queued, not landed)
+**RULED 2026-10-07: option (c), Huber.** Owner: "i accept all of your suggestions for the pending decisions". Recorded as `decisions/0049`:
+adopted on the owner's judgement and not detected by the gate, with measured
+duration and spread kept for bond cells. HANDOFF task 51 builds the estimated
+loadings. What the matrix's columns are is a new item, L27.
+
+*The item as it stood when ruled:*
 *Corrected by Cowork on 2026-10-01 at the owner's instruction. The earlier
 entry said the estimator was "unchosen" and would live in
 `params/characteristics.yaml`. `decisions/0015` records the owner overruling
@@ -160,8 +360,8 @@ to waive:
 - **(c) Huber (H-2026-0013).** Waives the gate at p = 0.20. Simple, passes the
   check narrowly (1.68), and gains most in the largest-move weeks.
 
-**Task 48's descriptions (2026-10-06; read by Cowork from the run directories
-before the receipt landed).** None is a test and none changes a verdict.
+**Task 48's descriptions (2026-10-06; verified by Cowork from the run
+directories, and the receipt agrees).** None is a test and none changes a verdict.
 Detail is in the Project doc `claude/task-48-review-2026-10-06.md`.
 - **The fit is the same for all six.** Pooled out-of-sample R² runs from 0.691
   (HMM) to 0.704 (Theil-Goldberger); rolling OLS is 0.699. By class it runs
@@ -195,7 +395,12 @@ Detail is in the Project doc `claude/task-48-review-2026-10-06.md`.
 
 **Retired by:** the owner's choice of estimator.
 
-### L25. The six factors explain some classes poorly
+### L25. The six factors explain some classes poorly — CLOSED 2026-10-07 (ruled; HANDOFF task 51 queued, not landed)
+**RULED 2026-10-07: option (a), build on the six factors now and carry each
+instrument's explained share.** Owner: "i accept all of your suggestions for the pending decisions". Recorded in `decisions/0049`,
+points 4 and 5. HANDOFF task 51.
+
+*The item as it stood when ruled:*
 Added 2026-10-06 by Cowork, from task 48's fit description
 (`results/measurement/M-20261003T181155Z/fit.md`). A description, not a test.
 
@@ -227,7 +432,14 @@ and can be replaced. The signal search is what is waiting.
 
 **Cannot be retired by measuring.** The measurement is in hand.
 
-### L23. The grade filter leaves three JPMaQS tickers with no data
+### L23. The grade filter leaves three JPMaQS tickers with no data — CLOSED 2026-10-07 (ruled; HANDOFF task 50 queued, not landed)
+**RULED 2026-10-07: option (a), keep `exclude`, with no threshold below 3.0.**
+Owner: "i accept all of your suggestions for the pending decisions". Recorded as the 2026-10-07 addendum to `decisions/0006`. HANDOFF
+task 50 parks H-2026-0004 and removes `EUR_MBCSCORE_SA` from H-2026-0001.
+Option (c), a new source for the US leg, waits for the FRED point-in-time
+loader and a new registration. `data.jpmaqs.status` is now Dormant item D8.
+
+*The item as it stood when ruled:*
 Added 2026-10-03 by Cowork, from task 46's coverage report
 (`results/jpmaqs_coverage.md`). The task 46 receipt gave the total dropped and
 did not say where it fell.
@@ -276,89 +488,7 @@ the lab exists to prevent.
 
 **Cannot be retired by measuring.**
 
----
-
-## Blocked — waiting on a measurement
-
-### B4. `decisions/0030`'s threshold sensitivity to kurtosis
-The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
-the measured excess kurtosis of 2.37. But p99 is 1.48 at κ=1 and 1.92 at κ=4,
-and one Bloomberg cell read κ=14.65. Whether the threshold should sit at a
-conservative κ, or be re-measured per run, is unsettled.
-
-**Retired by:** the ten-seed audit's kurtosis distribution across cells. One
-outlier out of seventeen is not enough to choose on.
-
----
-
-## Dormant — deferred on purpose, with the trigger that wakes them
-
-### D6. Does "phase 3" gate on the loader or on the data?
-Moved from Live to Dormant by the owner, 2026-09-21, without being answered —
-because on the evidence it does not bind either way.
-
-SUBSTRATE §16 says *"Signal testing may not begin before phase 3,"* and phase 3
-is the JPMaQS loader. Four registered hypotheses need no JPMaQS at all:
-`H-2026-0007` (12 Bloomberg OAS series), `0008` (MOVE plus four FRED), `0009`
-(six Bloomberg, post-`0032`) and `0012` (**zero** series — it is the conviction
-measurement question). So the permissive reading would let four run today.
-
-**It buys nothing.** `src/signal_lab/signals/` is empty — `__init__.py` at 44
-bytes and a `.keep` — so no code turns a hypothesis file into a signal.
-`src/signal_lab/stats/` holds only `blocks.py`, the block shuffle: no
-Romano-Wolf stepdown, no HAC, no search null, no deflated IR. And since
-SUBSTRATE v0.5 the `multiple_testing` veto **is** §3's evidence bar, so a
-hypothesis run today fails bar 2 by construction — §10 is explicit that a veto
-whose input is absent fails. Vetoed before it is judged, whichever reading of
-§16 applies.
-
-**Wakes when:** `src/signal_lab/signals/` can build a signal from a hypothesis
-file **and** the Romano-Wolf stepdown exists. At that point the question becomes
-real and should be re-raised as a Live item.
-
-### D1. The two tracking-error penalty coefficients
-`decisions/0100` open questions: SUBSTRATE §4's asymmetric TE penalty has two
-coefficients, both null, and the objective **refuses to build** until they are
-set. Deferred by the owner on 2026-09-09 until a candidate model exists, and
-0100 records that refusing is the correct state rather than a gap.
-
-**Wakes when:** a candidate model exists. The form is already settled
-(conviction-scaled, linear between two endpoints, floored — `decisions/0019`).
-
-### D7. The two-step one-sided stepdown, and a bootstrap null for bar 2
-Added 2026-09-29 by Cowork. **Deferred by the owner the same day** ("keep
-things as is for now").
-
-The source is Romano, Shaikh & Wolf (2014, *Econometrica* 82(5)), which the
-owner supplied, and Romano & Wolf (2018), "Multiple Testing of One-Sided
-Hypotheses: Combining Bonferroni and the Bootstrap". Cowork has not read the
-2018 chapter. Two ideas:
-- **(a) The two-step correction.** Drop clearly negative hypotheses from
-  Romano-Wolf's critical value at a small β, for more power on one-sided
-  tests.
-- **(b) A block-bootstrap null.** Build the null from the weekly
-  live-minus-baseline series instead of engine shuffles, so k stops costing
-  engine hours. This would amend `decisions/0036`.
-
-**Wakes when:** the owner reopens it, or real signals exist and the shuffle
-budget (k) binds.
-
-### D3. Region labels are still placeholders (`decisions/0022`)
-**Wakes when:** a hypothesis needs a region axis it can trust —
-`H-2026-0001`, `0006`, `0009` and `0011` all target `region`.
-
-### D4. G3OC as the live 3–7y series
-The splice is live; the replacement is not actioned (`decisions/0022` area).
-
-### D5. `git_key` and `git_key.pub` in the repo root
-Ignored by `*key*`, so not at risk of being committed, but they sit in a
-directory that gets cloned and archived. Hygiene, owner's call.
-
----
-
-## Closed
-
-### L24. When the full suite has to run, and why its runtime swings (added 2026-10-06) — CLOSED 2026-10-06 (ruled; HANDOFF task 49 queued, not landed)
+### L24. When the full suite has to run, and why its runtime swings (added 2026-10-06) — CLOSED 2026-10-06 (ruled; HANDOFF task 49 landed 2026-10-07, `cbddeb0`; parallel tests not adopted; what it found is L26)
 **Owner, 2026-10-06:** "write it on the queue but consider it approved as a handoff for claude code to work on". The question asked was whether the slow tests are worth their time on every change.
 
 **What was approved,** as Cowork put it to the owner the same evening:

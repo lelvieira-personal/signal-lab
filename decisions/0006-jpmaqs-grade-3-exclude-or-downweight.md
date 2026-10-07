@@ -87,3 +87,33 @@ and the phase 3 loader refuses a pull missing any of them.
 5.6 opens the search only when the macro block is in the snapshot, and having a
 key is not having the data. `scripts/nightly_cycle.py` still prints
 `search gate: CLOSED`.
+
+## Addendum, 2026-10-07: decided — exclude, at a grade of exactly 3.0 (owner, OWNER-QUEUE L23)
+
+**The owner's ruling** ("i accept all of your suggestions for the pending
+decisions"; Cowork's suggestion was to keep the exclusion):
+`params/data.yaml` keeps `grade_3: exclude`. **No threshold below 3.0 is
+added,** though the grades are not integers (they run from 1.0 to 3.0 in small
+steps). Nothing in `params/` changes.
+
+**What the exclusion costs, measured on pull `P-20261002T032635Z`**
+(`results/jpmaqs_coverage.md`). All 22,919 dropped rows are in four tickers:
+- `EUR_BLSCSCORE_NSA_D2Q2QL2`, `USD_BLSCSCORE_NSA_D2Q2QL2` and
+  `EUR_MBCSCORE_SA` are grade 3 throughout and have no row left.
+- `USD_MBCSCORE_SA` loses 3,806 of 7,813 rows.
+
+**Consequences, applied by HANDOFF task 50:**
+- **H-2026-0004 is parked.** Both of its JPMaQS inputs are gone. It stays in
+  `hypotheses/pending/`, reads `blocked:data`, cannot run, and **is not
+  counted as a test** in any family or stepdown.
+- **H-2026-0001 runs on what is left.** `EUR_MBCSCORE_SA` is removed from its
+  `data_required`. `USD_MBCSCORE_SA` stays, thinned.
+
+**Why not loosen the rule.** Macrosynergy says of these surveys that "average
+grades are on the low side at the moment, as electronic vintage records are
+not yet easily available". A data-quality rule loosened to rescue one
+hypothesis is the kind of choice the lab exists to prevent.
+
+**What would reopen it.** The FRED point-in-time loader. The Fed's loan officer
+survey may have true vintages there (unverified), which would give
+H-2026-0004 a US leg under a new registration.
