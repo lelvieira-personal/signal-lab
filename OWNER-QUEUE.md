@@ -19,39 +19,82 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L27. The columns of the exposure matrix, and which cells are measured
-Added 2026-10-07 by Cowork. The proposal is `decisions/proposed/0050`.
+### L28. The label map: a region, a sector and a style for each instrument
+Added 2026-10-07 by Cowork, out of L27 (d). It wakes D3.
 
-**Why it is live.** `decisions/0049` chose the estimator (Huber) and the
-factors (six). It did not say what the matrix's columns are, and the matrix is
-the next thing to build. HANDOFF task 51 builds only what every answer needs:
-the Huber loadings, their standard errors, each instrument's explained share,
-and the measured duration and spread beside them. Wiring the matrix into
-`resolve_exposures` waits on this item.
+`decisions/0050` gives the matrix a label block. Only `cash` has a source.
+`data/universe/investable_universe.csv` carries `section` and
+`reporting_class` and no region, sector or style column, and the loader's
+`region` is the workbook section, a placeholder (`decisions/0022`: "A real
+region map is an owner decision and has not been made").
 
-**The gap.** SUBSTRATE §6 forms views on seven axes (duration, credit, region,
-sector, style, real/nominal, cash). The regression has six factors (equity,
-real yield, inflation, credit, dollar, commodities). Three factors have an
-axis, three do not, and four axes are labels, not betas.
+**Why it is live.** H-2026-0001, 0006, 0009 and 0011 target `region`. The
+wiring can land without it, with the region axis still raising; those four
+cannot run until it exists. No hypothesis targets sector or style.
 
-**What the owner would be deciding,** with Cowork's lean on each:
-- **(a) The layout.** A factor block of six columns and a label block (region,
-  sector, style, cash). Duration reads minus the real-yield column,
-  real/nominal reads minus the inflation column, credit reads minus the credit
-  column. *Lean: yes.*
-- **(b) Whether equity, dollar and commodities become axes a hypothesis can
-  target.** That would amend SUBSTRATE §6. *Lean: no, for now. They stay as
-  columns for the risk decomposition.*
-- **(c) Which cells are measured.** *Lean:* the real-yield and inflation cells
-  of Treasuries, Long Treasuries, TIPS and IG Corporates come from the index's
-  effective duration. HY and MBS are decided after reading task 51's table of
-  estimated against measured. Credit stays estimated; duration times spread is
-  untested.
-- **(d) The region labels.** They are still placeholders (D3), and four of
-  twelve hypotheses target `region`. *No lean. This wakes D3.*
+**What the owner would be deciding:**
+- the list of regions, and which region each of the 93 investable series
+  belongs to, bonds included;
+- whether a sector or style index also carries its parent's region (a US
+  Financials index is both US and Financials);
+- whether sector and style labels are set now or when a hypothesis needs
+  them.
 
-**Partly retired by measuring.** Task 51's table settles the facts behind (c).
-The rest is design.
+**Cowork has offered** to draft the map from `section` and the index names
+for the owner to correct. Every entry would be a guess until he confirms it.
+
+### L29. Universe loose ends after `decisions/0052`
+Added 2026-10-07 by Cowork.
+
+- **`I02513EU` (Pan-European Government).** Its median loading on the dollar
+  factor is 0.10, against −1.00 and −1.15 for the two euro indices the lab
+  converted to dollars itself. *Cowork's inference:* it is a euro return
+  treated as a dollar one, the same kind of series `decisions/0052` removed.
+  SUBSTRATE §5.4a already flags its currency as unconfirmed. **Retired by:**
+  the owner reading its currency on Bloomberg.
+- **The eight tradable-only instruments have no row in the matrix**
+  (L27 (e)). SUBSTRATE §5.2 says they inherit loadings; no record says from
+  what. The owner's pull of 2026-10-07 found earlier daily history for one:
+  - `M1CXNNA` (US High Dividend Yield): the gross sibling `M2CXNNA` is daily
+    from 2000-12-29. The owner did not take the splice. It would mix a gross
+    series with net siblings and is an owner-only edit to `params/data.yaml`.
+  - `MXEU0RL` (Europe Real Estate): the predecessor `MXEU0RE` is daily from
+    1995, pulled as a price index in euros. Usable only as
+    `TOT_RETURN_INDEX_GROSS_DVDS` in dollars.
+  - `LTP5TRUU` (TIPS 0-5y): monthly before 2010-06, which may not be spliced.
+  - Five MSCI style indices: nothing earlier found.
+- **What the owner would be deciding:** the parent each inherits from, or
+  that they stay unholdable in the development window. Seven of the eight
+  start in 2015 or later.
+
+### L30. What `INDEX_OAD_TSY` is for the TIPS index
+Added 2026-10-07 by Cowork, out of L27 (c).
+
+`LBUTTRUU`'s estimated real-yield loading is 1.22 times its measured
+duration, and rising (1.20, 1.24, 1.36 across three periods, *Cowork's
+read*). Every other government index reads at or below 1. Cowork doesn't
+know whether the field is a real duration for this index or a
+nominal-equivalent one. `decisions/0050` reads the estimate for TIPS until
+this is answered.
+
+**Retired by:** the owner reading the field's definition for an
+inflation-linked index on Bloomberg.
+
+### L31. The wording of SUBSTRATE after `decisions/0051` and `0052`
+Added 2026-10-07 by Cowork. Two sentences of the constitution no longer say
+what the lab does. Nothing has been edited.
+
+- **§6,** "mapped to ETF weights by solving for the long-only portfolio whose
+  exposures best match the view". `decisions/0051` rules that views become
+  expected returns and nothing is held at a target. Proposed wording is at
+  the end of that record. **The phase-2 solver should not be built before
+  this is transcribed.**
+- **§5.4a,** "Until they land, the FX axis is represented only by
+  `LGTRTRGU`, `LGTRTRJU`, `I20344US`, and `I02513EU`". The unhedged series
+  have landed and `decisions/0052` removed the first two.
+
+**What the owner would be deciding:** the wording, and that Cowork may
+transcribe it as v0.10.
 
 ### L12. Is the registry the right shape, now that the stepdown is the bar?
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
@@ -227,7 +270,115 @@ directory that gets cloned and archived. Hygiene, owner's call.
 
 ## Closed
 
-### L26. Recorded numbers depend on the thread count — CLOSED 2026-10-07 (ruled; HANDOFF task 50 queued, not landed)
+### L27. The columns of the exposure matrix, and which cells are measured — CLOSED 2026-10-07 (ruled; `decisions/0050`; wiring not queued)
+**RULED 2026-10-07.** Owner: "Yes, as stated", to the rulings Cowork put to him. Recorded as `decisions/0050`:
+- **(a)** a factor block, a measured block beside it, and a label block;
+- **(b)** equity, dollar and commodities stay columns, not view axes;
+- **(c)** duration reads the measured value for Treasuries, Long Treasuries
+  and IG Corporates, and the estimate everywhere else; credit and
+  real/nominal read the estimate; TIPS read the estimate until L30 is
+  answered;
+- **(f)** where a measured cell has no value, the estimate stands in;
+- **(g)** a measured value sits beside the factor cell and never replaces it.
+
+**Not ruled, and carried forward:** (d) the labels, now L28; (e) the
+tradable-only rows, now in L29. The same day the owner chose the solver's
+form (`decisions/0051`), which is why (b) costs nothing. **The wiring is not
+queued.**
+
+*The item as it stood when ruled:*
+Added 2026-10-07 by Cowork. The proposal is `decisions/proposed/0050`.
+
+**Why it is live.** `decisions/0049` chose the estimator (Huber) and the
+factors (six). It did not say what the matrix's columns are, and the matrix is
+the next thing to build. HANDOFF task 51 builds only what every answer needs:
+the Huber loadings, their standard errors, each instrument's explained share,
+and the measured duration and spread beside them. Wiring the matrix into
+`resolve_exposures` waits on this item.
+
+**The gap.** SUBSTRATE §6 forms views on seven axes (duration, credit, region,
+sector, style, real/nominal, cash). The regression has six factors (equity,
+real yield, inflation, credit, dollar, commodities). Three factors have an
+axis, three do not, and four axes are labels, not betas.
+
+**What the owner would be deciding,** with Cowork's lean on each:
+- **(a) The layout.** A factor block of six columns and a label block (region,
+  sector, style, cash). Duration reads minus the real-yield column,
+  real/nominal reads minus the inflation column, credit reads minus the credit
+  column. *Lean: yes.*
+- **(b) Whether equity, dollar and commodities become axes a hypothesis can
+  target.** That would amend SUBSTRATE §6. *Lean: no, for now. They stay as
+  columns for the risk decomposition.*
+- **(c) Which cells are measured.** *Lean:* the real-yield and inflation cells
+  of Treasuries, Long Treasuries, TIPS and IG Corporates come from the index's
+  effective duration. HY and MBS are decided after reading task 51's table of
+  estimated against measured. Credit stays estimated; duration times spread is
+  untested.
+- **(d) The region labels.** They are still placeholders (D3), and four of
+  twelve hypotheses target `region`. *No lean. This wakes D3.*
+
+**Partly retired by measuring.** Task 51's table settles the facts behind (c).
+The rest is design.
+
+**What task 51 found (added 2026-10-07 by Cowork; it restates the item and
+answers nothing).** From `results/characteristics/huber6-v1/report.md`, and
+from Cowork's own read of the store where a line says *(Cowork's read)*: counts
+and medians made outside the repo's environment, to be reproduced by a task
+before a decision cites them. The full account is the Project doc
+`claude/tasks-50-51-review-2026-10-07.md`.
+
+- **The gap between estimated and measured duration follows maturity.** The
+  real-yield factor is the 10-year TIPS yield. At that tenor the regression
+  returns the measured number: Treasuries 7-10y read 0.95 of measured
+  duration. Away from it the two part: 1-3y reads 0.57, 3-7y 0.89, the two
+  long indices 0.69 and 0.71.
+- **"About 30%" for long bonds is a ratio of two medians.** Week by week the
+  long indices read 0.84 of measured duration (10th to 90th percentile 0.66
+  to 0.95), and 0.71 to 0.76 in 2009-15 *(Cowork's read)*.
+- **TIPS read above measured, at 1.22.** Cowork doesn't know why. Whether
+  `INDEX_OAD_TSY` is a real duration for `LBUTTRUU` is a question for the
+  vendor's field definition.
+- **HY reads 0.36 to 0.44 of its stated duration, MBS 0.82, the two EM
+  dollar indices 0.54 and 0.64.** MBS falls to 0.65 in 2016-19 *(Cowork's
+  read)*.
+- **Duration times spread, scaled to the IG spread factor, overstates the HY
+  credit loading.** The estimate is 0.37 to 0.68 of it across the five HY
+  indices *(Cowork's read)*.
+- **Where a measured cell would be empty.** The 8 Ex-USD Bonds have no
+  measured duration at all. `LT13TRUU` (Treasuries 3-7y) has none before
+  2007-01-12, which is 211 of its 888 weeks with a loading. No instrument has
+  an empty week inside its measured span *(Cowork's read)*.
+- **The label block cannot be built from the universe file.**
+  `data/universe/investable_universe.csv` has `section` and `reporting_class`
+  and no region, sector or style column. Only `cash` can be read today.
+- **Eight tradable-only instruments have no row:** one TIPS, one US equity,
+  four DM ex-US equity, one European equity, one EM equity. SUBSTRATE §5.2
+  says they inherit loadings; no record says from what.
+- **Explained share at the last week is below 0.5 for 22 of 87 instruments**
+  *(Cowork's read)*, and the class medians hide the low ones: US Equities
+  has a median of 0.75 and a minimum of 0.17. Commodities' 1.000 is an
+  identity, since the factor is that index less cash.
+
+**What this adds to the ruling,** with Cowork's lean on each:
+- **(c), lean updated.** Measured for Treasuries, Long Treasuries and IG
+  Corporates. Estimated for HY, MBS, EM and Ex-USD bonds. TIPS after the
+  field definition is checked. Credit stays estimated.
+- **(d), restated.** Region is not the only label missing: sector and style
+  have no column either. No hypothesis targets sector or style; four target
+  region.
+- **(e) The eight tradable-only rows.** Which parent each inherits from, or
+  they stay unholdable until that is ruled. *No lean.*
+- **(f) A measured cell with no value** (3-7y before 2007). *Lean: the
+  estimate stands in for it, marked `estimated`.*
+- **(g) Whether a measured value replaces the factor cell or sits beside
+  it.** `decisions/proposed/0050` point 1 replaces it. *Cowork's lean has
+  changed: beside.* The six factor columns then stay one regression's output
+  for the risk decomposition, and the duration and real/nominal axes read
+  the measured value where (c) allows.
+
+### L26. Recorded numbers depend on the thread count — CLOSED 2026-10-07 (ruled; HANDOFF task 50 landed 2026-10-07, `273182e`)
+**LANDED 2026-10-07.** `273182e` pins one thread and re-records the three constants; `16a063b` is the estimator test at one thread, which reproduces the run of record exactly. Cowork verified both (Project doc `claude/tasks-50-51-review-2026-10-07.md`); the measurements are in the 2026-10-07 addendum to `decisions/0048`.
+
 **RULED 2026-10-07: option (a), one thread is the reference.** Owner: "i accept all of your suggestions for the pending decisions". Recorded as
 `decisions/0048`. HANDOFF task 50 applies it, re-records the three constants and
 carries the hygiene list below.
@@ -284,7 +435,9 @@ whichever option is ruled):
 **Cannot be retired by measuring.** Which configuration is the reference is a
 choice.
 
-### B5. The exposure matrix: how loading estimators are tested (`decisions/0015`, `0016`) — moved to Live and rewritten 2026-10-01 — CLOSED 2026-10-07 (ruled; HANDOFF task 51 queued, not landed)
+### B5. The exposure matrix: how loading estimators are tested (`decisions/0015`, `0016`) — moved to Live and rewritten 2026-10-01 — CLOSED 2026-10-07 (ruled; HANDOFF task 51 landed 2026-10-07, `d2d17fb`)
+**LANDED 2026-10-07.** `d2d17fb` builds the store `data/characteristics/huber6-v1/`: 87 instruments estimated, 8 tradable-only not. Its Huber loadings equal the run of record's on all 446,244 shared cells (Cowork's check on the store; Project doc `claude/tasks-50-51-review-2026-10-07.md`). `resolve_exposures` still raises; wiring waits on L27.
+
 **RULED 2026-10-07: option (c), Huber.** Owner: "i accept all of your suggestions for the pending decisions". Recorded as `decisions/0049`:
 adopted on the owner's judgement and not detected by the gate, with measured
 duration and spread kept for bond cells. HANDOFF task 51 builds the estimated
@@ -395,7 +548,9 @@ Detail is in the Project doc `claude/task-48-review-2026-10-06.md`.
 
 **Retired by:** the owner's choice of estimator.
 
-### L25. The six factors explain some classes poorly — CLOSED 2026-10-07 (ruled; HANDOFF task 51 queued, not landed)
+### L25. The six factors explain some classes poorly — CLOSED 2026-10-07 (ruled; HANDOFF task 51 landed 2026-10-07, `d2d17fb`)
+**LANDED 2026-10-07.** `d2d17fb`: every estimated row carries `explained_share`. By class it is in `results/characteristics/huber6-v1/report.md`.
+
 **RULED 2026-10-07: option (a), build on the six factors now and carry each
 instrument's explained share.** Owner: "i accept all of your suggestions for the pending decisions". Recorded in `decisions/0049`,
 points 4 and 5. HANDOFF task 51.
@@ -432,7 +587,9 @@ and can be replaced. The signal search is what is waiting.
 
 **Cannot be retired by measuring.** The measurement is in hand.
 
-### L23. The grade filter leaves three JPMaQS tickers with no data — CLOSED 2026-10-07 (ruled; HANDOFF task 50 queued, not landed)
+### L23. The grade filter leaves three JPMaQS tickers with no data — CLOSED 2026-10-07 (ruled; HANDOFF task 50 landed 2026-10-07, `273182e`)
+**LANDED 2026-10-07.** `273182e` edits both hypothesis files as ruled. H-2026-0004 is blocked and H-2026-0001 is ready (the receipt's `triage()` run; Cowork confirmed the two files and the row counts in `results/jpmaqs_coverage.md`). `data/requests/H-2026-0004.yaml` is the 2026-09-28 file and still reads `awaiting_owner`.
+
 **RULED 2026-10-07: option (a), keep `exclude`, with no threshold below 3.0.**
 Owner: "i accept all of your suggestions for the pending decisions". Recorded as the 2026-10-07 addendum to `decisions/0006`. HANDOFF
 task 50 parks H-2026-0004 and removes `EUR_MBCSCORE_SA` from H-2026-0001.

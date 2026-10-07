@@ -62,3 +62,51 @@ Task 50's receipt gives old against new for the three constants as measured on
 the day, and whether the estimator test's run of record
 (`M-20261003T181155Z`) still reproduces at one thread. Cowork copies both here
 when the receipt lands.
+
+## Addendum, 2026-10-07: what task 50 measured
+
+Copied by Cowork from task 50's receipt (`2995f34`) and checked against `git`,
+the logs and the two `summary.json` files. The ruling was applied in `273182e`.
+The review is the Project doc `claude/tasks-50-51-review-2026-10-07.md`.
+
+**The three constants, old against new, as measured on the day.** The new
+values equal the one-thread column of the table above, digit for digit.
+
+| Constant | Recorded before (threads unset) | Re-recorded (one thread) |
+|---|---|---|
+| `GOLDEN_NET_IR` (two tests) | −0.8793457503233992 | −0.8792060912640641 |
+| `GOLDEN_NET_IR_CREATED_MARGINAL` | −0.3916592047250338 | −0.3916378876353463 |
+| `GOLDEN_NET_IR_V080` | −0.40475664238417963 | −0.4046626602695416 |
+
+- **Exactly three constants changed.** Across `tests/`, the diff from
+  `d5e7f95` to `fa63936` removes three lines, and they are these. No hash, no
+  tolerance and no test mark moved. Each constant carries the old value and
+  this decision in the comment above it.
+- **The values repeat.** The receipt says two fresh processes gave them to the
+  last digit; those two runs left no log. Two logged whole-suite runs made
+  afterwards pass all 55 tests of `tests/test_baseline.py` on the new values:
+  `20261007-084257-check-full` (784 passed) and `20261007-091756-check-scoped`
+  (tier FULL, 795 passed).
+- **The whole suite took 545 s at one thread,** against 3,908 s with threads
+  unset (task 49).
+
+**The estimator test's run of record reproduces at one thread.**
+`M-20261007T125909Z` (one thread, `16a063b`) against `M-20261003T181155Z`
+(threads unset):
+- The two `loadings.parquet` files are the same file, byte for byte (sha256
+  `216319a1…7401`).
+- Of the 378 numeric fields the two `summary.json` files share, 374 are equal.
+  The four that differ are timings (`runtime_seconds` and three under
+  `projection`). No statistic, loss, adjusted p, bias check or verdict differs,
+  and the three hashes are equal.
+- The new summary adds two keys, `thread_setting` and `conjugate_update`.
+- So the estimator test does not depend on the thread count. The baseline
+  constants do.
+
+**What the solver does.** The repo passes no thread option to the optimiser:
+`problem.solve(solver=name)` and nothing else (`portfolio/long_only.py`).
+Task 50 changed nothing there.
+
+**One script that makes numbers is not gated.** `scripts/describe_loadings.py`
+writes `fit.json` and `stability.json` and does not call `require_one_thread`.
+`make` sets one thread for it; a direct `python` call would not be refused.

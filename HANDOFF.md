@@ -56,7 +56,11 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-07 (midday): queued, 50 then 51.** The owner ruled on OWNER-QUEUE L26, B5, L25 and L23 on 2026-10-07 ("i accept all of your suggestions for the pending decisions"). **Task 50** makes one thread the lab's reference (`decisions/0048`), re-records three constants, applies the grade ruling to two hypothesis files (`decisions/0006` addendum), fixes `.gitignore` and runs the first scoped check. **Task 51** builds the Huber loadings on the six factors as a versioned store (`decisions/0049`). Neither has an owner-only edit. **`resolve_exposures` stays raising after both:** the matrix's columns are OWNER-QUEUE L27, proposed in `decisions/proposed/0050` and not decided. Don't build from a file under `decisions/proposed/`.
+**As of 2026-10-07 (17:15 ET): queued, task 52 only.** The owner ruled OWNER-QUEUE L27 (`decisions/0050`), chose the solver's form (`decisions/0051`) and removed two series from the investable universe (`decisions/0052`). He also put two vendor files in `data/raw/bloomberg/`. **Task 52** commits the records, applies 0052, loads the ex-USD analytics file, rebuilds the store as `huber6-v2` and corrects the report's table. It has no owner-only edit. **`resolve_exposures` stays raising after it:** the wiring is not queued, and nothing is built from `decisions/0050` or `0051` yet. **Waiting on the owner:** OWNER-QUEUE L28 to L31.
+
+*(Earlier note:)* **As of 2026-10-07 (10:15 ET): nothing is queued.** Tasks 50 and 51 are done and Cowork verified both from `git`, the three logs, the two `summary.json` files and the store (Project doc `claude/tasks-50-51-review-2026-10-07.md`; mirror copy in `Claude outputs/project-mirror/`). Both receipts stay as written; the review carries two corrections to task 51's estimated-against-measured table. **Waiting on the owner:** OWNER-QUEUE L27 (the exposure matrix's columns) and his agreement to the next steps. **Don't start anything before a task is written.** Uncommitted in the working tree, all Cowork's, for the next task's step 0: `HANDOFF.md`, `OWNER-QUEUE.md` and `decisions/0048-…`.
+
+*(Earlier note:)* **As of 2026-10-07 (midday): queued, 50 then 51.** The owner ruled on OWNER-QUEUE L26, B5, L25 and L23 on 2026-10-07 ("i accept all of your suggestions for the pending decisions"). **Task 50** makes one thread the lab's reference (`decisions/0048`), re-records three constants, applies the grade ruling to two hypothesis files (`decisions/0006` addendum), fixes `.gitignore` and runs the first scoped check. **Task 51** builds the Huber loadings on the six factors as a versioned store (`decisions/0049`). Neither has an owner-only edit. **`resolve_exposures` stays raising after both:** the matrix's columns are OWNER-QUEUE L27, proposed in `decisions/proposed/0050` and not decided. Don't build from a file under `decisions/proposed/`.
 
 *(Earlier note:)* **As of 2026-10-07 (morning): nothing is queued.** Tasks 48 and 49 are done and Cowork verified both from the run directories, the logs and `git` (Project docs `claude/task-48-review-2026-10-06.md` and `claude/check-runtime-2026-10-06.md`; mirror copies in `Claude outputs/project-mirror/`). **Waiting on the owner:** OWNER-QUEUE L26 (the thread count changes four recorded goldens), B5 (the estimator), L25 (the factor set) and L23 (the grade filter). The next task will carry L26's ruling together with three hygiene fixes that need no ruling: the `.gitignore` lines with trailing comments, ignoring `data/universe/raw_meta.json` and `raw_structure.json`, and the first end-to-end run of `make check-scoped`. **Don't start any of them before the task is written,** and re-record no golden.
 
@@ -3044,6 +3048,194 @@ Then stop.
 
 ---
 
+### 52. Commit the records; two instruments leave the investable universe (`decisions/0052`); the ex-USD analytics file; the store rebuilt as `huber6-v2`; the report's table corrected; three small fixes
+
+Added 2026-10-07 by Cowork. **Owner rulings 2026-10-07:** OWNER-QUEUE L27
+(`decisions/0050`), the solver's form (`decisions/0051`), the universe
+(`decisions/0052`), and his go-ahead for this task ("Yes, the full task"). No
+owner-only edit, no vendor call, no audit, no hypothesis changes state, **and
+`resolve_exposures` keeps raising.** Budget 3 h; about 20 minutes of it is
+machine time.
+
+**Read first:** `decisions/0052`; `decisions/0050` and `0051` (so you know
+what is *not* being built); and
+`Claude outputs/project-mirror/tasks-50-51-review-2026-10-07.md`.
+
+**Hard rules:**
+- **Two new vendor files are in `data/raw/bloomberg/`,** put there by the
+  owner on 2026-10-07. Never print a value from either. Report counts, dates
+  and hashes.
+- **Both files run to 2026-10. Nothing on or after 2020-01-01 is read.** Cut
+  at the holdout as `load_analytics` already does, and test it.
+- **No forward fill, and no month-end observation in a daily panel.** Each
+  field is truncated at its own true daily start.
+- **Don't build from `decisions/0050` or `0051`.** No axis mapping, no
+  merging of measured into estimated, no label block, no alphas, no change
+  to `harness/experiment.py`, `harness/engine.py` or `vetoes/`.
+- **`bbg_tradable_only_longer_history.xlsx` is read by nothing in this
+  task.** Don't open it.
+- **Nothing in `params/` changes.** If a step seems to need it, stop.
+- **Numbers recorded before today stand.** `M-20261003T181155Z` stays the
+  run of record. `huber6-v1` and its report are not edited or deleted. Don't
+  re-run the estimator test.
+- **No golden moves.** The baseline and audit goldens run on synthetic
+  universes whose ids are not in the universe file. If a test fails that
+  this task doesn't name, stop and list it. Re-record nothing.
+
+**0. Commit first, alone, after `make check`:** `HANDOFF.md`,
+`OWNER-QUEUE.md`, `decisions/0048-…`, `decisions/0050-…` (moved out of
+`decisions/proposed/`: stage the deletion there too), `decisions/0051-…` and
+`decisions/0052-…`, as
+`queue: task 52; decisions 0050, 0051 and 0052; OWNER-QUEUE L27 ruled, L28 to L31 added; tasks 50 and 51 marked landed (owner 2026-10-07)`.
+
+**1. The universe** (`decisions/0052`).
+- In `scripts/build_universe.py`, add `LGTRTRGU` and `LGTRTRJU` to
+  `NOT_INVESTABLE_OTHER`, each with the reason
+  `the global aggregate restated in another currency, not an instrument (decisions/0052)`.
+  Their reporting class stays.
+- `make universe`. **Expected: 102 series, 93 investable, 9 excluded.**
+- `tests/test_scripts.py` asserts 95 investable. Make it 93 and cite 0052 in
+  the docstring. List every other test or constant that changes.
+
+**2. The ex-USD analytics.**
+- **The file:** `data/raw/bloomberg/bbg_exusd_bonds_analytics.xlsx`, sheet
+  `BBG Values`, one row per date and ticker: `date`, `ticker`, `index_name`,
+  `oad_tsy`, `yield_to_worst`, `oas`, `oas_field`. 44,190 rows, seven
+  tickers. Its sha256 begins `a76df50225f99128`; check it and stop if it
+  differs. The other two sheets are not read.
+- Add a row to `data/universe/raw_manifest.csv` for it, with a new layout
+  name for the long form.
+- **The field map:** `oad_tsy` is `INDEX_OAD_TSY` and `yield_to_worst` is
+  `INDEX_YIELD_TO_WORST`. `oas` goes to the field named in that row's
+  `oas_field`: `INDEX_OAS_TSY`, or `INDEX_OAS_SWAP` for `LG38TRUU`. **A swap
+  spread must never land in `INDEX_OAS_TSY`.**
+- **The true daily start, per ticker and field.** The Index Map has no row
+  for these, so derive it in code, by one rule, with a test: *the first
+  observation from which each of the next 20 observations follows within 5
+  calendar days.* Write `data/universe/bbg_exusd_analytics_coverage.csv`
+  (`ticker_field`, `first_any`, `first_daily`, `n_before_holdout`) and commit
+  it.
+- **Expected daily starts** (Cowork's read of the file's dates, by that
+  rule; no value was used):
+
+  | Ticker | Duration and yield | OAS |
+  |---|---|---|
+  | `LET1TREU` | 2002-04-23 | 2002-09-17 |
+  | `I12823GB` | 2009-07-24 | 2005-09-22 |
+  | `I02913JP` | 2018-02-28 | 2002-09-17 |
+  | `LP05TREU` | 2000-10-09 (yield 2000-09-28) | 2002-09-17 |
+  | `LG38TRUU` | 2000-08-31 | 2004-07-12 (swap) |
+  | `I02513EU` | 2002-06-28 | 2002-09-17 |
+  | `LGTRTRGU` | 2001-01-16 | 2002-09-17 |
+
+  **If your rule gives another date, report both and keep the rule's.**
+- **Merge into the `AnalyticsPanel` that `load_analytics` returns,** with
+  the same cleaning as the main sheet (missing markers, business days), the
+  truncation above and the holdout cut. If a ticker and field is in both
+  files, stop.
+- Load every ticker the file holds, `LGTRTRGU` included: the analytics
+  panel is not limited to investable series.
+- A raw directory without the file, as the test fixtures have, loads as it
+  did before. On the real directory the manifest row makes the file
+  required.
+- **Leave the values as delivered.** Don't convert a unit and don't extend
+  the Treasury-OAS drop to foreign government indices. Record what was
+  loaded in `loader.report["analytics"]`.
+- **The factors must not move.** The factors hash of a build after this step
+  equals `3401475e…fafa9`, the run of record's. If it differs, stop.
+- **Tests,** on a synthetic long-form workbook built in a temp folder: the
+  field map, with a swap row kept out of `INDEX_OAS_TSY`; a monthly run-in
+  truncated at the daily start; the holdout cut; a duplicate ticker and
+  field across the two files refused.
+
+**3. The build's check on itself, for a universe that has changed.**
+`scripts/build_characteristics.py` stops today when the run of record's
+instruments are not the build's. After step 1 they are not.
+- **New gate:** the run of record's instruments must be the build's (Cash
+  out) plus exactly `LGTRTRGU` and `LGTRTRJU`. Anything else stops.
+- **New gate:** every Huber loading the run of record stores for a shared
+  instrument equals this build's, **at a tolerance of zero.** Report the
+  number of cells compared and the largest difference.
+- The pooled `r2_oos` and mean Huber loss on the shared cells are computed
+  and reported, not compared: `fit.json` pools 86 instruments.
+- `assert_no_lookahead` as before.
+- **One test** on synthetic data that the scored cell set takes presence
+  only from a reference run: changing every stored value of another
+  estimator, leaving which cells are finite, changes nothing.
+
+**4. The store.** `make characteristics ARGS="--store-id huber6-v2"`.
+- **Expected:** 85 estimated (Cash included), 8 not; loadings 440,964 rows
+  and fit 73,494 (the two dropped series had 884 weeks each); 2002-12-27 to
+  2019-12-27; more measured rows than `huber6-v1`'s 16,256.
+- The manifest cites `decisions/0049` and `0052`, this task, and
+  `supersedes: huber6-v1`.
+- **Report the largest difference between `huber6-v2`'s loadings and
+  `huber6-v1`'s on the cells they share.** Expected 0.0.
+
+**5. The report** (`characteristics/report.py`; the output is
+`results/characteristics/huber6-v2/report.md`).
+- **Estimated against measured, one row per estimated bond-class
+  instrument** (Treasuries, Long Treasuries, TIPS, MBS, IG Corporates, HY
+  Corporates, EM Sovereign Bonds, EM Corporate Bonds, Ex-USD Bonds):
+  - weeks with a loading, and weeks with a loading and a measured duration;
+  - the medians and their ratio, **over the weeks with both**;
+  - the median of the weekly ratio with its 10th and 90th percentiles, for
+    real yield and for inflation;
+  - a dash where an instrument has no measured duration. The heading says
+    how many of how many have one.
+- **By period** (2002-08, 2009-15, 2016-19): the median weekly ratio, real
+  yield and inflation, per instrument.
+- **Measured coverage, per instrument:** the first measured week, the weeks
+  with a loading and no measured duration, and the empty weeks inside the
+  measured span.
+- **Duration times spread:** for each instrument with an `INDEX_OAS_TSY`,
+  the weekly median of the credit loading over
+  `−OAD × OAS / OAS of LUACTRUU`.
+- **Explained share by class:** add the lowest instrument and the number
+  below 0.5 at the last week, and one line saying Commodities' share is an
+  identity (the factor is that index less cash).
+- **Expected,** from Cowork's read of `huber6-v1`, whose loadings step 4
+  shows are the same: weekly real-yield ratio `LT01TRUU` 0.56 [0.30, 0.86],
+  `LT13TRUU` 0.89 [0.79, 0.98] over 677 weeks, `LT09TRUU` 0.97 [0.93, 1.03],
+  `LUTLTRUU` 0.84 [0.68, 0.95], `LT11TRUU` 0.84 [0.66, 0.90], `LBUTTRUU` 1.24
+  [1.02, 1.56], `LUACTRUU` 0.84 [0.77, 0.96]; `LT13TRUU` first measured
+  2007-01-12 with 211 weeks unmeasured; no empty week inside any span;
+  credit over duration-times-spread 0.37 to 0.68 for the five HY indices.
+  **If one differs by more than 0.01, report both. Don't change the method
+  to match.**
+- Tests on synthetic data for each new table.
+
+**6. Three small fixes.**
+- **`scripts/select_slow.py`:** a FULL result lists no slow file as left
+  out, so `status.txt` and `check.log` agree. Update its tests.
+- **`scripts/describe_loadings.py`** calls `require_one_thread` like the
+  other number-making scripts.
+- **`src/signal_lab/threads.py`:** its docstring says a multi-threaded BLAS
+  differs "from run to run". Task 49 measured a difference between thread
+  settings, not between runs. Say what was measured.
+
+**7. Check, then commit.** `scripts/unattended.sh check-full --digest`.
+Commit `src/`, `scripts/`, `tests/`, `data/universe/`, the `huber6-v2`
+manifest and its report, as
+`characteristics: ex-USD analytics, two restated series out of the universe, store huber6-v2, the report's table like for like (HANDOFF task 52, decisions/0052)`.
+
+**Receipt:**
+- rc, commits, the log directory, the tier and the runtime;
+- step 1: the builder's counts and every test changed;
+- step 2: the coverage table in full (dates and counts), the file's hash,
+  series per field, and the factors hash;
+- step 3: cells compared and the largest difference;
+- step 4: the store's hash and row counts, and the difference to
+  `huber6-v1`;
+- step 5: each expected figure beside what the report prints, and **the
+  estimated-against-measured rows of the six ex-USD bond indices**;
+- every test added and every test changed;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
 ### 41. Fix `romano_wolf`'s standardising: pool the observed value with the null draws (task 40 follow-up, `decisions/0041`)
 
 Added 2026-09-29 (late evening) by Cowork. **Owner ruling 2026-09-29: fix it,
@@ -3283,6 +3475,12 @@ task 36 and lands with task 33.
 
 **FRED point-in-time (not queued).** `H-2026-0008` needs four FRED series, and `loaders/fred.py` is a stub. A point-in-time FRED loader (ALFRED vintages) comes after task 44. It needs its own spec.
 
+**The wiring (added 2026-10-07).** `decisions/0050` is decided. Not queued: `resolve_exposures`, and the `lookahead` veto extended to estimated parameters, which is an owner-only patch. It can land with the region axis still raising (OWNER-QUEUE L28).
+
+**The solver's form is decided (2026-10-07, `decisions/0051`):** views become expected returns for `portfolio/long_only.solve`; nothing is held at a target. SUBSTRATE §6 still says otherwise (OWNER-QUEUE L31). Don't build the solver before §6 is transcribed. Its spec is not written.
+
+**H-2026-0004's request file (not queued).** `data/requests/H-2026-0004.yaml` is the 2026-09-28 file and reads `awaiting_owner`. The hypothesis is parked by the grade rule (`decisions/0006` addendum). Making `write_data_request` say so needs a design for how a grade-emptied ticker is told from an absent one. Low priority while the search is closed.
+
 **The phase-2 solver (added 2026-10-01, task 42).** `harness/experiment.py` has no
 solver yet: `build_weight_rule` raises. When it is written it must, and each point
 comes with a test pinning it:
@@ -3313,8 +3511,10 @@ run would have said.
   are in task 9. **§2 -- conditioning the frictionless covariance -- stays
   deferred**; do not add a ridge or eigenvalue floor on your own initiative.
 - **`decisions/proposed/0034`.** Proposed, not decided. Do not build it.
-- **`decisions/proposed/0050`** (the exposure matrix's columns). Proposed, not
-  decided (OWNER-QUEUE L27). `resolve_exposures` keeps raising until it is.
+- **Building from `decisions/0050` or `0051`.** Both are decided (owner,
+  2026-10-07) and neither is queued. `resolve_exposures` keeps raising until
+  a wiring task says otherwise, and no solver is built before SUBSTRATE §6
+  is transcribed (OWNER-QUEUE L31).
 - **Re-recording a golden.** `decisions/0048` allows three named constants,
   once, in task 50. Any other needs the owner.
 - **Anything in `params/`, `vetoes/` or `SUBSTRATE.md` not arriving as a cited
