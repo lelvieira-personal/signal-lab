@@ -1,0 +1,66 @@
+store_id: huber6-v1
+built_at: '2026-10-07T13:15:47+00:00'
+decision: decisions/0049
+handoff_task: 51
+estimator:
+  name: huber_m
+  hypothesis: H-2026-0013
+  huber_c: 1.345
+  mad_to_sd: 1.4826
+  window_weeks: 156
+  min_obs: 104
+  explained_share_window_weeks: 156
+  explained_share_min_weeks: 52
+factors:
+- equity
+- real_yield
+- inflation
+- credit
+- dollar
+- commodities
+params_version: 0.9.0
+params_hash: b3d41267a752b9d76e2ddf17264cccb5b5b9ea6f0f45edc8bf1517524674376a
+weekly_returns_hash: 5987bafe9f1944c5e075d72b5309c759547c5ebdd9b859211fbf85a875ee2cd2
+weekly_returns_hash_ex_cash: 14a03fd587f6dd2e592a065942203ca8e40a0ef29ea0fd32971644e8823eaf02
+factors_hash: 3401475eb25cd3c0a1c4858110732e97929ae550576767c8ad7f7138245fafa9
+inputs_equal_run_of_record: true
+run_of_record: M-20261003T181155Z
+thread_setting:
+  OMP_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+  MKL_NUM_THREADS: '1'
+n_estimated: 87
+n_not_estimated: 8
+not_estimated_reason: tradable-only series (daily start after 2009) inherit loadings
+  and are never estimated, SUBSTRATE section 5.2
+not_estimated:
+- LTP5TRUU
+- M1CXNNA
+- M1CXVRSD
+- M1EAMM
+- M1EAQU
+- M1EFHDY
+- M1WDUMMT
+- MXEU0RL
+estimated_but_no_row: []
+first_date: '2002-12-27'
+last_date: '2019-12-27'
+measured_fields:
+  oad: INDEX_OAD_TSY
+  oas: INDEX_OAS_TSY
+reproduction:
+  cells: 70326
+  max_abs_loading_difference_to_stored_huber: 0.0
+  reference_cells: 70326
+  r2_oos: 0.7029825014051894
+  reference_r2_oos: 0.7029825014051894
+  mean_huber_loss: 0.23033442386469188
+  reference_mean_huber_loss: 0.23033442386469188
+  r2_oos_difference: 0.0
+  mean_huber_loss_difference: 0.0
+row_counts:
+  loadings: 451572
+  fit: 75262
+  measured: 16256
+  instruments: 95
+directory_hash: 95db155edf972bf991a72660d474c36590f9af0c38b0865d064513235486e32f

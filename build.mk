@@ -32,6 +32,7 @@
 #   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make jpmaqs-name-search                      name search of the cached catalogue for H-2026-0004, 0005, 0010
 #   make measurement-loadings                    the loading-estimator test, decisions/0046 (HANDOFF task 45); ARGS=--time-only to time it
+#   make characteristics                         the estimated half of the characteristic map, store huber6-v1 (HANDOFF task 51, decisions/0049)
 #   make fdr-study                                Monte Carlo: FDR vs FWER on the registry's shape, no engine runs (HANDOFF task 34)
 #   make governance SUBSTRATE section 2, checked mechanically
 #   make check         fast tier -- wiring checks only (HANDOFF task 37, OWNER-QUEUE D2)
@@ -53,7 +54,7 @@
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
 .DEFAULT_GOAL := check
-.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit fdr-study
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -194,6 +195,9 @@ jpmaqs-coverage: ## coverage report from the macro snapshot -- dates and counts 
 
 measurement-loadings: ## six factors, rolling OLS against four candidate estimators, one report (HANDOFF task 45, decisions/0046)
 	$(PY) --group dev python scripts/run_measurement.py $(ARGS)
+
+characteristics: ## the estimated half of the characteristic map: Huber loadings on six factors, walk-forward, plus the measured cells (HANDOFF task 51, decisions/0049)
+	$(PY) --group dev python scripts/build_characteristics.py $(if $(ARGS),$(ARGS))
 
 describe-loadings: ## how stable each estimator's loadings are, a description not a test (HANDOFF task 48); RUN=M-... for another run
 	$(PY) --group dev python scripts/describe_loadings.py stability $(if $(RUN),--run $(RUN))

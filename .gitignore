@@ -13,6 +13,8 @@ results/measurement/*/loadings.parquet
 data/universe/raw_meta.json
 data/universe/raw_structure.json
 results/audit-bloomberg.log
+# Vendor-derived loadings and cells; the manifest next to them is committed: HANDOFF task 51
+data/characteristics/*/*.parquet
 # Weekly returns are vendor data: HANDOFF task 48
 results/measurement/*/predicted_vs_actual.html
 results/*.db
