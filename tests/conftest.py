@@ -11,6 +11,34 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT)]
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--slow-only-in",
+        default=None,
+        help=(
+            "comma-separated repo-relative test files (HANDOFF task 49): deselect every "
+            "`slow` item whose file is not listed. Fast tests are untouched. Without the "
+            "option nothing changes. scripts/select_slow.py chooses the list."
+        ),
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    only = config.getoption("--slow-only-in")
+    if only is None:
+        return
+    keep = {(REPO_ROOT / p.strip()).resolve() for p in only.split(",") if p.strip()}
+    kept, dropped = [], []
+    for item in items:
+        left_out = (
+            item.get_closest_marker("slow") is not None and Path(item.path).resolve() not in keep
+        )
+        (dropped if left_out else kept).append(item)
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = kept
+
+
 @pytest.fixture(scope="session")
 def params():
     from signal_lab.params import get_params

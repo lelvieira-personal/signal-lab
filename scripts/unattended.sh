@@ -2,6 +2,8 @@
 # Run routine checks without a human in the loop.
 #
 #   scripts/unattended.sh check              make check only (fast tier)
+#   scripts/unattended.sh check-scoped       make check-scoped only: the whole suite unless every changed file can be
+#                                            placed, then only the slow tests a change can reach (HANDOFF task 49)
 #   scripts/unattended.sh check-full         make check-full only (the whole suite; HANDOFF task 37)
 #   scripts/unattended.sh audit-lean         make check-full, then the lean synthetic audit
 #   scripts/unattended.sh audit-baseline-pilot | audit-baseline   the decisions/0036 baseline cells
@@ -30,8 +32,8 @@ cd "$(dirname "$0")/.."
 target="${1:-check}"
 digest="${2:-}"
 case "$target" in
-  check|check-full|audit-lean|audit|audit-baseline-pilot|audit-baseline|audit-knee|audit-power|audit-power10|audit-friction|audit-friction-created|audit-halflife) ;;
-  *) echo "unknown target: $target (check | check-full | audit-lean | audit | audit-baseline-pilot | audit-baseline | audit-knee | audit-power | audit-power10 | audit-friction | audit-friction-created | audit-halflife)" >&2; exit 2 ;;
+  check|check-scoped|check-full|audit-lean|audit|audit-baseline-pilot|audit-baseline|audit-knee|audit-power|audit-power10|audit-friction|audit-friction-created|audit-halflife) ;;
+  *) echo "unknown target: $target (check | check-scoped | check-full | audit-lean | audit | audit-baseline-pilot | audit-baseline | audit-knee | audit-power | audit-power10 | audit-friction | audit-friction-created | audit-halflife)" >&2; exit 2 ;;
 esac
 
 export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$HOME/.venvs/signal-lab}"
@@ -42,18 +44,60 @@ status="$out/status.txt"
 
 log() { echo "$(date -Is) $*" | tee -a "$status"; }
 
-log "start target=$target head=$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
-t0=$SECONDS
-if [ "$target" = "check" ]; then
-  check_target="check"
-else
-  check_target="check-full"
-fi
-make "$check_target" >"$out/check.log" 2>&1
-rc=$?
-log "make $check_target rc=$rc ($((SECONDS - t0)) s)"
+# Every run explains its own runtime (HANDOFF task 49): the machine's state at
+# the start and the end in status.txt, a sample every 30 s in load.log, and
+# per-test times from pytest (junit.xml plus --durations).
+loadavg() { cut -d' ' -f1-3 /proc/loadavg; }
+machine() {
+  echo "nproc=$(nproc --all) nproc_effective=$(nproc) loadavg=$(loadavg) MemAvailable_kB=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)" \
+    "OMP_NUM_THREADS=${OMP_NUM_THREADS-unset} OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS-unset} MKL_NUM_THREADS=${MKL_NUM_THREADS-unset}"
+}
 
-if [ "$rc" -eq 0 ] && [ "$target" != "check" ] && [ "$target" != "check-full" ]; then
+# The Windows side, best effort: WSL cannot see what Windows or another VM is
+# doing with the CPU. Never changes the rc; a call over 5 s is skipped.
+win_sample() {
+  command -v powershell.exe >/dev/null 2>&1 || return 0
+  timeout 5 powershell.exe -NoProfile -Command '$l=(Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average; $a=@{}; Get-Process | ForEach-Object { $a[$_.Id]=$_.CPU }; Start-Sleep -Milliseconds 700; $t=Get-Process | Where-Object { $a.ContainsKey($_.Id) -and $_.CPU -ne $null } | ForEach-Object { [pscustomobject]@{N=$_.ProcessName; D=($_.CPU-$a[$_.Id])} } | Sort-Object D -Descending | Select-Object -First 3 | ForEach-Object { $_.N }; "windows cpu=$l% top: " + ($t -join " ")' 2>/dev/null | tr -d '\r' | head -1
+}
+
+sampler() {
+  local n=0 w
+  while true; do
+    {
+      echo "$(date -Is) loadavg=$(loadavg) top: $(ps -eo pcpu,comm --sort=-pcpu | sed -n '2,4p' | awk '{printf "%s%% %s; ", $1, $2}')"
+      if [ $((n % 2)) -eq 0 ]; then
+        w="$(win_sample)" || w=""
+        [ -n "$w" ] && echo "$(date -Is) $w"
+      fi
+    } >>"$out/load.log" 2>&1
+    n=$((n + 1))
+    sleep 30
+  done
+}
+sampler &
+sampler_pid=$!
+trap 'kill "$sampler_pid" 2>/dev/null' EXIT
+
+log "start target=$target head=$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+log "machine $(machine)"
+t0=$SECONDS
+case "$target" in
+  check) check_target="check" ;;
+  check-scoped) check_target="check-scoped" ;;
+  *) check_target="check-full" ;;
+esac
+PYTEST_ARGS="--durations=40 --durations-min=1.0 --junitxml=$out/junit.xml" make "$check_target" >"$out/check.log" 2>&1
+rc=$?
+if [ "$check_target" = "check-scoped" ]; then
+  # Never report a scoped run as a full one: the tier is on the status line.
+  tier="$(sed -n 's/^check-scoped tier=//p' "$out/check.log" | head -1)"
+  log "make $check_target rc=$rc ($((SECONDS - t0)) s) tier=${tier:-unknown}"
+  log "slow files left out: $(sed -n 's/^check-scoped left out: //p' "$out/check.log" | head -1 | sed 's/^$/(none)/')"
+else
+  log "make $check_target rc=$rc ($((SECONDS - t0)) s)"
+fi
+
+if [ "$rc" -eq 0 ] && [ "$target" != "check" ] && [ "$target" != "check-scoped" ] && [ "$target" != "check-full" ]; then
   t1=$SECONDS
   make "$target" >"$out/$target.log" 2>&1
   rc=$?
@@ -62,6 +106,7 @@ if [ "$rc" -eq 0 ] && [ "$target" != "check" ] && [ "$target" != "check-full" ];
   log "newest audit dir: ${run_dir:-none}"
 fi
 log "end rc=$rc"
+log "machine at end: loadavg=$(loadavg)"
 
 if [ "$digest" = "--digest" ]; then
   if command -v claude >/dev/null 2>&1; then

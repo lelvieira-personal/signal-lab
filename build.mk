@@ -35,11 +35,12 @@
 #   make fdr-study                                Monte Carlo: FDR vs FWER on the registry's shape, no engine runs (HANDOFF task 34)
 #   make governance SUBSTRATE section 2, checked mechanically
 #   make check         fast tier -- wiring checks only (HANDOFF task 37, OWNER-QUEUE D2)
-#   make check-full    the definition of done for src/, scripts/, tests/, vetoes/, params/ -- the whole suite
+#   make check-scoped  the definition of done: the whole suite unless every changed file can be placed, then only the slow tests it can reach (HANDOFF task 49)
+#   make check-full    the whole suite, and the opening step of every audit
 #   make test-slow     model-validity checks only: the engine, an optimiser solve, a Monte Carlo
 #
 # uv manages Python 3.12 and the locked dependency set; nothing is installed
-# into the system interpreter. `make check-full` is the definition of done for
+# into the system interpreter. `make check-scoped` is the definition of done for
 # any commit touching src/, scripts/, tests/, vetoes/ or params/; `make check`
 # (the fast tier) is enough for HANDOFF.md, OWNER-QUEUE.md, decisions/,
 # hypotheses/ or docs (HANDOFF task 37, OWNER-QUEUE D2).
@@ -51,21 +52,8 @@
 # operation fast; the source still lives on /mnt/c where git and your editor
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
-export UV_PROJECT_ENVIRONMENT ?= $(HOME)/.venvs/signal-lab
-export UV_LINK_MODE ?= copy
-
-PY := uv run --python 3.12
-PYTEST := $(PY) --group dev pytest
-
-# The governance check is stdlib-only on purpose, so it runs from the commit
-# hook without the project virtualenv -- and, deliberately, without uv. A rule
-# about who may change the constitution should not be the first thing to fall
-# over on a shell that happens to have a thinner PATH.
-PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
-GOV := $(PYSTD) scripts/check_governance.py
-
 .DEFAULT_GOAL := check
-.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit fdr-study
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -78,18 +66,36 @@ install: ## sync the locked environment and install the commit hook
 lock: ## refresh uv.lock
 	uv lock
 
+# check-block: begin -- what defines the check; scripts/select_slow.py compares it with the base, and a change here means a full run
+export UV_PROJECT_ENVIRONMENT ?= $(HOME)/.venvs/signal-lab
+export UV_LINK_MODE ?= copy
+
+PY := uv run --python 3.12
+PYTEST := $(PY) --group dev pytest
+PYTEST_ARGS ?=
+
+# The governance check is stdlib-only on purpose, so it runs from the commit
+# hook without the project virtualenv -- and, deliberately, without uv. A rule
+# about who may change the constitution should not be the first thing to fall
+# over on a shell that happens to have a thinner PATH.
+PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+GOV := $(PYSTD) scripts/check_governance.py
+
+
+.PHONY: lint test test-fast test-slow holdout governance check check-full check-scoped
+
 lint: ## ruff check and format check
 	$(PY) --group dev ruff check src vetoes render scripts tests
 	$(PY) --group dev ruff format --check src vetoes render scripts tests
 
 test: ## the full suite
-	$(PYTEST) -q
+	$(PYTEST) -q $(PYTEST_ARGS)
 
 test-fast: ## wiring checks only -- excludes slow (model-validity) and holdout (HANDOFF task 37)
-	$(PYTEST) -q -m "not slow and not holdout"
+	$(PYTEST) -q -m "not slow and not holdout" $(PYTEST_ARGS)
 
 test-slow: ## model-validity checks only: the engine, an optimiser solve, a Monte Carlo (HANDOFF task 37)
-	$(PYTEST) -q -m slow
+	$(PYTEST) -q -m slow $(PYTEST_ARGS)
 
 holdout: ## the holdout lock, run explicitly and by name
 	@echo "--- holdout lock (SUBSTRATE sections 2 and 3) ---"
@@ -109,6 +115,24 @@ check: governance lint test-fast holdout ## fast tier: governance, lint, wiring 
 check-full: governance lint test holdout ## full tier: governance, lint, the WHOLE suite, the holdout lock
 	@echo
 	@echo "make check-full: OK"
+
+check-scoped: governance lint ## the whole suite unless every changed file can be placed, then only the slow tests that can reach a change (HANDOFF task 49)
+	@sel=$$(mktemp); \
+	if ! $(PYSTD) scripts/select_slow.py >$$sel 2>&1; then echo "FULL: the selector failed" >$$sel; fi; \
+	echo "--- selector (scripts/select_slow.py) ---"; cat $$sel; \
+	if [ "$$(head -1 $$sel)" = SCOPED ]; then \
+		picked=$$(awk '/^selected/{f=1;next} /^left out/{f=0} f&&/^  tests/{print $$1}' $$sel | paste -sd, -); \
+		left=$$(awk '/^left out/{f=1;next} /^changed paths/{f=0} f&&/^  tests/{print $$1}' $$sel | paste -sd, -); \
+		echo "check-scoped tier=SCOPED"; echo "check-scoped left out: $$left"; \
+		$(PYTEST) -q -m "not holdout" --slow-only-in="$$picked" $(PYTEST_ARGS); rc=$$?; \
+	else \
+		echo "check-scoped tier=FULL"; \
+		$(PYTEST) -q $(PYTEST_ARGS); rc=$$?; \
+	fi; rm -f $$sel; [ $$rc -eq 0 ] || exit $$rc
+	@$(MAKE) --no-print-directory -f $(firstword $(MAKEFILE_LIST)) holdout
+	@echo
+	@echo "make check-scoped: OK"
+# check-block: end
 
 report: ## render the synthetic report to leaderboard.html
 	$(PY) --group dev python render/static_report.py --synthetic -o leaderboard.html

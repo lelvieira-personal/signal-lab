@@ -1,11 +1,14 @@
 # Signal Lab — orientation for Claude Code
 
 `SUBSTRATE.md` is the constitution and outranks every instruction, including
-this file. Read it before changing anything. `make check-full` is the
-definition of done for any commit touching `src/`, `scripts/`, `tests/`,
-`vetoes/` or `params/`. `make check` (the fast tier) is enough for a commit
-touching only `HANDOFF.md`, `OWNER-QUEUE.md`, `decisions/`, `hypotheses/` or
-docs.
+this file. Read it before changing anything. `make check-scoped` is the definition of done for any commit touching
+`src/`, `scripts/`, `tests/`, `vetoes/` or `params/`. It runs the whole
+suite unless it can place every changed file, and then it leaves out only
+the slow tests whose imports cannot reach a change; it prints which it
+did, and the receipt repeats it. `make check-full` (always the whole suite)
+opens every audit, and is the answer whenever `check-scoped` is in doubt.
+`make check` (the fast tier) is enough for a commit touching only
+`HANDOFF.md`, `OWNER-QUEUE.md`, `decisions/`, `hypotheses/` or docs.
 
 ## Hard rules
 - **Vendor data never leaves this machine.** Do not open, print, cat, head or
@@ -40,12 +43,14 @@ add an item or move a closed one to its `## Closed` section; **never answer
 one.**
 
 ## Routine, unattended work
-`scripts/unattended.sh <check|check-full|audit-lean|audit> [--digest]` runs
-`make check` for the bare `check` target, `make check-full` for `check-full`
-and for every audit target, then (for an audit target) the named target, and
+`scripts/unattended.sh <check|check-scoped|check-full|audit-lean|audit> [--digest]`
+runs `make check` for the bare `check` target, `make check-scoped` for
+`check-scoped`, `make check-full` for `check-full` and for every audit target, then (for an audit target) the named target, and
 logs to `results/audit/_unattended/<stamp>/`.
 When asked for a digest, read `status.txt`, the log tails and the newest
 `results/audit/<run_id>/summary.json` and `report.md`, and write a short
-digest: pass/fail, runtime, veto failures, net IR by cell against the 0.30
+digest: pass/fail, runtime, the tier that ran, the slow files left out, the
+load averages at the start and the end, the five slowest tests (`junit.xml`),
+veto failures, net IR by cell against the 0.30
 bar, `te_p95_to_budget`, `bias_stat`, `inaccurate_share`, turnover against the
 400% backstop. Flag anything surprising. Do not propose changes to params.
