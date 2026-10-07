@@ -50,10 +50,13 @@ def estimate_all(
     classes: list[str],
     regimes: RegimePath,
     instruments: list[int] | None = None,
+    conjugate_update: bool = False,
 ) -> dict[str, list[LoadingPath]]:
     """
     Every estimator's path for each instrument in `instruments` (default all).
     Peers are always drawn from the whole class, so a subset still sees its class.
+    `conjugate_update` selects West and Harrison's covariance update in the two filters
+    (HANDOFF task 48); it is a sensitivity and defaults off.
     """
     N = R.shape[1]
     members = class_members(classes)
@@ -68,7 +71,12 @@ def estimate_all(
         y = R[:, i]
         paths[INCUMBENT].append(ols[i])
         for name in CANDIDATES:
-            paths[name].append(E.ESTIMATORS[name]().path(y, F, ctx))
+            kwargs = (
+                {"conjugate_update": True}
+                if conjugate_update and name in E.CONJUGATE_ESTIMATORS
+                else {}
+            )
+            paths[name].append(E.ESTIMATORS[name](**kwargs).path(y, F, ctx))
     assert_no_lookahead(paths)
     return paths
 

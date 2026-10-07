@@ -65,7 +65,7 @@ PYSTD := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null
 GOV := $(PYSTD) scripts/check_governance.py
 
 .DEFAULT_GOAL := check
-.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings fdr-study
+.PHONY: check check-full lint test test-fast test-slow holdout governance report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -166,6 +166,12 @@ jpmaqs-coverage: ## coverage report from the macro snapshot -- dates and counts 
 
 measurement-loadings: ## six factors, rolling OLS against four candidate estimators, one report (HANDOFF task 45, decisions/0046)
 	$(PY) --group dev python scripts/run_measurement.py $(ARGS)
+
+describe-loadings: ## how stable each estimator's loadings are, a description not a test (HANDOFF task 48); RUN=M-... for another run
+	$(PY) --group dev python scripts/describe_loadings.py stability $(if $(RUN),--run $(RUN))
+
+describe-fit: ## how well the loadings predict at all, plus predicted_vs_actual.html (HANDOFF task 48); RUN=M-... for another run
+	$(PY) --group dev python scripts/describe_loadings.py fit $(if $(RUN),--run $(RUN))
 
 fdr-study: ## Monte Carlo: FDR vs FWER on the registry's shape -- no engine runs (HANDOFF task 34)
 	$(PY) --group dev python scripts/fdr_vs_fwer.py

@@ -333,3 +333,49 @@ def test_no_estimate_without_enough_history():
 def test_a_class_with_too_few_peers_gets_no_prior():
     assert E.peer_prior(np.full((2, K), 0.1)) is None
     assert E.peer_prior(np.vstack([np.eye(K)[:2] * 0.1, np.full((3, K), np.nan)])) is None
+
+
+# --- HANDOFF task 48: the covariance update of the two filters ---------------------------------
+
+
+def _break_series(n=260, seed=3):
+    """One loading, a tenfold volatility break halfway: the variance estimate has to move."""
+    X = _factors(n, seed)
+    rng = np.random.default_rng(seed + 1)
+    noise = rng.normal(size=n) * np.where(np.arange(n) < n // 2, 0.002, 0.02)
+    return X @ TRUTH + noise, X
+
+
+def test_the_coded_and_textbook_covariance_updates_differ_on_a_volatility_break():
+    y, X = _break_series()
+    _, C_coded, S_coded, _ = E._kalman_filter(y, X, 0.99)
+    _, C_text, S_text, _ = E._kalman_filter(y, X, 0.99, conjugate=True)
+    # C feeds Q and Q feeds S_new, so the two filters part on the variance estimate as well
+    assert not np.allclose(C_coded[-1], C_text[-1], rtol=1e-3)
+    assert not np.allclose(S_coded, S_text, rtol=1e-3)
+
+
+def test_the_two_updates_agree_when_the_variance_prior_is_tight():
+    # S then barely moves, so the ratio S / S_new is 1 and the recursions coincide. The ratio
+    # compounds at about n / n0 times |e^2 / var - 1|: over 260 weeks with a volatility break
+    # that is 1e-8 on the means and up to 2e-5 on near-zero covariance entries at n0 = 1e9
+    # (the diffuse c0 = 1e6 start amplifies it), so 1e-8 throughout needs n0 = 1e12.
+    y, X = _break_series()
+    for n0, tol in ((1e9, 1e-4), (1e12, 1e-8)):
+        coded = E._kalman_filter(y, X, 0.99, n0=n0)
+        text = E._kalman_filter(y, X, 0.99, n0=n0, conjugate=True)
+        for a, b in zip(coded, text, strict=True):
+            np.testing.assert_allclose(a, b, atol=tol, rtol=tol)
+
+
+def test_the_conjugate_keyword_reaches_both_estimators_and_defaults_off():
+    y, X = _break_series(n=330)
+    for cls in (KalmanDLMDiscount, MeanRevertingDLMOwnMean):
+        assert cls().conjugate_update is False
+        default = cls().path(y, X)
+        coded = cls(conjugate_update=False).path(y, X)
+        text = cls(conjugate_update=True).path(y, X)
+        np.testing.assert_array_equal(default.cov, coded.cov)
+        np.testing.assert_array_equal(default.beta, coded.beta)
+        t = np.flatnonzero(default.has())
+        assert not np.allclose(coded.cov[t[-1]], text.cov[t[-1]], rtol=1e-3), cls.name

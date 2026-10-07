@@ -213,7 +213,13 @@ def write_report(out: Path, summary: dict, corr: dict, checks: list[dict]) -> No
             [
                 f"**SENSITIVITY RUN, not the registered test.** Excludes reporting classes "
                 f"{summary['excluded_classes']}, beyond the default {summary['default_excluded_classes']}. "
-                f"No hypothesis was moved by this run.",
+                + (
+                    "The two filters use West and Harrison's covariance update "
+                    "(`--conjugate-update`; HANDOFF task 48). "
+                    if summary.get("conjugate_update")
+                    else ""
+                )
+                + "No hypothesis was moved by this run.",
                 "",
             ]
             if summary["sensitivity"]
@@ -404,6 +410,13 @@ def main(argv=None) -> int:
         help="exclude a reporting class IN ADDITION to the default (Cash); such a run is a "
         "SENSITIVITY run and never moves hypotheses",
     )
+    parser.add_argument(
+        "--conjugate-update",
+        action="store_true",
+        help="West and Harrison's covariance update in kalman_dlm_discount and "
+        "mean_reverting_dlm_own_mean (HANDOFF task 48); a SENSITIVITY run, never moves "
+        "hypotheses, and may read any way without stopping",
+    )
     args = parser.parse_args(argv)
 
     params = get_params()
@@ -411,7 +424,9 @@ def main(argv=None) -> int:
     panel, analytics, ff, universe_rows, flags = load_inputs(params)
     ids, classes = select_instruments(panel, universe_rows, flags)
     excluded = sorted(set(DEFAULT_EXCLUDED_CLASSES) | set(args.exclude_class))
-    sensitivity = bool(set(args.exclude_class) - set(DEFAULT_EXCLUDED_CLASSES))
+    sensitivity = bool(set(args.exclude_class) - set(DEFAULT_EXCLUDED_CLASSES)) or (
+        args.conjugate_update
+    )
     keep = [i for i, c in enumerate(classes) if c not in excluded]
     ids, classes = [ids[i] for i in keep], [classes[i] for i in keep]
     if sensitivity:
@@ -456,7 +471,7 @@ def main(argv=None) -> int:
     print("fitting the regime model (one HMM a week)...", flush=True)
     regimes = E.regime_path(F)
     print(f"  {len(regimes.rows)} fits in {time.time() - started:.0f}s; estimating...", flush=True)
-    paths = run.estimate_all(R, F, classes, regimes)
+    paths = run.estimate_all(R, F, classes, regimes, conjugate_update=args.conjugate_update)
     print(f"  estimated at {time.time() - started:.0f}s; scoring...", flush=True)
 
     ev = fidelity.evaluate(R, F, paths, run.ALL_NAMES, weeks)
@@ -494,7 +509,11 @@ def main(argv=None) -> int:
             f"reference check: the incumbent and the first four candidates equal {REFERENCE_RUN}."
         )
     flipped = {h: v for h, v in verdicts.items() if h not in MOVED and v != "not_detected"}
-    if flipped:
+    if flipped and sensitivity:
+        print(
+            f"note: this sensitivity would read differently from the recorded verdicts: {flipped}"
+        )
+    elif flipped:
         print(f"STOP: the five-way gate would change recorded verdicts: {flipped}", file=sys.stderr)
         return 5
 
@@ -505,6 +524,7 @@ def main(argv=None) -> int:
         "run_id": run_id,
         "decision": "decisions/0046",
         "sensitivity": sensitivity,
+        "conjugate_update": args.conjugate_update,
         "excluded_classes": excluded,
         "default_excluded_classes": list(DEFAULT_EXCLUDED_CLASSES),
         "hashes": {

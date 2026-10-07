@@ -460,12 +460,22 @@ class HMM2RegimeConditional:
 # --- H-2026-0016: random-walk loadings with a discount factor -----------------------------
 
 
-def _kalman_filter(y, X, delta, n0=1.0, s0=1e-4, c0=1e6):
+def _kalman_filter(y, X, delta, n0=1.0, s0=1e-4, c0=1e6, conjugate=False):
     """
-    West-Harrison dynamic linear model with variance learning. State = (a, b),
-    random walk, evolution covariance by discounting (R = C / delta). Returns the
-    filtered state mean, scaled covariance, observation variance and the
-    cumulative one-step Student-t predictive log likelihood after each week.
+    Dynamic linear model with variance learning, in the style of West and Harrison but
+    NOT their recursion by default. State = (a, b), random walk, evolution covariance by
+    discounting (R = C / delta). Returns the filtered state mean, scaled covariance,
+    observation variance and the cumulative one-step Student-t predictive log likelihood
+    after each week.
+
+    Variance update (HANDOFF task 48). `C` is scale-free: `Q = 1 + z'Rz`, the predictive
+    variance is `S Q` and the reported covariance is `S C`. West and Harrison's recursion
+    is `C = R - A A' Q`, with no ratio; that is `conjugate=True`. The default is
+    `C = (S / S_new)(R - A A' Q)`, a different and coherent filter: in actual units its
+    precision obeys `P_t = P_prior + z z' / S_(t-1)`, so each observation enters at the
+    variance estimate of the week before and earlier information is not rescaled when `S`
+    moves. The default is kept because the run of record (M-20261003T181155Z) was made
+    with it; `conjugate=True` is a sensitivity.
     """
     n, k = X.shape
     p = k + 1
@@ -495,7 +505,9 @@ def _kalman_filter(y, X, delta, n0=1.0, s0=1e-4, c0=1e6):
             nu_new = nu + 1.0
             S_new = S * (nu + e * e / var) / nu_new
             m = m + A * e
-            C = (S / S_new) * (R - np.outer(A, A) * Q)
+            C = R - np.outer(A, A) * Q
+            if not conjugate:
+                C = (S / S_new) * C
             C = 0.5 * (C + C.T)
             nu, S = nu_new, S_new
         else:
@@ -513,12 +525,15 @@ class KalmanDLMDiscount:
 
     name = "kalman_dlm_discount"
 
+    def __init__(self, conjugate_update: bool = False):
+        self.conjugate_update = conjugate_update
+
     def path(self, y, X, ctx=None):
         n, k = X.shape
         out = LoadingPath.empty(n, k)
         valid = valid_rows(y, X)
         ok = window_ok(valid)
-        runs = [_kalman_filter(y, X, d) for d in KALMAN_DISCOUNTS]
+        runs = [_kalman_filter(y, X, d, conjugate=self.conjugate_update) for d in KALMAN_DISCOUNTS]
         LL = np.stack([r[3] for r in runs])  # (grid, n)
         pick = LL.argmax(axis=0)
         for t in np.flatnonzero(ok):
@@ -541,7 +556,7 @@ def _ols_full(y: np.ndarray, X: np.ndarray) -> tuple[np.ndarray, np.ndarray, flo
     return coef, np.linalg.pinv(Z.T @ Z), s2, n
 
 
-def _mr_filter(y, X, Cs, ok, t0, seed, phi, q, k):
+def _mr_filter(y, X, Cs, ok, t0, seed, phi, q, k, conjugate=False):
     """
     One recursive pass of the mean-reverting model for one (phi, q).
 
@@ -554,6 +569,11 @@ def _mr_filter(y, X, Cs, ok, t0, seed, phi, q, k):
     `mu_hat + phi d_hat_t`, its scaled covariance, S_t, the cumulative one-step
     Student-t predictive log likelihood of the observations t0+1..t, and the filtered
     state mean after week t (kept so a test can tell the forecast from the filtered value).
+
+    Variance update: the same as `_kalman_filter`'s, and the same caveat. The default
+    `C = (S / S_new)(C - A A' Q)` is not West and Harrison's `C = C - A A' Q`
+    (`conjugate=True`); in actual units its precision is `P_prior + z z' / S_(t-1)`. The
+    default is what the run of record used (HANDOFF task 48).
     """
     n = len(y)
     p = 1 + 2 * k
@@ -589,7 +609,9 @@ def _mr_filter(y, X, Cs, ok, t0, seed, phi, q, k):
                 nu_new = nu + 1.0
                 S_new = S * (nu + e * e / var) / nu_new
                 m = m + A * e
-                C = (S / S_new) * (C - np.outer(A, A) * Q)
+                C = C - np.outer(A, A) * Q
+                if not conjugate:
+                    C = (S / S_new) * C
                 C = 0.5 * (C + C.T)
                 nu, S = nu_new, S_new
         if ok[t]:
@@ -631,6 +653,9 @@ class MeanRevertingDLMOwnMean:
 
     name = "mean_reverting_dlm_own_mean"
 
+    def __init__(self, conjugate_update: bool = False):
+        self.conjugate_update = conjugate_update
+
     def path(self, y, X, ctx=None):
         n, k = X.shape
         out = LoadingPath.empty(n, k)
@@ -660,7 +685,12 @@ class MeanRevertingDLMOwnMean:
             C[1 + k :, 1 + k :] = q * Cs[t0]
             return m, C, s2, float(max(nobs - (1 + k), 1))
 
-        runs = [_mr_filter(y, X, Cs, ok, t0, seed, 0.5 ** (1.0 / h), q, k) for h, q in MR_PAIRS]
+        runs = [
+            _mr_filter(
+                y, X, Cs, ok, t0, seed, 0.5 ** (1.0 / h), q, k, conjugate=self.conjugate_update
+            )
+            for h, q in MR_PAIRS
+        ]
         LL = np.stack([r[3] for r in runs])  # (pairs, n); NaN before t0
         pick = np.argmax(np.nan_to_num(LL[:, t0:], nan=-np.inf), axis=0)  # first on ties
         for t in np.flatnonzero(ok):
@@ -682,6 +712,7 @@ ESTIMATORS = {
         MeanRevertingDLMOwnMean,
     )
 }
+CONJUGATE_ESTIMATORS = (KalmanDLMDiscount.name, MeanRevertingDLMOwnMean.name)
 INCUMBENT = RollingOLS.name
 CANDIDATES = (
     HuberM.name,
