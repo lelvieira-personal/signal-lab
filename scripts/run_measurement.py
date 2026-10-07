@@ -30,9 +30,11 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-import _bootstrap  # noqa: F401
+import _bootstrap
 import numpy as np
 import pandas as pd
+
+THREADS = _bootstrap.require_one_thread()
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUT_ROOT = REPO_ROOT / "results" / "measurement"
@@ -527,6 +529,7 @@ def main(argv=None) -> int:
         "conjugate_update": args.conjugate_update,
         "excluded_classes": excluded,
         "default_excluded_classes": list(DEFAULT_EXCLUDED_CLASSES),
+        "thread_setting": THREADS,
         "hashes": {
             "params_hash": params.params_hash,
             "params_version": params.params_version,

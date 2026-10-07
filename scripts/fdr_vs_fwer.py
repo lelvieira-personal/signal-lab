@@ -50,7 +50,9 @@ import sys
 import time
 from pathlib import Path
 
-import _bootstrap  # noqa: F401
+import _bootstrap
+
+_bootstrap.require_one_thread()
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PENDING_DIR = REPO_ROOT / "hypotheses" / "pending"

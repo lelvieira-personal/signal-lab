@@ -37,6 +37,8 @@ case "$target" in
 esac
 
 export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$HOME/.venvs/signal-lab}"
+# One thread is the reference configuration (decisions/0048); build.mk sets the same.
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 stamp="$(date +%Y%m%d-%H%M%S)"
 out="results/audit/_unattended/${stamp}-${target}"
 mkdir -p "$out"

@@ -25,7 +25,9 @@ from __future__ import annotations
 import argparse
 import sys
 
-import _bootstrap  # noqa: F401
+import _bootstrap
+
+_bootstrap.require_one_thread()
 
 
 def drawdown_per_unit_te(

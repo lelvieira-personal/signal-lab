@@ -59,7 +59,9 @@ import sys
 import time
 from pathlib import Path
 
-import _bootstrap  # noqa: F401
+import _bootstrap
+
+_bootstrap.require_one_thread()
 
 REPO = Path(__file__).resolve().parent.parent
 GFC_FIRST, GFC_LAST = "2008-01-01", "2009-12-31"

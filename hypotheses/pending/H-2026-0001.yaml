@@ -36,7 +36,6 @@ data_required:
   - JPY_INTRGDP_NSA_P1M1ML12_D3M3ML3
   - GBP_INTRGDP_NSA_P1M1ML12_D3M3ML3
   - USD_MBCSCORE_SA
-  - EUR_MBCSCORE_SA
   - USD_UNEMPLRATE_SA_3MMAV5YMA
 notes: >
   Amended 2026-09-24 by owner ruling (OWNER-QUEUE L14, recorded as an addendum
@@ -53,3 +52,8 @@ notes: >
   history.
   Slow block. Held constant between releases at its vintage value; weekly
   rebalancing does not resample it (SUBSTRATE section 6).
+  Amended 2026-10-07 by owner ruling (OWNER-QUEUE L23, decisions/0006 addendum):
+  EUR_MBCSCORE_SA is grade 3 throughout and is excluded, so it is removed from
+  data_required. USD_MBCSCORE_SA stays; about half of its rows are excluded. The
+  composite now has three US components and one each for the euro area, Japan
+  and the UK.

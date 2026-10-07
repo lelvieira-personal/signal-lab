@@ -18,7 +18,9 @@ import os
 import sys
 import time
 
-import _bootstrap  # noqa: F401
+import _bootstrap
+
+THREADS = _bootstrap.require_one_thread()
 
 
 def _read_cells(run_dir):
@@ -627,6 +629,7 @@ def _write_halflife_run(
         "panel_hash": universe.panel_hash(),
         "params_version": params.params_version,
         "params_hash": params.params_hash,
+        "thread_setting": THREADS,
         "generated_at": pd_now(),
         "n_cells": len(table),
         "n_cells_total": n_cells_total,
@@ -707,6 +710,7 @@ def _write_baseline_run(args, params, universe, table, run_id, out_root, started
         "panel_hash": universe.panel_hash(),
         "params_version": params.params_version,
         "params_hash": params.params_hash,
+        "thread_setting": THREADS,
         "generated_at": pd_now(),
         "n_cells": len(table),
         "solver": str(table["solver"].iloc[0]),
@@ -1012,6 +1016,7 @@ def main(argv=None) -> int:
         "panel_hash": universe.panel_hash(),
         "params_version": params.params_version,
         "params_hash": params.params_hash,
+        "thread_setting": THREADS,
         "generated_at": pd.Timestamp.now("UTC").isoformat(timespec="seconds"),
         "te_budget": float(params.require("constraints.tracking_error.max_trailing_3y")),
         "first_date": str(table["first_date"].iloc[0]),

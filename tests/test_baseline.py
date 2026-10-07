@@ -69,7 +69,9 @@ WEEKS = 260
 # request-file commit), from this same construction. If either moves, the
 # shuffle-off path is no longer today's.
 GOLDEN_SCORE_HASH = "3c56e07462d30d6d"
-GOLDEN_NET_IR = -0.8793457503233992
+# Re-recorded 2026-10-07 at one thread (decisions/0048; HANDOFF task 50); was
+# -0.8793457503233992 with threads unset.
+GOLDEN_NET_IR = -0.8792060912640641
 # The truth shuffle's score and its permutation stream, recorded before the
 # score shuffle was added (HEAD 0534478). HANDOFF task 25 requires the existing
 # baseline call to reproduce today's stream exactly.
@@ -616,7 +618,9 @@ def test_an_explicit_trailing_override_reproduces_the_legacy_golden_bit_for_bit(
 # GOLDEN_NET_IR_CREATED_MARGINAL: recorded 2026-09-30 (HANDOFF task 39), the
 # first default-cell run after decisions/0038 and 0040 (created_marginal at
 # 40bp). If this moves, something about the live default's pricing changed.
-GOLDEN_NET_IR_CREATED_MARGINAL = -0.3916592047250338
+# Re-recorded 2026-10-07 at one thread (decisions/0048; HANDOFF task 50); was
+# -0.3916592047250338 with threads unset.
+GOLDEN_NET_IR_CREATED_MARGINAL = -0.3916378876353463
 
 
 @pytest.mark.slow
@@ -641,7 +645,9 @@ def test_the_default_now_reads_created_marginal_from_params(small_universe):
 # FULL default -- created_marginal at 40bp (decisions/0040) AND the 26-week scalar
 # overlay (decisions/0042), params 0.8.0. Recorded 2026-10-01 (HANDOFF task 42)
 # from a live `run_cell` call, not computed by hand.
-GOLDEN_NET_IR_V080 = -0.40475664238417963
+# Re-recorded 2026-10-07 at one thread (decisions/0048; HANDOFF task 50); was
+# -0.40475664238417963 with threads unset.
+GOLDEN_NET_IR_V080 = -0.4046626602695416
 
 
 @pytest.mark.slow

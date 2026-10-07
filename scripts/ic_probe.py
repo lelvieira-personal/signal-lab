@@ -70,7 +70,9 @@ import sys
 import time
 from pathlib import Path
 
-import _bootstrap  # noqa: F401
+import _bootstrap
+
+_bootstrap.require_one_thread()
 
 
 def _fmt(x: float, nd: int = 3) -> str:

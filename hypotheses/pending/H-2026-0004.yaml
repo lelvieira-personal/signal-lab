@@ -47,3 +47,8 @@ notes: >
   easing, so it enters negated to keep the registered `negative` direction (on
   tightening). FRED DRTSCILM is dropped: it duplicates the standards leg with
   the opposite sign and withdraws the 2026-09-19 FRED-request approval.
+  Parked 2026-10-07 by owner ruling (OWNER-QUEUE L23,
+  decisions/0006 addendum): both JPMaQS inputs are grade 3 throughout and are
+  excluded by `grade_3: exclude`, so the hypothesis has no macro input. It
+  cannot run and is not counted as a test in any family or stepdown. A US leg
+  from a point-in-time source would be a new registration.

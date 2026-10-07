@@ -3,9 +3,16 @@
 data/raw/
 data/snapshots/
 results/artifacts/
-results/audit/          # regenerable: decisions/0023
-results/fdr_vs_fwer/    # regenerable: HANDOFF task 34
-results/measurement/*/loadings.parquet   # regenerable model output: HANDOFF task 45
+# Regenerable: decisions/0023
+results/audit/
+# Regenerable: HANDOFF task 34
+results/fdr_vs_fwer/
+# Regenerable model output: HANDOFF task 45
+results/measurement/*/loadings.parquet
+# Written by `make inspect-raw`; raw_meta.json holds rows read from the vendor workbook
+data/universe/raw_meta.json
+data/universe/raw_structure.json
+results/audit-bloomberg.log
 # Weekly returns are vendor data: HANDOFF task 48
 results/measurement/*/predicted_vs_actual.html
 results/*.db

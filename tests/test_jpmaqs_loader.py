@@ -202,6 +202,31 @@ def test_grade_three_is_excluded_and_counted_per_ticker(params):
     assert 2.5 in set(panel.frame["grading"])  # no invented threshold
 
 
+def test_a_ticker_with_no_usable_row_is_not_available(params):
+    # decisions/0006 addendum (HANDOFF task 50): an all-grade-3 ticker has no row after
+    # the filter, so it is absent from the panel, hence from the manifest's macro_ids
+    # (built from the panel's series_id), hence missing to a hypothesis that names it.
+    from types import SimpleNamespace
+
+    from signal_lab.harness.hypotheses import check_data
+
+    d = _daily(n=6)
+    all_three = "EUR_FAKEMBC_SA"
+    q = pd.concat(
+        [
+            _qdf(T1, d, [1.0] * 6),
+            _qdf(all_three, d, [1.0] * 6, gradings=[3.0] * 6),
+        ],
+        ignore_index=True,
+    )
+    panel, counts = build_macro_panel(q, [T1, all_three], params)
+    assert counts["per_ticker"][all_three]["rows_grade_excluded"] == 6
+    macro_ids = sorted(panel.frame["series_id"].unique().tolist())  # as the manifest is built
+    assert macro_ids == [T1]
+    check = check_data(SimpleNamespace(data_required=[T1, all_three]), macro_ids)
+    assert check.missing == [all_three] and check.blocked
+
+
 def test_any_other_grade_rule_is_not_implemented(params, monkeypatch):
     monkeypatch.setitem(params.as_dict()["data"]["jpmaqs"], "grade_3", "downweight")
     with pytest.raises(LoaderNotImplemented):

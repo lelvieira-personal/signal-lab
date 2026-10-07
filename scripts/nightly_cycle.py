@@ -30,7 +30,9 @@ import argparse
 from datetime import UTC
 from pathlib import Path
 
-import _bootstrap  # noqa: F401
+import _bootstrap
+
+_bootstrap.require_one_thread()
 
 
 def _load_panel_and_benchmark(snapshot, params):

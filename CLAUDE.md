@@ -24,6 +24,10 @@ opens every audit, and is the answer whenever `check-scoped` is in doubt.
   `uv run --python 3.12 --group dev ...`. The venv lives at
   `$HOME/.venvs/signal-lab` (build.mk sets `UV_PROJECT_ENVIRONMENT`).
 - Never push, reset, rebase or amend. Leo does those.
+- Numbers are made at one thread (`decisions/0048`). `make` sets
+  `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS` and `MKL_NUM_THREADS` to 1; a direct
+  `python` call must set them too, or the test session and the number-making
+  scripts refuse to start.
 - The working tree is CRLF on files git wrote (`core.autocrlf=true`).
   Use `git diff --ignore-cr-at-eol` to see real changes.
 

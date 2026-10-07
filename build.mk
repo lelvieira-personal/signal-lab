@@ -69,6 +69,10 @@ lock: ## refresh uv.lock
 # check-block: begin -- what defines the check; scripts/select_slow.py compares it with the base, and a change here means a full run
 export UV_PROJECT_ENVIRONMENT ?= $(HOME)/.venvs/signal-lab
 export UV_LINK_MODE ?= copy
+# One thread is the reference configuration (decisions/0048): numbers repeat only there.
+export OMP_NUM_THREADS = 1
+export OPENBLAS_NUM_THREADS = 1
+export MKL_NUM_THREADS = 1
 
 PY := uv run --python 3.12
 PYTEST := $(PY) --group dev pytest

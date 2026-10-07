@@ -11,6 +11,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT)]
 
 
+def pytest_sessionstart(session):
+    from signal_lab.threads import ThreadSettingError, require_one_thread
+
+    try:
+        require_one_thread()
+    except ThreadSettingError as exc:
+        raise pytest.UsageError(str(exc)) from None
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--slow-only-in",
