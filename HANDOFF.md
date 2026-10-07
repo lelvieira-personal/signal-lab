@@ -3524,6 +3524,55 @@ run would have said.
 
 ## Done
 
+### 2026-10-07 -- task 52: the universe, the ex-USD analytics, store huber6-v2, the report's table like for like (Claude Code, Sonnet 5.5)
+
+**rc=0.** Commits: `5fb47e3` (step 0, queue records, after `make check`) and `49b202e` (the build). Log directory `results/audit/_unattended/20261007-184728-check-full/`: **tier check-full (the whole suite)**, rc=0, **504 s**, 812 passed, holdout 24 passed. Task 51's store `huber6-v1` and its report are untouched; `M-20261003T181155Z` was not re-run.
+
+- **Step 1.** `make universe`: **102 series, 93 investable, 9 excluded**, as expected; `LGTRTRGU` and `LGTRTRJU` carry the reason from `decisions/0052` and keep their reporting class. Tests changed: `tests/test_scripts.py::test_the_committed_universe_is_what_build_universe_produces` (95 to 93, docstring cites 0052, asserts both series not investable). No other test or constant changed.
+- **Step 2.** **I could not check the hash from the shell** (`ls` and `sha256sum` on `data/raw/` were denied), so the check is in code: `exusd_analytics.check_file` hashes the file and refuses one whose sha256 does not begin `a76df50225f99128`. It passed on the real file (sha256 `a76df50225f99128a737a0e470042541e26c1b4261728bb29873c73dbed2978e`), 44,190 rows, 7 tickers. No value was printed. New: `src/signal_lab/loaders/exusd_analytics.py` (reader, field map, the daily-start rule), a merge in `BloombergLoader.load_analytics`, the `raw_manifest.csv` row (`analytics_exusd`, layout `long_date_ticker`; the file is required where the row exists, a fixture's manifest has none and loads as before), `scripts/build_exusd_analytics_coverage.py` and `make exusd-analytics-coverage`. `loader.report["analytics"]["exusd"]` records the hash, row count, tickers and series per field. A ticker and field in both files stops the load; the swap spread lands in `INDEX_OAS_SWAP` only. **Daily starts: every one equals Cowork's expected table** (rule: the first observation from which each of the next 20 follows within 5 calendar days; cut at the holdout before the rule runs). **Factors hash after the step: equals `3401475e…fafa9`** (the build checks it and stops otherwise). Series per field for the file: OAD 7, yield 7, OAS_TSY 6, OAS_SWAP 1 (the build's added fields).
+
+| ticker and field | first observation | true daily start | observations before the holdout |
+|---|---|---|---|
+| I02513EU|INDEX_OAD_TSY | 2001-12-31 | 2002-06-28 | 4443 |
+| I02513EU|INDEX_OAS_TSY | 2002-09-17 | 2002-09-17 | 4382 |
+| I02513EU|INDEX_YIELD_TO_WORST | 2001-12-31 | 2002-06-28 | 4443 |
+| I02913JP|INDEX_OAD_TSY | 2006-12-29 | 2018-02-28 | 612 |
+| I02913JP|INDEX_OAS_TSY | 2002-09-17 | 2002-09-17 | 4377 |
+| I02913JP|INDEX_YIELD_TO_WORST | 2006-12-29 | 2018-02-28 | 612 |
+| I12823GB|INDEX_OAD_TSY | 2003-01-31 | 2009-07-24 | 2726 |
+| I12823GB|INDEX_OAS_TSY | 2003-01-31 | 2005-09-22 | 3650 |
+| I12823GB|INDEX_YIELD_TO_WORST | 2003-01-31 | 2009-07-24 | 2726 |
+| LET1TREU|INDEX_OAD_TSY | 1998-06-30 | 2002-04-23 | 4529 |
+| LET1TREU|INDEX_OAS_TSY | 2002-09-17 | 2002-09-17 | 4382 |
+| LET1TREU|INDEX_YIELD_TO_WORST | 1998-06-30 | 2002-04-23 | 4529 |
+| LG38TRUU|INDEX_OAD_TSY | 1990-01-31 | 2000-08-31 | 5151 |
+| LG38TRUU|INDEX_OAS_SWAP | 2004-07-12 | 2004-07-12 | 4024 |
+| LG38TRUU|INDEX_YIELD_TO_WORST | 1990-01-31 | 2000-08-31 | 5151 |
+| LGTRTRGU|INDEX_OAD_TSY | 2000-09-29 | 2001-01-16 | 4930 |
+| LGTRTRGU|INDEX_OAS_TSY | 2002-09-17 | 2002-09-17 | 4496 |
+| LGTRTRGU|INDEX_YIELD_TO_WORST | 2000-09-29 | 2001-01-16 | 4930 |
+| LP05TREU|INDEX_OAD_TSY | 2000-10-09 | 2000-10-09 | 4869 |
+| LP05TREU|INDEX_OAS_TSY | 2002-09-17 | 2002-09-17 | 4382 |
+| LP05TREU|INDEX_YIELD_TO_WORST | 2000-09-28 | 2000-09-28 | 4876 |
+
+- **Step 3.** Gates added to `scripts/build_characteristics.py`: the run of record's instruments must be the build's (Cash out) plus exactly `LGTRTRGU` and `LGTRTRJU`; every stored Huber loading for a shared instrument must equal this build's at tolerance zero. **435,636 cells compared, largest difference 0.0.** On the 84 shared instruments the test's cell rule scores 68,656 cells: pooled r2_oos 0.705440, mean Huber loss 0.223618 (reported, not compared; `fit.json`, 86 instruments, 70,326 cells: 0.702983 and 0.230334). `assert_no_lookahead` as before. The cell set comes from `signal_lab/characteristics/reference.py` (presence only); test: `test_the_scored_cell_set_takes_presence_only_from_a_reference_run`.
+- **Step 4.** `make characteristics ARGS="--store-id huber6-v2"` (2 m 58 s). Directory hash `1d5aba88482918caa9c577a35acbda4e9eeffa71d267cf4d8dc67d6c1753cafc`. **85 estimated (Cash included), 8 not**; loadings 440,964, fit 73,494, measured 21,722 (v1: 16,256), instruments 93; 2002-12-27 to 2019-12-27, all as expected. Manifest cites `decisions/0049` and `0052`, task 52 and `supersedes: huber6-v1`. **Against `huber6-v1`: 440,964 loadings on shared cells, largest difference 0.0.** The build's weekly-returns hash is no longer comparable with the run of record's (86 against 84 columns), so the manifest records `factors_equal_run_of_record` and drops the old returns-hash flag.
+- **Step 5.** Report `results/characteristics/huber6-v2/report.md`. Each expected figure against the report: LT01TRUU 0.56 [0.30, 0.86] / 0.56 [0.30, 0.86]; LT13TRUU 0.89 [0.79, 0.98] over 677 weeks / same, 677; LT09TRUU 0.97 [0.93, 1.03] / same; LUTLTRUU 0.84 [0.68, 0.95] / same; LT11TRUU 0.84 [0.66, 0.90] / same; LBUTTRUU 1.24 [1.02, 1.56] / same; LUACTRUU 0.84 [0.77, 0.96] / same; LT13TRUU first measured 2007-01-12 with 211 unmeasured weeks / same; no empty week inside any measured span / none; credit over duration times spread for the five HY indices 0.37 to 0.68 / 0.37, 0.58, 0.58, 0.59, 0.68. **Nothing differs by more than 0.01.** 23 of 23 estimated bond-class instruments have a measured duration (`I02913JP` for 96 of 888 weeks, `I12823GB` 545 of 627, `LT13TRUU` 677 of 888). The six ex-USD bond indices:
+
+| instrument | class | weeks | weeks measured | real yield | inflation | credit | -OAD | ratio real yield | ratio inflation | ratio credit | weekly real yield | weekly inflation |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| I02513EU | Ex-USD Bonds | 888 | 888 | -3.347 | -2.827 | -0.377 | -6.61 | 0.51 | 0.43 | 0.06 | 0.50 [0.37, 0.58] | 0.43 [0.31, 0.65] |
+| I02913JP | Ex-USD Bonds | 888 | 96 | -7.989 | -6.057 | 2.511 | -9.42 | 0.85 | 0.64 | -0.27 | 0.85 [0.75, 0.91] | 0.65 [0.53, 0.74] |
+| I12823GB | Ex-USD Bonds | 627 | 545 | -2.084 | -2.435 | -0.435 | -4.44 | 0.47 | 0.55 | 0.10 | 0.45 [0.11, 0.80] | 0.56 [0.09, 1.29] |
+| LET1TREU | Ex-USD Bonds | 888 | 888 | 0.276 | -0.211 | -0.056 | -1.84 | -0.15 | 0.11 | 0.03 | -0.15 [-0.44, 0.35] | 0.12 [-0.66, 0.78] |
+| LG38TRUU | Ex-USD Bonds | 888 | 888 | -3.313 | -3.187 | -0.589 | -6.26 | 0.53 | 0.51 | 0.09 | 0.52 [0.45, 0.62] | 0.47 [0.30, 0.61] |
+| LP05TREU | Ex-USD Bonds | 888 | 888 | -2.130 | -2.195 | -2.945 | -5.30 | 0.40 | 0.41 | 0.56 | 0.39 [0.30, 0.55] | 0.44 [0.25, 0.59] |
+
+  (`LG38TRUU` is absent from the duration-times-spread table: its OAS is a swap spread, `INDEX_OAS_SWAP`, and the table reads `INDEX_OAS_TSY` only. `I02913JP`'s spread ratio rests on 96 weeks and is -39, `I12823GB`'s on 313 weeks and is 15; both are in the report as printed.) Also new in the report: the by-period table, measured coverage, and in the explained-share table the lowest instrument and the number below 0.5 at the last week, with the line that Commodities' share is an identity.
+- **Step 6.** `scripts/select_slow.py`: a FULL result now lists every slow file as selected and none as left out (status.txt and check.log agree); `describe_loadings.py` calls `require_one_thread`; `threads.py`'s docstring now says what task 49 measured (a difference between thread settings, not between runs).
+- **Tests added** (`tests/test_exusd_analytics.py`, 10: field map with a swap row kept out of `INDEX_OAS_TSY`, unknown oas_field refused, monthly run-in truncated, holdout cut, duplicate across files refused, wrong hash refused, no manifest row loads as before, the row makes the file required, the missing marker is not zero, the 20-in-5 rule at its edges; `tests/test_characteristics.py`: the old report test replaced by seven for the new tables, and the presence-only test; `tests/test_select_slow.py`: one). **Tests changed:** `tests/test_scripts.py` as above and the one replaced report test. No golden moved.
+- **Not done / to know:** (1) the hash and the file's shape were checked only through repo code, not from the shell, because direct commands on `data/raw/` were denied. (2) `build_characteristics.py --report-only` now works for stores with the new manifest keys (`huber6-v2`), not for `huber6-v1`, whose report stays as committed. (3) I did not open `bbg_tradable_only_longer_history.xlsx`. Nothing was built from `decisions/0050` or `0051`; `resolve_exposures` still raises.
+
 ### 2026-10-07 -- task 51: the estimated half of the exposure matrix, store huber6-v1 (Claude Code, Sonnet 5.5)
 
 **rc=0.** Commit `d2d17fb`. Log directory `results/audit/_unattended/20261007-091756-check-scoped/`: **tier FULL, not SCOPED** (the selector: `FULL: data/characteristics/huber6-v1/manifest.yaml is not a path the selector can place`, since a path under `data/` is always full), rc=0, **556 s**, 795 passed, holdout 22+2 collected. The build itself, `make characteristics`, ran twice: the first stopped at step 3 (below), the second wrote the store (3 m 05 s).
