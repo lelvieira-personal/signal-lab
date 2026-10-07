@@ -54,7 +54,7 @@
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
 .DEFAULT_GOAL := check
-.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics fdr-study
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exusd-analytics-coverage fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -195,6 +195,9 @@ jpmaqs-coverage: ## coverage report from the macro snapshot -- dates and counts 
 
 measurement-loadings: ## six factors, rolling OLS against four candidate estimators, one report (HANDOFF task 45, decisions/0046)
 	$(PY) --group dev python scripts/run_measurement.py $(ARGS)
+
+exusd-analytics-coverage: ## true daily start per ticker and field of the ex-USD analytics file (HANDOFF task 52, decisions/0052)
+	$(PY) --group dev python scripts/build_exusd_analytics_coverage.py
 
 characteristics: ## the estimated half of the characteristic map: Huber loadings on six factors, walk-forward, plus the measured cells (HANDOFF task 51, decisions/0049)
 	$(PY) --group dev python scripts/build_characteristics.py $(if $(ARGS),$(ARGS))

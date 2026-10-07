@@ -243,6 +243,13 @@ def test_selected_plus_left_out_is_every_slow_file_exactly_once(tree):
     assert sorted(full.selected + full.left_out) == SLOW
 
 
+def test_a_full_result_leaves_no_slow_file_out(tree):
+    """status.txt and check.log must agree: a FULL run ran every slow file (HANDOFF task 52)."""
+    full = run(tree, [("M", "params/x.yaml")])
+    assert full.tier == "FULL" and full.left_out == [] and full.selected == SLOW
+    assert "left out (0):\n  (none)" in sel.render(full)
+
+
 def test_the_output_says_which_tier_ran(tree):
     assert sel.render(run(tree, [("M", "src/signal_lab/a.py")])).splitlines()[0] == "SCOPED"
     first = sel.render(run(tree, [("M", "params/x.yaml")])).splitlines()[0]

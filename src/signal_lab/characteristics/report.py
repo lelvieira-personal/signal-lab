@@ -29,34 +29,269 @@ def _table(header: list[str], rows: list[list[str]]) -> list[str]:
     ]
 
 
-def estimated_against_measured(store: Store) -> pd.DataFrame:
-    """One row per instrument with a measured duration: median loadings, minus median OAD, ratios."""
-    load, meas, inst = (
-        store.frames["loadings"],
-        store.frames["measured"],
-        store.frames["instruments"],
-    )
+BOND_CLASSES = (
+    "Treasuries",
+    "Long Treasuries",
+    "TIPS",
+    "MBS",
+    "IG Corporates",
+    "HY Corporates",
+    "EM Sovereign Bonds",
+    "EM Corporate Bonds",
+    "Ex-USD Bonds",
+)
+PERIODS = (("2002-08", 2002, 2008), ("2009-15", 2009, 2015), ("2016-19", 2016, 2019))
+SPREAD_REFERENCE = "LUACTRUU"
+
+
+def bond_frame(store: Store) -> pd.DataFrame:
+    """
+    One row per instrument-week of the estimated bond-class instruments: the three bond loadings
+    with `oad` and `oas` beside them (NaN where not measured). Instruments in `BOND_CLASSES` only.
+    """
+    inst = store.frames["instruments"]
+    ids = inst.loc[inst["estimated"] & inst["class"].isin(BOND_CLASSES), "instrument"]
+    load = store.frames["loadings"]
+    load = load[load["instrument"].isin(set(ids)) & load["factor"].isin(BOND_FACTORS)]
+    wide = load.pivot_table(index=["instrument", "date"], columns="factor", values="loading")
+    meas = store.frames["measured"].set_index(["instrument", "date"])[["oad", "oas"]]
+    out = wide.join(meas, how="left").reset_index()
     klass = dict(zip(inst["instrument"], inst["class"], strict=True))
-    wide = load[load["factor"].isin(BOND_FACTORS)].pivot_table(
-        index=["instrument", "date"], columns="factor", values="loading"
-    )
+    out["class"] = out["instrument"].map(klass)
+    return out
+
+
+def _pctl(x: pd.Series, q: float) -> float:
+    return float(np.nanpercentile(x.to_numpy(), q)) if len(x) else float("nan")
+
+
+def estimated_against_measured(store: Store) -> pd.DataFrame:
+    """
+    One row per estimated bond-class instrument. Medians and their ratio are over the weeks with
+    both a loading and a measured duration; the weekly ratio `loading_t / -oad_t` is summarised
+    by its median and 10th and 90th percentiles for real yield and inflation. Instruments with
+    no measured duration have NaN there.
+    """
+    df = bond_frame(store)
     rows = []
-    for sid, m in meas.dropna(subset=["oad"]).groupby("instrument"):
-        if sid not in wide.index.get_level_values(0):
-            continue
-        w = wide.loc[sid]
-        oad = m.set_index("date")["oad"].reindex(w.index).dropna()
-        if oad.empty:
-            continue
-        minus_oad = -float(oad.median())
-        row = {"instrument": sid, "reporting_class": klass.get(sid, ""), "weeks": int(len(w))}
-        for fac in BOND_FACTORS:
-            v = float(w[fac].median())
-            row[fac] = v
-            row[f"{fac}_ratio"] = v / minus_oad if minus_oad != 0 else float("nan")
-        row["minus_oad"] = minus_oad
+    for sid, g in df.groupby("instrument", sort=False):
+        both = g[g["oad"].notna() & (g["oad"] > 0)]
+        row = {
+            "instrument": sid,
+            "reporting_class": g["class"].iloc[0],
+            "weeks": int(len(g)),
+            "weeks_measured": int(len(both)),
+        }
+        if len(both):
+            minus_oad = -float(both["oad"].median())
+            row["minus_oad"] = minus_oad
+            for fac in BOND_FACTORS:
+                v = float(both[fac].median())
+                row[fac] = v
+                row[f"{fac}_ratio"] = v / minus_oad
+            for fac in ("real_yield", "inflation"):
+                w = both[fac] / -both["oad"]
+                row[f"{fac}_weekly_median"] = float(w.median())
+                row[f"{fac}_weekly_p10"] = _pctl(w, 10)
+                row[f"{fac}_weekly_p90"] = _pctl(w, 90)
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def ratio_by_period(store: Store) -> pd.DataFrame:
+    """Median weekly ratio of real yield and of inflation loading to -OAD, per period."""
+    df = bond_frame(store)
+    df = df[df["oad"].notna() & (df["oad"] > 0)]
+    rows = []
+    for sid, g in df.groupby("instrument", sort=False):
+        row = {"instrument": sid, "reporting_class": g["class"].iloc[0]}
+        for fac in ("real_yield", "inflation"):
+            w = g[fac] / -g["oad"]
+            for label, lo, hi in PERIODS:
+                sel = w[(g["date"].dt.year >= lo) & (g["date"].dt.year <= hi)]
+                row[f"{fac}_{label}"] = float(sel.median()) if len(sel) else float("nan")
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def measured_coverage(store: Store) -> pd.DataFrame:
+    """
+    Per estimated bond-class instrument: the first measured week; the weeks with a loading and no
+    measured duration; and the empty weeks inside the measured span, counted on the weekly
+    calendar the store's loadings use.
+    """
+    df = bond_frame(store)
+    calendar = pd.DatetimeIndex(sorted(store.frames["loadings"]["date"].unique()))
+    rows = []
+    for sid, g in df.groupby("instrument", sort=False):
+        measured = g.loc[g["oad"].notna(), "date"]
+        row = {
+            "instrument": sid,
+            "reporting_class": g["class"].iloc[0],
+            "first_measured": measured.min() if len(measured) else pd.NaT,
+            "loading_no_duration": int(g["oad"].isna().sum()),
+        }
+        if len(measured):
+            span = calendar[(calendar >= measured.min()) & (calendar <= measured.max())]
+            row["empty_inside"] = int(len(span) - len(set(measured) & set(span)))
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def duration_times_spread(store: Store) -> pd.DataFrame:
+    """
+    For each instrument with an `INDEX_OAS_TSY`: the weekly median of the credit loading over
+    `-OAD * OAS / OAS of LUACTRUU`, over the weeks all of it is observed.
+    """
+    df = bond_frame(store)
+    ref = df.loc[df["instrument"] == SPREAD_REFERENCE].set_index("date")["oas"]
+    rows = []
+    for sid, g in df.groupby("instrument", sort=False):
+        g = g.assign(ref=g["date"].map(ref))
+        ok = g[(g["oad"] > 0) & (g["oas"] > 0) & (g["ref"] > 0)]
+        if not len(ok):
+            continue
+        ratio = ok["credit"] / (-ok["oad"] * ok["oas"] / ok["ref"])
+        rows.append(
+            {
+                "instrument": sid,
+                "reporting_class": g["class"].iloc[0],
+                "weeks": int(len(ok)),
+                "credit_over_duration_times_spread": float(ratio.median()),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def bond_sections(store: Store) -> list[str]:
+    table = estimated_against_measured(store)
+    n_meas = int((table["weeks_measured"] > 0).sum())
+    lines = [
+        "",
+        f"## Estimated against measured, {n_meas} of {len(table)} estimated bond-class "
+        "instruments have a measured duration",
+        "",
+        "Medians and their ratio are over the weeks with both a loading and a measured "
+        "`INDEX_OAD_TSY`; `-OAD` is minus its median over those weeks. A ratio of 1 means the "
+        "loading equals minus the measured duration. *weekly* is the median of the weekly "
+        "`loading / -OAD` with its 10th and 90th percentiles. A dash is an instrument with no "
+        "measured duration. Not merged: the two stay separate in the store (`decisions/0015`).",
+        "",
+    ]
+
+    def band(r, fac):
+        m = r.get(f"{fac}_weekly_median")
+        if m is None or m != m:
+            return "-"
+        return f"{m:.2f} [{r[f'{fac}_weekly_p10']:.2f}, {r[f'{fac}_weekly_p90']:.2f}]"
+
+    rows = []
+    for _, r in table.sort_values(["reporting_class", "instrument"]).iterrows():
+        meas = r["weeks_measured"] > 0
+        rows.append(
+            [
+                r["instrument"],
+                r["reporting_class"],
+                str(r["weeks"]),
+                str(r["weeks_measured"]),
+                _f(r.get("real_yield")) if meas else "-",
+                _f(r.get("inflation")) if meas else "-",
+                _f(r.get("credit")) if meas else "-",
+                _f(r.get("minus_oad"), 2) if meas else "-",
+                _f(r.get("real_yield_ratio"), 2) if meas else "-",
+                _f(r.get("inflation_ratio"), 2) if meas else "-",
+                _f(r.get("credit_ratio"), 2) if meas else "-",
+                band(r, "real_yield") if meas else "-",
+                band(r, "inflation") if meas else "-",
+            ]
+        )
+    lines += _table(
+        [
+            "instrument",
+            "class",
+            "weeks",
+            "weeks measured",
+            "real yield",
+            "inflation",
+            "credit",
+            "-OAD",
+            "ratio real yield",
+            "ratio inflation",
+            "ratio credit",
+            "weekly real yield",
+            "weekly inflation",
+        ],
+        rows,
+    )
+    per = ratio_by_period(store)
+    lines += [
+        "",
+        "## By period, median weekly ratio of the loading to -OAD",
+        "",
+        *_table(
+            [
+                "instrument",
+                "class",
+                *(f"real yield {p[0]}" for p in PERIODS),
+                *(f"inflation {p[0]}" for p in PERIODS),
+            ],
+            [
+                [
+                    r["instrument"],
+                    r["reporting_class"],
+                    *(_f(r[f"real_yield_{p[0]}"], 2) for p in PERIODS),
+                    *(_f(r[f"inflation_{p[0]}"], 2) for p in PERIODS),
+                ]
+                for _, r in per.sort_values(["reporting_class", "instrument"]).iterrows()
+            ],
+        ),
+    ]
+    cov = measured_coverage(store)
+    lines += [
+        "",
+        "## Measured coverage",
+        "",
+        "First week with a measured duration; weeks with a loading and no measured duration; "
+        "empty weeks inside the measured span (a week between the first and last measured week "
+        "with no observation).",
+        "",
+        *_table(
+            ["instrument", "class", "first measured week", "loading, no duration", "empty inside"],
+            [
+                [
+                    r["instrument"],
+                    r["reporting_class"],
+                    "-" if pd.isna(r["first_measured"]) else str(r["first_measured"].date()),
+                    str(r["loading_no_duration"]),
+                    "-" if pd.isna(r.get("empty_inside")) else str(int(r["empty_inside"])),
+                ]
+                for _, r in cov.sort_values(["reporting_class", "instrument"]).iterrows()
+            ],
+        ),
+    ]
+    dts = duration_times_spread(store)
+    lines += [
+        "",
+        "## Duration times spread",
+        "",
+        "For each instrument with an `INDEX_OAS_TSY`: the median over weeks of the credit loading "
+        f"over `-OAD x OAS / OAS of {SPREAD_REFERENCE}`. 1 means the credit loading is duration "
+        "times spread, scaled to the reference.",
+        "",
+        *_table(
+            ["instrument", "class", "weeks", "credit loading over duration x spread"],
+            [
+                [
+                    r["instrument"],
+                    r["reporting_class"],
+                    str(r["weeks"]),
+                    _f(r["credit_over_duration_times_spread"], 2),
+                ]
+                for _, r in dts.sort_values(["reporting_class", "instrument"]).iterrows()
+            ],
+        ),
+    ]
+    return lines
 
 
 def build_report(store: Store, checks: dict[str, str] | None = None) -> str:
@@ -105,6 +340,7 @@ def build_report(store: Store, checks: dict[str, str] | None = None) -> str:
     rows = []
     for k, g in est.groupby("class"):
         at_last = last.reindex(g["instrument"]).dropna()
+        low = at_last.idxmin() if len(at_last) else None
         rows.append(
             [
                 k,
@@ -113,9 +349,19 @@ def build_report(store: Store, checks: dict[str, str] | None = None) -> str:
                 else "-",
                 _f(float(at_last.median())) if len(at_last) else "-",
                 str(len(at_last)),
+                f"{low} {at_last.min():.3f}" if low is not None else "-",
+                str(int((at_last < 0.5).sum())),
             ]
         )
-    lines += _table(["class", "full sample", "last week", "n at last week"], rows)
+    lines += _table(
+        ["class", "full sample", "last week", "n at last week", "lowest at last week", "below 0.5"],
+        rows,
+    )
+    lines += [
+        "",
+        "Commodities' share is an identity, not a finding: the commodities factor is that index "
+        "less cash, so the regression recovers it exactly.",
+    ]
 
     lines += [
         "",
@@ -138,49 +384,7 @@ def build_report(store: Store, checks: dict[str, str] | None = None) -> str:
         ],
     )
 
-    table = estimated_against_measured(store)
-    lines += [
-        "",
-        "## Estimated against measured, every bond index",
-        "",
-        "The estimated loadings are medians over the weeks an instrument has them; `-OAD` is "
-        "minus the median measured `INDEX_OAD_TSY` over the same weeks. A ratio of 1 means the "
-        "regression's loading equals minus the measured duration. Not merged: the two stay "
-        "separate in the store (`decisions/0015`).",
-        "",
-    ]
-    if table.empty:
-        lines.append("No instrument has a measured duration in this store.")
-    else:
-        lines += _table(
-            [
-                "instrument",
-                "class",
-                "weeks",
-                "real yield",
-                "inflation",
-                "credit",
-                "-OAD",
-                "ratio real yield",
-                "ratio inflation",
-                "ratio credit",
-            ],
-            [
-                [
-                    r.instrument,
-                    r.reporting_class,
-                    str(r.weeks),
-                    _f(r.real_yield),
-                    _f(r.inflation),
-                    _f(r.credit),
-                    _f(r.minus_oad, 2),
-                    _f(r.real_yield_ratio, 2),
-                    _f(r.inflation_ratio, 2),
-                    _f(r.credit_ratio, 2),
-                ]
-                for r in table.sort_values(["reporting_class", "instrument"]).itertuples()
-            ],
-        )
+    lines += bond_sections(store)
     if checks:
         lines += ["", "## Checks the build made on itself", ""]
         lines += [f"- {k}: {v}" for k, v in checks.items()]

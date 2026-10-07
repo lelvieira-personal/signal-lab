@@ -48,7 +48,12 @@ HEDGED = {"H09122US", "H12823US", "BTSYTRUH", "H02549US", "LP01TRUH", "M0JPHUSD"
 # visible and so it can be restored the moment a total-return loan index is
 # pulled -- params/data.yaml already carries that splice, blocked.
 # Owner decision 2026-09-11, recorded in decisions/0022.
-NOT_INVESTABLE_OTHER = {"SPBDALB": "price index, not total return (decisions/0022)"}
+_RESTATED = "the global aggregate restated in another currency, not an instrument (decisions/0052)"
+NOT_INVESTABLE_OTHER = {
+    "SPBDALB": "price index, not total return (decisions/0022)",
+    "LGTRTRGU": _RESTATED,
+    "LGTRTRJU": _RESTATED,
+}
 
 # The owner's taxonomy, plus two classes added to reach full coverage; the two
 # additions are flagged in decisions/0013 for confirmation.

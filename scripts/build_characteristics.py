@@ -30,8 +30,9 @@ THREADS = _bootstrap.require_one_thread()
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_RUN = "M-20261003T181155Z"
-STORE_ID = "huber6-v1"
-TOLERANCE = 1e-6
+STORE_ID = "huber6-v2"
+TASK = 52
+RESTATED = ("LGTRTRGU", "LGTRTRJU")  # decisions/0052: left the universe after the run of record
 NOT_ESTIMATED_REASON = (
     "tradable-only series (daily start after 2009) inherit loadings and are never estimated, "
     "SUBSTRATE section 5.2"
@@ -54,10 +55,15 @@ def tradable_only_ids(panel, universe_rows, flags) -> list[str]:
 
 def reproduce_the_test(R, F, classes, ids, weeks, reference_dir: Path) -> dict:
     """
-    The estimator test's own numbers for huber_m, from this build's loadings, on the cells the
-    test scored (Cash out). Uses the test's functions, not new ones.
+    The gates against the run of record (decisions/0052 changed the universe since it).
+
+    The run's instruments must be this build's (Cash out) plus exactly `RESTATED`. Every Huber
+    loading it stores for a shared instrument must equal this build's at a tolerance of zero.
+    The pooled `r2_oos` and mean Huber loss are then computed on the shared cells the test
+    scored, with the test's own functions, and reported but not compared: `fit.json` pools
+    the 86 instruments, this is 84.
     """
-    from signal_lab.characteristics import build
+    from signal_lab.characteristics import build, reference
     from signal_lab.measurement import describe, fidelity
     from signal_lab.measurement.factors import FACTOR_NAMES
 
@@ -67,60 +73,80 @@ def reproduce_the_test(R, F, classes, ids, weeks, reference_dir: Path) -> dict:
     beta = np.stack([p.beta for p in paths], axis=1)  # (T, N, K)
     scale = fidelity.robust_scale(Rk)
 
-    # The test scored a cell only where EVERY estimator had a loading. That set is read from
-    # the run of record's stored loadings (presence only); nothing else is taken from them
-    # except the Huber loadings, which are compared with this build's.
     summary = json.loads((reference_dir / "summary.json").read_text(encoding="utf-8"))
     stored = pd.read_parquet(reference_dir / "loadings.parquet")
-    if set(stored["instrument"]) != set(idk):
-        raise SystemExit("STOP: the run of record's instruments are not this build's (Cash out)")
-    factors = list(FACTOR_NAMES)
-    t_idx = weeks.get_indexer(stored["date"])
-    i_idx = pd.Index(idk).get_indexer(stored["instrument"])
-    k_idx = pd.Index(factors).get_indexer(stored["factor"])
-    have = np.ones(Rk.shape, dtype=bool)
-    stored_huber = np.full(beta.shape, np.nan)
-    for name in summary["estimators"]:
-        sel = (stored["estimator"] == name).to_numpy()
-        a_ = np.full(beta.shape, np.nan)
-        a_[t_idx[sel], i_idx[sel], k_idx[sel]] = stored["loading"].to_numpy()[sel]
-        have &= np.isfinite(a_).all(axis=2)
-        if name == "huber_m":
-            stored_huber = a_
-    both = np.isfinite(beta) & np.isfinite(stored_huber)
-    loading_diff = float(np.abs(beta[both] - stored_huber[both]).max()) if both.any() else None
+    stored_ids = sorted(set(stored["instrument"]))
+    if set(stored_ids) != set(idk) | set(RESTATED) or set(idk) & set(RESTATED):
+        extra = sorted(set(stored_ids) - set(idk) - set(RESTATED))
+        short = sorted((set(idk) | set(RESTATED)) - set(stored_ids))
+        raise SystemExit(
+            "STOP: the run of record's instruments are not this build's (Cash out) plus "
+            f"{list(RESTATED)}; only in the run: {extra}; only in the build: {short}"
+        )
+    arrays = reference.reference_arrays(
+        stored, summary["estimators"], stored_ids, weeks, list(FACTOR_NAMES)
+    )
+    pos = [stored_ids.index(s) for s in idk]
+    shared_huber = arrays["huber_m"][:, pos, :]
+    have = reference.presence_mask({k: v[:, pos, :] for k, v in arrays.items()})
+
+    on_stored = np.isfinite(shared_huber)
+    diff = np.where(
+        on_stored, np.abs(np.where(np.isfinite(beta), beta, np.inf) - shared_huber), 0.0
+    )
+    compared = int(on_stored.sum())
+    max_diff = float(diff.max()) if compared else 0.0
+    out = {"cells_compared": compared, "max_abs_loading_difference": max_diff}
+    if max_diff != 0.0:
+        out["stop"] = "a Huber loading differs from the run of record's"
+        return out
+
     mask = describe.scored_cells(have & np.isfinite(beta).all(axis=2), Rk, F, scale)
     res = describe.fit_metrics(Rk, F, {"huber_m": beta}, scale, ck, idk, weeks, {}, mask=mask)
+    got = res["estimators"]["huber_m"]
     ref = json.loads((reference_dir / "fit.json").read_text(encoding="utf-8"))
     ref_h = ref["estimators"]["huber_m"]
-    got = res["estimators"]["huber_m"]
-    out = {
-        "cells": res["cells"],
-        "max_abs_loading_difference_to_stored_huber": loading_diff,
-        "reference_cells": ref["cells"],
-        "r2_oos": got["pooled"]["r2_oos"],
-        "reference_r2_oos": ref_h["pooled"]["r2_oos"],
-        "mean_huber_loss": got["mean_huber_loss"],
-        "reference_mean_huber_loss": ref_h["mean_huber_loss"],
-    }
-    out["r2_oos_difference"] = abs(out["r2_oos"] - out["reference_r2_oos"])
-    out["mean_huber_loss_difference"] = abs(
-        out["mean_huber_loss"] - out["reference_mean_huber_loss"]
+    out.update(
+        {
+            "shared_instruments": len(idk),
+            "shared_scored_cells": res["cells"],
+            "r2_oos": got["pooled"]["r2_oos"],
+            "mean_huber_loss": got["mean_huber_loss"],
+            "reference_cells_86_instruments": ref["cells"],
+            "reference_r2_oos_86_instruments": ref_h["pooled"]["r2_oos"],
+            "reference_mean_huber_loss_86_instruments": ref_h["mean_huber_loss"],
+        }
     )
     return out
 
 
 def checks_text(manifest: dict, check: dict) -> dict[str, str]:
-    return {
-        "reproduces the estimator test": (
-            f"{check['cells']} cells; pooled r2_oos differs from "
-            f"`{manifest['run_of_record']}/fit.json` by {check['r2_oos_difference']:.2e} and mean "
-            f"Huber loss by {check['mean_huber_loss_difference']:.2e} (tolerance {TOLERANCE:g})"
+    out = {
+        "Huber loadings against the run of record": (
+            f"`{manifest['run_of_record']}` stores {check['cells_compared']:,} Huber loadings for "
+            f"the instruments it shares with this build; the largest absolute difference is "
+            f"{check['max_abs_loading_difference']:.1e} (tolerance zero)"
         ),
         "no lookahead": "`assert_no_lookahead` passed on every instrument's path",
-        "inputs": "weekly returns (Cash out) and factors hash-equal to the run of record: "
-        f"{manifest['inputs_equal_run_of_record']}",
+        "factors": "the factors hash equals the run of record's: "
+        f"{manifest['factors_equal_run_of_record']}",
     }
+    if "shared_scored_cells" in check:
+        out["fit on the shared cells (reported, not compared)"] = (
+            f"{check['shared_instruments']} instruments, {check['shared_scored_cells']:,} cells "
+            f"scored by the test's rule: pooled r2_oos {check['r2_oos']:.4f}, mean Huber loss "
+            f"{check['mean_huber_loss']:.4f}; `fit.json` pools 86 instruments "
+            f"({check['reference_cells_86_instruments']:,} cells): "
+            f"{check['reference_r2_oos_86_instruments']:.4f} and "
+            f"{check['reference_mean_huber_loss_86_instruments']:.4f}"
+        )
+    if "supersedes_max_abs_loading_difference" in manifest:
+        out[f"against {manifest['supersedes']}"] = (
+            f"{manifest['supersedes_cells_compared']:,} loadings on the cells the two stores "
+            f"share; the largest absolute difference is "
+            f"{manifest['supersedes_max_abs_loading_difference']:.1e}"
+        )
+    return out
 
 
 def main(argv=None) -> int:
@@ -135,6 +161,11 @@ def main(argv=None) -> int:
     parser.add_argument("--root", default=str(store.STORE_ROOT))
     parser.add_argument("--report-root", default=str(REPO_ROOT / "results" / "characteristics"))
     parser.add_argument("--reference-run", default=REFERENCE_RUN)
+    parser.add_argument(
+        "--supersedes",
+        default="huber6-v1",
+        help="an earlier store: recorded in the manifest and compared cell by cell",
+    )
     parser.add_argument(
         "--report-only",
         action="store_true",
@@ -167,29 +198,26 @@ def main(argv=None) -> int:
 
     ref_dir = REPO_ROOT / "results" / "measurement" / args.reference_run
     ref_summary = json.loads((ref_dir / "summary.json").read_text(encoding="utf-8"))
-    no_cash = [i for i, c in enumerate(classes) if c != "Cash"]
-    weekly_hash_ex_cash = RM._frame_hash(weekly.iloc[:, no_cash])
-    inputs_match = (
-        weekly_hash_ex_cash == ref_summary["hashes"]["weekly_returns_hash"]
-        and RM._frame_hash(ff.frame) == ref_summary["hashes"]["factors_hash"]
-    )
-    print(f"inputs equal the run of record's (Cash out): {inputs_match}")
+    factors_match = RM._frame_hash(ff.frame) == ref_summary["hashes"]["factors_hash"]
+    print(f"factors hash equals the run of record's: {factors_match}")
+    if not factors_match:
+        print("STOP: the factors moved since the run of record.", file=sys.stderr)
+        return 4
 
     check = reproduce_the_test(R, F, classes, ids, weeks, ref_dir)
     print(
-        f"reproduction: {check['cells']} cells (the test's {check['reference_cells']}); "
-        f"r2_oos {check['r2_oos']:.6f} against {check['reference_r2_oos']:.6f} "
-        f"(difference {check['r2_oos_difference']:.2e}); mean Huber loss "
-        f"{check['mean_huber_loss']:.6f} against {check['reference_mean_huber_loss']:.6f} "
-        f"(difference {check['mean_huber_loss_difference']:.2e})"
+        f"Huber loadings against the run of record: {check['cells_compared']} cells compared, "
+        f"largest absolute difference {check['max_abs_loading_difference']:.1e}"
     )
-    if (
-        check["cells"] != check["reference_cells"]
-        or check["r2_oos_difference"] > TOLERANCE
-        or check["mean_huber_loss_difference"] > TOLERANCE
-    ):
-        print(f"STOP: the build does not reproduce the test to {TOLERANCE:g}.", file=sys.stderr)
+    if "stop" in check:
+        print(f"STOP: {check['stop']}.", file=sys.stderr)
         return 4
+    print(
+        f"on the {check['shared_instruments']} shared instruments: {check['shared_scored_cells']} "
+        f"scored cells, r2_oos {check['r2_oos']:.6f}, mean Huber loss {check['mean_huber_loss']:.6f} "
+        f"(fit.json, 86 instruments: {check['reference_r2_oos_86_instruments']:.6f}, "
+        f"{check['reference_mean_huber_loss_86_instruments']:.6f})"
+    )
 
     built = build.build_estimated(R, F, ids, classes, weeks, params)  # assert_no_lookahead inside
     measured_ids = list(dict.fromkeys([*ids, *skipped]))
@@ -217,7 +245,9 @@ def main(argv=None) -> int:
     manifest = {
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "decision": "decisions/0049",
-        "handoff_task": 51,
+        "also": ["decisions/0052"],
+        "handoff_task": TASK,
+        "supersedes": args.supersedes,
         "estimator": {
             "name": build.ESTIMATOR,
             "hypothesis": "H-2026-0013",
@@ -232,9 +262,8 @@ def main(argv=None) -> int:
         "params_version": params.params_version,
         "params_hash": params.params_hash,
         "weekly_returns_hash": RM._frame_hash(weekly),
-        "weekly_returns_hash_ex_cash": weekly_hash_ex_cash,
         "factors_hash": RM._frame_hash(ff.frame),
-        "inputs_equal_run_of_record": bool(inputs_match),
+        "factors_equal_run_of_record": bool(factors_match),
         "run_of_record": args.reference_run,
         "thread_setting": THREADS,
         "n_estimated": int(inst["estimated"].sum()),
@@ -247,6 +276,18 @@ def main(argv=None) -> int:
         "measured_fields": build.MEASURED_FIELDS,
         "reproduction": {k: (float(v) if isinstance(v, float) else v) for k, v in check.items()},
     }
+    if args.supersedes:
+        old = store.load_store(args.supersedes, args.root)
+        key = ["instrument", "date", "factor"]
+        both = old.frames["loadings"].merge(frames["loadings"], on=key, suffixes=("_old", "_new"))
+        manifest["supersedes_cells_compared"] = int(len(both))
+        manifest["supersedes_max_abs_loading_difference"] = (
+            float((both["loading_old"] - both["loading_new"]).abs().max()) if len(both) else 0.0
+        )
+        print(
+            f"against {args.supersedes}: {len(both)} loadings on shared cells, largest absolute "
+            f"difference {manifest['supersedes_max_abs_loading_difference']:.1e}"
+        )
     out = store.write_store(args.store_id, frames, manifest, args.root)
     loaded = store.load_store(args.store_id, args.root)  # re-hash: the round trip must hold
     print(f"wrote {out} (directory hash {loaded.manifest['directory_hash'][:16]})")

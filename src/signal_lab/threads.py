@@ -1,10 +1,13 @@
 """
 One thread is the lab's reference configuration (decisions/0048).
 
-A BLAS built for several threads sums in a different order from run to run, so
-the recorded numbers repeat only at one thread. `make` exports the three
+The recorded numbers depend on the thread count: HANDOFF task 49 measured
+four goldens in `tests/test_baseline.py` that read differently with the three
+variables set to 1 than with them unset (net IR differences of 1e-4 to 1e-3), and
+with them at 1 the same four values came back from two fresh processes. It did
+not measure a difference between runs at one setting. `make` exports the three
 variables; a run made at any other setting refuses to start rather than record
-a number that cannot be reproduced.
+a number made under a configuration it cannot name.
 """
 
 from __future__ import annotations

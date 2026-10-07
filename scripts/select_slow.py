@@ -56,6 +56,8 @@ class Full(Exception):
 
 @dataclass
 class Result:
+    """A FULL result runs every slow file: they are all `selected` and none is `left_out`."""
+
     tier: str  # "FULL" | "SCOPED"
     reason: str = ""
     selected: list[str] = field(default_factory=list)
@@ -285,13 +287,13 @@ def decide(
     slow = [p.relative_to(root).as_posix() for p in slow_files(root)]
 
     if any(k == "FULL" for k in kinds.values()):
-        return Result("FULL", reason, [], slow, kinds)
+        return Result("FULL", reason, slow, [], kinds)
     if not recently_proven(root, now):
         return Result(
             "FULL",
             f"no whole-suite pass in the last {FULL_MAX_AGE_DAYS} days",
-            [],
             slow,
+            [],
             kinds,
         )
 
@@ -305,7 +307,7 @@ def decide(
             if reach & changed:
                 selected.append(s)
     except Full as exc:
-        return Result("FULL", str(exc), [], slow, kinds)
+        return Result("FULL", str(exc), slow, [], kinds)
     left_out = [s for s in slow if s not in selected]
     return Result("SCOPED", "", selected, left_out, kinds)
 

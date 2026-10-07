@@ -265,6 +265,8 @@ def test_the_committed_universe_is_what_build_universe_produces():
     `investable_universe.csv` was never regenerated, so the Bloomberg audit
     universe still held SPBDALB: 96 holdable series where 0022 says 95. The
     table is a build product; this keeps it from drifting from its builder.
+    decisions/0052 then took LGTRTRGU and LGTRTRJU out (restatements of the global
+    aggregate in another currency): 93 holdable series.
     Compared on content, not bytes, so line endings do not matter.
     """
     import csv
@@ -283,7 +285,9 @@ def test_the_committed_universe_is_what_build_universe_produces():
                 f"builder {value!r} -- run `make universe` and commit the table"
             )
     assert committed["SPBDALB"]["investable"] == "False"
-    assert sum(r["investable"] == "True" for r in committed.values()) == 95
+    for restated in ("LGTRTRGU", "LGTRTRJU"):
+        assert committed[restated]["investable"] == "False"
+    assert sum(r["investable"] == "True" for r in committed.values()) == 93
 
 
 def test_a_cycle_run_by_a_test_leaves_the_real_registry_and_requests_untouched(tmp_path, capsys):

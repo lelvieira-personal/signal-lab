@@ -38,6 +38,7 @@ from typing import Any
 
 import pandas as pd
 
+from signal_lab.loaders import exusd_analytics as exusd
 from signal_lab.loaders.base import (
     AnalyticsPanel,
     ReturnPanel,
@@ -690,6 +691,8 @@ class BloombergLoader:
             if start < meta[ticker].true_daily_start:
                 meta[ticker] = replace(meta[ticker], true_daily_start=start)
 
+        exusd_report = self._merge_exusd_analytics(by_field, meta, markers, params)
+
         cut = holdout_start(params)
         frames = {
             field: pd.DataFrame(cols).loc[lambda f: f.index < cut]
@@ -706,7 +709,49 @@ class BloombergLoader:
             "no_daily_start_in_index_map": sorted(missing_start),
             "oas_unit": "percent (multiply by 100 for basis points)",
         }
+        if exusd_report is not None:
+            self.report["analytics"]["exusd"] = exusd_report
         return AnalyticsPanel(fields=frames, meta=meta, snapshot_id=snapshot_id, source=self.source)
+
+    def _merge_exusd_analytics(
+        self,
+        by_field: dict[str, dict[str, pd.Series]],
+        meta: dict[str, SeriesMeta],
+        markers: list[str],
+        params: Params,
+    ) -> dict[str, Any] | None:
+        """
+        The ex-USD analytics file (decisions/0052), merged into `by_field` and `meta`. A manifest
+        without its row (a test fixture's) loads as before; with the row, the file is required.
+        """
+        if not any(r.get("role") == exusd.ROLE for r in self.manifest()):
+            return None
+        entry = self._entry(exusd.ROLE)
+        path = self._path(entry)
+        sha = exusd.check_file(path)
+        long = exusd.rows_to_long(_sheet_rows(path, entry["sheet"]), markers)
+        added, starts, _ = exusd.split_by_field(long, params)
+        for field, cols in added.items():
+            for ticker in cols:
+                if ticker in by_field.get(field, {}):
+                    raise InvariantViolation(
+                        f"{ticker}|{field} is in both analytics files; refusing to pick one"
+                    )
+        for field, cols in added.items():
+            for ticker, series in cols.items():
+                by_field.setdefault(field, {})[ticker] = series
+        for (ticker, _field), start in starts.items():
+            if ticker not in meta:
+                meta[ticker] = SeriesMeta(
+                    series_id=ticker,
+                    true_daily_start=start,
+                    tier=_tier_from_start(start, params),  # type: ignore[arg-type]
+                    section="17. Analytics",
+                    region="17. Analytics",
+                )
+            elif start < meta[ticker].true_daily_start:
+                meta[ticker] = replace(meta[ticker], true_daily_start=start)
+        return exusd.describe(added, long, sha)
 
     @staticmethod
     def _treasury_tickers(index_map: pd.DataFrame) -> set[str]:

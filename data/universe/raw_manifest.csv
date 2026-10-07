@@ -10,3 +10,4 @@ bbg_data_values_only.xlsx,Frequency Audit,wide_single_date,obs_per_year,n/a,freq
 bbg_data_values_only.xlsx,Freq Monthly,wide_single_date,obs_per_month,n/a,frequency_audit_monthly,1,2
 bbg_exusd_bonds_usd_unhedged.csv,,paired_date_value,PX_LAST,local_or_USD,returns_ex_usd,1,2
 fred_panel.csv,,wide_single_date,various,n/a,fred,1,2
+bbg_exusd_bonds_analytics.xlsx,BBG Values,long_date_ticker,various,n/a,analytics_exusd,1,2

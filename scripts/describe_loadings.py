@@ -23,9 +23,11 @@ import json
 import sys
 from pathlib import Path
 
-import _bootstrap  # noqa: F401
+import _bootstrap
 import numpy as np
 import pandas as pd
+
+_bootstrap.require_one_thread()
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUT_ROOT = REPO_ROOT / "results" / "measurement"

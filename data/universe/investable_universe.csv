@@ -54,8 +54,8 @@ I02913JP,japan_aggregate,3. International Government Bonds,2001-01-04,,False,Tru
 I12823GB,uk_gilt_1_10y,3. International Government Bonds,2006-01-03,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 LET1TREU,euro_treasury_1_10y,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 LG38TRUU,global_agg_ex_usd,3. International Government Bonds,2001-01-02,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
-LGTRTRGU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-02-01,backbone,False,True,mid,Ex-USD Bonds,,bbg_index_coverage.csv
-LGTRTRJU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-02-01,backbone,False,True,mid,Ex-USD Bonds,,bbg_index_coverage.csv
+LGTRTRGU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-02-01,backbone,False,False,mid,Ex-USD Bonds,"the global aggregate restated in another currency, not an instrument (decisions/0052)",bbg_index_coverage.csv
+LGTRTRJU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-02-01,backbone,False,False,mid,Ex-USD Bonds,"the global aggregate restated in another currency, not an instrument (decisions/0052)",bbg_index_coverage.csv
 LP05TREU,pan_euro_agg_corporate,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 BCOMGCTR,Bloomberg Gold Subindex Total,15. Real Assets,1975-02-03,backbone,False,True,high,Gold,,bbg_index_coverage.csv
 I00183US,Bloomberg Intermediate Ba U.S.,5. Credit,1998-08-07,backbone,False,True,high,HY Corporates,,bbg_index_coverage.csv

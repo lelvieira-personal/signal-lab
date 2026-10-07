@@ -155,22 +155,30 @@ def test_a_store_that_is_edited_after_it_is_written_is_refused(tmp_path):
         store.load_store("t2", tmp_path)
 
 
-def test_the_report_opens_with_its_disclaimer_and_tabulates_measured_against_estimated(tmp_path):
+IDS = ["LUACTRUU", "HY1", "T1"]  # exact loadings, noisy loadings, unrelated to the factors
+CLASSES = ["IG Corporates", "HY Corporates", "Treasuries"]
+START = 120  # LUACTRUU's measured weeks; the first loadings exist from week 103
+
+
+def _report_store(tmp_path, name="t3", measured_hole=()):
+    """
+    LUACTRUU (IG) and HY1 have a measured duration of 3 and spreads of 1 and 4; T1 has none.
+    LUACTRUU's measured weeks start at week START and skip `measured_hole`.
+    """
     F, weeks = _factors(300), _weeks()
-    built = _build(_returns(F), F, weeks)
-    meas = pd.DataFrame(
-        {
-            "instrument": "A",
-            "date": weeks,
-            "oad": 3.0,
-            "oas": np.nan,
-            "kind": "measured",
-        }
-    )
+    built = _build(_returns(F), F, weeks, IDS)
+    built["instruments"]["class"] = CLASSES
+    meas = []
+    for sid, oas in (("LUACTRUU", 1.0), ("HY1", 4.0)):
+        w = weeks[START:] if sid == "LUACTRUU" else weeks
+        w = [d for d in w if d not in {weeks[k] for k in measured_hole}] if sid == "LUACTRUU" else w
+        meas.append(
+            pd.DataFrame({"instrument": sid, "date": w, "oad": 3.0, "oas": oas, "kind": "measured"})
+        )
     frames = {
         "loadings": built["loadings"],
         "fit": built["fit"],
-        "measured": meas,
+        "measured": pd.concat(meas, ignore_index=True),
         "instruments": built["instruments"],
     }
     manifest = {
@@ -192,15 +200,117 @@ def test_the_report_opens_with_its_disclaimer_and_tabulates_measured_against_est
         "factors_hash": "f" * 64,
         "thread_setting": {"OMP_NUM_THREADS": "1"},
     }
-    store.write_store("t3", frames, manifest, tmp_path)
-    loaded = store.load_store("t3", tmp_path)
-    table = report.estimated_against_measured(loaded)
-    row = table.iloc[0]
-    assert row["instrument"] == "A" and row["minus_oad"] == -3.0
-    assert row["real_yield"] == pytest.approx(TRUE[1], abs=0.05)
-    assert row["real_yield_ratio"] == pytest.approx(TRUE[1] / -3.0, abs=0.02)
+    store.write_store(name, frames, manifest, tmp_path)
+    return store.load_store(name, tmp_path), weeks
+
+
+def test_estimated_against_measured_has_a_row_per_bond_instrument_and_a_dash_for_no_duration(
+    tmp_path,
+):
+    loaded, _ = _report_store(tmp_path)
+    table = report.estimated_against_measured(loaded).set_index("instrument")
+    assert set(table.index) == set(IDS)
+    a = table.loc["HY1"]
+    assert a["weeks"] > a["weeks_measured"] - 1 and a["minus_oad"] == -3.0
+    assert a["real_yield"] == pytest.approx(TRUE[1], abs=0.05)
+    assert a["real_yield_ratio"] == pytest.approx(TRUE[1] / -3.0, abs=0.02)
+    assert a["real_yield_weekly_p10"] <= a["real_yield_weekly_median"] <= a["real_yield_weekly_p90"]
+    assert (
+        table.loc["LUACTRUU", "weeks_measured"] < table.loc["LUACTRUU", "weeks"]
+    )  # only from week START
+    assert table.loc["T1", "weeks_measured"] == 0 and np.isnan(table.loc["T1", "real_yield_ratio"])
     text = report.build_report(loaded)
     assert text.startswith("Built from `decisions/0049`. It chooses nothing about the matrix's")
+    assert "2 of 3 estimated bond-class instruments have a measured duration" in text
+
+
+def test_the_ratio_is_taken_over_the_weeks_with_both(tmp_path):
+    loaded, weeks = _report_store(tmp_path)
+    row = report.estimated_against_measured(loaded).set_index("instrument").loc["LUACTRUU"]
+    both = loaded.frames["loadings"].query("instrument == 'LUACTRUU' and factor == 'real_yield'")
+    assert row["weeks"] == len(both)
+    assert row["weeks_measured"] == int((both["date"] >= weeks[START]).sum())
+
+
+def test_the_ratio_by_period_leaves_a_period_with_no_weeks_empty(tmp_path):
+    loaded, weeks = _report_store(tmp_path)  # weekly dates 2005 to 2010 or so
+    per = report.ratio_by_period(loaded).set_index("instrument")
+    assert weeks[-1].year < 2016
+    assert np.isnan(per.loc["HY1", "real_yield_2016-19"])
+    assert per.loc["HY1", "real_yield_2002-08"] == pytest.approx(TRUE[1] / -3.0, abs=0.05)
+    assert "T1" not in per.index  # no measured duration, no row
+
+
+def test_measured_coverage_counts_the_first_week_the_gaps_and_the_empty_weeks_inside(tmp_path):
+    loaded, weeks = _report_store(tmp_path, measured_hole=(150, 151))
+    cov = report.measured_coverage(loaded).set_index("instrument")
+    row = cov.loc["LUACTRUU"]
+    first_loading = loaded.frames["loadings"].query("instrument == 'LUACTRUU'")["date"].min()
+    assert row["first_measured"] == weeks[START]
+    assert row["empty_inside"] == 2
+    assert (
+        row["loading_no_duration"]
+        == int(
+            (loaded.frames["fit"].query("instrument == 'LUACTRUU'")["date"] < weeks[START]).sum()
+        )
+        + 2
+    )
+    assert first_loading <= weeks[START]
+    assert cov.loc["HY1", "empty_inside"] == 0 and pd.isna(cov.loc["T1", "first_measured"])
+
+
+def test_duration_times_spread_is_relative_to_the_reference_index(tmp_path):
+    loaded, _ = _report_store(tmp_path)
+    dts = report.duration_times_spread(loaded).set_index("instrument")
+    assert set(dts.index) == {"LUACTRUU", "HY1"}  # T1 has no OAS
+    assert dts.loc["LUACTRUU", "credit_over_duration_times_spread"] == pytest.approx(
+        TRUE[3] / -3.0, abs=0.05
+    )
+    assert dts.loc["HY1", "credit_over_duration_times_spread"] == pytest.approx(
+        TRUE[3] / (-3.0 * 4.0), abs=0.05
+    )
+
+
+def test_explained_share_by_class_names_the_lowest_instrument_and_says_commodities_is_an_identity(
+    tmp_path,
+):
+    loaded, _ = _report_store(tmp_path)
+    text = report.build_report(loaded)
+    assert "| lowest at last week | below 0.5 |" in text
+    assert "Commodities' share is an identity" in text
+
+
+def test_the_scored_cell_set_takes_presence_only_from_a_reference_run():
+    from signal_lab.characteristics import reference
+
+    weeks = _weeks(30)
+    rng = np.random.default_rng(5)
+    rows = []
+    for est in ("huber_m", "other"):
+        for sid in ("A", "B"):
+            for k, d in enumerate(weeks[5:]):
+                for f in FACTOR_NAMES:
+                    # B's `other` loading is absent in week 10
+                    if est == "other" and sid == "B" and k == 5:
+                        continue
+                    rows.append((sid, d, f, rng.normal(), est))
+    stored = pd.DataFrame(rows, columns=["instrument", "date", "factor", "loading", "estimator"])
+    arrays = reference.reference_arrays(
+        stored, ["huber_m", "other"], ["A", "B"], weeks, list(FACTOR_NAMES)
+    )
+    have = reference.presence_mask(arrays)
+    changed = stored.copy()
+    other = changed["estimator"] == "other"
+    changed.loc[other, "loading"] = rng.normal(
+        100.0, 50.0, int(other.sum())
+    )  # every value of another estimator
+    again = reference.presence_mask(
+        reference.reference_arrays(
+            changed, ["huber_m", "other"], ["A", "B"], weeks, list(FACTOR_NAMES)
+        )
+    )
+    assert (have == again).all()
+    assert have[:5].sum() == 0 and not have[10, 1] and have[10, 0] and have[11, 1]
 
 
 def test_the_exposure_matrix_still_does_not_exist():
