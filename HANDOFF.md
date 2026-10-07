@@ -56,7 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-03 (evening): queued, task 48 only.** Task 47 is done and Cowork verified it (Project doc `claude/task-47-review-2026-10-03.md`; mirror copy in `Claude outputs/project-mirror/`). Task 48 reproduces the run of record from the committed code, names the two filters' variance update and runs one sensitivity on it, and describes how stable each estimator's loadings are. It needs no owner ruling and moves no hypothesis. **Waiting on the owner:** OWNER-QUEUE B5 (which estimator enters the exposure matrix) and L23 (the grade filter leaves three JPMaQS tickers empty). The exposure-matrix build is not queued until B5 is ruled.
+**As of 2026-10-06 (night): queued, 48 (in flight) then 49.** Task 49 (owner, 2026-10-06, OWNER-QUEUE L24) makes every check log per-test times and the machine's load, trials parallel tests, and adds `make check-scoped`, which leaves out the slow tests a change cannot reach. It has no owner-only edit, changes nothing under `src/` and moves no hypothesis. Run it after task 48's receipt is committed. **Still waiting on the owner:** OWNER-QUEUE B5 and L23.
+
+*(Earlier note:)* **As of 2026-10-03 (evening): queued, task 48 only.** Task 47 is done and Cowork verified it (Project doc `claude/task-47-review-2026-10-03.md`; mirror copy in `Claude outputs/project-mirror/`). Task 48 reproduces the run of record from the committed code, names the two filters' variance update and runs one sensitivity on it, and describes how stable each estimator's loadings are. It needs no owner ruling and moves no hypothesis. **Waiting on the owner:** OWNER-QUEUE B5 (which estimator enters the exposure matrix) and L23 (the grade filter leaves three JPMaQS tickers empty). The exposure-matrix build is not queued until B5 is ruled.
 
 *(Earlier note:)* **As of 2026-10-02 (mid-morning): queued, 46 then 47.** Task 47 adds a fifth loading estimator, H-2026-0017 (mean-reverting Bayesian loadings; owner, 2026-10-02), and must run after 46.
 
@@ -2540,6 +2542,249 @@ For each estimator, on the scored cells of the run of record, with
   not in the scored set;
 - the 25 slowest tests, if step 4 asked for them;
 - every test added or changed, and why;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
+### 49. Make the check explain its runtime, try parallel tests, and run only the slow tests a change can reach (OWNER-QUEUE L24)
+
+Added 2026-10-06 by Cowork. **Owner ruling 2026-10-06** (L24: "consider it
+approved as a handoff for claude code to work on"). No owner-only edit, no
+vendor call, no audit, no hypothesis moves, and **no file under `src/`
+changes**. Run it **after task 48's receipt is committed.** Budget 3 h plus the
+checks.
+
+**Read first:** `Claude outputs/project-mirror/check-runtime-2026-10-06.md`. It
+has the evidence and says which numbers below are Cowork's own choices.
+
+**Why.**
+- **`check-full` runs anywhere from 388 s to 4,235 s on nearly the same suite,
+  and nobody knows why.** On 2026-10-01, 677 tests took 2,079 s at 22:30 and
+  716 tests took 829 s at 23:45. Task 47's took 4,235 s; task 48's took
+  2,462 s for 743 tests. The task 37 profile put the whole suite at 582 s.
+- **The rule runs every engine test for a change that cannot reach the
+  engine.** Nothing outside `src/signal_lab/measurement/` imports that package
+  except `scripts/run_measurement.py` and `scripts/describe_loadings.py`.
+  Tasks 47 and 48 changed only those files, and each paid for about 30 engine
+  and optimiser tests.
+- **It isn't the Monte Carlo.** About 4 of the 40 `slow` tests are simulations.
+  The rest are engine runs, optimiser solves and estimator fits.
+
+**Hard rules:**
+- **No test is deleted, weakened, re-marked or thinned.** No seed count or
+  replication count goes down. **No golden is re-recorded**, for any reason.
+- **When in doubt the selector says FULL.** A path it can't place, a file it
+  can't parse, a git call that fails: FULL, with the reason printed.
+- **A scoped run is never reported as a full one.** `status.txt`, the log and
+  the receipt each say which tier ran and which slow files were left out.
+- **`scripts/unattended.sh`'s rc and its existing `status.txt` lines don't
+  change.** Cowork reads them. Add lines; don't reword any.
+- The behaviours and the stop conditions below are fixed. How you implement
+  them is yours.
+- One `scripts/unattended.sh` at a time, and nothing else heavy on the machine
+  while a timing in step 2 or 3 runs.
+
+**0. Commit first, alone:** whichever of `HANDOFF.md` and `OWNER-QUEUE.md` is
+still uncommitted, as `queue: task 49; OWNER-QUEUE L24 (owner 2026-10-06)`.
+Check `git diff --cached --ignore-cr-at-eol --stat` before committing.
+
+**1. Every run explains itself (`build.mk`, `scripts/unattended.sh`).**
+- `build.mk`: add `PYTEST_ARGS ?=` and append `$(PYTEST_ARGS)` to the pytest
+  call in `test`, `test-fast` and `test-slow`. Not in `holdout`.
+- `unattended.sh` passes
+  `PYTEST_ARGS="--durations=40 --durations-min=1.0 --junitxml=$out/junit.xml"`
+  to its check step, so every run leaves per-test times.
+- `status.txt`, one line at the start: `nproc`, the three load averages from
+  `/proc/loadavg`, `MemAvailable`, and `OMP_NUM_THREADS`,
+  `OPENBLAS_NUM_THREADS` and `MKL_NUM_THREADS` (or `unset`). One line at the
+  end: the load averages again.
+- `$out/load.log`: every 30 s, a timestamp, the load averages and the top
+  three processes by CPU (`ps -eo pcpu,comm --sort=-pcpu`). Stop the sampler
+  when the script exits, whatever the rc.
+- **The Windows side, best effort.** WSL can't see what Windows or another
+  virtual machine is doing with the CPU, and that is one of the suspects. If
+  `powershell.exe` is on `PATH`, add total CPU percent and the top three
+  process names to `load.log` once a minute. It must never change the rc, and
+  a call that fails or takes over 5 s is skipped. **If this isn't working
+  after 15 minutes of effort, leave it out and say so.**
+
+**2. Do BLAS threads matter? A measurement, about 10 minutes.**
+- Run this twice, back to back:
+  `uv run --python 3.12 --group dev pytest -q -m slow tests/test_baseline.py --durations=10`.
+  First with the environment as it is. Then with
+  `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1`.
+- Report both wall times, `nproc`, and the load average before each.
+- **If any test fails with threads capped, skip step 3 and put it first in the
+  receipt.** `test_baseline.py` asserts `row["net_ir"] == GOLDEN_NET_IR`
+  exactly. A failure there means a recorded number depends on the thread
+  count, which the owner needs to know before anything else.
+
+**3. Parallel tests: a trial, adopted only if it pays.**
+- **Skip it if `nproc` is 2 or less,** and say so.
+- Add `pytest-xdist` to the `dev` group in `pyproject.toml`, then `make lock`
+  and `make install`.
+- **A, then B, back to back, on the slow tier:**
+  - A: `uv run --python 3.12 --group dev pytest -q -m slow --durations=40`
+  - B: the same plus `-n auto --dist loadfile`, with the three thread
+    variables set to 1.
+  - `loadfile` keeps each test file on one worker, so a module's expensive
+    fixtures are built once.
+- **Adopt it only if all three hold:** B passes exactly the tests A passes; B's
+  wall time is at most 0.70 of A's; and the load average at the two starts
+  was similar. Report both starts.
+- **If adopted:** `build.mk` gets `XDIST ?= -n auto --dist loadfile`, used by
+  `test`, `test-fast` and `test-slow`, and those recipes cap the three thread
+  variables at 1 whenever `XDIST` is not empty. `make check-full XDIST=` runs
+  serial. `holdout` stays serial.
+- **If not adopted:** put `pyproject.toml` and `uv.lock` back as they are at
+  HEAD, `make install` again, add no `XDIST`, and report both times.
+- **A test that fails only in B:** not adopted. Name the test and how it
+  failed. Don't fix it by regrouping or reordering tests; Cowork will look.
+
+**4. The scoped tier: `scripts/select_slow.py` and `make check-scoped`.**
+
+A slow test file has to run when a changed file is inside what it imports,
+directly or through other modules. Otherwise it can be left out. Everything
+the selector doesn't understand is FULL.
+
+**4a. The selector.** `scripts/select_slow.py [--base REF] [--head REF]`,
+standard library only, like `check_governance.py`.
+- **Changed files:** `git diff --name-only <base>` (default `HEAD`: the working
+  tree and the index against it) plus untracked files that aren't ignored.
+  With `--head`, the diff between the two refs; that mode is for the replay in
+  4e only.
+- **Each changed path is one of three kinds:**
+  - **Neutral, reaches no slow test:** `*.md` in the repo root, `decisions/`,
+    `hypotheses/`, `docs/`, `results/`, `.gitignore`, and `build.mk` **only if**
+    its check block is unchanged (4c).
+  - **Code, placed by imports:** `src/signal_lab/**/*.py`, `scripts/*.py`,
+    `render/*.py`, `tests/test_*.py`.
+  - **Anything else is FULL.** That includes `params/`, `vetoes/`,
+    `pyproject.toml`, `uv.lock`, `tests/conftest.py`, `tests/fixtures/`, any
+    other file under `tests/`, `data/`, `.githooks/`, `scripts/unattended.sh`,
+    `scripts/_bootstrap.py` and `scripts/select_slow.py` itself. **A deleted or
+    renamed code file is FULL too:** the tree no longer says who imported it.
+- **Imports:** parse each file with `ast` and take every `import` and
+  `from ... import`, **including those inside functions** (`conftest.py` and
+  many tests import there). Resolve names against `src/`, the repo root,
+  `scripts/`, `render/` and `tests/`, because the tests put those on
+  `sys.path` and import scripts by bare name. Follow relative imports. A
+  package brings its `__init__.py`. `from pkg import name` brings
+  `pkg/name.py` if it exists. A name that resolves to no repo file is
+  third-party and is ignored. Follow the imports transitively.
+- **`tests/conftest.py`'s imports count for every test file.** Its fixtures are
+  shared.
+- **A slow test file** is a `tests/test_*.py` holding at least one
+  `pytest.mark.slow`. **It is selected** when a changed code file is the file
+  itself or is anywhere in its imports.
+- **FULL as well when the engine hasn't been proven lately:** no
+  `make check-full rc=0` line, and no `make check-scoped rc=0 ... tier=FULL`
+  line, in any `results/audit/_unattended/*/status.txt` from the last 7 days
+  (`FULL_MAX_AGE_DAYS`, default 7).
+- **Output:** first line `FULL: <reason>` or `SCOPED`. Then the slow files
+  selected, the slow files left out, and each changed path with its kind.
+
+**4b. Running a selection.**
+- `tests/conftest.py`: a pytest option `--slow-only-in=<comma-separated files>`.
+  When given, deselect every `slow` item whose file isn't listed. Without the
+  option nothing changes. Fast tests in a left-out file still run.
+- `make check-scoped` = governance + lint + the selector's output printed in
+  full + one pytest run + holdout. The pytest run is the whole suite when the
+  selector says FULL, and `-m "not holdout" --slow-only-in=<selected>` when it
+  says SCOPED.
+- `scripts/unattended.sh check-scoped` is a valid bare target. Its status line
+  is `make check-scoped rc=<rc> (<n> s) tier=FULL` or `... tier=SCOPED`, and a
+  second line lists the slow files left out.
+- **Audit targets still open with `make check-full`.** Don't change that.
+
+**4c. `build.mk`'s check block.** Put one comment line before and one after the
+part that defines the check: `PY`, `PYTEST`, `PYSTD`, `GOV`, `PYTEST_ARGS`,
+`XDIST`, and the targets `lint`, `test`, `test-fast`, `test-slow`, `holdout`,
+`governance`, `check`, `check-full` and `check-scoped`. Move lines if you have
+to, without changing what any target does. The selector compares that block at
+the base with the working tree, ignoring line endings. Different, or a marker
+missing on either side: FULL. A new audit or report target outside the block
+is neutral.
+
+**4d. Tests, fast tier, on a small tree built in `tmp_path`:**
+- a change to a module only one slow file imports selects only that file;
+- an import inside a function is followed;
+- a script imported by bare name through `scripts/` is followed;
+- a change to something `conftest.py` imports selects every slow file;
+- `params/x.yaml`, an unknown path and a deleted code file each give FULL;
+- a changed check block gives FULL, and a new target outside it doesn't;
+- no full pass in the last 7 days gives FULL;
+- selected plus left out equals every slow file, each exactly once;
+- **on the real tree:** the files under `tests/` and `src/` that reach repo
+  code with `subprocess`, `runpy`, `importlib.import_module`, `__import__` or
+  `exec` are exactly a list written into the test. Today Cowork finds one,
+  `tests/test_governance.py`, which runs `scripts/check_governance.py`. A new
+  one fails the fast tier, because the selector can't see through it.
+- **`--slow-only-in`, by `pytest --collect-only -q` counts:** listing every
+  slow file collects what `-m "not holdout"` collects; listing none collects
+  what `-m "not slow and not holdout"` collects.
+
+**4e. Replay, and the stop condition for step 4.** Run the selector with
+`--base <c>^ --head <c>` on `b0c7713` (task 47), `3519b1c` (task 46),
+`3a04275` (task 45), `e07a9d1` (task 44 part A) and task 48's build commit.
+The imports are read from today's tree, so this is an approximation; say so.
+- **`b0c7713` must be SCOPED,** must select `test_measurement_estimators.py`
+  and `test_measurement_fidelity.py`, and must leave out `test_audit.py`,
+  `test_baseline.py`, `test_engine.py` and `test_experiment.py`.
+- **`3519b1c` must select `test_audit.py` and `test_baseline.py`.** It changed
+  `loaders/base.py`, which both import.
+- The other three changed `build.mk` before it had markers, so FULL is
+  expected there. Report the reason line.
+- **If either expectation fails, stop step 4:** don't add `check-scoped` to
+  `build.mk`, don't edit `CLAUDE.md`, and put the selector's output in the
+  receipt. Keep the selector and its tests if they pass.
+
+**4f. `CLAUDE.md`, only if 4e passed.**
+- Replace the two sentences that begin "`make check-full` is the definition of
+  done" and "`make check` (the fast tier) is enough" with:
+
+  > `make check-scoped` is the definition of done for any commit touching
+  > `src/`, `scripts/`, `tests/`, `vetoes/` or `params/`. It runs the whole
+  > suite unless it can place every changed file, and then it leaves out only
+  > the slow tests whose imports cannot reach a change; it prints which it
+  > did, and the receipt repeats it. `make check-full` (always the whole suite)
+  > opens every audit, and is the answer whenever `check-scoped` is in doubt.
+  > `make check` (the fast tier) is enough for a commit touching only
+  > `HANDOFF.md`, `OWNER-QUEUE.md`, `decisions/`, `hypotheses/` or docs.
+
+- In "Routine, unattended work": add `check-scoped` to the target list and
+  say it runs `make check-scoped`. Add to the digest's contents: the tier that
+  ran, the slow files left out, the load averages at the start and the end,
+  and the five slowest tests.
+
+**5. Check, then commit.**
+- `scripts/unattended.sh check-full --digest`, after the last edit. This
+  commit changes `tests/conftest.py`, so it is a full run by the new rule as
+  well as the old one.
+- Then `python3 scripts/select_slow.py` on the same tree, and paste its
+  output. **It must say FULL.** If it says SCOPED, stop and don't commit.
+- Commit `scripts/unattended.sh`, `scripts/select_slow.py`, `tests/conftest.py`,
+  the new test file, `build.mk` and `CLAUDE.md`, plus `pyproject.toml` and
+  `uv.lock` if step 3 adopted xdist. Message:
+  `checks: runs log the machine and per-test times; a scoped slow tier by imports; xdist <adopted|not adopted> (HANDOFF task 49, OWNER-QUEUE L24)`.
+
+**Receipt:**
+- rc, commits, the check-full log directory and its runtime;
+- step 1: one `status.txt` start line and three lines of `load.log`, pasted;
+  whether the Windows-side sample works;
+- step 2: the two wall times, `nproc`, the load averages, and any failure;
+- step 3: A's and B's wall times and pass counts, adopted or not, and why;
+- the 25 slowest tests of the final run, and the total time of the `slow`
+  tier against the rest;
+- 4e: the first line and the selected and left-out lists for each of the five
+  commits;
+- step 5's selector output;
+- which steps stopped, and on what;
+- every test added, and why;
+- **what you think makes the slow runs slow, labelled as a guess if it is
+  one;**
 - **Anything in this task you didn't do, said plainly.**
 
 Then stop.

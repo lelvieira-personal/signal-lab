@@ -160,19 +160,72 @@ to waive:
 - **(c) Huber (H-2026-0013).** Waives the gate at p = 0.20. Simple, passes the
   check narrowly (1.68), and gains most in the largest-move weeks.
 
-**Cowork leans (b),** recorded as adopted on the owner's judgement and not
-detected by the gate, with measured duration and spread kept for the bond
-cells that `decisions/0015` already treats as measured. Cowork leaned Huber
-before task 47.
+**Task 48's descriptions (2026-10-06; read by Cowork from the run directories
+before the receipt landed).** None is a test and none changes a verdict.
+Detail is in the Project doc `claude/task-48-review-2026-10-06.md`.
+- **The fit is the same for all six.** Pooled out-of-sample R² runs from 0.691
+  (HMM) to 0.704 (Theil-Goldberger); rolling OLS is 0.699. By class it runs
+  from 0.30 (Gold) to 0.92 (Treasuries).
+- **Which filter is "best" depends on one line of code.** With West and
+  Harrison's covariance update the Kalman candidate reads +0.0027 (adjusted p
+  0.052) and the mean-reverting candidate +0.0018 (0.264). As coded they read
+  −0.0005 and +0.0028 (0.057). All five verdicts are `not_detected` either
+  way. Cowork's synthetic check on 2026-10-03 said the mean-reverting
+  candidate would barely move. On real data that was wrong.
+- **Stability, as a ratio to rolling OLS** (below 1 is steadier):
 
-**Not yet measured: how stable each estimator's loadings are.** 0015 says the
-stability of the exposure vector matters as much as its level, and 0046
-scored only one-week prediction. HANDOFF task 48 adds a description of
-week-to-week and year-to-year change per estimator. It is a description made
-after the results were seen, so it informs the judgement and is no test.
+  | Estimator | Weekly change | Weekly, 2008-09 | Annual change | Rank agreement with OLS |
+  |---|---|---|---|---|
+  | Huber | 1.03 | 1.01 | 0.95 | 0.98 |
+  | Theil-Goldberger | 0.85 | 0.85 | 0.84 | 0.97 |
+  | HMM | 1.27 | 2.01 | 0.65 | 0.83 |
+  | Kalman | 1.79 | 2.01 | 1.41 | 0.90 |
+  | Mean-reverting | 1.20 | 1.61 | 0.81 | 0.88 |
 
-**Retired by:** the owner's choice of estimator, with or without task 48's
-description.
+**Cowork now leans (c), Huber,** and withdraws its lean to (b).
+- (b)'s case was that it had the lowest loss. That edge does not survive a
+  change to the filter's covariance update, which nobody chose on purpose.
+- Huber's numbers are identical in both runs. It passes the uncertainty
+  check, is as stable as rolling OLS, and gains most in the largest-move
+  weeks.
+- With the fit equal across estimators, robustness and simplicity are what is
+  left to choose on. The owner asked for robustness first (2026-10-01).
+- Cowork's lean has now moved twice (Huber, mean-reverting, Huber). Weigh it
+  accordingly.
+
+**Retired by:** the owner's choice of estimator.
+
+### L25. The six factors explain some classes poorly
+Added 2026-10-06 by Cowork, from task 48's fit description
+(`results/measurement/M-20261003T181155Z/fit.md`). A description, not a test.
+
+**What it shows (rolling OLS, out-of-sample R² against a loading of zero).**
+- **Under 0.5:** Gold 0.30, EM Corporate Bonds 0.42, Japanese Equities 0.45,
+  EM Sovereign Bonds 0.48.
+- **0.5 to 0.7:** Ex-USD Bonds 0.55, MBS 0.61, EM Equities 0.62, HY
+  Corporates 0.64, European Equities 0.68.
+- **Above 0.7:** US Equities 0.71, APAC ex-Japan 0.75, Real Assets 0.81, Long
+  Treasuries 0.86, IG Corporates 0.88, TIPS 0.88, DM ex-US Equities 0.88,
+  Treasuries 0.92.
+- **The equity factor carries 86% of all explained variation,** and all of it
+  for US Equities. The six factors tell the 19 US sector and style indices
+  apart by their market beta and nothing else.
+- Ex-USD Bonds are explained mostly by the dollar factor (66%). No factor
+  stands for a non-US yield.
+
+**The decision.**
+- **(a) Build the exposure matrix on the six factors now,** and carry each
+  instrument's explained share with it, so the risk decomposition can say how
+  much of a position the factors do not cover.
+- **(b) Test a wider factor set first.** `decisions/0046` §1 already lists
+  what was left out: volatility, liquidity and a high-yield credit factor. A
+  non-US yield and a regional equity factor would be new. This is another
+  measurement round, chosen after seeing where the fit is weak.
+
+**Cowork leans (a).** The matrix is time-varying by design (`decisions/0015`)
+and can be replaced. The signal search is what is waiting.
+
+**Cannot be retired by measuring.** The measurement is in hand.
 
 ### L23. The grade filter leaves three JPMaQS tickers with no data
 Added 2026-10-03 by Cowork, from task 46's coverage report
@@ -304,6 +357,27 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L24. When the full suite has to run, and why its runtime swings (added 2026-10-06) — CLOSED 2026-10-06 (ruled; HANDOFF task 49 queued, not landed)
+**Owner, 2026-10-06:** "write it on the queue but consider it approved as a handoff for claude code to work on". The question asked was whether the slow tests are worth their time on every change.
+
+**What was approved,** as Cowork put it to the owner the same evening:
+- **Explain the runtime first.** Every unattended run logs per-test times and the machine's load.
+- **Try parallel tests** (`pytest-xdist`), and keep it only if a back-to-back trial shows it pays.
+- **Scope the slow tier by what a change can reach.** A commit runs the slow tests whose imports reach a changed file, and the whole suite whenever that can't be shown.
+- **Keep the whole suite** in front of every audit and for any change to the engine, optimiser, loaders, `params/` or `vetoes/`.
+- **Not approved, and not in the task:** fewer seeds or replications in any statistical test.
+
+**The evidence.** `check-full` has run from 388 s to 4,235 s on nearly the same suite, and on 2026-10-01 a run with 39 more tests finished 2.5 times faster than one 75 minutes earlier. The cause is not known. About 4 of the 40 `slow` tests are simulations; the rest are engine runs, optimiser solves and estimator fits. The detail is in the Project doc `claude/check-runtime-2026-10-06.md`.
+
+**Three numbers in task 49 are Cowork's, not the owner's.** Say so if any should move.
+- **0.70:** parallel tests are adopted only if they cut the slow tier's wall time by 30% or more.
+- **7 days:** a scoped check falls back to the whole suite if no full pass is on record in the last 7 days.
+- **The new wording of `CLAUDE.md`'s definition of done,** which names `make check-scoped`. It is in task 49, step 4f.
+
+**It follows the D2 precedent:** no `decisions/` record, because nothing in `SUBSTRATE.md`, `params/` or `vetoes/` changes.
+
+*What would reopen it:* task 49's receipt. If the replay in its step 4e fails, the scoped tier is not wired and `check-full` stays the definition of done.
 
 ### L21. Negative `eop_lag` on seven JPMaQS tickers (added 2026-10-02, HANDOFF task 44 part B) — CLOSED 2026-10-02 (HANDOFF task 46 landed)
 **Owner, 2026-10-02 ("accept"):** keep the seven tickers; for JPMaQS a period may end after the number is known; the holdout binds on the knowledge date. Recorded in `decisions/0047`, with a checkpoint: a lag below −92 days stops the build. *Landed in commit 3519b1c (HANDOFF task 46); the checkpoint passed: no row is below -92 days.*
