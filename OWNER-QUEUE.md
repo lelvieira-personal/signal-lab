@@ -140,7 +140,88 @@ covers all five candidates, because it was designed after the first results.
 *The state-space form, the half-life grid and the deviation scale are Cowork's
 choices; the owner can change them before task 47 starts.*
 
-**Retired by:** task 47's report, then the owner's choice of estimator.
+**Task 47's result (2026-10-03, verified by Cowork): `not_detected`, and the
+closest of the five.** Mean-reverting loadings: statistic +0.0028, mean loss
+0.2291 against rolling OLS's 0.2319, adjusted p 0.057 over five candidates at
+g = 1, worst-year bias 1.59 (passes). Positive in 13 of 18 reporting classes
+and in all four slices. Negative in Treasuries, Long Treasuries and IG
+Corporates. The table and Cowork's reading are in the 2026-10-03 addendum to
+`decisions/0046` and the Project doc `claude/task-47-review-2026-10-03.md`.
+
+**What the owner is choosing.** `decisions/0046` §3 says that if no candidate
+passes, the incumbent stays. The incumbent fails the uncertainty check (1.80
+against 1.72). So no option follows §3 in full, and the ruling is which part
+to waive:
+- **(a) Rolling OLS.** Follows the gate and waives the uncertainty check. B4
+  already doubts the 1.72 ceiling (it reads 1.92 at a kurtosis of 4).
+- **(b) Mean-reverting (H-2026-0017).** Waives the gate at p = 0.057. It has
+  the lowest loss, passes the check and gains in every slice. It is the most
+  complex of the six and its grid binds at both ends.
+- **(c) Huber (H-2026-0013).** Waives the gate at p = 0.20. Simple, passes the
+  check narrowly (1.68), and gains most in the largest-move weeks.
+
+**Cowork leans (b),** recorded as adopted on the owner's judgement and not
+detected by the gate, with measured duration and spread kept for the bond
+cells that `decisions/0015` already treats as measured. Cowork leaned Huber
+before task 47.
+
+**Not yet measured: how stable each estimator's loadings are.** 0015 says the
+stability of the exposure vector matters as much as its level, and 0046
+scored only one-week prediction. HANDOFF task 48 adds a description of
+week-to-week and year-to-year change per estimator. It is a description made
+after the results were seen, so it informs the judgement and is no test.
+
+**Retired by:** the owner's choice of estimator, with or without task 48's
+description.
+
+### L23. The grade filter leaves three JPMaQS tickers with no data
+Added 2026-10-03 by Cowork, from task 46's coverage report
+(`results/jpmaqs_coverage.md`). The task 46 receipt gave the total dropped and
+did not say where it fell.
+
+**All 22,919 rows dropped by `grade_3: exclude` sit in four tickers.**
+- `EUR_BLSCSCORE_NSA_D2Q2QL2`: 4,158 rows, all grade 3. Nothing left.
+- `USD_BLSCSCORE_NSA_D2Q2QL2`: 7,149 rows, all grade 3. Nothing left.
+- `EUR_MBCSCORE_SA`: 7,806 rows, all grade 3. Nothing left.
+- `USD_MBCSCORE_SA`: 3,806 of 7,813 rows dropped (49%).
+
+**What that does to the registry.**
+- **H-2026-0004 (bank lending standards) has no macro input.** Both of its
+  JPMaQS tickers are gone.
+- **H-2026-0001 (growth surprise) keeps five of seven series,** and one of the
+  five is thinned by half.
+
+**What the vendor says.** Macrosynergy's note on bank survey scores: "Average
+grades are on the low side at the moment, as electronic vintage records are
+not yet easily available." Cowork could not find a public definition of what
+grades 1, 2 and 3 each mean. Its recollection is that grade 3 marks a history
+rebuilt from a single later vintage with assumed release dates. That is
+unverified.
+
+**The options.**
+- **(a) Keep `exclude`.** H-2026-0004 cannot run and is parked, on the record,
+  and is not counted as a test. H-2026-0001 runs on what is left. No rule
+  changes.
+- **(b) Admit grade 3 for named survey categories,** with an added publication
+  lag as a margin. This changes `params/data.yaml` and needs a `decisions/`
+  record. The margin would be a judgement with no measurement behind it.
+- **(c) Re-source H-2026-0004.** The Fed's loan officer survey may have true
+  vintages on ALFRED (unverified); the ECB's probably does not. This is a new
+  registration, and it waits on the FRED point-in-time loader.
+
+**Cowork leans (a) now, and (c) for the US leg once the FRED loader exists.**
+A data-quality rule loosened to rescue one hypothesis is the kind of choice
+the lab exists to prevent.
+
+**Two smaller points inside it.**
+- Grades are not integers. They run from 1.0 to 3.0 in small steps, so
+  `grade_3: exclude` drops only rows at exactly 3.0. Whether a threshold below
+  3.0 is wanted is part of this ruling.
+- **`data.jpmaqs.status` waits on this.** Flipping it is the owner's decision,
+  made on the coverage report. Nine tickers also start after 2001-01-05, most
+  of them in late 2003 or early 2004.
+
+**Cannot be retired by measuring.**
 
 ---
 

@@ -56,7 +56,9 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-02 (mid-morning): queued, 46 then 47.** Task 47 adds a fifth loading estimator, H-2026-0017 (mean-reverting Bayesian loadings; owner, 2026-10-02), and must run after 46.
+**As of 2026-10-03 (evening): queued, task 48 only.** Task 47 is done and Cowork verified it (Project doc `claude/task-47-review-2026-10-03.md`; mirror copy in `Claude outputs/project-mirror/`). Task 48 reproduces the run of record from the committed code, names the two filters' variance update and runs one sensitivity on it, and describes how stable each estimator's loadings are. It needs no owner ruling and moves no hypothesis. **Waiting on the owner:** OWNER-QUEUE B5 (which estimator enters the exposure matrix) and L23 (the grade filter leaves three JPMaQS tickers empty). The exposure-matrix build is not queued until B5 is ruled.
+
+*(Earlier note:)* **As of 2026-10-02 (mid-morning): queued, 46 then 47.** Task 47 adds a fifth loading estimator, H-2026-0017 (mean-reverting Bayesian loadings; owner, 2026-10-02), and must run after 46.
 
 *(Earlier note:)* **As of 2026-10-02 (morning): queued, task 46 only.** Tasks 44 (part A) and 45 are done and Cowork verified them. The owner ruled on L21 and L22. Task 46 applies `decisions/0047`, finishes task 44's part B on the existing pull, and re-runs the estimator test without the Cash class. One owner-only edit (SUBSTRATE v0.9) is already in the working tree. *(The fifth estimator is now task 47; see the note above.)*
 
@@ -2398,6 +2400,146 @@ the run's `report.md` and `summary.json`.
   estimator;
 - the grid shares and the two half-sample statistics;
 - every test changed, and why;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
+### 48. After task 47: reproduce the run of record from the committed code, name the filters' variance update, and describe how stable each estimator's loadings are (`decisions/0046`, addendum of 2026-10-03)
+
+Added 2026-10-03 by Cowork, after reviewing task 47. No owner-only edit, no
+vendor call, no audit, and **no hypothesis moves**. Budget 3 h plus the check.
+
+**Read first:** the 2026-10-03 addendum at the end of `decisions/0046`, and
+`Claude outputs/project-mirror/task-47-review-2026-10-03.md`.
+
+**Hard rules:**
+- **No estimator's default behaviour changes.** Step 3a proves it: the run of
+  record must reproduce exactly from the code as you leave it.
+- **Nothing here is a test.** Steps 2, 2b and 3b are descriptions made after the
+  results were seen. They change no verdict, whichever way they read, and
+  every output says so in its first line.
+- **Don't recommend an estimator.** OWNER-QUEUE B5 is the owner's.
+
+**0. Commit first, alone:** `HANDOFF.md`, `OWNER-QUEUE.md` and
+`decisions/0046-how-loading-estimators-are-tested.md`, as
+`queue: task 48; decisions/0046 addendum of 2026-10-03; OWNER-QUEUE L23`.
+
+**1. The variance update (`measurement/estimators.py`).**
+- `_kalman_filter` and `_mr_filter` both update the covariance as
+  `C = (S / S_new) * (R - A A' Q)`. Here `C` is scale-free: `Q = 1 + z'Rz`,
+  the predictive variance is `S * Q`, and the output is `S * C`. In that form
+  West and Harrison's recursion is `C = R - A A' Q`, with no ratio.
+- The coded line is a different filter and a coherent one. In actual units
+  its precision obeys `P_t = P_prior + z z' / S_(t-1)`: each observation
+  enters at the variance estimate of the week before, and earlier information
+  is not rescaled when `S` moves.
+- **This is Cowork's derivation. Check it. If you disagree, stop and say so.**
+- **Keep the coded update as the default.** Correct `_kalman_filter`'s
+  docstring, which says "West-Harrison", and add the same sentence to
+  `_mr_filter`'s.
+- Add a keyword, default off, that selects the textbook update in both
+  filters, and a script flag `--conjugate-update` that sets it for
+  `kalman_dlm_discount` and `mean_reverting_dlm_own_mean` together. A run with
+  the flag is a sensitivity: `-sens` suffix, no hypothesis moved, as
+  `--exclude-class` already works.
+- **Tests:** the two updates give different covariances on a series with a
+  volatility break; they agree to 1e-8 when the variance prior is tight
+  (`n0 = 1e9` in `_kalman_filter`), because `S` then never moves.
+
+**2. The stability description (new: `scripts/describe_loadings.py`,
+`make describe-loadings`).** It reads one run's `loadings.parquet`
+(`instrument, date, estimator, factor, loading, se`) and nothing under
+`data/`. For each estimator and factor, over the cells where every estimator
+has a loading at both dates:
+- **`weekly_change`:** the mean over instruments of the mean over weeks of
+  `|b_t - b_(t-1)|`, shown as a ratio to rolling OLS (1.00 is as stable as
+  OLS). Also for 2008-2009 alone.
+- **`annual_change`:** the same with `b_t - b_(t-52)`.
+- **`rank_agreement`:** the median over weeks of the cross-sectional Spearman
+  correlation between the estimator's loadings and rolling OLS's.
+- One summary row per estimator: the mean of each ratio across the six
+  factors.
+- The mean-reverting candidate stores a forecast for week t+1 and the others
+  a value at t. Compare what is stored, because that is what would be handed
+  to the exposure matrix, and say so in the output.
+- Output `stability.md` and `stability.json` in the run's directory.
+- **Tests, on a synthetic frame:** a constant loading gives a change of zero;
+  a random walk with a planted step size returns that step; two identical
+  estimators give a ratio of 1 and a rank agreement of 1.
+
+**2b. The absolute fit (added 2026-10-05; `make describe-fit`, or the same
+script).** The owner asked how well the loadings predict at all. 0046 scored
+only each candidate's difference from rolling OLS, so nothing on disk says.
+For each estimator, on the scored cells of the run of record, with
+`p = b_t' f_(t+1)` and `r` the return exactly as the score uses it:
+- **`r2_oos`** = `1 − Σ(r − p)² / Σ r²`. The benchmark is a loading of zero
+  and, as in the score, no intercept. Pooled, by reporting class, and for the
+  four slices.
+- **`huber_skill`** = `1 − loss / loss_zero`, where `loss_zero` is the score's
+  own Huber loss with `p = 0`. Same breakdowns.
+- **`ts_corr`:** per instrument, the correlation of `p` and `r` over the
+  scored weeks. Report the median and the quartiles by class, and the ten
+  lowest instruments by ticker.
+- **`xs_corr`:** per week, the Spearman correlation of `p` and `r` across
+  instruments. Report its mean, its standard deviation and the share of weeks
+  above zero. **Label it "conditional on the realised factor moves, not a
+  forecast IC".** The loadings forecast sensitivities, not returns.
+- **`factor_share`:** by class, each factor's share of the predicted
+  variation, `Σ p · (b_k f_k) / Σ p²`. The six shares sum to 1.
+- **Examples, for the owner to open on this machine:**
+  `predicted_vs_actual.html` in the run's directory, for rolling OLS and
+  `mean_reverting_dlm_own_mean`. Per instrument: a scatter of `p` against `r`,
+  and a line of their 52-week rolling correlation. Inline SVG written by the
+  script, white background, grey marks, `#FF6100` for the mean-reverting
+  series, no new dependency.
+  - **The instruments are named here, before any is looked at:** `SPXT`,
+    `MXUS0UT`, `M1EF`, `NDDUJN`, `LF98TRUU`, `LUACTRUU`, `LT09TRUU`,
+    `LUTLTRUU`, `I20344US`, `BCOMGCTR`, `ENXG`, `LUMSTRUU`. If one is not in
+    the scored set, say so and don't substitute.
+  - **The file holds weekly returns, which are vendor data.** Add it to
+    `.gitignore`, never print it, and don't summarise its points in the
+    receipt. The numbers Cowork reads are in `fit.json`.
+- Output `fit.md` and `fit.json`.
+- **Tests, on a synthetic frame:** true loadings with no noise give
+  `r2_oos = 1`; zero loadings give `r2_oos = 0` and `huber_skill = 0`;
+  `factor_share` sums to 1.
+
+**3. The runs, after the last edit to `src/` and `scripts/`.**
+- **3a. Reproduce the run of record.**
+  `make measurement-loadings ARGS="--no-registry --reference results/measurement/M-20261003T181155Z/summary.json"`.
+  The reference check must pass for the incumbent and all five candidates.
+  Then compare `p_adjusted` for the five against `M-20261003T181155Z` and
+  report whether each is equal. **If any reference field differs, stop:** the
+  run of record was not made by the committed code.
+- **3b. The sensitivity.**
+  `make measurement-loadings ARGS="--no-registry --no-reference --conjugate-update"`.
+  Report its six-row table beside the run of record's.
+- **3c.** `make describe-loadings` on `M-20261003T181155Z`.
+- **3d.** `make describe-fit` on `M-20261003T181155Z`.
+
+**4. Check, then commit.** `scripts/unattended.sh check-full --digest`.
+- Task 47's `check-full` took 4,235 s against task 46's 794 s. The new
+  estimator costs about 0.3 s per series, so its tests don't explain that.
+  **If this run takes more than 1,500 s,** run
+  `uv run --python 3.12 --group dev pytest -q -m slow --durations=25` once and
+  list the 25 slowest tests in the receipt. Don't move or re-mark any test.
+- Commit `src/`, `scripts/`, `tests/`, `build.mk`, `.gitignore`, the two new
+  runs' `report.md` and `summary.json`, and `stability.md`, `stability.json`,
+  `fit.md` and `fit.json`. **Not `predicted_vs_actual.html`.**
+
+**Receipt:**
+- rc, commits, the check-full log directory and its runtime;
+- whether you agree with the derivation in step 1;
+- 3a: pass or stop, and the five `p_adjusted` comparisons;
+- 3b: the six-row table, coded against textbook;
+- 3c: the summary row per estimator, and the table for 2008-2009;
+- 3d: `r2_oos`, `huber_skill`, `ts_corr` and `xs_corr`, pooled and by class,
+  for each estimator; `factor_share` by class; which named instruments were
+  not in the scored set;
+- the 25 slowest tests, if step 4 asked for them;
+- every test added or changed, and why;
 - **Anything in this task you didn't do, said plainly.**
 
 Then stop.

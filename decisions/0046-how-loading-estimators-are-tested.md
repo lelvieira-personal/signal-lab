@@ -239,3 +239,63 @@ the instruments of the Cash addendum.
 - **The recorded verdicts of H-2026-0013 to 0016 stand.** If the five-way run
   would flip one, task 47 stops and reports.
 - The run chooses nothing. Adoption remains the owner's decision.
+
+## Addendum, 2026-10-03: how the fifth candidate starts, and what task 47 found (recorded by Cowork)
+
+**The start (owner, 2026-10-03).** The 2026-10-02 addendum gave `mu` a
+diffuse prior and also made the innovation covariance depend on the 156-week
+rolling OLS, which does not exist before an instrument has 104 valid weeks.
+Both cannot hold, so Claude Code stopped and asked. **The owner's ruling, as
+the task 47 receipt reports it** (Cowork did not witness it): the filter
+starts at the first week a rolling OLS exists and is seeded from it. `a` and
+`mu` take that OLS's coefficients and their covariance; the deviation starts
+at zero with covariance `q * C_ols`. Until this addendum the ruling was
+recorded only in the estimator's docstring and in commit `b0c7713`.
+
+**The result: `not_detected`.** Run `M-20261003T181155Z`, 86 instruments, 835
+weeks, Cash excluded, the gate over five candidates at g = 1.
+
+| Estimator | Mean Huber loss | Statistic | Adj. p | Worst-year bias (ceiling 1.72) |
+|---|---|---|---|---|
+| Rolling OLS (incumbent) | 0.2319 | – | – | 1.80, fails |
+| Huber | 0.2303 | +0.0016 | 0.200 | 1.68, passes |
+| Theil-Goldberger | 0.2310 | +0.0009 | 0.179 | 1.83, fails |
+| HMM | 0.2385 | −0.0066 | 1.000 | 1.38, passes |
+| Kalman | 0.2325 | −0.0005 | 0.941 | 1.58, passes |
+| Mean-reverting (H-2026-0017) | 0.2291 | +0.0028 | 0.057 | 1.59, passes |
+
+The incumbent and the first four reproduce task 46's run field for field
+(Cowork compared the two `summary.json` files). The recorded verdicts of
+H-2026-0013 to 0016 stand.
+
+**Read by Cowork, not ruled** (detail in the Project doc
+`claude/task-47-review-2026-10-03.md`):
+- **§3's rule has no eligible output.** No candidate passes the gate, so "the
+  incumbent stays"; but the incumbent fails the uncertainty check. Whatever
+  enters the exposure matrix waives one part of §3.
+- **0.057 is 57 exceedances in 1,001.** At 1,000 draws its simulation error is
+  about 0.007, so the miss is one standard error wide. The verdict stands as
+  registered. Re-drawing to chase it would be a second look.
+- **Where the gain is.** By sub-period the statistic is 0.0009 (2004-07),
+  0.0024 (2008-09) and 0.0037 (2010-19); by halves 0.0031 and 0.0025. Solving
+  the two together puts about 0.008 in 2010-11 and 0.0025 in 2012-19
+  (Cowork's arithmetic, approximate). The gain is largest while 2008 sits in
+  the rolling window. That is the mechanism the hypothesis named. The claim
+  that the gain grows with history is not supported.
+- **The grid binds at both ends.** Half-lives of 13 and 104 weeks hold 90% of
+  the scored cells and `q = 4` holds 70%. A wider grid is a sixth test.
+- **A permanent level shift.** On the test's synthetic series the stored
+  loading halves the gap in 78 weeks. Rolling OLS takes 77 and Huber 78 on the
+  same series; the Kalman candidate takes 42 (Cowork's run of the committed
+  code).
+- **The filter's covariance update is not West and Harrison's.** Both Kalman
+  candidates carry a ratio `S / S_new` that the textbook recursion does not
+  have in scaled form. It is a coherent filter (each observation enters at the
+  variance estimate of the week before). On synthetic series it changes the
+  mean-reverting candidate's error by 1% or less and the Kalman candidate's
+  reported covariance by more. HANDOFF task 48 names it in the docstrings and
+  runs one sensitivity on real data. **That sensitivity changes no verdict,
+  whichever way it reads.**
+
+**Still the owner's:** which estimator enters the exposure matrix
+(OWNER-QUEUE B5).
