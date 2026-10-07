@@ -3324,6 +3324,64 @@ run would have said.
 
 ## Done
 
+### 2026-10-07 -- task 51: the estimated half of the exposure matrix, store huber6-v1 (Claude Code, Sonnet 5.5)
+
+**rc=0.** Commit `d2d17fb`. Log directory `results/audit/_unattended/20261007-091756-check-scoped/`: **tier FULL, not SCOPED** (the selector: `FULL: data/characteristics/huber6-v1/manifest.yaml is not a path the selector can place`, since a path under `data/` is always full), rc=0, **556 s**, 795 passed, holdout 22+2 collected. The build itself, `make characteristics`, ran twice: the first stopped at step 3 (below), the second wrote the store (3 m 05 s).
+
+- **Where the package went.** `src/signal_lab/characteristics/` (`build.py`, `store.py`, `report.py`). SUBSTRATE §15 puts "exposure mapping" under `portfolio/` but names nothing for loadings estimation, and this builds no mapping, so I used the fallback the task gave. Also `scripts/build_characteristics.py` (with `--report-only`, which re-hashes the store and rewrites the report), `make characteristics`, and a `.gitignore` rule `data/characteristics/*/*.parquet` (checked with `git check-ignore -v`; the manifest is not ignored).
+- **The store.** `data/characteristics/huber6-v1/`, directory hash `95db155edf972bf991a72660d474c36590f9af0c38b0865d064513235486e32f` (the snapshot module's `hash_directory`). Rows: loadings 451,572, fit 75,262, measured 16,256, instruments 95. 2002-12-27 to 2019-12-27. **87 instruments estimated (Cash included), 8 not estimated** (tradable-only): LTP5TRUU, M1CXNNA, M1CXVRSD, M1EAMM, M1EAQU, M1EFHDY, M1WDUMMT, MXEU0RL. Every estimated row carries `kind=estimated, estimator=huber_m`; measured rows `kind=measured`, in their own file, never merged. Data files are git-ignored and were not printed; the manifest and `results/characteristics/huber6-v1/report.md` are committed.
+- **Step 3.** *Reproduces the test:* **70,326 cells (the test's 70,326); pooled `r2_oos` differs by 0.0 (0.7029825014051894) and mean Huber loss by 0.0 (0.23033442386469188)**, so the 1e-6 allowance was not needed. Max absolute difference between this build's Huber loadings and the run of record's stored ones: 0.0. *First attempt stopped:* I scored the cells where Huber alone has a loading (74,276 cells, r2 0.6979, loss 0.2280), but the test scored only cells where all six estimators had one. I now take that cell set (presence only) from the run of record's `loadings.parquet`. The weekly returns (Cash out) and the factors are hash-equal to the run of record's. *No lookahead:* `assert_no_lookahead` runs inside every build and passed.
+- **Interpretation to flag.** The measured value at a date is `weekly_levels`' last observation in the week ending on that Friday, and is NaN, not carried, over a week with none (SUBSTRATE §2 forbids forward fill); the task's "last value on or before that Friday" read literally would carry. Measured cells are included for the 8 tradable-only series too.
+- **Explained share by class** (median over instruments; full sample, last week 2019-12-27):
+
+| class | full sample | last week | n at last week |
+|---|---|---|---|
+| APAC ex-Japan Equities | 0.744 | 0.514 | 1 |
+| Cash | 0.013 | 0.012 | 1 |
+| Commodities | 1.000 | 0.999 | 1 |
+| DM ex-US Equities | 0.902 | 0.778 | 9 |
+| EM Corporate Bonds | 0.447 | 0.485 | 1 |
+| EM Equities | 0.701 | 0.537 | 12 |
+| EM Sovereign Bonds | 0.503 | 0.437 | 2 |
+| European Equities | 0.716 | 0.528 | 13 |
+| Ex-USD Bonds | 0.432 | 0.514 | 8 |
+| Gold | 0.311 | 0.493 | 1 |
+| HY Corporates | 0.624 | 0.586 | 5 |
+| IG Corporates | 0.821 | 0.816 | 2 |
+| Japanese Equities | 0.421 | 0.521 | 1 |
+| Long Treasuries | 0.863 | 0.908 | 2 |
+| MBS | 0.591 | 0.691 | 1 |
+| Real Assets | 0.811 | 0.633 | 4 |
+| TIPS | 0.889 | 0.928 | 1 |
+| Treasuries | 0.863 | 0.900 | 3 |
+| US Equities | 0.761 | 0.755 | 19 |
+
+- **Estimated against measured, every bond index** (median over weeks; `-OAD` is minus the median `INDEX_OAD_TSY` over the same weeks; ratio = loading / `-OAD`):
+
+| instrument | class | weeks | real yield | inflation | credit | -OAD | ratio real yield | ratio inflation | ratio credit |
+|---|---|---|---|---|---|---|---|---|---|
+| I12877US | EM Corporate Bonds | 636 | -3.060 | -2.169 | -5.920 | -4.80 | 0.64 | 0.45 | 1.23 |
+| EMUSTRUU | EM Sovereign Bonds | 888 | -3.172 | -1.818 | -5.213 | -5.89 | 0.54 | 0.31 | 0.88 |
+| I20344US | EM Sovereign Bonds | 492 | -3.721 | -1.004 | -1.926 | -5.26 | 0.71 | 0.19 | 0.37 |
+| I00183US | HY Corporates | 888 | -1.792 | -1.069 | -6.362 | -4.06 | 0.44 | 0.26 | 1.57 |
+| I00184US | HY Corporates | 888 | -3.523 | -2.599 | -8.753 | -9.23 | 0.38 | 0.28 | 0.95 |
+| I00185US | HY Corporates | 888 | -1.451 | -0.708 | -7.690 | -4.01 | 0.36 | 0.18 | 1.92 |
+| I00188US | HY Corporates | 888 | -1.449 | -0.688 | -10.964 | -3.58 | 0.40 | 0.19 | 3.06 |
+| LF98TRUU | HY Corporates | 888 | -1.674 | -0.952 | -8.084 | -4.24 | 0.40 | 0.22 | 1.91 |
+| LDC5TRUU | IG Corporates | 758 | -2.150 | -1.806 | -2.247 | -2.76 | 0.78 | 0.65 | 0.81 |
+| LUACTRUU | IG Corporates | 888 | -5.613 | -5.531 | -5.660 | -6.61 | 0.85 | 0.84 | 0.86 |
+| LT11TRUU | Long Treasuries | 888 | -11.913 | -14.471 | -0.605 | -17.19 | 0.69 | 0.84 | 0.04 |
+| LUTLTRUU | Long Treasuries | 888 | -10.355 | -11.526 | -0.541 | -14.62 | 0.71 | 0.79 | 0.04 |
+| LUMSTRUU | MBS | 888 | -2.937 | -2.384 | -0.276 | -3.56 | 0.82 | 0.67 | 0.08 |
+| LBUTTRUU | TIPS | 888 | -7.052 | -0.316 | -0.117 | -5.77 | 1.22 | 0.05 | 0.02 |
+| LT01TRUU | Treasuries | 888 | -1.062 | -0.764 | 0.308 | -1.85 | 0.57 | 0.41 | -0.17 |
+| LT09TRUU | Treasuries | 888 | -7.210 | -6.943 | 0.186 | -7.55 | 0.95 | 0.92 | -0.02 |
+| LT13TRUU | Treasuries | 888 | -4.025 | -3.496 | 0.564 | -4.51 | 0.89 | 0.77 | -0.13 |
+
+  Standard error against loading by factor and class is in the report; it is large where a class has little exposure (e.g. real yield for APAC ex-Japan equities 91.6).
+- **Tests added** (`tests/test_characteristics.py`, 11, fast tier, ~20 s): constant loadings recovered; explained share near 1 with no noise and near 0 for an unrelated series; the 52-week minimum and no clipping; **no lookahead** (every observation after t replaced, every row at or before t equal bit for bit, share included); the measured value is the last on or before and not carried; a store round trip and immutability; a store edited after writing is refused; the report's first line and table; `resolve_exposures` still raises `ExposureMatrixMissing`; and in the `holdout` tier the builder raises on weeks past 2020-01-01 and every committed store manifest ends before it. **No test changed.**
+- **Not done:** nothing in the task was skipped. Nothing was built from `decisions/proposed/0050`, `resolve_exposures`, `harness/` and `vetoes/` are untouched, and I recommend nothing about L27. Not tested: the builder at a thread count other than 1 (it refuses to start at any other).
+
 ### 2026-10-07 -- task 50: one thread is the reference; three goldens re-recorded; grade ruling applied; .gitignore; the first scoped check (Claude Code, Sonnet 5.5)
 
 **No verdict moved (step 6).** **rc=0 throughout.** Commits: `e5c6f66` (step 0, queue records, after `make check`: 2m54s), `273182e` (steps 1-4, the check-full below), `f3f0841` (step 5's fix, alone), `16a063b` (step 6's run). Logs: `results/audit/_unattended/20261007-084257-check-full/` (rc=0, **545 s against 3,908 s**, 784 passed, holdout 22 passed; the whole suite) and `results/audit/_unattended/20261007-085356-check-scoped/` (rc=0, **196 s**, tier SCOPED).
