@@ -86,6 +86,11 @@ def _rank_agreement(B: np.ndarray, common: np.ndarray) -> np.ndarray:
     return out
 
 
+def _ratio_to_first(a: np.ndarray, i: int) -> np.ndarray:
+    """a[i] / a[0], NaN where a[0] is zero, without the divide warning."""
+    return np.divide(a[i], a[0], out=np.full(a[i].shape, np.nan), where=a[0] != 0)
+
+
 def stability(long: pd.DataFrame, estimators: list[str]) -> dict:
     """
     For each estimator and factor, over the cells where EVERY estimator has a loading at the
@@ -107,7 +112,7 @@ def stability(long: pd.DataFrame, estimators: list[str]) -> dict:
                     for i, e in enumerate(estimators)
                 },
                 "ratio": {
-                    e: dict(zip(factors, (a[i] / a[0]).tolist(), strict=True))
+                    e: dict(zip(factors, _ratio_to_first(a, i).tolist(), strict=True))
                     for i, e in enumerate(estimators)
                 },
             }
