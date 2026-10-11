@@ -22,6 +22,19 @@ should stay quiet until its trigger fires.
 ### L28. The label map: a region, a sector and a style for each instrument
 Added 2026-10-07 by Cowork, out of L27 (d). It wakes D3.
 
+**Ruled in part, 2026-10-10 (owner):**
+- **The regions** are US, Developed Europe, Japan, APAC ex-Japan, EM and
+  Global.
+- **Gold and commodities carry no region.** They are their own Commodities
+  bucket (owner: "let it be its own Commodities bucket").
+- **A sector or style index carries its parent's region.**
+- **Sector and style labels wait** until a hypothesis targets them.
+- **Cowork drafts the map** for the owner to correct, with a parent for each
+  of the eight tradable-only instruments (L29) in the same table.
+
+**Still open:** his corrections to that draft. L32 is ruled (`NDDLUK`
+leaves), so the draft can be written.
+
 `decisions/0050` gives the matrix a label block. Only `cash` has a source.
 `data/universe/investable_universe.csv` carries `section` and
 `reporting_class` and no region, sector or style column, and the loader's
@@ -46,12 +59,30 @@ for the owner to correct. Every entry would be a guess until he confirms it.
 ### L29. Universe loose ends after `decisions/0052`
 Added 2026-10-07 by Cowork.
 
+**Answered 2026-10-10 (owner, from Bloomberg):**
+- **`I02513EU` is EUR:** "Bloomberg Pan-European Government Total Return
+  Index Unhedged EUR". It is one of nineteen local-currency series, and
+  what to do with them is L32.
+- **`LET1TREU` is the Euro Treasury 1-3y:** "Bloomberg Euro-Aggregate:
+  Treasury -- 1-3 Year". Its future ticker is `I02119EU`. The universe
+  file's name and SUBSTRATE §5.4a's "1-10y" are corrected with the L31 and
+  L32 work.
+- **The tradable-only parents** are drafted with L28.
+
 - **`I02513EU` (Pan-European Government).** Its median loading on the dollar
   factor is 0.10, against −1.00 and −1.15 for the two euro indices the lab
   converted to dollars itself. *Cowork's inference:* it is a euro return
   treated as a dollar one, the same kind of series `decisions/0052` removed.
   SUBSTRATE §5.4a already flags its currency as unconfirmed. **Retired by:**
   the owner reading its currency on Bloomberg.
+- **`LET1TREU` may not be the index its name says** (added 2026-10-08 by
+  Cowork, from task 52). The universe file and SUBSTRATE §5.4a call it Euro
+  Treasury 1-10y. Its median measured `INDEX_OAD_TSY` is 1.84, where a 1-10y
+  euro government index would sit near 4 to 5, and its loading on the real-
+  yield factor is +0.28, the only positive one among the ex-USD bonds
+  (`results/characteristics/huber6-v2/report.md`). *Cowork's recollection,
+  not verified:* `LET1TREU` is the Euro Treasury 1-3y. **Retired by:** the
+  owner reading its name and maturity band on Bloomberg.
 - **The eight tradable-only instruments have no row in the matrix**
   (L27 (e)). SUBSTRATE §5.2 says they inherit loadings; no record says from
   what. The owner's pull of 2026-10-07 found earlier daily history for one:
@@ -67,34 +98,38 @@ Added 2026-10-07 by Cowork.
   that they stay unholdable in the development window. Seven of the eight
   start in 2015 or later.
 
-### L30. What `INDEX_OAD_TSY` is for the TIPS index
-Added 2026-10-07 by Cowork, out of L27 (c).
+### L33. One FX source, and which
+Added 2026-10-10 by Cowork, out of L32.
 
-`LBUTTRUU`'s estimated real-yield loading is 1.22 times its measured
-duration, and rising (1.20, 1.24, 1.36 across three periods, *Cowork's
-read*). Every other government index reads at or below 1. Cowork doesn't
-know whether the field is a real duration for this index or a
-nominal-equivalent one. `decisions/0050` reads the estimate for TIPS until
-this is answered.
+After HANDOFF task 53 the lab converts with two FX sources:
+- **FRED's noon New York spot:** the five ex-USD bonds, as delivered in
+  `bbg_exusd_bonds_usd_unhedged.csv`, about 200 dropped days each;
+- **Bloomberg's generic close** (`bbg_curncy_hist.xlsx`): the eighteen
+  series of `decisions/0053`.
 
-**Retired by:** the owner reading the field's definition for an
-inflation-linked index on Bloomberg.
+MSCI and, as far as Cowork knows, Bloomberg's indices convert at the WM 4pm
+London fix. Neither source is that.
 
-### L31. The wording of SUBSTRATE after `decisions/0051` and `0052`
-Added 2026-10-07 by Cowork. Two sentences of the constitution no longer say
-what the lab does. Nothing has been edited.
+**The one test available** is MSCI UK, in sterling converted against the
+index in dollars, weekly, 2006-2019 *(Cowork's read)*:
+- **Bloomberg close:** 237 bp/yr tracking error;
+- **FRED noon:** 141 bp/yr.
 
-- **§6,** "mapped to ETF weights by solving for the long-only portfolio whose
-  exposures best match the view". `decisions/0051` rules that views become
-  expected returns and nothing is held at a target. Proposed wording is at
-  the end of that record. **The phase-2 solver should not be built before
-  this is transcribed.**
-- **§5.4a,** "Until they land, the FX axis is represented only by
-  `LGTRTRGU`, `LGTRTRJU`, `I20344US`, and `I02513EU`". The unhedged series
-  have landed and `decisions/0052` removed the first two.
+Both residuals reverse the next week (lag-1 autocorrelation about −0.5) and
+show no drift. The four ex-USD bonds converted both ways differ by 195 to
+210 bp/yr weekly.
 
-**What the owner would be deciding:** the wording, and that Cowork may
-transcribe it as v0.10.
+**What the owner would be deciding:**
+- (a) keep two sources, the state after task 53;
+- (b) everything on the Bloomberg file, with no dropped days;
+- (c) everything on FRED noon, which needs a FRED pull of six more series and
+  drops US holidays;
+- (d) a Bloomberg London 4pm source, if one resolves. *Cowork's
+  recollection, not verified:* Bloomberg's `BFIX` and `L160` pricing
+  sources.
+
+**Not urgent.** The noise is weekly and mean-reverting. It matters most for
+the region and dollar signals on the eighteen converted series.
 
 ### L12. Is the registry the right shape, now that the stepdown is the bar?
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
@@ -269,6 +304,136 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L32. Nineteen return series are in their local currency, not dollars — CLOSED 2026-10-10 (ruled; `decisions/0053`; HANDOFF task 53)
+
+**Ruled 2026-10-10 (owner):**
+- **The base currency is USD.** Series are kept in their quote currency and
+  converted in the loader.
+- **The FX source is** `bbg_curncy_hist.xlsx`, which he supplied, read
+  through an explicit quote-convention table.
+- **Carried from Cowork's proposals:** `NDDLUK` out, the guard, and the
+  ex-USD bonds left on FRED (L33).
+
+Added 2026-10-10 by Cowork, while checking the owner's answer that
+`I02513EU` is EUR.
+
+**What was found.** `data/universe/raw_manifest.csv` declares the whole
+`TR Levels` sheet in USD. The Index Map's `Quote ccy` column (Bloomberg
+`CRNCY`) disagrees for 19 return series. The loader maps that column and
+never checks it.
+
+| Currency | Series |
+|---|---|
+| EUR | `I02513EU`; `MXEUG`; the eleven MSCI Europe sectors `MXEU0EN`, `MXEU0MT`, `MXEU0IN`, `MXEU0CD`, `MXEU0CS`, `MXEU0HC`, `MXEU0FN`, `MXEU0IT`, `MXEU0TC`, `MXEU0UT` and `MXEU0RL` (tradable-only) |
+| GBP | `NDDLUK` |
+| CAD | `MXCA` |
+| HKD | `MXCN` |
+| INR | `MXIN` |
+| KRW | `MXKR` |
+| TWD | `TAMSCI` |
+
+`LGTRTRGU` and `LGTRTRJU` were the same case and are already out
+(`decisions/0052`).
+
+**The pull carried no currency override** (checked 2026-10-10 at the owner's
+request). The workbook holds values only, so no BDH formula survives. Its own
+record of the pull, `Loader Notes` rows 3-5 and the cell comments dated
+2026-09-07, gives the overrides as `Per=D, Fill=NA, Days=A`, with nothing for
+currency. Bloomberg's long names say it too: "MSCI UK Net Total Return Local
+Index", "MSCI Europe Real Estate GICS Level 1 Local Index".
+
+**The returns confirm it** *(Cowork's read of `huber6-v2`, median loading on
+the dollar factor)*:
+- 17 of the 18 estimated series read +0.10 to +0.85. `MXCN` reads −0.01,
+  as a currency pegged to the dollar would.
+- Every dollar-quoted peer in the same classes reads −0.07 to −0.37 for
+  equities, and −0.61 to −1.15 for the converted ex-USD bonds.
+- **The cleanest pair is MSCI UK:** `NDDLUK` (sterling) reads +0.53 and
+  `NDDUUK` (dollars) −0.24. Their equity loadings are 0.96 and 1.01.
+
+**What it touches.**
+- **The rows:** 11 of the 13 European Equities rows, 1 of 9 DM ex-US, 5 of 12
+  EM Equities (`MXCN`'s HKD is pegged, so it matters little), 1 Ex-USD bond
+  and 1 tradable-only.
+- **The numbers:** every real-data number that used their returns, which
+  includes their loadings in `huber6-v1`, `huber6-v2` and
+  `M-20261003T181155Z`, and real-data covariances and tracking error. Each
+  treats a local return as a dollar one.
+- **What it does not touch:** the factors (`NDUEACWF`, `DXY` and the rest) and
+  the benchmark, which are all in dollars.
+
+**What the owner would be deciding:**
+- **How they become dollars:**
+  - (a) re-pull the 19 with Bloomberg's currency override to USD, same field
+    (`TOT_RETURN_INDEX_GROSS_DVDS`);
+  - (b) convert in the lab as local × spot, as the ex-USD bonds were. This
+    needs bilateral FX for seven currencies, and the FRED panel holds none;
+  - (c) remove them.
+- **`NDDLUK`:** MSCI UK in sterling, beside `NDDUUK` in dollars. By
+  `decisions/0052`'s reasoning it is a restatement.
+- **A guard:** the loader refuses a series whose `Quote ccy` is not its
+  sheet's declared currency, unless a conversion is recorded.
+
+**Numbers recorded before stand** (the run of record, `huber6-v1` and
+`huber6-v2`), as with `decisions/0052`.
+
+### L31. The wording of SUBSTRATE after `decisions/0051` and `0052` — CLOSED 2026-10-10 (ruled; SUBSTRATE v0.10 transcribed by Cowork in the working tree, lands with HANDOFF task 53 step 0)
+
+**Transcribed 2026-10-10:**
+- **§6:** the wording of `decisions/0051`, verbatim.
+- **§5.4a:** rewritten to list what landed. `LET1TREU` is recorded as 1-3y
+  and Japan as the Aggregate; `I02513EU` is EUR and converted
+  (`decisions/0053`); `LGTRTRGU` and `LGTRTRJU` are not investable.
+- **The record:** `decisions/0100` gains a v0.10 table.
+
+**Also transcribed:** §5.1 invariant 8, every return is in USD
+(`decisions/0053`). The owner approved it on 2026-10-10.
+
+Added 2026-10-07 by Cowork. Two sentences of the constitution no longer say
+what the lab does. Nothing has been edited.
+
+**Ruled in part, 2026-10-10 (owner):**
+- **§6:** the wording at the end of `decisions/0051`, as proposed.
+- **§5.4a:** list the unhedged series that landed, in place of "until they
+  land".
+- **Cowork may transcribe both as v0.10.**
+
+**Held by Cowork:** §5.4a's text depends on L32 (`I02513EU` is a EUR return)
+and on `LET1TREU` being 1-3y. Both sections are transcribed together once
+L32 is ruled.
+
+- **§6,** "mapped to ETF weights by solving for the long-only portfolio whose
+  exposures best match the view". `decisions/0051` rules that views become
+  expected returns and nothing is held at a target. Proposed wording is at
+  the end of that record. **The phase-2 solver should not be built before
+  this is transcribed.**
+- **§5.4a,** "Until they land, the FX axis is represented only by
+  `LGTRTRGU`, `LGTRTRJU`, `I20344US`, and `I02513EU`". The unhedged series
+  have landed and `decisions/0052` removed the first two.
+
+**What the owner would be deciding:** the wording, and that Cowork may
+transcribe it as v0.10.
+
+### L30. What `INDEX_OAD_TSY` is for the TIPS index — CLOSED 2026-10-10 (ruled; `decisions/0050` addendum of 2026-10-10)
+
+**Answered 2026-10-10 (owner, from Bloomberg):** it is the real-rate
+duration, the sensitivity to a parallel shift in the real Treasury curve.
+It is not a spread duration. **Ruled:** TIPS's duration axis reads the
+measured value, as Treasuries and IG do.
+
+Added 2026-10-07 by Cowork, out of L27 (c).
+
+`LBUTTRUU`'s estimated real-yield loading is 1.22 times its measured
+duration, and rising (1.20, 1.24, 1.36 across three periods, *Cowork's
+read*). Every other government index reads at or below 1. Cowork doesn't
+know whether the field is a real duration for this index or a
+nominal-equivalent one. `decisions/0050` reads the estimate for TIPS until
+this is answered.
+
+**Retired by:** the owner reading the field's definition for an
+inflation-linked index on Bloomberg.
+
 
 ### L27. The columns of the exposure matrix, and which cells are measured — CLOSED 2026-10-07 (ruled; `decisions/0050`; wiring not queued)
 **RULED 2026-10-07.** Owner: "Yes, as stated", to the rulings Cowork put to him. Recorded as `decisions/0050`:

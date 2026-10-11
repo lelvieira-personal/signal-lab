@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.9, 2026-10-02. Owner: Leo. This document is the constitution of
+Status: v0.10, 2026-10-10. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -35,6 +35,12 @@ v0.9 amended §5.6, transcribing `decisions/0047` (a JPMaQS period may end
 after the number is known; the holdout binds on the knowledge date), decided
 by the owner on 2026-10-02. Applied by Cowork at the owner's instruction. The
 v0.8 text is in git history.
+
+v0.10 amended §5.1 (invariant 8), §5.4a and §6, transcribing `decisions/0051` (views become
+expected returns; nothing is held at a target), `decisions/0052` (two currency
+restatements leave the universe) and `decisions/0053` (every return is in
+dollars), decided by the owner on 2026-10-07 and 2026-10-10. Applied by Cowork
+at the owner's instruction. The v0.9 text is in git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -245,6 +251,12 @@ real assets, plus a hedged overlay tab. Index-to-ETF mapping is in
 7. Non-synchronous closes: cross-region covariance is estimated on
    2-day overlapping returns. Same-day daily correlation across regions is
    biased low and is not used for optimisation.
+8. Returns are in the base currency, USD. A series delivered in another
+   currency is converted on the same date with
+   `data/raw/bloomberg/bbg_curncy_hist.xlsx` read through an explicit
+   quote-convention table, never carried, and a series whose quote currency
+   differs from its sheet's is refused unless it is converted
+   (`decisions/0053`).
 
 ### 5.2 Tiers by daily history
 
@@ -280,12 +292,23 @@ broad/AFE/EM dollar indices (2006), WTI and Brent.
 FRED's ICE BofA spread series start 2023-09 and are **not used**. Spreads
 come from Bloomberg.
 
-### 5.4a Unhedged international fixed income (requested)
+### 5.4a Unhedged international fixed income
 
-Unhedged-USD versions of Euro Treasury 1-10y, UK Gilt 1-10y, Japan
-Treasury, Pan-European Aggregate/Corporate and Global Aggregate ex-USD are
-requested from Bloomberg. Until they land, the FX axis is represented only
-by `LGTRTRGU`, `LGTRTRJU`, `I20344US`, and `I02513EU` (currency to confirm).
+The unhedged-USD series requested from Bloomberg have landed
+(`data/raw/bloomberg/bbg_exusd_bonds_usd_unhedged.csv`, local level times FRED
+spot):
+- Euro Treasury 1-3y (`LET1TREU`; the 1-10y was requested, and the ticker's
+  successor is `I02119EU`);
+- UK Gilt 1-10y (`I12823GB`);
+- Japan Aggregate (`I02913JP`; a Japan Treasury index was requested);
+- Pan-European Aggregate Corporate (`LP05TREU`);
+- Global Aggregate ex-USD (`LG38TRUU`, pulled in USD).
+
+`I02513EU` (Pan-European Government) is delivered in EUR and converted to USD
+in the loader (`decisions/0053`). `LGTRTRGU` and `LGTRTRJU` are the global
+aggregate restated in sterling and yen and are not investable
+(`decisions/0052`). `I20344US` is the EM local-currency government index,
+unhedged USD.
 
 ### 5.5 Benchmark
 
@@ -356,9 +379,13 @@ Rules:
   within an axis; expressible long-only) and **directional** (timing an
   axis; requires cash and is expected to be weaker). Both are reported.
 - Views are formed in **exposure space** (duration, credit, region,
-  sector, style, real/nominal, cash) and mapped to ETF weights by solving
-  for the long-only portfolio whose exposures best match the view, subject
-  to §4. The characteristic map is in `data/characteristics/`. It is
+  sector, style, real/nominal, cash) and mapped to ETF weights by turning
+  each view into expected returns on the instruments that carry its axis and
+  solving the long-only problem of §4 on their sum (`decisions/0051`). No
+  exposure is held at a target, and none is held at the benchmark's level
+  because no view names it: the stock/bond mix and every factor exposure are
+  outcomes of the solve, reported on every run and bounded by the
+  tracking-error budget. The characteristic map is in `data/characteristics/`. It is
   **time-varying and per-cell provenanced**: a bond index's effective duration
   is *measured* from the analytics panel, an equity index's rate sensitivity is
   *estimated* from returns with a standard error, and the two are not the same

@@ -111,3 +111,31 @@ change without a new store.
 - Evidence from the phase-2 solver that reading measured duration sends
   duration views to the wrong instruments.
 - A registered hypothesis that targets equity, the dollar or commodities.
+
+## Addendum, 2026-10-10: TIPS read their measured duration
+
+**Decided 2026-10-10 by the owner** (OWNER-QUEUE L30, answered; and "Measured
+real duration" to the question Cowork put to him). Drafted by Cowork.
+
+**What the owner established on Bloomberg.** For `LBUTTRUU`, `INDEX_OAD_TSY`
+is the real-rate duration: the sensitivity of the index's price to a parallel
+shift in the real Treasury curve. With no embedded optionality it is about the
+modified duration to the real curve. It is not a spread duration.
+
+**The ruling.** Point 5 is replaced. **TIPS's duration axis reads the measured
+`INDEX_OAD_TSY`,** as Treasuries, Long Treasuries and IG Corporates do: each
+reads the index's own rate duration. The real/nominal axis is unchanged: minus
+the inflation loading, estimated. Point 4 applies: a week with no measured
+value reads the estimate, marked `estimated`.
+
+**What it rests on.** The estimated real-yield loading reads 1.24 of the
+measured duration in the typical week (`huber6-v2` report). *Cowork's
+inference, not tested:* this is the same tenor gap as the 1-3y Treasuries
+(0.56), in the other direction. The factor is the 10-year real yield, and the
+index's own real yield moves more than the 10-year point. The test of that is
+the regression on each index's own yield, which "What it does not decide"
+already names.
+
+**Scope.** `LBUTTRUU` only. `LTP5TRUU` (TIPS 0-5y) is tradable-only and has
+no row (OWNER-QUEUE L29). No store is rebuilt: which value an axis reads is
+wiring.

@@ -59,6 +59,14 @@ the code and the constitution agree.**
 |---|---|---|
 | 5.6 | For JPMaQS, `period_end` may fall after `knowledge_date` (a survey or a nowcast, `eop_lag` below zero). The holdout lock binds on the `knowledge_date`. | 0047 |
 
+## Applied in v0.10 (2026-10-10, by Cowork at the owner's instruction)
+
+| Section | Amendment | Decision |
+|---|---|---|
+| 6 | Views become expected returns on the instruments that carry their axis, solved long-only on their sum; nothing is held at a target. | 0051 |
+| 5.1 | Invariant 8: returns are in the base currency, USD; local-currency series are converted on the same date through an explicit quote-convention table; a series whose quote currency differs from its sheet's is refused unless converted. Approved by the owner 2026-10-10. | 0053 |
+| 5.4a | The unhedged series that landed are listed (`LET1TREU` is 1-3y; Japan is the Aggregate); `I02513EU` is EUR, converted in the loader; `LGTRTRGU` and `LGTRTRJU` are not investable. The "until they land" sentence goes. | 0052, 0053 |
+
 ## Open questions — NOT amendments, and deliberately not applied
 
 The constitution should not pretend to settle what the lab has not learned.

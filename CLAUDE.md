@@ -23,7 +23,11 @@ opens every audit, and is the answer whenever `check-scoped` is in doubt.
 - Never run a bare `uv run`. Use `make <target>` or
   `uv run --python 3.12 --group dev ...`. The venv lives at
   `$HOME/.venvs/signal-lab` (build.mk sets `UV_PROJECT_ENVIRONMENT`).
-- Never push, reset, rebase or amend. Leo does those.
+- Never reset, rebase or amend. **Push only when a `HANDOFF.md` task says to**
+  (owner, 2026-10-10): `git push origin main` after the task's last commit,
+  never `--force` and never another branch. If the push is rejected or would
+  be anything but a fast-forward, stop and report. Leo does every other
+  remote operation.
 - Numbers are made at one thread (`decisions/0048`). `make` sets
   `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS` and `MKL_NUM_THREADS` to 1; a direct
   `python` call must set them too, or the test session and the number-making

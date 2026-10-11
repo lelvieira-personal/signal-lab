@@ -56,7 +56,18 @@ and 24 are done — receipts are in `## Done`.
 - **21** is hygiene, any time.
 - Tasks **13 and 14 are withdrawn** — read the notice, do not run them.
 
-**As of 2026-10-07 (17:15 ET): queued, task 52 only.** The owner ruled OWNER-QUEUE L27 (`decisions/0050`), chose the solver's form (`decisions/0051`) and removed two series from the investable universe (`decisions/0052`). He also put two vendor files in `data/raw/bloomberg/`. **Task 52** commits the records, applies 0052, loads the ex-USD analytics file, rebuilds the store as `huber6-v2` and corrects the report's table. It has no owner-only edit. **`resolve_exposures` stays raising after it:** the wiring is not queued, and nothing is built from `decisions/0050` or `0051` yet. **Waiting on the owner:** OWNER-QUEUE L28 to L31.
+**As of 2026-10-10 (23:30 ET): queued, task 53 only.** The owner ruled OWNER-QUEUE L32 (`decisions/0053`): every return is in dollars, and eighteen local-currency series are converted with the FX file he supplied (`data/raw/bloomberg/bbg_curncy_hist.xlsx`). Cowork transcribed SUBSTRATE v0.10 (L31) into the working tree; step 0 commits it. **Task 53** converts the series, takes `NDDLUK` out, adds a currency guard, rebuilds the store as `huber6-v3`, fixes the spread table and `LET1TREU`'s name, and **pushes** (`CLAUDE.md`, owner 2026-10-10). **`resolve_exposures` stays raising.** **Waiting on the owner:** L28 (the label-map draft), L29, L33.
+
+*(Earlier note:)* **As of 2026-10-10 (11:45 ET): nothing is queued.** The owner ruled on 2026-10-10:
+- OWNER-QUEUE L30 is closed: TIPS read their measured duration (`decisions/0050` addendum).
+- L28 and L31 are ruled in part.
+- `CLAUDE.md` now lets a task push `main` (fast-forward only).
+
+Cowork found OWNER-QUEUE L32 on the same day: nineteen return series are local-currency returns treated as dollars. **Waiting on the owner:** L32, then the label-map draft (L28) and SUBSTRATE v0.10 (L31). **Don't start anything before a task is written.** Uncommitted in the working tree, all Cowork's, for the next task's step 0: `HANDOFF.md`, `OWNER-QUEUE.md`, `CLAUDE.md` and `decisions/0050` (addendum).
+
+*(Earlier note:)* **As of 2026-10-08 (11:45 ET): nothing is queued.** Task 52 is done (`5fb47e3`, `49b202e`, receipt `f48c82f`) and Cowork verified it from `git`, the log `20261007-184728-check-full` (its `head=` is `5fb47e3`; every file the build commit changed was last written before the check started), the report and the store itself (Project doc `claude/task-52-review-2026-10-08.md`; mirror copy in `Claude outputs/project-mirror/`). The receipt stands as written. **`resolve_exposures` still raises.** **Waiting on the owner:** OWNER-QUEUE L28 to L31, including a new point in L29 (`LET1TREU`'s maturity band), and his agreement to the next task. **Don't start anything before a task is written.** Uncommitted in the working tree, all Cowork's, for the next task's step 0: `HANDOFF.md` and `OWNER-QUEUE.md`.
+
+*(Earlier note:)* **As of 2026-10-07 (17:15 ET): queued, task 52 only.** The owner ruled OWNER-QUEUE L27 (`decisions/0050`), chose the solver's form (`decisions/0051`) and removed two series from the investable universe (`decisions/0052`). He also put two vendor files in `data/raw/bloomberg/`. **Task 52** commits the records, applies 0052, loads the ex-USD analytics file, rebuilds the store as `huber6-v2` and corrects the report's table. It has no owner-only edit. **`resolve_exposures` stays raising after it:** the wiring is not queued, and nothing is built from `decisions/0050` or `0051` yet. **Waiting on the owner:** OWNER-QUEUE L28 to L31.
 
 *(Earlier note:)* **As of 2026-10-07 (10:15 ET): nothing is queued.** Tasks 50 and 51 are done and Cowork verified both from `git`, the three logs, the two `summary.json` files and the store (Project doc `claude/tasks-50-51-review-2026-10-07.md`; mirror copy in `Claude outputs/project-mirror/`). Both receipts stay as written; the review carries two corrections to task 51's estimated-against-measured table. **Waiting on the owner:** OWNER-QUEUE L27 (the exposure matrix's columns) and his agreement to the next steps. **Don't start anything before a task is written.** Uncommitted in the working tree, all Cowork's, for the next task's step 0: `HANDOFF.md`, `OWNER-QUEUE.md` and `decisions/0048-…`.
 
@@ -3230,6 +3241,244 @@ manifest and its report, as
 - step 5: each expected figure beside what the report prints, and **the
   estimated-against-measured rows of the six ex-USD bond indices**;
 - every test added and every test changed;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
+### 53. Every return in dollars (`decisions/0053`): eighteen local-currency series converted, `NDDLUK` out, a currency guard; store `huber6-v3`; SUBSTRATE v0.10 committed; the spread table; `LET1TREU`'s name; then push
+
+Added 2026-10-10 by Cowork.
+
+**Owner rulings of 2026-10-10:**
+- OWNER-QUEUE L32 (`decisions/0053`);
+- L31 (SUBSTRATE v0.10, already applied by Cowork in the working tree);
+- L30 (`decisions/0050` addendum);
+- the push permission now in `CLAUDE.md`.
+
+**What this task does not do:**
+- **No owner-only edit by you.** SUBSTRATE v0.10 and `decisions/0100` are
+  Cowork's transcription, and step 0 commits them.
+- No vendor call, no audit, no hypothesis changes state.
+- **`resolve_exposures` keeps raising.**
+
+**Budget:** 3 to 4 h, of which about 25 minutes is machine time.
+
+**Read first:**
+- `decisions/0053`, all of it, and especially its convention table and its
+  test;
+- SUBSTRATE §5.1, including the new invariant 8, and §5.4a (v0.10, in the
+  working tree);
+- `Claude outputs/project-mirror/task-52-review-2026-10-08.md`.
+
+**Hard rules:**
+- **Vendor data never leaves the machine.** That includes
+  `data/raw/bloomberg/bbg_curncy_hist.xlsx`. Print no rate and no level;
+  report counts, dates, hashes and aggregates only.
+- **The FX file runs to 2026-10-10. Nothing on or after 2020-01-01 is read.**
+  Cut at the holdout as every loader does, and test it.
+- **The quote convention is an explicit table** (`decisions/0053` rule 3).
+  - Never infer the direction from the column name by a string rule.
+  - `EURUSD` and `GBPUSD` are USD per unit and multiply. The six `USDxxx`
+    columns are units per USD and divide.
+  - A column not in the table is refused.
+- **No forward fill.** A date with a local level and no FX rate has no USD
+  level.
+- **The ex-USD bond file is not touched.** `bbg_exusd_bonds_usd_unhedged.csv`
+  stays as delivered (OWNER-QUEUE L33).
+- **Nothing in `params/` or `vetoes/` changes.** If a step seems to need it,
+  stop.
+- **Numbers recorded before today stand.** Don't edit or delete `huber6-v1`
+  or `huber6-v2`. Don't re-run the estimator test.
+- **No golden moves.** If a test this task doesn't name fails, stop and list
+  it.
+- **Don't build from `decisions/0050` or `0051`.** That means no axis
+  mapping, no label block and no alphas.
+
+**0. Commit first, alone, after `make check`.**
+- **Files:** `HANDOFF.md`, `OWNER-QUEUE.md`, `CLAUDE.md`, `SUBSTRATE.md`,
+  `decisions/0050-…` (addendum), `decisions/0053-…` and `decisions/0100-…`.
+- **Message:** `substrate v0.10 and queue: task 53; SUBSTRATE §5.1 invariant 8, §5.4a and §6 transcribed (decisions/0051, 0052, 0053); decisions 0053 and the 0050 addendum; OWNER-QUEUE L30, L31, L32 ruled, L33 added; push permission in CLAUDE.md (owner 2026-10-10)`.
+- **Governance:** `make governance` must pass. The message cites the records
+  for the owner-only file.
+
+**1. The FX file.**
+- **The file:** `data/raw/bloomberg/bbg_curncy_hist.xlsx`, sheet
+  `FX_Spot_USD`.
+  - Columns: `Date`, `EURUSD`, `GBPUSD`, `USDCAD`, `USDHKD`, `USDINR`,
+    `USDKRW`, `USDTWD`, `USDJPY`.
+  - One header row; 12,204 data rows. Blank is missing.
+  - Its sha256 begins `1d6fbb63e8a33e2e`. Check it, and stop if it differs.
+  - The `Data Sources` sheet is not read.
+- **A `raw_manifest.csv` row** for it: role `fx_spot`, layout
+  `wide_single_date`, one header row.
+- **A reader** that returns USD per unit for each of EUR, GBP, CAD, HKD, INR,
+  KRW, TWD and JPY. The convention table lives in code, next to the reader.
+- **Expected, before the holdout,** rows per column *(Cowork's read, in the
+  cloud workspace)*:
+
+  | Column | Rows before the holdout | First date |
+  |---|---|---|
+  | `EURUSD` | 10,283 | 1980-01-02 |
+  | `GBPUSD` | 10,436 | 1980-01-01 |
+  | `USDCAD` | 10,436 | 1980-01-01 |
+  | `USDHKD` | 10,407 | 1980-01-01 |
+  | `USDINR` | 10,200 | 1980-01-01 |
+  | `USDKRW` | 10,001 | 1981-04-13 |
+  | `USDTWD` | 9,327 | 1983-10-05 |
+  | `USDJPY` | 10,436 | 1980-01-01 |
+
+  Every column fell inside a plausible 2002-2019 band in its stated
+  convention. `GBPUSD` co-moves positively with `EURUSD`, and the six
+  `USDxxx` columns negatively.
+- **Tests,** on a synthetic workbook built in a temp folder:
+  - a EUR level of 100 at `EURUSD` 1.25 is 125 USD;
+  - a JPY level of 100 at `USDJPY` 100 is 1 USD;
+  - an unknown column is refused;
+  - the holdout cut;
+  - blank is missing, not zero.
+
+**2. The conversion and the guard** (`decisions/0053` rules 4 and 5), in
+`BloombergLoader.load_returns`.
+- **Where:** after markers and business days (step 1), before the
+  truncation (step 2).
+- **What:** every series whose `SeriesMeta.currency` (Index Map
+  `Quote ccy`) is one of EUR, GBP, CAD, HKD, INR, KRW or TWD becomes its
+  local level × USD per unit on the same date. Its `currency` is then
+  recorded as USD and the original is kept as `quote_currency`.
+- **Expected: exactly 19 series.**
+  - `I02513EU`, `MXEUG`;
+  - `MXEU0EN`, `MXEU0MT`, `MXEU0IN`, `MXEU0CD`, `MXEU0CS`, `MXEU0HC`,
+    `MXEU0FN`, `MXEU0IT`, `MXEU0TC`, `MXEU0UT`, `MXEU0RL`;
+  - `NDDLUK`;
+  - `MXCA`, `MXCN`, `MXIN`, `MXKR`, `TAMSCI`.
+- **Record** in `loader.report["fx"]`: per series, the currency, the column,
+  and the dates dropped for want of an FX rate.
+- **The guard.** For the roles `returns`, `returns_substitutes`,
+  `returns_hedged` and `benchmark`, a series whose quote currency is not USD
+  and is not converted stops the load.
+  - **Blank or `#N/A`:** a blank or `#N/A` quote currency is reported, not
+    refused. Expected: `LEGATRUU`, `NDUEACWF`, `SBWGU` and `MXWO`, which are
+    USD by their long names.
+  - **The ex-USD CSV is exempt:** its `_USD_unhedged` columns are already
+    converted.
+  - **If the guard stops on a series not named here,** stop and list it.
+- **The factors must not move.** They are built from `NDUEACWF`, `LD20TRUU`,
+  `BCOMTR`, `GTII10`, `USGGBE10`, `LUACOAS` and `DXY`, none of which is
+  converted. The factors hash must equal `3401475e…fafa9`; if it differs,
+  stop. **The panel's hash will change:** record the new one.
+- **Tests,** on synthetic data:
+  - a EUR and a JPY series converted in the right directions;
+  - a missing FX date gives a missing level, not a carried one;
+  - an unconverted non-USD series is refused;
+  - a blank quote currency is reported, not refused;
+  - a fixture without the FX file loads as before when no series needs it,
+    and is refused when one does.
+
+**3. The conversion's own check, on real data:**
+`scripts/check_fx_conversion.py`, run with `make fx-check`.
+- It calls `require_one_thread` and writes `results/fx/conversion_check.md`
+  and `.json`.
+- **What it compares:** converted `NDDLUK` against `NDDUUK`, on weekly
+  Friday closes, from 2002-01-01 to 2019-12-27. It reports four figures:
+  - weekly tracking error;
+  - 4-week tracking error;
+  - lag-1 autocorrelation of the weekly difference;
+  - the cumulative gap.
+- It also reports the same with the FX rate lagged one day.
+- **Expected** *(Cowork's read, Python 3.10 outside the repo's
+  environment)*: same day 238 bp/yr, 107 bp/yr, −0.51 and −50 bp. The lagged
+  version is about twice as wide.
+- **Report both if they differ** by more than 5 bp or 0.02. Don't change the
+  method to match. **If same-day is not the better of the two, stop.**
+
+**4. The universe** (`decisions/0053` rule 6, and the `LET1TREU` name).
+- **`NDDLUK`:** add it to `NOT_INVESTABLE_OTHER` with the reason
+  `MSCI UK restated in sterling; NDDUUK is the same index in dollars (decisions/0053)`.
+- **`LET1TREU`:** in `data/universe/bbg_exusd_bonds_coverage.csv`, change
+  its name from `euro_treasury_1_10y` to `euro_treasury_1_3y`. Change it
+  where the file is generated, if it is; otherwise in the file. List every
+  other place the old name appears.
+- **`make universe`.** Expected: **102 series, 92 investable, 10 excluded.**
+- **Tests:** `tests/test_scripts.py` asserts 93. Make it 92, cite 0053, and
+  assert `NDDLUK` is not investable.
+
+**5. The build's gates.**
+- **Against the run of record.** Keep `RESTATED` as it is. Add `NDDLUK` to
+  the instruments that left the build, and a `CONVERTED` set of the 17
+  estimated converted series (rule 4's list less `NDDLUK` and `MXEU0RL`).
+  - The run's instruments must be the build's (Cash out) plus exactly those
+    three.
+  - Every Huber loading the run stores for an instrument that is neither
+    left nor converted must equal this build's, at a tolerance of zero.
+  - **Expected:** 66 instruments, **339,744 cells, largest difference 0.0**
+    *(Cowork's count from the run's `loadings.parquet`)*.
+- **Against `huber6-v2`.**
+  - On instruments neither left nor converted, every loading and standard
+    error must be equal at zero. **Expected: 345,072 rows** (440,964 less
+    `NDDLUK`'s 5,328 and the converted 90,564).
+  - For the 17 converted series: report the largest difference, and each
+    series' median dollar loading and explained share, before and after.
+
+**6. The store:** `make characteristics ARGS="--store-id huber6-v3"`.
+- **Expected:**
+  - 84 estimated (Cash included) and 8 not; 92 instruments;
+  - loadings 435,636, fit 72,606 and measured 21,722, if no converted series
+    loses a week to a missing FX rate (if one does, report it by series);
+  - dates 2002-12-27 to 2019-12-27.
+- **The manifest** cites `decisions/0049`, `0052` and `0053` and this task,
+  and records `supersedes: huber6-v2`.
+- **Expected for the converted series** *(Cowork's expectation, not a
+  measurement)*:
+  - their median dollar loading moves from +0.10…+0.85 down into the range
+    of their dollar-quoted peers, about −0.07 to −0.40 for equities;
+  - `NDDLUK` would have landed near `NDDUUK`'s −0.24, but it is no longer
+    estimated;
+  - `I02513EU` moves toward the converted euro bonds (−0.84 to −1.15);
+  - `MXCN` barely moves, because the HKD is pegged.
+- **If a converted equity series' median dollar loading is still positive,**
+  report it and continue. It is a finding, not a failure.
+
+**7. The report** (`results/characteristics/huber6-v3/report.md`).
+- **A new table: converted to dollars.** Per series: the currency, the FX
+  column, the weeks, the median dollar loading and explained share in `v2`
+  and in `v3`, and the FX dates dropped.
+- **Duration times spread:** leave out the Treasuries, Long Treasuries and
+  TIPS classes, and the four government ex-USD indices `I02513EU`,
+  `I02913JP`, `I12823GB` and `LET1TREU`. Their spread over Treasuries is
+  near zero, so the ratio is meaningless (task 52 printed −39 and 15). The
+  heading says what is left out and why.
+- **Tests** on synthetic data for the new table and the exclusion.
+
+**8. Check, commit, push.**
+- **The check:** `scripts/unattended.sh check-full --digest`.
+- **Commit:** `src/`, `scripts/`, `tests/`, `build.mk`, `data/universe/`,
+  the `huber6-v3` manifest and report, and `results/fx/`, as
+  `loaders: every return in dollars -- eighteen local-currency series converted, NDDLUK out, a currency guard; store huber6-v3 (HANDOFF task 53, decisions/0053)`.
+- Then commit the receipt.
+- **Then push:** `git push origin main`, as `CLAUDE.md` allows.
+  - It should be a fast-forward of about 140 commits; the remote has seen
+    none since 2026-09.
+  - Never `--force`, never pull, never rebase.
+  - If it is rejected or authentication fails, stop and report the message.
+
+**Receipt:**
+- rc, commits, the log directory, the tier and the runtime;
+- **step 1:** the hash, the rows per column and the first dates;
+- **step 2:**
+  - the 19 converted, with the FX dates dropped per series;
+  - the series reported with a blank currency;
+  - the factors hash and the new panel hash;
+- **step 3:** the four figures and the lagged pair, each beside Cowork's;
+- **step 4:** the universe counts, and every place `euro_treasury_1_10y`
+  appeared;
+- **step 5:** the cells compared and the largest difference for both gates;
+- **step 6:** the store's hash and row counts, and the converted series'
+  dollar loadings before and after;
+- every test added and changed;
+- the push: its output's last line, and `git rev-list --count @{u}..HEAD`
+  after it (expected 0);
 - **Anything in this task you didn't do, said plainly.**
 
 Then stop.
