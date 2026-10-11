@@ -14,7 +14,7 @@ here, and the per-series true daily start comes from the workbook's own
 THE ORDER OF OPERATIONS IS LOAD-BEARING, and differs from the synthetic
 backend's on purpose:
 
-    missing markers -> business days -> truncate at true daily start
+    missing markers -> business days -> convert to USD -> truncate at true daily start
     -> splice -> hedge and withholding flags -> cut the holdout -> returns
 
 Truncation runs BEFORE the splice. Both `LT13TRUU` and its replacement `G3OC`
@@ -39,6 +39,7 @@ from typing import Any
 import pandas as pd
 
 from signal_lab.loaders import exusd_analytics as exusd
+from signal_lab.loaders import fx
 from signal_lab.loaders.base import (
     AnalyticsPanel,
     ReturnPanel,
@@ -300,6 +301,16 @@ def _tier_from_start(start: pd.Timestamp, params: Params) -> str:
     return "tradable-only"
 
 
+def _series_currency(row, ticker: str, exusd_starts: dict[str, pd.Timestamp]) -> str:
+    """
+    The Index Map's quote currency as delivered. Blank stays blank, so the guard can report it
+    (decisions/0053 rule 5). The ex-USD series have no Index Map row and arrive in USD.
+    """
+    if row is not None and len(row):
+        return _norm(row.get("currency")) or ""
+    return "USD" if ticker in exusd_starts else ""
+
+
 def build_series_meta(
     tickers: list[str],
     index_map: pd.DataFrame,
@@ -367,7 +378,7 @@ def build_series_meta(
             cost_bucket=(uni.get("cost_bucket") or "high"),
             month_end_only_before=month_end_before,
             region=section,
-            currency=(row.get("currency") if row is not None else None) or "USD",
+            currency=_series_currency(row, ticker, exusd_starts),
         )
     return meta
 
@@ -487,6 +498,12 @@ class BloombergLoader:
         exusd_starts = self._exusd_starts()
         meta = build_series_meta(list(combined.columns), index_map, universe, params, exusd_starts)
 
+        # 1b. every return in dollars (decisions/0053): the guard, then the conversion, on the
+        # same date, before any truncation. The ex-USD CSV arrives converted and is exempt.
+        hedged_blank = self._guard_hedged_sheet(index_map)
+        combined, meta, fx_report = self._to_usd(combined, meta, exempt=frozenset(exusd.columns))
+        fx_report["blank_quote_currency_hedged_sheet"] = hedged_blank
+
         # 2. truncate at the true daily start, per series.
         before_truncation = combined
         combined = truncate_at_daily_start(combined, meta)
@@ -568,8 +585,87 @@ class BloombergLoader:
             "hedged": sorted(s for s, m in meta.items() if m.hedged),
             "net_of_withholding": sorted(s for s, m in meta.items() if not m.gross),
             "region_source": "Section (conservative placeholder; see build_series_meta)",
+            "fx": fx_report,
         }
         return panel
+
+    # -- every return in dollars (decisions/0053) -------------------------------
+
+    def _read_fx(self) -> tuple[pd.DataFrame, str]:
+        """USD per unit by currency, before the holdout, and the file's sha256."""
+        if not any(r.get("role") == fx.ROLE for r in self.manifest()):
+            raise InvariantViolation(
+                "a return series needs converting to USD and raw_manifest.csv has no "
+                f"{fx.ROLE!r} row. Refusing to treat a local return as a dollar one."
+            )
+        entry = self._entry(fx.ROLE)
+        path = self._path(entry)
+        sha = fx.check_file(path)
+        markers = list(self.params.get("data.calendar.missing_markers", []))
+        rows = _sheet_rows(path, entry["sheet"])
+        rates = fx.rows_to_usd_per_unit(rows, markers, holdout_start(self.params))
+        return rates, sha
+
+    def _to_usd(
+        self,
+        levels: pd.DataFrame,
+        meta: dict[str, SeriesMeta],
+        exempt: frozenset[str] | set[str],
+    ) -> tuple[pd.DataFrame, dict[str, SeriesMeta], dict[str, Any]]:
+        """
+        The guard and the conversion. A series whose quote currency is neither USD nor in the
+        convention table stops the load; a blank one is reported. The file is read only when a
+        series needs it.
+        """
+        quotes = {t: meta[t].currency for t in levels.columns if t in meta}
+        convert, blank = fx.plan(quotes, exempt)
+        report: dict[str, Any] = {
+            "blank_quote_currency": blank,
+            "exempt_already_converted": sorted(t for t in levels.columns if t in exempt),
+            "converted": {},
+        }
+        meta = dict(meta)
+        for ticker in blank:
+            # reported above; a blank quote currency is a USD index by its long name
+            meta[ticker] = replace(meta[ticker], currency=fx.BASE_CURRENCY)
+        if not convert:
+            return levels, meta, report
+
+        rates, sha = self._read_fx()
+        cut = holdout_start(self.params)
+        converted = fx.convert_levels(levels, convert, rates)
+        for ticker, ccy in sorted(convert.items()):
+            dropped = fx.dates_without_rate(
+                levels[ticker], rates[ccy], meta[ticker].true_daily_start, cut
+            )
+            report["converted"][ticker] = {
+                "currency": ccy,
+                "column": fx.CURRENCY_COLUMN[ccy],
+                "n_dates_dropped": len(dropped),
+                "dates_dropped": dropped,
+            }
+            meta[ticker] = replace(meta[ticker], currency=fx.BASE_CURRENCY, quote_currency=ccy)
+        report["file_sha256_prefix"] = sha[:16]
+        report["columns"] = fx.describe_rates(rates)
+        return converted, meta, report
+
+    def _guard_hedged_sheet(self, index_map: pd.DataFrame) -> list[str]:
+        """
+        The guard on the hedged tab, which `load_returns` does not load. A series there is
+        USD-hedged; one whose Index Map quote currency is another currency stops the load, and
+        a blank one is reported.
+        """
+        if not any(r.get("role") == "returns_hedged" for r in self.manifest()):
+            return []
+        _, header = self._read_role("returns_hedged")
+        tickers = list(_series_columns(header))
+        by_ticker = {
+            str(r["ticker"]): r.get("currency")
+            for _, r in index_map.iterrows()
+            if not str(r.get("section") or "").startswith(ANALYTICS_SECTION_PREFIX)
+        }
+        _, blank = fx.plan({t: by_ticker.get(t) for t in tickers})
+        return blank
 
     def _exusd_starts(self) -> dict[str, pd.Timestamp]:
         path = self.universe_dir / "bbg_exusd_bonds_coverage.csv"
@@ -809,7 +905,10 @@ class BloombergLoader:
                 section="18. Benchmark",
                 cost_bucket="low",
                 region="18. Benchmark",
+                currency=_norm(row.get("currency")) or "",
             )
+        levels, meta, fx_report = self._to_usd(levels, meta, exempt=frozenset())
+        self.report["fx_benchmark"] = fx_report
         levels = truncate_at_daily_start(levels, meta)
         levels = levels.loc[levels.index < holdout_start(params)]
 

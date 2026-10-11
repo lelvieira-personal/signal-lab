@@ -85,6 +85,10 @@ def _frame_hash(*frames: pd.DataFrame) -> str:
     return h.hexdigest()
 
 
+# The last loader's report, kept for the scripts that print it (HANDOFF task 53: the FX block).
+LOADER_REPORT: dict = {}
+
+
 def load_inputs(params):
     from signal_lab.audit.universe import _development_window, read_investable_flags
     from signal_lab.loaders.bloomberg import BloombergLoader, read_universe
@@ -94,6 +98,8 @@ def load_inputs(params):
     panel = loader.load_returns()
     bench = loader.load_benchmark()
     analytics = loader.load_analytics()
+    LOADER_REPORT.clear()
+    LOADER_REPORT.update(loader.report)
     ff = build_factors(panel, bench, analytics, params)
     start = pd.Timestamp(params.require("data.windows.dev_start"))
     end = pd.Timestamp(params.require("data.windows.dev_end"))

@@ -1,0 +1,33 @@
+{
+  "cowork_read": {
+    "autocorr_lag1": -0.51,
+    "cum_gap_bp": -50.0,
+    "te_4w_bp": 107.0,
+    "te_weekly_bp": 238.0
+  },
+  "differs_from_cowork_beyond_tolerance": {},
+  "fx_file_sha256_prefix": "1d6fbb63e8a33e2e",
+  "n_dates_dropped": 0,
+  "pair": "NDDLUK converted (GBP) against NDDUUK",
+  "rate_lagged_one_business_day": {
+    "autocorr_lag1": -0.4959696176450879,
+    "cum_gap_bp": -54.25402653380651,
+    "n_weeks": 938,
+    "te_4w_bp": 263.6718199948295,
+    "te_4w_overlapping_bp": 291.75620629413794,
+    "te_weekly_bp": 601.1104391993787
+  },
+  "same_day": {
+    "autocorr_lag1": -0.507715071299346,
+    "cum_gap_bp": -50.035720668537564,
+    "n_weeks": 938,
+    "te_4w_bp": 108.5544888193373,
+    "te_4w_overlapping_bp": 115.93292807703973,
+    "te_weekly_bp": 238.4628024724945
+  },
+  "same_day_is_the_better_alignment": true,
+  "window": [
+    "2002-01-01",
+    "2019-12-27"
+  ]
+}

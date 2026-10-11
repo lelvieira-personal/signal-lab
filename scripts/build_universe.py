@@ -53,6 +53,7 @@ NOT_INVESTABLE_OTHER = {
     "SPBDALB": "price index, not total return (decisions/0022)",
     "LGTRTRGU": _RESTATED,
     "LGTRTRJU": _RESTATED,
+    "NDDLUK": "MSCI UK restated in sterling; NDDUUK is the same index in dollars (decisions/0053)",
 }
 
 # The owner's taxonomy, plus two classes added to reach full coverage; the two

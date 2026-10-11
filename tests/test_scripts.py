@@ -266,7 +266,8 @@ def test_the_committed_universe_is_what_build_universe_produces():
     universe still held SPBDALB: 96 holdable series where 0022 says 95. The
     table is a build product; this keeps it from drifting from its builder.
     decisions/0052 then took LGTRTRGU and LGTRTRJU out (restatements of the global
-    aggregate in another currency): 93 holdable series.
+    aggregate in another currency): 93 holdable series. decisions/0053 then took NDDLUK
+    out (MSCI UK in sterling, which NDDUUK already is in dollars): 92.
     Compared on content, not bytes, so line endings do not matter.
     """
     import csv
@@ -287,7 +288,9 @@ def test_the_committed_universe_is_what_build_universe_produces():
     assert committed["SPBDALB"]["investable"] == "False"
     for restated in ("LGTRTRGU", "LGTRTRJU"):
         assert committed[restated]["investable"] == "False"
-    assert sum(r["investable"] == "True" for r in committed.values()) == 93
+    assert committed["NDDLUK"]["investable"] == "False"
+    assert "decisions/0053" in committed["NDDLUK"]["not_investable_because"]
+    assert sum(r["investable"] == "True" for r in committed.values()) == 92
 
 
 def test_a_cycle_run_by_a_test_leaves_the_real_registry_and_requests_untouched(tmp_path, capsys):

@@ -76,6 +76,7 @@ class SeriesMeta:
     splice: SpliceRecord | None = None
     region: str | None = None
     currency: str = "USD"
+    quote_currency: str | None = None  # as delivered, when converted to USD (decisions/0053)
 
     def contributes_from(self) -> pd.Timestamp:
         """
@@ -137,6 +138,7 @@ class ReturnPanel:
                     "month_end_only_before": m.month_end_only_before,
                     "region": m.region,
                     "currency": m.currency,
+                    "quote_currency": m.quote_currency,
                     "spliced_from": m.splice.source if m.splice else None,
                 }
             )

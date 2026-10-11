@@ -335,3 +335,67 @@ def test_a_built_stores_last_date_is_before_the_holdout():
     for path in manifests:
         doc = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert pd.Timestamp(doc["last_date"]) < holdout_start(), path.parent.name
+
+
+def test_duration_times_spread_leaves_out_treasuries_tips_and_the_government_ex_usd_indices(
+    tmp_path,
+):
+    """HANDOFF task 53: their spread over Treasuries is near zero, so the ratio is meaningless."""
+    loaded, _ = _report_store(tmp_path)
+    inst = loaded.frames["instruments"]
+    # T1 is a Treasuries instrument with an OAS: still left out by class.
+    meas = loaded.frames["measured"]
+    t1 = pd.DataFrame(
+        {
+            "instrument": "T1",
+            "date": loaded.frames["loadings"]["date"].unique(),
+            "oad": 3.0,
+            "oas": 0.01,
+            "kind": "measured",
+        }
+    )
+    loaded.frames["measured"] = pd.concat([meas, t1], ignore_index=True)
+    dts = report.duration_times_spread(loaded)
+    assert set(dts["instrument"]) == {"LUACTRUU", "HY1"}
+    # a government ex-USD index in an included class is left out by name
+    loaded.frames["instruments"] = inst.assign(instrument=["LUACTRUU", "HY1", "LET1TREU"])
+    loaded.frames["loadings"]["instrument"] = loaded.frames["loadings"]["instrument"].replace(
+        {"T1": "LET1TREU"}
+    )
+    loaded.frames["measured"]["instrument"] = loaded.frames["measured"]["instrument"].replace(
+        {"T1": "LET1TREU"}
+    )
+    loaded.frames["instruments"]["class"] = ["IG Corporates", "HY Corporates", "Ex-USD Bonds"]
+    dts = report.duration_times_spread(loaded)
+    assert "LET1TREU" not in set(dts["instrument"])
+    text = report.build_report(loaded)
+    assert "**Left out:**" in text and "`LET1TREU`" in text and "Treasuries" in text
+
+
+def test_the_converted_table_gives_the_dollar_loading_and_share_before_and_after(tmp_path):
+    loaded, _ = _report_store(tmp_path)
+    old = {k: v.copy() for k, v in loaded.frames.items()}
+    # "before": HY1's dollar loading shifted by +0.5 and its share halved
+    mask = (old["loadings"]["instrument"] == "HY1") & (old["loadings"]["factor"] == "dollar")
+    old["loadings"].loc[mask, "loading"] += 0.5
+    old["fit"].loc[old["fit"]["instrument"] == "HY1", "explained_share"] *= 0.5
+    rows = report.converted_rows(
+        loaded.frames, old, {"HY1": {"currency": "EUR", "column": "EURUSD", "n_dates_dropped": 7}}
+    )
+    (r,) = rows
+    assert r["instrument"] == "HY1" and r["currency"] == "EUR" and r["column"] == "EURUSD"
+    assert r["dollar_before"] == pytest.approx(r["dollar_after"] + 0.5)
+    assert r["share_before"] == pytest.approx(r["share_after"] * 0.5)
+    assert r["fx_dates_dropped"] == 7 and r["weeks"] > 100
+
+    loaded.manifest["converted_to_usd"] = rows
+    loaded.manifest["supersedes"] = "huber6-v2"
+    text = report.build_report(loaded)
+    assert "## Converted to dollars (`decisions/0053`)" in text
+    assert "| HY1 | EUR | EURUSD |" in text
+    assert "FX dates dropped" in text
+
+
+def test_a_store_with_no_converted_series_has_no_converted_section(tmp_path):
+    loaded, _ = _report_store(tmp_path)
+    assert "Converted to dollars" not in report.build_report(loaded)

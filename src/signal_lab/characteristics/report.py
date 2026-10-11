@@ -42,6 +42,10 @@ BOND_CLASSES = (
 )
 PERIODS = (("2002-08", 2002, 2008), ("2009-15", 2009, 2015), ("2016-19", 2016, 2019))
 SPREAD_REFERENCE = "LUACTRUU"
+# Duration times spread is meaningless where the spread over Treasuries is near zero: the ratio
+# divides by it (task 52 printed -39 and 15). Left out by class, and four government ex-USD indices.
+DTS_EXCLUDED_CLASSES = ("Treasuries", "Long Treasuries", "TIPS")
+DTS_EXCLUDED_INSTRUMENTS = ("I02513EU", "I02913JP", "I12823GB", "LET1TREU")
 
 
 def bond_frame(store: Store) -> pd.DataFrame:
@@ -147,6 +151,8 @@ def duration_times_spread(store: Store) -> pd.DataFrame:
     ref = df.loc[df["instrument"] == SPREAD_REFERENCE].set_index("date")["oas"]
     rows = []
     for sid, g in df.groupby("instrument", sort=False):
+        if sid in DTS_EXCLUDED_INSTRUMENTS or g["class"].iloc[0] in DTS_EXCLUDED_CLASSES:
+            continue
         g = g.assign(ref=g["date"].map(ref))
         ok = g[(g["oad"] > 0) & (g["oas"] > 0) & (g["ref"] > 0)]
         if not len(ok):
@@ -276,7 +282,10 @@ def bond_sections(store: Store) -> list[str]:
         "",
         "For each instrument with an `INDEX_OAS_TSY`: the median over weeks of the credit loading "
         f"over `-OAD x OAS / OAS of {SPREAD_REFERENCE}`. 1 means the credit loading is duration "
-        "times spread, scaled to the reference.",
+        "times spread, scaled to the reference. **Left out:** the "
+        f"{', '.join(DTS_EXCLUDED_CLASSES)} classes and the government ex-USD indices "
+        f"{', '.join(f'`{t}`' for t in DTS_EXCLUDED_INSTRUMENTS)}. Their spread over Treasuries "
+        "is near zero, so the ratio divides by almost nothing and means nothing.",
         "",
         *_table(
             ["instrument", "class", "weeks", "credit loading over duration x spread"],
@@ -292,6 +301,89 @@ def bond_sections(store: Store) -> list[str]:
         ),
     ]
     return lines
+
+
+def converted_rows(new: dict, old: dict, converted: dict[str, dict]) -> list[dict]:
+    """
+    Per series converted to dollars (decisions/0053): the median over weeks of its dollar
+    loading and of its explained share in the earlier store and in this one.
+
+    `new` and `old` are store frames; `converted` maps a ticker to `{"currency", "column",
+    "n_dates_dropped"}`. A series absent from a store has NaN there.
+    """
+
+    def med(frames, sid, factor=None):
+        if factor is None:
+            g = frames["fit"]
+            g = g[g["instrument"] == sid]["explained_share"]
+        else:
+            g = frames["loadings"]
+            g = g[(g["instrument"] == sid) & (g["factor"] == factor)]["loading"]
+        g = g.dropna()
+        return float(g.median()) if len(g) else float("nan")
+
+    rows = []
+    for sid, c in sorted(converted.items()):
+        load = new["loadings"]
+        weeks = load[(load["instrument"] == sid) & (load["factor"] == "dollar")]["date"].nunique()
+        rows.append(
+            {
+                "instrument": sid,
+                "currency": c["currency"],
+                "column": c["column"],
+                "weeks": int(weeks),
+                "dollar_before": med(old, sid, "dollar"),
+                "share_before": med(old, sid),
+                "dollar_after": med(new, sid, "dollar"),
+                "share_after": med(new, sid),
+                "fx_dates_dropped": int(c["n_dates_dropped"]),
+            }
+        )
+    return rows
+
+
+def converted_section(store: Store) -> list[str]:
+    rows = store.manifest.get("converted_to_usd")
+    if not rows:
+        return []
+    return [
+        "",
+        "## Converted to dollars (`decisions/0053`)",
+        "",
+        "Series delivered in their quote currency, converted in the loader with Bloomberg generic "
+        f"spot on the same date. *before* is `{store.manifest.get('supersedes', '-')}`, *after* "
+        "this store. Medians over weeks of the dollar loading and of the explained share. "
+        "*FX dates dropped* are dates, from each series' true daily start to the holdout, with a "
+        "local level and no rate: they have no dollar level and nothing is carried.",
+        "",
+        *_table(
+            [
+                "instrument",
+                "currency",
+                "FX column",
+                "weeks",
+                "dollar loading before",
+                "dollar loading after",
+                "explained share before",
+                "explained share after",
+                "FX dates dropped",
+            ],
+            [
+                [
+                    r["instrument"],
+                    r["currency"],
+                    r["column"],
+                    str(r["weeks"]),
+                    _f(r["dollar_before"], 2),
+                    _f(r["dollar_after"], 2),
+                    _f(r["share_before"], 2),
+                    _f(r["share_after"], 2),
+                    str(r["fx_dates_dropped"]),
+                ]
+                for r in rows
+            ],
+        ),
+    ]
 
 
 def build_report(store: Store, checks: dict[str, str] | None = None) -> str:
@@ -384,6 +476,7 @@ def build_report(store: Store, checks: dict[str, str] | None = None) -> str:
         ],
     )
 
+    lines += converted_section(store)
     lines += bond_sections(store)
     if checks:
         lines += ["", "## Checks the build made on itself", ""]

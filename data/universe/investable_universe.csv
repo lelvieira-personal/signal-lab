@@ -43,7 +43,7 @@ MXEU0RL,MSCI Europe Real Estate GICS L,10. European Sectors (MSCI Europe),2016-0
 MXEU0TC,MSCI Europe Communication Serv,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
 MXEU0UT,MSCI Europe Utilities Sector I,10. European Sectors (MSCI Europe),1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
 MXEUG,MSCI Europe Excluding United K,7. Equity Regions - Developed ex-US,1995-01-02,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
-NDDLUK,MSCI UK Net Total Return Local,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
+NDDLUK,MSCI UK Net Total Return Local,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,False,mid,European Equities,MSCI UK restated in sterling; NDDUUK is the same index in dollars (decisions/0053),bbg_index_coverage.csv
 NDDUUK,MSCI UK Net Total Return USD I,7. Equity Regions - Developed ex-US,1999-01-01,backbone,False,True,mid,European Equities,,bbg_index_coverage.csv
 BTSYTRUH,Bloomberg Global Treasury Tota,3. International Government Bonds,1997-09-02,backbone,True,False,mid,Ex-USD Bonds,hedged (decisions/0013),bbg_index_coverage.csv
 H02549US,Bloomberg Pan European Aggrega,5. Credit,2000-09-01,backbone,True,False,mid,Ex-USD Bonds,hedged (decisions/0013),bbg_index_coverage.csv
@@ -52,7 +52,7 @@ H12823US,Bloomberg UK Gilt 1-10 Total R,3. International Government Bonds,2009-0
 I02513EU,Bloomberg Pan-European Governm,3. International Government Bonds,1999-01-04,backbone,False,True,mid,Ex-USD Bonds,,bbg_index_coverage.csv
 I02913JP,japan_aggregate,3. International Government Bonds,2001-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 I12823GB,uk_gilt_1_10y,3. International Government Bonds,2006-01-03,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
-LET1TREU,euro_treasury_1_10y,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
+LET1TREU,euro_treasury_1_3y,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 LG38TRUU,global_agg_ex_usd,3. International Government Bonds,2001-01-02,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 LGTRTRGU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-02-01,backbone,False,False,mid,Ex-USD Bonds,"the global aggregate restated in another currency, not an instrument (decisions/0052)",bbg_index_coverage.csv
 LGTRTRJU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-02-01,backbone,False,False,mid,Ex-USD Bonds,"the global aggregate restated in another currency, not an instrument (decisions/0052)",bbg_index_coverage.csv

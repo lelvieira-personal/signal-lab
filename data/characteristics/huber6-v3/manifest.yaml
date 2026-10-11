@@ -1,0 +1,229 @@
+store_id: huber6-v3
+built_at: '2026-10-11T02:55:58+00:00'
+decision: decisions/0049
+also:
+- decisions/0052
+- decisions/0053
+handoff_task: 53
+supersedes: huber6-v2
+estimator:
+  name: huber_m
+  hypothesis: H-2026-0013
+  huber_c: 1.345
+  mad_to_sd: 1.4826
+  window_weeks: 156
+  min_obs: 104
+  explained_share_window_weeks: 156
+  explained_share_min_weeks: 52
+factors:
+- equity
+- real_yield
+- inflation
+- credit
+- dollar
+- commodities
+params_version: 0.9.0
+params_hash: b3d41267a752b9d76e2ddf17264cccb5b5b9ea6f0f45edc8bf1517524674376a
+weekly_returns_hash: 0377b3fc550ec8e5592b2e62af131c12ad33591ff6d7fc41e7267c43659d8e69
+factors_hash: 3401475eb25cd3c0a1c4858110732e97929ae550576767c8ad7f7138245fafa9
+factors_equal_run_of_record: true
+run_of_record: M-20261003T181155Z
+thread_setting:
+  OMP_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+  MKL_NUM_THREADS: '1'
+n_estimated: 84
+n_not_estimated: 8
+not_estimated_reason: tradable-only series (daily start after 2009) inherit loadings
+  and are never estimated, SUBSTRATE section 5.2
+not_estimated:
+- LTP5TRUU
+- M1CXNNA
+- M1CXVRSD
+- M1EAMM
+- M1EAQU
+- M1EFHDY
+- M1WDUMMT
+- MXEU0RL
+estimated_but_no_row: []
+first_date: '2002-12-27'
+last_date: '2019-12-27'
+measured_fields:
+  oad: INDEX_OAD_TSY
+  oas: INDEX_OAS_TSY
+reproduction:
+  cells_compared: 339744
+  max_abs_loading_difference: 0.0
+  shared_instruments: 66
+  shared_scored_cells: 53638
+  r2_oos: 0.74544823135625
+  mean_huber_loss: 0.21258132749394143
+  reference_cells_86_instruments: 70326
+  reference_r2_oos_86_instruments: 0.7029825014051894
+  reference_mean_huber_loss_86_instruments: 0.23033442386469188
+supersedes_cells_compared: 345072
+supersedes_rows_unmatched: 0
+supersedes_max_abs_loading_difference: 0.0
+supersedes_max_abs_se_difference: 0.0
+converted_to_usd:
+- instrument: I02513EU
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.0989762842159761
+  share_before: 0.47283915356363837
+  dollar_after: -1.0827735945260901
+  share_after: 0.8630260254248849
+  fx_dates_dropped: 0
+- instrument: MXCA
+  currency: CAD
+  column: USDCAD
+  weeks: 888
+  dollar_before: 0.28987274812079333
+  share_before: 0.6826912706660311
+  dollar_after: -0.061425927579115476
+  share_after: 0.7220328892813486
+  fx_dates_dropped: 2086
+- instrument: MXCN
+  currency: HKD
+  column: USDHKD
+  weeks: 888
+  dollar_before: -0.013307151543543427
+  share_before: 0.424679266394137
+  dollar_after: -0.02095510715381549
+  share_after: 0.4226040938581672
+  fx_dates_dropped: 0
+- instrument: MXEU0CD
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.7104385152560113
+  share_before: 0.7266121632244815
+  dollar_after: -0.503698122479628
+  share_after: 0.7673088507052792
+  fx_dates_dropped: 32
+- instrument: MXEU0CS
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.7473632717896287
+  share_before: 0.5087281948992814
+  dollar_after: -0.44370178591498566
+  share_after: 0.5983854719041943
+  fx_dates_dropped: 32
+- instrument: MXEU0EN
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.8511672831962824
+  share_before: 0.6044432865989643
+  dollar_after: -0.3242642086041949
+  share_after: 0.6344587720733887
+  fx_dates_dropped: 32
+- instrument: MXEU0FN
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.583947970199606
+  share_before: 0.7488432724833503
+  dollar_after: -0.5772194490836995
+  share_after: 0.7903037432013724
+  fx_dates_dropped: 32
+- instrument: MXEU0HC
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.8239147504368356
+  share_before: 0.5004419055466773
+  dollar_after: -0.41142359817735885
+  share_after: 0.5269983627310493
+  fx_dates_dropped: 32
+- instrument: MXEU0IN
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.6587559408150541
+  share_before: 0.7944870530316932
+  dollar_after: -0.5409731792225356
+  share_after: 0.7968874090478248
+  fx_dates_dropped: 32
+- instrument: MXEU0IT
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.792405213916795
+  share_before: 0.6422142528950943
+  dollar_after: -0.3750968194394673
+  share_after: 0.6175078041793038
+  fx_dates_dropped: 32
+- instrument: MXEU0MT
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.6539452539509315
+  share_before: 0.7121681294589299
+  dollar_after: -0.5780192415979621
+  share_after: 0.745745825964655
+  fx_dates_dropped: 32
+- instrument: MXEU0TC
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.5613496739623107
+  share_before: 0.4878364262687573
+  dollar_after: -0.6003762492428524
+  share_after: 0.5083175360244228
+  fx_dates_dropped: 32
+- instrument: MXEU0UT
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.4606362340640303
+  share_before: 0.514085895455753
+  dollar_after: -0.7356734211391345
+  share_after: 0.5431325033725956
+  fx_dates_dropped: 32
+- instrument: MXEUG
+  currency: EUR
+  column: EURUSD
+  weeks: 888
+  dollar_before: 0.5997485969008874
+  share_before: 0.8447786797284739
+  dollar_after: -0.531808536869915
+  share_after: 0.8603224908673007
+  fx_dates_dropped: 32
+- instrument: MXIN
+  currency: INR
+  column: USDINR
+  weeks: 888
+  dollar_before: 0.262315812148353
+  share_before: 0.34446583233131806
+  dollar_after: 0.13304160691423905
+  share_after: 0.3476124005693834
+  fx_dates_dropped: 60
+- instrument: MXKR
+  currency: KRW
+  column: USDKRW
+  weeks: 888
+  dollar_before: 0.20712498885375147
+  share_before: 0.4523713294199194
+  dollar_after: -0.09548987623844618
+  share_after: 0.49709828965942415
+  fx_dates_dropped: 0
+- instrument: TAMSCI
+  currency: TWD
+  column: USDTWD
+  weeks: 886
+  dollar_before: 0.21322183626793867
+  share_before: 0.3819274198528044
+  dollar_after: 0.031665976100616444
+  share_after: 0.39206008270023945
+  fx_dates_dropped: 1
+converted_cells_compared: 90564
+converted_max_abs_loading_difference: 7.711133990284493
+row_counts:
+  loadings: 435636
+  fit: 72606
+  measured: 21722
+  instruments: 92
+directory_hash: 84a5088d82b135c48ba7da5709ebae3f58186c06b08575d1b233ba19e27270f7
