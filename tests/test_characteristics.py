@@ -313,9 +313,10 @@ def test_the_scored_cell_set_takes_presence_only_from_a_reference_run():
     assert have[:5].sum() == 0 and not have[10, 1] and have[10, 0] and have[11, 1]
 
 
-def test_the_exposure_matrix_still_does_not_exist():
+def test_a_missing_exposure_matrix_raises_and_never_returns_an_identity(tmp_path):
+    """The old pin, kept: no store means a raise. It reads a root with nothing in it."""
     with pytest.raises(ExposureMatrixMissing):
-        resolve_exposures(None)
+        resolve_exposures(None, root=tmp_path)
 
 
 @pytest.mark.holdout

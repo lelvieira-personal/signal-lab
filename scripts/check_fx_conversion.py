@@ -59,8 +59,14 @@ def _figures(conv, usd):
     }
 
 
-def main() -> int:
+# decisions/0053 addendum, HANDOFF task 54: the global aggregate restated in sterling and yen,
+# converted, against the same aggregate in dollars. Cowork has no measurement of these.
+GLOBAL_AGG = (("LGTRTRGU", "GBP"), ("LGTRTRJU", "JPY"))
+BENCHMARK_LEG = "LEGATRUU"
+STOP_ABOVE_BP = 1000.0
 
+
+def main() -> int:
     from signal_lab.loaders.bloomberg import BloombergLoader
     from signal_lab.params import get_params
 
@@ -90,6 +96,22 @@ def main() -> int:
         "cowork_read": COWORK,
         "n_dates_dropped": rep["converted"][LOCAL]["n_dates_dropped"],
     }
+
+    bench = loader.load_benchmark().levels[BENCHMARK_LEG]
+    pairs = {}
+    for ticker, ccy in GLOBAL_AGG:
+        if panel.meta[ticker].quote_currency != ccy:
+            print(f"{ticker} was not converted from {ccy}; stopping", file=sys.stderr)
+            return 1
+        pairs[ticker] = {
+            "currency": ccy,
+            "against": BENCHMARK_LEG,
+            "n_dates_dropped": rep["converted"][ticker]["n_dates_dropped"],
+            **_figures(panel.levels[ticker], bench),
+        }
+    result["global_aggregate_same_day"] = pairs
+    too_wide = {t: p["te_weekly_bp"] for t, p in pairs.items() if p["te_weekly_bp"] > STOP_ABOVE_BP}
+    result["global_aggregate_above_1000bp"] = too_wide
 
     differs = {
         k: round(same[k] - COWORK[k], 3) for k in COWORK if abs(same[k] - COWORK[k]) > TOL[k]
@@ -128,9 +150,25 @@ def main() -> int:
         f"- Figures differing from Cowork's by more than the tolerance "
         f"(5 bp, 0.02): {differs or 'none'}.",
         f"- `{LOCAL}` dates dropped for want of an FX rate: {result['n_dates_dropped']}.",
+        "",
+        f"## The global aggregate restated, converted, against `{BENCHMARK_LEG}` (same day)",
+        "",
+        "| Series | Currency | Weekly TE (bp/yr) | Lag-1 autocorrelation | Cumulative gap (bp) "
+        "| Weeks | FX dates dropped |",
+        "|---|---|---|---|---|---|---|",
+        *(
+            f"| `{t}` | {p['currency']} | {p['te_weekly_bp']:.2f} | {p['autocorr_lag1']:.2f} "
+            f"| {p['cum_gap_bp']:.2f} | {p['n_weeks']} | {p['n_dates_dropped']} |"
+            for t, p in pairs.items()
+        ),
+        "",
+        f"- Above {STOP_ABOVE_BP:.0f} bp/yr (the direction or the series would be wrong): "
+        f"{too_wide or 'none'}.",
     ]
     (OUT_DIR / "conversion_check.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
+    if too_wide:
+        return 3
     return 0 if better else 2
 
 

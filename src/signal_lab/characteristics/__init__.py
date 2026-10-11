@@ -6,6 +6,7 @@ their uncertainty and each instrument's out-of-sample explained share, and reads
 cells (`INDEX_OAD_TSY`, `INDEX_OAS_TSY`) beside them without merging. `store` writes them as a
 versioned, hashed directory under `data/characteristics/` and refuses one that has changed.
 
-Nothing here chooses the matrix's columns (OWNER-QUEUE L27), and nothing here is wired into
-`resolve_exposures`, which still raises.
+`exposures` reads a store as of a date (decisions/0050, 0055): `resolve_exposures` returns an
+`ExposureMap` for the store `params/` names. Region, sector and style still raise until the
+label map lands (decisions/0054).
 """

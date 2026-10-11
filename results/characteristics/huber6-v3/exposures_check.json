@@ -1,0 +1,98 @@
+{
+  "all_fridays": true,
+  "differs_from_cowork": [],
+  "duration_estimated": 65843,
+  "duration_measured": 6763,
+  "duration_missing": 0,
+  "first_week": "2002-12-27",
+  "friday_fitted_through_equals_used_on_date": true,
+  "friday_usage_rows": 72606,
+  "instrument_weeks": 72606,
+  "instruments_first_week": 73,
+  "instruments_last_week": 84,
+  "last_week": "2019-12-27",
+  "mean_axis_credit": 1.3005555996859475,
+  "mean_axis_duration": 1.4273863379760483,
+  "mean_axis_real_nominal": 1.279246257826503,
+  "measured_at_or_below_zero": 0,
+  "median_axis_duration_by_class_at_last_week": {
+    "APAC ex-Japan Equities": -0.017794366017433994,
+    "Cash": 0.0773747753600291,
+    "Commodities": 0.07737477535993431,
+    "DM ex-US Equities": 1.3308190021406883,
+    "EM Corporate Bonds": 2.4807101028675955,
+    "EM Equities": 2.1181349849831017,
+    "EM Sovereign Bonds": 3.302642538838258,
+    "European Equities": -1.1423632326874944,
+    "Ex-USD Bonds": 2.726972302743773,
+    "Gold": 8.625432245362015,
+    "HY Corporates": 1.3385747612510943,
+    "IG Corporates": 5.2222355,
+    "Japanese Equities": -0.16188513712045183,
+    "Long Treasuries": 18.3233245,
+    "MBS": 3.7147386196572474,
+    "Real Assets": 1.8143122757094556,
+    "TIPS": 4.546906,
+    "Treasuries": 4.48306,
+    "US Equities": -0.02196588663478765
+  },
+  "none_skipped": true,
+  "per_instrument": {
+    "LBUTTRUU": {
+      "estimated": 0,
+      "estimated_first": null,
+      "estimated_last": null,
+      "measured": 888
+    },
+    "LDC5TRUU": {
+      "estimated": 0,
+      "estimated_first": null,
+      "estimated_last": null,
+      "measured": 758
+    },
+    "LT01TRUU": {
+      "estimated": 0,
+      "estimated_first": null,
+      "estimated_last": null,
+      "measured": 888
+    },
+    "LT09TRUU": {
+      "estimated": 0,
+      "estimated_first": null,
+      "estimated_last": null,
+      "measured": 888
+    },
+    "LT11TRUU": {
+      "estimated": 0,
+      "estimated_first": null,
+      "estimated_last": null,
+      "measured": 888
+    },
+    "LT13TRUU": {
+      "estimated": 211,
+      "estimated_first": "2002-12-27",
+      "estimated_last": "2007-01-05",
+      "measured": 677
+    },
+    "LUACTRUU": {
+      "estimated": 0,
+      "estimated_first": null,
+      "estimated_last": null,
+      "measured": 888
+    },
+    "LUTLTRUU": {
+      "estimated": 0,
+      "estimated_first": null,
+      "estimated_last": null,
+      "measured": 888
+    }
+  },
+  "raises": {
+    "2001-01-05": true,
+    "2002-12-20": true
+  },
+  "rule_rows_equal_instrument_weeks": true,
+  "store_weeks": 888,
+  "tuesday_usage_rows": 72606,
+  "tuesday_used_four_days_after_fitted_through": true
+}

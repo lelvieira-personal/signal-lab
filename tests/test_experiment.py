@@ -58,14 +58,15 @@ def test_every_blocked_status_is_distinct_and_specific():
     assert all(issubclass(c, ExperimentBlocked) for c in (SignalModuleMissing, OptimiserMissing))
 
 
-def test_the_exposure_matrix_raises_rather_than_returning_an_identity(params):
+def test_the_exposure_matrix_raises_rather_than_returning_an_identity(params, tmp_path):
     """
     A silent identity matrix would make every exposure equal its weight, the
     risk decomposition would report pure idiosyncratic risk, and nothing would
-    look broken.
+    look broken. Against a store root with no store in it (HANDOFF task 54), so this
+    never depends on the real store.
     """
     with pytest.raises(ExposureMatrixMissing, match="characteristic map"):
-        resolve_exposures(None, params)
+        resolve_exposures(None, params, root=tmp_path)
 
 
 def test_a_real_hypothesis_blocks_on_the_first_missing_link(a_hypothesis, panel, params):

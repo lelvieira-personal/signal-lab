@@ -1,6 +1,6 @@
 # Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
 # sections 3, 5 and 16. Owner-only.
-params_version: "0.9.0"
+params_version: "0.10.0"
 
 windows:
   dev_start: "2001-01-05"
@@ -66,6 +66,15 @@ covariance:
 analytics:
   drop_oas_on_treasury_buckets: true    # zero by construction, SUBSTRATE section 5.3
   keep_oad_on_treasury_buckets: true
+
+characteristics:
+  # decisions/0055. The store `resolve_exposures` reads (decisions/0049 built
+  # it, decisions/0050 says which cell each axis reads). A store is immutable
+  # and hashed; which one a run reads is an owner decision, and naming it here
+  # puts it in the params hash every run records. `directory_hash` is the
+  # store manifest's: a store of the same id with other contents is refused.
+  store_id: huber6-v3
+  directory_hash: "84a5088d82b135c48ba7da5709ebae3f58186c06b08575d1b233ba19e27270f7"
 
 fred:
   # SUBSTRATE section 5.4: ICE BofA spread series on FRED start 2023-09.

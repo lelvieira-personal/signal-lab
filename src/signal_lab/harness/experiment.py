@@ -10,7 +10,9 @@ The chain, and what is missing from each link:
     hypothesis
       -> signal module      phase 3. Nothing registered; the Implementer role
                             writes these from the hypothesis file.
-      -> exposure matrix    phase 2. Estimated, walk-forward (decisions/0015).
+      -> exposure matrix    BUILT (decisions/0049, 0050, 0055): `resolve_exposures` reads the
+                            store `params/` names. Region, sector and style raise until the
+                            label map lands (decisions/0054).
       -> optimiser          phase 2. Views in exposure space -> long-only
                             weights, subject to section 4 and the objective.
       -> weight rule
@@ -63,7 +65,7 @@ class SignalModuleMissing(ExperimentBlocked):
 
 
 class ExposureMatrixMissing(ExperimentBlocked):
-    """No characteristic map for this snapshot. Phase 2."""
+    """No characteristic map for this run: no store, a wrong one, or no week for the date."""
 
     status = "blocked:no_exposure_matrix"
 
@@ -107,18 +109,22 @@ def resolve_signal_module(hypothesis: Hypothesis):
     return module
 
 
-def resolve_exposures(snapshot: Snapshot, params: Params | None = None):
+def resolve_exposures(snapshot: Snapshot | None, params: Params | None = None, root=None):
     """
-    The characteristic map as of each date. Phase 2 (decisions/0015).
+    The characteristic map as of each date (decisions/0015, 0050, 0055): an `ExposureMap` built
+    from the store that `data.characteristics` in `params/` names, which is also the engine's
+    ExposureRule. `root` is the folder holding the stores (tests pass a temp one).
 
-    Raises rather than returning an identity matrix. A silent identity would
-    make every exposure equal its weight, the risk decomposition would report
-    pure idiosyncratic risk, and nothing would look broken.
+    `snapshot` is not used yet. Tying a store to the returns a snapshot holds is not designed.
+
+    Raises rather than returning an identity matrix. A silent identity would make every
+    exposure equal its weight, the risk decomposition would report pure idiosyncratic risk, and
+    nothing would look broken. It raises when the store is absent, when its hash is not the one
+    `params/` names, and (from the map) when a date has no store week within six days.
     """
-    raise ExposureMatrixMissing(
-        "no characteristic map in data/characteristics/; the exposure matrix is "
-        "estimated walk-forward in phase 2 (decisions/0015, 0016)"
-    )
+    from signal_lab.characteristics.exposures import ExposureMap
+
+    return ExposureMap.from_params(params, root)
 
 
 def build_weight_rule(hypothesis: Hypothesis, snapshot: Snapshot, params: Params):
@@ -147,7 +153,20 @@ def run_experiment(
     weight_rule = build_weight_rule(hypothesis, snapshot, params)
     exposures = resolve_exposures(snapshot, params)
     path = run_walk_forward(panel, weight_rule, benchmark, exposures, params=params)
-    return _package(path, panel, params, run_id=f"R-{hypothesis.id}", seed=seed)
+    result = _package(path, panel, params, run_id=f"R-{hypothesis.id}", seed=seed)
+    return attach_parameter_usage(result, exposures)
+
+
+def attach_parameter_usage(result: ExperimentResult, exposure_rule) -> ExperimentResult:
+    """
+    Hand the exposure rule's usage log to the run context. The lookahead veto's second half
+    (decisions/0055) reads what the loadings were fitted on. A constant matrix keeps no log and
+    leaves `parameter_usage` unset, so `lookahead` fails on a missing input as it did.
+    """
+    usage = getattr(exposure_rule, "usage", None)
+    if callable(usage):
+        result.run_context.parameter_usage = usage()
+    return result
 
 
 def validate_pipeline(

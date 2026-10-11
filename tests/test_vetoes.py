@@ -34,6 +34,20 @@ def ctx(**kw) -> RunContext:
     return RunContext(run_id="R-test", **kw)
 
 
+def honest_parameters(n: int = 2) -> pd.DataFrame:
+    """Loadings fitted through the Friday they are used on (decisions/0055)."""
+    days = pd.bdate_range("2010-03-05", periods=n, freq="W-FRI")
+    return pd.DataFrame(
+        {
+            "instrument": [f"I{i}" for i in range(n)],
+            "parameter": "loadings",
+            "store_week": days,
+            "fitted_through": days,
+            "used_on_date": days,
+        }
+    )
+
+
 # --- the set itself ----------------------------------------------------------
 
 
@@ -271,8 +285,9 @@ def test_lookahead_passes_when_nothing_is_used_early(params):
             "used_on_date": pd.to_datetime(["2010-03-05", "2010-04-02"]),
         }
     )
-    v = veto_lookahead(ctx(observation_usage=usage), params)
+    v = veto_lookahead(ctx(observation_usage=usage, parameter_usage=honest_parameters()), params)
     assert v.passed and "none used before" in v.detail
+    assert "2 observations" in v.detail and "2 estimated parameters" in v.detail
 
 
 def test_lookahead_fails_on_a_single_peek(params):
@@ -284,7 +299,7 @@ def test_lookahead_fails_on_a_single_peek(params):
             "used_on_date": pd.to_datetime(["2010-02-15"]),
         }
     )
-    v = veto_lookahead(ctx(observation_usage=usage), params)
+    v = veto_lookahead(ctx(observation_usage=usage, parameter_usage=honest_parameters()), params)
     assert not v.passed and "14 days" in v.detail
 
 
@@ -298,10 +313,11 @@ def test_lookahead_boundary_same_day_use_is_allowed(params):
             "used_on_date": [day],
         }
     )
-    assert veto_lookahead(ctx(observation_usage=usage), params).passed
+    honest = honest_parameters()
+    assert veto_lookahead(ctx(observation_usage=usage, parameter_usage=honest), params).passed
     early = usage.copy()
     early["used_on_date"] = [day - pd.Timedelta(1, "D")]
-    assert not veto_lookahead(ctx(observation_usage=early), params).passed
+    assert not veto_lookahead(ctx(observation_usage=early, parameter_usage=honest), params).passed
 
 
 def test_lookahead_against_the_synthetic_vintage_panel(macro, params):
@@ -312,7 +328,9 @@ def test_lookahead_against_the_synthetic_vintage_panel(macro, params):
     as_of_date = pd.Timestamp("2008-06-30")
     honest = macro.usage_log(as_of_date)
     assert len(honest) > 0
-    assert veto_lookahead(ctx(observation_usage=honest), params).passed
+    assert veto_lookahead(
+        ctx(observation_usage=honest, parameter_usage=honest_parameters()), params
+    ).passed
 
     # The mistake this veto exists to catch: treating period_end as if it were
     # the knowledge date, which uses every number the moment its period ends.
@@ -320,12 +338,79 @@ def test_lookahead_against_the_synthetic_vintage_panel(macro, params):
         ["series_id", "period_end", "knowledge_date"]
     ].copy()
     cheating["used_on_date"] = cheating["period_end"]
-    v = veto_lookahead(ctx(observation_usage=cheating), params)
+    v = veto_lookahead(ctx(observation_usage=cheating, parameter_usage=honest_parameters()), params)
     assert not v.passed, "using a number on its period end date is a peek at the release"
 
 
 def test_lookahead_without_input_fails_closed(params):
     assert not veto_lookahead(ctx(), params).passed
+
+
+def _observations() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "series_id": ["x"],
+            "period_end": [pd.Timestamp("2010-01-31")],
+            "knowledge_date": [pd.Timestamp("2010-03-01")],
+            "used_on_date": [pd.Timestamp("2010-03-05")],
+        }
+    )
+
+
+def test_loadings_fitted_one_day_after_they_are_used_fail_and_the_same_day_passes(params):
+    """decisions/0055: fitted_through later than used_on_date is a loading that saw the future."""
+    usage = honest_parameters(3)
+    assert veto_lookahead(
+        ctx(observation_usage=_observations(), parameter_usage=usage), params
+    ).passed
+
+    late = usage.copy()
+    late.loc[1, "fitted_through"] = late.loc[1, "used_on_date"] + pd.Timedelta(days=1)
+    v = veto_lookahead(ctx(observation_usage=_observations(), parameter_usage=late), params)
+    assert not v.passed
+    assert "1 estimated parameter(s) fitted past the date they were used" in v.detail
+    assert "worst by 1 days" in v.detail and "I1" in v.detail
+
+    earlier = usage.copy()
+    earlier["fitted_through"] = earlier["used_on_date"] - pd.Timedelta(days=4)
+    assert veto_lookahead(
+        ctx(observation_usage=_observations(), parameter_usage=earlier), params
+    ).passed
+
+
+def test_lookahead_fails_closed_without_parameter_usage(params):
+    """Either table absent, empty or short of a column is a missing input, never a pass."""
+    obs = _observations()
+    for missing in (None, honest_parameters(0)):
+        v = veto_lookahead(ctx(observation_usage=obs, parameter_usage=missing), params)
+        assert not v.passed and "parameter_usage" in v.detail
+    for col in ("fitted_through", "used_on_date"):
+        v = veto_lookahead(
+            ctx(observation_usage=obs, parameter_usage=honest_parameters().drop(columns=[col])),
+            params,
+        )
+        assert not v.passed and f"parameter_usage.{col}" in v.detail
+    # the observation half is still required
+    assert not veto_lookahead(ctx(parameter_usage=honest_parameters()), params).passed
+
+
+def test_a_parameter_row_with_a_missing_date_fails_as_undated(params):
+    for col in ("fitted_through", "used_on_date"):
+        bad = honest_parameters(3)
+        bad.loc[0, col] = pd.NaT
+        v = veto_lookahead(ctx(observation_usage=_observations(), parameter_usage=bad), params)
+        assert not v.passed and "undated" in v.detail, col
+
+
+def test_a_peek_in_each_half_reports_both(params):
+    obs = _observations()
+    obs["used_on_date"] = [pd.Timestamp("2010-02-01")]
+    late = honest_parameters(2)
+    late["fitted_through"] = late["used_on_date"] + pd.Timedelta(days=7)
+    v = veto_lookahead(ctx(observation_usage=obs, parameter_usage=late), params)
+    assert not v.passed
+    assert "observation(s) used before their knowledge date" in v.detail
+    assert "estimated parameter(s) fitted past the date they were used" in v.detail
 
 
 # --- 6. frequency ------------------------------------------------------------
@@ -558,6 +643,7 @@ def full_context(panel, **overrides) -> RunContext:
                 "used_on_date": [pd.Timestamp("2010-03-05")],
             }
         ),
+        parameter_usage=honest_parameters(),
         return_contributions=contributions_for(panel, ids, +30),
         series_meta=panel.meta,
         seed_irs={1: 0.30, 2: 0.34},

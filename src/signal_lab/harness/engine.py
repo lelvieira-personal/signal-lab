@@ -61,6 +61,11 @@ ExAnteTERule = Callable[[], "pd.Series | None"]
 # The exposure matrix as of a date: instruments x factors. Constant in phase 1.
 ExposureRule = Callable[[pd.Timestamp], pd.DataFrame]
 
+
+class NoExposureRow(ValueError):
+    """A book holds an instrument that has no row in the exposure matrix on that date."""
+
+
 DAY_CODES = {"MON": "W-MON", "TUE": "W-TUE", "WED": "W-WED", "THU": "W-THU", "FRI": "W-FRI"}
 
 
@@ -285,6 +290,16 @@ def run_walk_forward(
         net = gross - breakdown.total
 
         exposures = exposure_rule(current)
+        if getattr(exposure_rule, "requires_row", False):
+            # No row, no holding (decisions/0055): a weight the matrix cannot place is refused,
+            # not silently left out of the exposures.
+            held_now = target.index[target.abs() > 1e-12]
+            absent = held_now.difference(exposures.index)
+            if len(absent):
+                raise NoExposureRow(
+                    f"{current.date()}: weight on {list(absent)[:5]} with no row in the "
+                    f"exposure matrix that date"
+                )
         aligned = target.reindex(exposures.index).fillna(0.0)
         exposure_rows[current] = exposures.T.dot(aligned)
 

@@ -32,7 +32,8 @@
 #   make jpmaqs-candidates                       catalogue names sharing each unresolved ticker's cid and stem
 #   make jpmaqs-name-search                      name search of the cached catalogue for H-2026-0004, 0005, 0010
 #   make measurement-loadings                    the loading-estimator test, decisions/0046 (HANDOFF task 45); ARGS=--time-only to time it
-#   make characteristics                         the estimated half of the characteristic map, store huber6-v1 (HANDOFF task 51, decisions/0049)
+#   make characteristics                         the estimated half of the characteristic map; stores huber6-v1 to v3, v3 is the one params/ names (HANDOFF tasks 51-53, decisions/0049, 0055)
+#   make exposures-check                         walk every week of that store through resolve_exposures (HANDOFF task 54)
 #   make fdr-study                                Monte Carlo: FDR vs FWER on the registry's shape, no engine runs (HANDOFF task 34)
 #   make governance SUBSTRATE section 2, checked mechanically
 #   make check         fast tier -- wiring checks only (HANDOFF task 37, OWNER-QUEUE D2)
@@ -54,7 +55,7 @@
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
 .DEFAULT_GOAL := check
-.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exusd-analytics-coverage fx-check fdr-study
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check fdr-study
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -198,6 +199,9 @@ measurement-loadings: ## six factors, rolling OLS against four candidate estimat
 
 exusd-analytics-coverage: ## true daily start per ticker and field of the ex-USD analytics file (HANDOFF task 52, decisions/0052)
 	$(PY) --group dev python scripts/build_exusd_analytics_coverage.py
+
+exposures-check: ## every store week through resolve_exposures: counts, means and the usage log (HANDOFF task 54, decisions/0055)
+	$(PY) --group dev python scripts/check_exposures.py
 
 fx-check: ## converted NDDLUK against NDDUUK, weekly, same day and lagged: the FX conversion's own check (HANDOFF task 53, decisions/0053)
 	$(PY) --group dev python scripts/check_fx_conversion.py

@@ -7,6 +7,31 @@
   },
   "differs_from_cowork_beyond_tolerance": {},
   "fx_file_sha256_prefix": "1d6fbb63e8a33e2e",
+  "global_aggregate_above_1000bp": {},
+  "global_aggregate_same_day": {
+    "LGTRTRGU": {
+      "against": "LEGATRUU",
+      "autocorr_lag1": -0.34021507452791566,
+      "cum_gap_bp": -118.62561610055167,
+      "currency": "GBP",
+      "n_dates_dropped": 0,
+      "n_weeks": 936,
+      "te_4w_bp": 189.8667924620737,
+      "te_4w_overlapping_bp": 202.49704219418206,
+      "te_weekly_bp": 281.9250644684191
+    },
+    "LGTRTRJU": {
+      "against": "LEGATRUU",
+      "autocorr_lag1": -0.3485594423210054,
+      "cum_gap_bp": -58.74818132783913,
+      "currency": "JPY",
+      "n_dates_dropped": 0,
+      "n_weeks": 936,
+      "te_4w_bp": 195.55250182826208,
+      "te_4w_overlapping_bp": 197.12543651877903,
+      "te_weekly_bp": 273.9563770806609
+    }
+  },
   "n_dates_dropped": 0,
   "pair": "NDDLUK converted (GBP) against NDDUUK",
   "rate_lagged_one_business_day": {

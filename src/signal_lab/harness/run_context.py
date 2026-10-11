@@ -58,6 +58,9 @@ class RunContext:
     signal_availability: pd.DataFrame | None = None  # dates x series, bool
     estimation_universe: list[str] = field(default_factory=list)
     observation_usage: pd.DataFrame | None = None  # knowledge_date, used_on_date, ...
+    # Estimated parameters (today the exposure matrix's loadings): fitted_through, used_on_date,
+    # one row per instrument and rebalance. `lookahead`'s second half (decisions/0055).
+    parameter_usage: pd.DataFrame | None = None
     return_contributions: pd.DataFrame | None = None  # series_id, date
     series_meta: dict[str, Any] = field(default_factory=dict)
 

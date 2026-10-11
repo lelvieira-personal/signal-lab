@@ -112,3 +112,16 @@ def test_every_params_file_is_crlf_on_disk(params):
     for name in PARAM_FILES:
         raw = (Path(params.params_dir) / name).read_bytes()
         assert raw.count(b"\n") == raw.count(b"\r\n") > 0, f"{name} is not CRLF throughout"
+
+
+def test_the_store_params_names_is_the_committed_one(params):
+    """decisions/0055: data.characteristics.directory_hash is the committed manifest's."""
+    from pathlib import Path
+
+    import yaml
+
+    store_id = params.require("data.characteristics.store_id")
+    manifest = Path(__file__).resolve().parents[1] / "data" / "characteristics" / store_id
+    doc = yaml.safe_load((manifest / "manifest.yaml").read_text(encoding="utf-8"))
+    assert doc["store_id"] == store_id
+    assert doc["directory_hash"] == params.require("data.characteristics.directory_hash")

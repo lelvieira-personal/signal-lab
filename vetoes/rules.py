@@ -221,12 +221,27 @@ def veto_coverage(ctx: RunContext, params: Params | None = None) -> Verdict:
 
 def veto_lookahead(ctx: RunContext, params: Params | None = None) -> Verdict:
     """
-    Bitemporal check: no observation used before its knowledge date.
+    Bitemporal check, in two halves (SUBSTRATE section 10; decisions/0015 and
+    decisions/0055).
 
-    `observation_usage` carries knowledge_date and used_on_date for every macro
-    observation the run consumed. A single row with used_on_date earlier than
-    knowledge_date is a peek at a number nobody had, and invalidates everything
-    downstream, which is why this veto is evaluated first.
+    1. No observation used before its knowledge date. `observation_usage`
+       carries knowledge_date and used_on_date for every macro observation the
+       run consumed. A single row with used_on_date earlier than knowledge_date
+       is a peek at a number nobody had, and invalidates everything downstream,
+       which is why this veto is evaluated first.
+
+    2. No estimated parameter fitted on data unavailable when it is used.
+       `parameter_usage` carries fitted_through and used_on_date for every
+       estimated parameter the run consumed: today the loadings of the exposure
+       matrix, one row per instrument and rebalance. A row whose fitted_through
+       is later than its used_on_date is a loading that saw returns the book
+       could not have had. That leak is in the mapping, not in the returns or
+       the signals, so no downstream number would show it. A row with either
+       date missing counts as a breach: an undated parameter is unchecked.
+
+    Either table absent FAILS. A run that cannot say what its parameters were
+    fitted on has not been checked, and an unevaluated constraint is an
+    unenforced one.
     """
     _p(params).require("vetoes.lookahead.strict")
     try:
@@ -238,26 +253,62 @@ def veto_lookahead(ctx: RunContext, params: Params | None = None) -> Verdict:
         if col not in usage.columns:
             return _missing("lookahead", MissingInput(f"observation_usage.{col}"))
 
+    try:
+        fitted = ctx.require("parameter_usage")
+    except MissingInput as exc:
+        return _missing("lookahead", exc)
+
+    for col in ("fitted_through", "used_on_date"):
+        if col not in fitted.columns:
+            return _missing("lookahead", MissingInput(f"parameter_usage.{col}"))
+
     known = pd.to_datetime(usage["knowledge_date"])
     used = pd.to_datetime(usage["used_on_date"])
     breaches = usage.loc[used < known]
     n = len(breaches)
-    if n == 0:
+
+    through = pd.to_datetime(fitted["fitted_through"])
+    applied = pd.to_datetime(fitted["used_on_date"])
+    # Negated so that a missing date is a breach rather than a silent pass.
+    late = fitted.loc[~(through <= applied)]
+    m = len(late)
+
+    if n == 0 and m == 0:
         return Verdict(
             passed=True,
             veto="lookahead",
-            detail=f"{len(usage)} observations, none used before its knowledge date",
+            detail=(
+                f"{len(usage)} observations, none used before its knowledge date; "
+                f"{len(fitted)} estimated parameters, none fitted past the date it was used"
+            ),
         )
-    worst = int((known - used).dt.days.max())
-    series = sorted(breaches["series_id"].unique().tolist())[:5] if "series_id" in breaches else []
-    return Verdict(
-        passed=False,
-        veto="lookahead",
-        detail=(
+
+    parts: list[str] = []
+    if n:
+        worst = int((known - used).dt.days.max())
+        series = (
+            sorted(breaches["series_id"].unique().tolist())[:5] if "series_id" in breaches else []
+        )
+        parts.append(
             f"{n} observation(s) used before their knowledge date, worst by {worst} days"
             + (f", e.g. {series}" if series else "")
-        ),
-    )
+        )
+    if m:
+        gap = (through - applied).loc[late.index].dt.days
+        undated = int(gap.isna().sum())
+        worst_fit = int(gap.max()) if gap.notna().any() else 0
+        names = (
+            sorted(late["instrument"].astype(str).unique().tolist())[:5]
+            if "instrument" in late
+            else []
+        )
+        parts.append(
+            f"{m} estimated parameter(s) fitted past the date they were used, "
+            f"worst by {worst_fit} days"
+            + (f", {undated} undated" if undated else "")
+            + (f", e.g. {names}" if names else "")
+        )
+    return Verdict(passed=False, veto="lookahead", detail="; ".join(parts))
 
 
 # --- 6. frequency ------------------------------------------------------------

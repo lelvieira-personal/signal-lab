@@ -14,3 +14,12 @@
 - Same-day is the better alignment: **True**.
 - Figures differing from Cowork's by more than the tolerance (5 bp, 0.02): none.
 - `NDDLUK` dates dropped for want of an FX rate: 0.
+
+## The global aggregate restated, converted, against `LEGATRUU` (same day)
+
+| Series | Currency | Weekly TE (bp/yr) | Lag-1 autocorrelation | Cumulative gap (bp) | Weeks | FX dates dropped |
+|---|---|---|---|---|---|---|
+| `LGTRTRGU` | GBP | 281.93 | -0.34 | -118.63 | 936 | 0 |
+| `LGTRTRJU` | JPY | 273.96 | -0.35 | -58.75 | 936 | 0 |
+
+- Above 1000 bp/yr (the direction or the series would be wrong): none.
