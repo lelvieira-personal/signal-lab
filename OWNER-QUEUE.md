@@ -32,8 +32,41 @@ Added 2026-10-07 by Cowork, out of L27 (d). It wakes D3.
 - **Cowork drafts the map** for the owner to correct, with a parent for each
   of the eight tradable-only instruments (L29) in the same table.
 
-**Still open:** his corrections to that draft. L32 is ruled (`NDDLUK`
-leaves), so the draft can be written.
+**Drafted 2026-10-11 (Cowork):** Project doc
+`claude/label-map-draft-2026-10-11.md`; the editable copy is
+`Claude outputs/label_map_draft_2026-10-11.csv`.
+
+**Ruled further, 2026-10-11 (owner; `decisions/0054`):**
+- **Canada is a seventh region,** standing alone (`MXCA`).
+- **The twelve multi-region composites are Global:** "ok. They are
+  themselves a regional bet".
+- **Korea, Taiwan, China and India are EM.**
+- **The eight tradable-only instruments stay unholdable** in the development
+  window (L29, closed).
+- **A bond is labelled by its curve currency, its rating class and whether
+  its market is developed or emerging:** "it is important for hypotheses to
+  ditinguish the currency for bonds in terms of the yield curve currency
+  that the bond is associated to. Also important the rating class and
+  whether is developed or emerging market."
+
+**Confirmed 2026-10-11, later (owner; `decisions/0054` items 9 and 10):**
+- **The region view axis reads equities only.** A bond keeps a region for
+  reporting.
+- **Global is its own line in the region exposure report.** No Global view
+  is formed.
+
+**Still open:**
+- **His corrections to the draft bond labels** ("will do later"). 25 rows,
+  every entry Cowork's: `decisions/0054`, and the columns `curve_currency`,
+  `rating_class` and `market` of
+  `Claude outputs/label_map_draft_2026-10-11.csv`.
+- **How a hypothesis would use a bond label.** SUBSTRATE §6 has no axis for
+  a curve currency or a rating class. A duration view on one curve needs a
+  new axis or a qualifier, and an amendment. Not designed.
+
+**The equity half can land without the bond labels.** The region axis reads
+equities only, so `label_map.csv` with regions alone would stop the axis
+raising. Not queued; Cowork has asked the owner.
 
 `decisions/0050` gives the matrix a label block. Only `cash` has a source.
 `data/universe/investable_universe.csv` carries `section` and
@@ -56,47 +89,30 @@ cannot run until it exists. No hypothesis targets sector or style.
 **Cowork has offered** to draft the map from `section` and the index names
 for the owner to correct. Every entry would be a guess until he confirms it.
 
-### L29. Universe loose ends after `decisions/0052`
-Added 2026-10-07 by Cowork.
+### L35. The exposure matrix begins two years into the development window
+Added 2026-10-11 by Cowork, out of `decisions/0055`.
 
-**Answered 2026-10-10 (owner, from Bloomberg):**
-- **`I02513EU` is EUR:** "Bloomberg Pan-European Government Total Return
-  Index Unhedged EUR". It is one of nineteen local-currency series, and
-  what to do with them is L32.
-- **`LET1TREU` is the Euro Treasury 1-3y:** "Bloomberg Euro-Aggregate:
-  Treasury -- 1-3 Year". Its future ticker is `I02119EU`. The universe
-  file's name and SUBSTRATE §5.4a's "1-10y" are corrected with the L31 and
-  L32 work.
-- **The tradable-only parents** are drafted with L28.
+- **The store's first week is 2002-12-27. The development window opens on
+  2001-01-05.** The estimator needs 104 valid weeks. *Cowork's inference
+  from those two dates:* the build reads no return before the window opens.
+- **A run that maps views through exposures cannot rebalance in the first
+  103 weeks.** It has 17 years, not 19. Every audit so far started in 2001
+  because none of them used exposures.
+- Eleven instruments get their first row later still, the last in 2010-10
+  (`ENXG`).
 
-- **`I02513EU` (Pan-European Government).** Its median loading on the dollar
-  factor is 0.10, against −1.00 and −1.15 for the two euro indices the lab
-  converted to dollars itself. *Cowork's inference:* it is a euro return
-  treated as a dollar one, the same kind of series `decisions/0052` removed.
-  SUBSTRATE §5.4a already flags its currency as unconfirmed. **Retired by:**
-  the owner reading its currency on Bloomberg.
-- **`LET1TREU` may not be the index its name says** (added 2026-10-08 by
-  Cowork, from task 52). The universe file and SUBSTRATE §5.4a call it Euro
-  Treasury 1-10y. Its median measured `INDEX_OAD_TSY` is 1.84, where a 1-10y
-  euro government index would sit near 4 to 5, and its loading on the real-
-  yield factor is +0.28, the only positive one among the ex-USD bonds
-  (`results/characteristics/huber6-v2/report.md`). *Cowork's recollection,
-  not verified:* `LET1TREU` is the Euro Treasury 1-3y. **Retired by:** the
-  owner reading its name and maturity band on Bloomberg.
-- **The eight tradable-only instruments have no row in the matrix**
-  (L27 (e)). SUBSTRATE §5.2 says they inherit loadings; no record says from
-  what. The owner's pull of 2026-10-07 found earlier daily history for one:
-  - `M1CXNNA` (US High Dividend Yield): the gross sibling `M2CXNNA` is daily
-    from 2000-12-29. The owner did not take the splice. It would mix a gross
-    series with net siblings and is an owner-only edit to `params/data.yaml`.
-  - `MXEU0RL` (Europe Real Estate): the predecessor `MXEU0RE` is daily from
-    1995, pulled as a price index in euros. Usable only as
-    `TOT_RETURN_INDEX_GROSS_DVDS` in dollars.
-  - `LTP5TRUU` (TIPS 0-5y): monthly before 2010-06, which may not be spliced.
-  - Five MSCI style indices: nothing earlier found.
-- **What the owner would be deciding:** the parent each inherits from, or
-  that they stay unholdable in the development window. Seven of the eight
-  start in 2015 or later.
+**What the owner would be deciding:**
+- (a) accept it: such runs start on 2002-12-27;
+- (b) fit the early loadings on returns before 2001, in a new store.
+  Whether the lab may read pre-2001 returns for estimation is his call, and
+  the factors may not reach back far enough. *Cowork's recollection of
+  SUBSTRATE §5.3:* the 10-year TIPS yield starts in 1997 and breakevens in
+  1999;
+- (c) a shorter minimum window for the first two years.
+
+**Not urgent.** Nothing rebalances through the matrix before the phase-2
+solver exists. **A measurement would size (b):** the first date on which all
+six factors exist.
 
 ### L33. One FX source, and which
 Added 2026-10-10 by Cowork, out of L32.
@@ -304,6 +320,80 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L34. The push did not happen, and the repository is public — CLOSED 2026-10-11 (ruled: "push as is"; HANDOFF task 54 pushes)
+
+**Ruled 2026-10-11 (owner):** "L34 push as is". The repository stays public and the history is pushed to it. Task 54 pushes and records the push's output, which task 53 did not.
+
+Added 2026-10-11 by Cowork, from the review of HANDOFF task 53 (Project doc
+`claude/task-53-review-2026-10-11.md`).
+
+- **Not pushed.** `origin/main` is `1b6babf` (2026-09-17) and `main` is 138
+  commits ahead. GitHub records its last push on 2026-09-18. Why the push
+  failed is not recorded in the repo.
+- **`lelvieira-personal/signal-lab` is public.** GitHub's page says so and
+  loads without a login (read 2026-10-11). No record in the repo says that
+  was chosen.
+- **What the 138 commits would publish:** the characteristics reports (the
+  median measured duration and spread of each Bloomberg index, and
+  per-index loadings), the measurement runs' fit and stability files, the
+  receipts' counts and medians, and the whole of `decisions/`,
+  `hypotheses/` and this file. No raw vendor value: `.gitignore` keeps
+  `data/raw/`, `data/snapshots/` and every parquet out.
+- **What is public already** (189 files) holds no vendor-derived number.
+
+**What the owner would be deciding:**
+- (a) make the repository private, then push;
+- (b) push to it as it is;
+- (c) keep the history local.
+
+Whether aggregates of licensed data may be public is his reading of his
+licences, not Cowork's. **Until he rules, no task pushes.**
+
+### L29. Universe loose ends after `decisions/0052` — CLOSED 2026-10-11 (ruled; `decisions/0054` item 7)
+
+**Ruled 2026-10-11 (owner):** "ok" to leaving the eight tradable-only instruments unholdable in the development window. Their parents are chosen in phase 4. Cowork's draft parents are kept in `decisions/0054`, not ruled.
+
+Added 2026-10-07 by Cowork.
+
+**Answered 2026-10-10 (owner, from Bloomberg):**
+- **`I02513EU` is EUR:** "Bloomberg Pan-European Government Total Return
+  Index Unhedged EUR". It is one of nineteen local-currency series, and
+  what to do with them is L32.
+- **`LET1TREU` is the Euro Treasury 1-3y:** "Bloomberg Euro-Aggregate:
+  Treasury -- 1-3 Year". Its future ticker is `I02119EU`. The universe
+  file's name and SUBSTRATE §5.4a's "1-10y" are corrected with the L31 and
+  L32 work.
+- **The tradable-only parents** are drafted with L28.
+
+- **`I02513EU` (Pan-European Government).** Its median loading on the dollar
+  factor is 0.10, against −1.00 and −1.15 for the two euro indices the lab
+  converted to dollars itself. *Cowork's inference:* it is a euro return
+  treated as a dollar one, the same kind of series `decisions/0052` removed.
+  SUBSTRATE §5.4a already flags its currency as unconfirmed. **Retired by:**
+  the owner reading its currency on Bloomberg.
+- **`LET1TREU` may not be the index its name says** (added 2026-10-08 by
+  Cowork, from task 52). The universe file and SUBSTRATE §5.4a call it Euro
+  Treasury 1-10y. Its median measured `INDEX_OAD_TSY` is 1.84, where a 1-10y
+  euro government index would sit near 4 to 5, and its loading on the real-
+  yield factor is +0.28, the only positive one among the ex-USD bonds
+  (`results/characteristics/huber6-v2/report.md`). *Cowork's recollection,
+  not verified:* `LET1TREU` is the Euro Treasury 1-3y. **Retired by:** the
+  owner reading its name and maturity band on Bloomberg.
+- **The eight tradable-only instruments have no row in the matrix**
+  (L27 (e)). SUBSTRATE §5.2 says they inherit loadings; no record says from
+  what. The owner's pull of 2026-10-07 found earlier daily history for one:
+  - `M1CXNNA` (US High Dividend Yield): the gross sibling `M2CXNNA` is daily
+    from 2000-12-29. The owner did not take the splice. It would mix a gross
+    series with net siblings and is an owner-only edit to `params/data.yaml`.
+  - `MXEU0RL` (Europe Real Estate): the predecessor `MXEU0RE` is daily from
+    1995, pulled as a price index in euros. Usable only as
+    `TOT_RETURN_INDEX_GROSS_DVDS` in dollars.
+  - `LTP5TRUU` (TIPS 0-5y): monthly before 2010-06, which may not be spliced.
+  - Five MSCI style indices: nothing earlier found.
+- **What the owner would be deciding:** the parent each inherits from, or
+  that they stay unholdable in the development window. Seven of the eight
+  start in 2015 or later.
 
 ### L32. Nineteen return series are in their local currency, not dollars — CLOSED 2026-10-10 (ruled; `decisions/0053`; HANDOFF task 53)
 

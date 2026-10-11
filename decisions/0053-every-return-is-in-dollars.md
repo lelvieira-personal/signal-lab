@@ -127,3 +127,22 @@ task 53 reproduces them)*.
 > quote-convention table, never carried, and a series whose quote currency
 > differs from its sheet's is refused unless it is converted
 > (`decisions/0053`).
+
+## Addendum, 2026-10-11: the count is 21, not 19
+
+Drafted by Cowork, from HANDOFF task 53's receipt and Cowork's review
+(Project doc `claude/task-53-review-2026-10-11.md`). **A correction of a
+count. No ruling changes.**
+
+- **"What was found" says 19 return series are in their quote currency. The
+  workbook has 21.** The two Cowork missed are `LGTRTRGU` (sterling) and
+  `LGTRTRJU` (yen), the Global Aggregate restatements that `decisions/0052`
+  had already made not investable.
+- **Rule 4 covers them:** it applies "to any later one whose quote currency
+  is not its sheet's". Task 53 converts both, so the guard of rule 5 has
+  nothing to refuse. They stay not investable.
+- **The other counts stand.** 17 converted series are estimated in
+  `huber6-v3`. `NDDLUK` and `MXEU0RL` are converted and not estimated.
+- **`USDJPY` is used by `LGTRTRJU` only,** so its direction has no test on
+  real data. HANDOFF task 54 adds one: both restatements, converted, against
+  `LEGATRUU`.

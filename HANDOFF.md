@@ -58,6 +58,10 @@ and 24 are done — receipts are in `## Done`.
 
 **As of 2026-10-10 (23:30 ET): queued, task 53 only.** The owner ruled OWNER-QUEUE L32 (`decisions/0053`): every return is in dollars, and eighteen local-currency series are converted with the FX file he supplied (`data/raw/bloomberg/bbg_curncy_hist.xlsx`). Cowork transcribed SUBSTRATE v0.10 (L31) into the working tree; step 0 commits it. **Task 53** converts the series, takes `NDDLUK` out, adds a currency guard, rebuilds the store as `huber6-v3`, fixes the spread table and `LET1TREU`'s name, and **pushes** (`CLAUDE.md`, owner 2026-10-10). **`resolve_exposures` stays raising.** **Waiting on the owner:** L28 (the label-map draft), L29, L33.
 
+**As of 2026-10-11 (14:30 ET): queued, task 54 only.** The owner ruled on 2026-10-11: OWNER-QUEUE L34 ("push as is"), L29 and L28 in part (`decisions/0054`), and "yes" to the wiring with its two owner-only patches (`decisions/0055`). Cowork applied params v0.10.0 and the `veto_lookahead` patch in the working tree, so **the suite is red until task 54's step 3**. **Task 54** makes `resolve_exposures` read `huber6-v3`, tests the veto's second half, closes task 53's loose ends and **pushes**. Region, sector and style keep raising, and no solver is built. **Waiting on the owner:** the bond labels (L28; he confirmed the same afternoon that the region axis reads equities only), L35, L33.
+
+*(Earlier note:)* **As of 2026-10-11: nothing is queued.** Task 53 landed (`270ecb9`, receipt `aa1b157`); Cowork's review is the Project doc `claude/task-53-review-2026-10-11.md`, and every gate reproduced. **Its push did not happen:** `origin/main` is still `1b6babf`, 138 commits behind. **No task pushes until the owner rules OWNER-QUEUE L34** (the repository is public). **`resolve_exposures` stays raising.** **Waiting on the owner:** L34; L28 and L29 (the draft is written: `claude/label-map-draft-2026-10-11.md`); L33.
+
 *(Earlier note:)* **As of 2026-10-10 (11:45 ET): nothing is queued.** The owner ruled on 2026-10-10:
 - OWNER-QUEUE L30 is closed: TIPS read their measured duration (`decisions/0050` addendum).
 - L28 and L31 are ruled in part.
@@ -3247,6 +3251,286 @@ Then stop.
 
 ---
 
+### 54. The wiring: `resolve_exposures` reads `huber6-v3` (`decisions/0050`, `0055`); params v0.10.0; the `lookahead` veto checks loadings; task 53's loose ends; then push
+
+Added 2026-10-11 by Cowork.
+
+**Owner rulings of 2026-10-11:**
+- "yes" to this task and its two owner-only patches (`decisions/0055`);
+- OWNER-QUEUE L34: "push as is". The GitHub repository is public and he
+  knows it;
+- L29 and L28 in part (`decisions/0054`). **Nothing is built from `0054`
+  here.**
+
+**Owner-only edits are already in the working tree, applied by Cowork.**
+Don't re-edit them. Verify them with `git diff --ignore-cr-at-eol`:
+- **`params/`:** `params_version` `0.9.0` to `0.10.0` in all seven files.
+  - `data.yaml` gains a `characteristics` block: `store_id: huber6-v3` and
+    the store's `directory_hash`.
+  - `vetoes.yaml`: the `lookahead` comment now names both halves.
+- **`vetoes/rules.py` `veto_lookahead`:** a second half.
+  - It requires `ctx.parameter_usage` with the columns `fitted_through` and
+    `used_on_date`.
+  - A row whose `fitted_through` is later than its `used_on_date` fails.
+  - A row with either date missing fails.
+  - An absent table, an empty one or a missing column fails as a missing
+    input. The first half is unchanged.
+- **Until step 3 is done the suite is red by design.** The lookahead tests in
+  `tests/test_vetoes.py` supply `observation_usage` only.
+
+**If a step needs a further change to an owner-only file, stop and write the
+exact change in the receipt.** Cowork applies it.
+
+**What this task does not do:**
+- **No solver.** `build_weight_rule` keeps raising `OptimiserMissing`. No
+  alphas, no signal module, no view.
+- **No label map.** Region, sector and style raise.
+- No new store in `data/characteristics/`, no vendor call, no audit, and no
+  hypothesis changes state.
+- **No golden moves.** If a test this task doesn't name fails, stop and list
+  it.
+
+**Budget:** 4 to 5 h, of which about 30 minutes is machine time.
+
+**Read first:**
+- `decisions/0055`, all of it;
+- `decisions/0050` with its 2026-10-10 addendum, and `decisions/0015` from
+  "The part that is not obvious";
+- `decisions/0054` item 7, and the 2026-10-11 addendum to `decisions/0053`;
+- `Claude outputs/project-mirror/task-53-review-2026-10-11.md`, findings 2
+  and 3.
+
+**Hard rules:**
+- **Vendor data never leaves the machine.** The store holds vendor-derived
+  values. Report counts, dates, hashes and the aggregates this task names.
+- **`huber6-v1`, `v2` and `v3` are not edited or rebuilt in place.**
+- **The engine's recorded numbers do not move.** `constant_exposures` and
+  every caller of it behave as before.
+- **Nothing reads a date on or after 2020-01-01.**
+
+**0. Commit first, alone, without a check** (the suite is red by design).
+- **Files:** `HANDOFF.md`, `OWNER-QUEUE.md`, `decisions/0053-…` (addendum),
+  `decisions/0054-…` (new) and `decisions/0055-…` (new).
+- **Message:** `queue: task 54; decisions/0054 (the label map, in part) and decisions/0055 (the wiring); the decisions/0053 addendum; OWNER-QUEUE L34 and L29 closed, L28 ruled in part, L35 added (owner 2026-10-11)`.
+- **`make governance` must pass.**
+- **`params/` and `vetoes/rules.py` are not in this commit.** They go with
+  step 6's build commit, which cites `decisions/0055`.
+
+**1. Task 53's loose ends, before any code changes.**
+- **Why:** `loaders/fx.py` and `loaders/bloomberg.py` were last written at
+  02:57:37Z on 2026-10-11. The FX check ran at 02:50:36Z and the store was
+  built at 02:55:58Z. Both were made by the code as it stood before a
+  formatter ran.
+- **The FX check.** Run `make fx-check`. Then
+  `git diff --ignore-cr-at-eol --stat results/fx/` must be empty.
+- **The store.** Build it again into a scratch root outside the repo:
+  `scripts/build_characteristics.py --store-id huber6-v3 --root <tmp> --report-root <tmp> --supersedes ""`.
+  - **`--supersedes` must be empty.** The gate against `huber6-v2` loads it
+    from `--root`, and `v2` is not in the scratch root (Cowork's reading of
+    the script, lines 319-320). The gate against the run of record still
+    runs.
+  - Call it through `make` if the quoting allows, or directly with
+    `uv run --python 3.12 --group dev` and the three thread variables set
+    to 1.
+  - Its `directory_hash` must equal `84a5088d82b135c48ba7da5709ebae3f58186c06b08575d1b233ba19e27270f7`.
+    The hash leaves the manifest out, so the new params version does not
+    enter it.
+  - If it differs, compare the three data files cell by cell, report the
+    largest difference per file, and stop.
+  - Delete the scratch store afterwards.
+- **`USDJPY` on real data** (`decisions/0053` addendum). Extend
+  `scripts/check_fx_conversion.py`: converted `LGTRTRGU` and converted
+  `LGTRTRJU`, each against `LEGATRUU`, weekly Friday closes, 2002-01-01 to
+  2019-12-27, same day only.
+  - Report weekly tracking error, lag-1 autocorrelation and the cumulative
+    gap for each, in the same files.
+  - **Cowork has no measurement of these.** The UK pair read 238 bp/yr
+    converted and 1,353 unconverted. If either new pair reads above
+    1,000 bp/yr, stop: the direction or the series is wrong.
+  - The UK rows of the report must not change.
+
+**2. `resolve_exposures`** (`harness/experiment.py`, and a new module;
+`characteristics/exposures.py` is Cowork's suggestion).
+- **It returns an exposure map** built from the store that `params/` names.
+  - It reads `data.characteristics.store_id` and `directory_hash`.
+  - It raises `ExposureMatrixMissing` when the store is absent, and when the
+    store's manifest hash is not the one in `params/`. `load_store` already
+    refuses a store whose files have changed.
+  - The store root is an argument, so tests use a temp folder.
+  - **The `snapshot` argument is not used yet.** Say so in the docstring.
+    Tying a store to the returns a snapshot holds is not designed.
+- **One store week per date** (`decisions/0055`).
+  - `at(date)` reads the latest store week on or before `date`.
+  - If that week is more than six days before `date`, or there is none, it
+    raises `ExposureMatrixMissing` naming the date and the store's range.
+    Nothing older is carried.
+- **The frame `at(date)` returns,** one row per instrument that has a row
+  that week:
+  - **factor block:** `equity`, `real_yield`, `inflation`, `credit`,
+    `dollar`, `commodities`, as stored, and their standard errors;
+  - **measured block:** `oad` and `oas`, missing where the store has none;
+  - **axes:** `axis_duration`, `axis_real_nominal`, `axis_credit`,
+    `axis_cash`;
+  - `axis_duration_provenance` (`measured` or `estimated`) and
+    `explained_share`.
+- **What each axis reads** (`decisions/0050` and its addendum):
+
+  | Axis | Reads |
+  |---|---|
+  | `axis_duration` | `oad` that week for the reporting classes Treasuries, Long Treasuries, IG Corporates and TIPS, when it is not missing; minus `real_yield` otherwise |
+  | `axis_real_nominal` | minus `inflation` |
+  | `axis_credit` | minus `credit` |
+  | `axis_cash` | 1 for the instrument whose reporting class is Cash, 0 otherwise |
+
+  The reporting class comes from the store's `instruments` table.
+- **`axis(name, date)`** returns one axis as a series.
+  - Valid names are `harness.hypotheses.TARGET_AXES`.
+  - `region`, `sector` and `style` raise a subclass of
+    `ExposureMatrixMissing` that names `decisions/0054` and OWNER-QUEUE L28.
+  - Any other name is a `ValueError`.
+- **The rule the engine takes.** The map supplies an `ExposureRule`: date to
+  a frame of the six factors and the four axes, with no missing value. That
+  is what `run_walk_forward` multiplies by the weights.
+- **No row, no holding** (`decisions/0055`).
+  - The map's rule carries a marker (Cowork's suggestion: an attribute
+    `requires_row = True`).
+  - In `run_walk_forward`, when the rule carries it, a target weight above
+    1e-12 on an instrument absent from that date's matrix raises.
+  - `constant_exposures` does not carry it. No existing caller changes.
+  - The eight tradable-only instruments never have a row, so they are never
+    holdable (`decisions/0054` item 7).
+- **The usage log.** Each `at(date)` records one row per instrument:
+  `instrument`, `parameter` (`loadings`), `store_week`, `fitted_through`
+  (the store's `last_data_date`) and `used_on_date` (`date`).
+  - `usage()` returns the rows as a frame, without duplicates.
+  - `RunContext` gains `parameter_usage`, and `run_experiment` fills it from
+    the map.
+  - **Don't invent a usage table for a constant matrix.**
+    `validate_pipeline` keeps failing `lookahead` on a missing input, as it
+    does today.
+- **Tests,** on a synthetic store written with `write_store` in a temp
+  folder:
+  - the store named in `params/` is the one read, and a wrong hash is
+    refused;
+  - a Friday reads its own week; the Tuesday after reads the Friday before;
+    a date seven days after the last week raises; a date before the first
+    week raises;
+  - duration reads `oad` for a Treasuries instrument and is marked
+    `measured`; the same instrument with `oad` missing that week reads minus
+    `real_yield` and is marked `estimated`; an equity reads minus
+    `real_yield` even when an `oad` is present for it;
+  - `oad` from an earlier week is never used;
+  - the three other axes, including the sign;
+  - `region`, `sector` and `style` raise, and the message names
+    `decisions/0054`;
+  - the usage log: one row per instrument and date, `fitted_through` equal
+    to `last_data_date`; and a store whose `last_data_date` is after its
+    week makes `veto_lookahead` fail;
+  - the engine raises on a weight held without a row when the rule carries
+    the marker, and does not when it is `constant_exposures`.
+- **The two tests that pin "still raising"** are replaced, not deleted:
+  - `tests/test_experiment.py::test_the_exposure_matrix_raises_rather_than_returning_an_identity`;
+  - `tests/test_characteristics.py::test_the_exposure_matrix_still_does_not_exist`.
+
+  What each pins is that a missing map raises and never returns an identity.
+  Keep that, against a store root with no store in it. **Neither may depend
+  on the real store.**
+
+**3. The veto's tests** (`tests/test_vetoes.py`).
+- **Update every existing lookahead test and both full contexts** to carry
+  an honest `parameter_usage`. List each one in the receipt. Don't weaken
+  an assertion to make one pass.
+- **Add:**
+  - both tables honest passes, and the detail names both counts;
+  - `fitted_through` one day after `used_on_date` fails; the same day
+    passes;
+  - `parameter_usage` absent, empty, or without a column fails as a missing
+    input;
+  - a missing date in a row fails, and the detail says "undated";
+  - a peek in each half reports both.
+- **`tests/test_params.py`:** `data.characteristics.directory_hash` equals
+  the `directory_hash` in the committed
+  `data/characteristics/<store_id>/manifest.yaml`. This test needs no vendor
+  data.
+- **The params hash** must be
+  `413d84f6b631359bee74883cb63f93660023cc50d4ff49306579c401a4d61623`. If it
+  differs, stop and report both.
+
+**4. The map's own check, on real data:** `scripts/check_exposures.py`, run
+with `make exposures-check`.
+- It calls `require_one_thread` and writes
+  `results/characteristics/huber6-v3/exposures_check.md` and `.json`.
+  Aggregates only.
+- **It walks every store week** through `resolve_exposures`, and then the
+  Tuesday after each one.
+- **Expected** *(Cowork's read of the store, Python 3.10 outside the repo's
+  environment)*:
+
+  | Figure | Expected |
+  |---|---|
+  | Store weeks | 888, 2002-12-27 to 2019-12-27, all Fridays, none skipped |
+  | Instrument-weeks | 72,606 |
+  | Instruments at the first and last week | 73 and 84 |
+  | Duration cells measured / estimated / missing | 6,763 / 65,843 / 0 |
+  | `LT13TRUU` | 677 measured, 211 estimated (2002-12-27 to 2007-01-05) |
+  | `LDC5TRUU` | 758 measured, 0 estimated |
+  | `LT01TRUU`, `LT09TRUU`, `LT11TRUU`, `LUTLTRUU`, `LBUTTRUU`, `LUACTRUU` | 888 measured each, 0 estimated |
+  | Measured duration cells at or below zero | 0 |
+  | Mean of `axis_duration` over all cells | 1.4274 |
+  | Mean of `axis_real_nominal` | 1.2792 |
+  | Mean of `axis_credit` | 1.3006 |
+  | Usage rows on the Fridays | 72,606, every `fitted_through` equal to `used_on_date` |
+  | Usage rows on the Tuesdays | every `used_on_date` four days after `fitted_through` |
+  | 2001-01-05 and 2002-12-20 | raise |
+
+- **Report any figure that differs,** a mean by more than 0.0001. Don't
+  change the method to match.
+- **Also print, by reporting class, the median of `axis_duration` at
+  2019-12-27.** *Cowork's read:* Long Treasuries 18.32, Gold 8.63, IG
+  Corporates 5.22, TIPS 4.55, Treasuries 4.48, EM Equities 2.12, European
+  Equities −1.14. Gold reads above a 7-10y Treasury because it reads minus
+  its real-yield loading. That is `decisions/0050` as ruled, and the owner
+  wants to see the table.
+
+**5. Words that are now wrong.**
+- `characteristics/__init__.py` says `resolve_exposures` "still raises".
+- `harness/experiment.py`'s chain comment says the exposure matrix is
+  missing.
+- `build.mk`'s `characteristics` line names `huber6-v1`.
+
+**6. Check, commit, push.**
+- **The check:** `scripts/unattended.sh check-full --digest`.
+- **Commit the build:** `params/`, `vetoes/rules.py`, `src/`, `scripts/`,
+  `tests/`, `build.mk`, `results/fx/` and the two `exposures_check` files,
+  as
+  `params+vetoes+src: v0.10.0 -- resolve_exposures reads huber6-v3, the lookahead veto checks loadings (HANDOFF task 54, decisions/0055, decisions/0050)`.
+- **Push:** `git push origin main`, as `CLAUDE.md` allows and the owner
+  ruled (OWNER-QUEUE L34).
+  - Task 53's push did not land, and its reason was not recorded.
+    `origin/main` is `1b6babf`.
+  - It should be a fast-forward of about 140 commits.
+  - Never `--force`, never pull, never rebase.
+  - **If it is rejected or authentication fails, stop.** Write the exact
+    message in the receipt and commit the receipt locally.
+- **Then the receipt,** with the push's output in it. Commit it and push
+  again.
+- **Last:** `git rev-list --count @{u}..HEAD` must print 0.
+
+**Receipt:**
+- rc, commits, the log directory, the tier and the runtime;
+- **step 1:** the `results/fx/` diff, the scratch store's hash, and the two
+  new pairs' figures;
+- **step 2:** the names you chose, every test added, and the two tests
+  replaced;
+- **step 3:** each existing test changed, and the params hash;
+- **step 4:** every figure beside its expectation, and the table by class;
+- **step 6:** the push's output and the final count;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
 ### 53. Every return in dollars (`decisions/0053`): eighteen local-currency series converted, `NDDLUK` out, a currency guard; store `huber6-v3`; SUBSTRATE v0.10 committed; the spread table; `LET1TREU`'s name; then push
 
 Added 2026-10-10 by Cowork.
@@ -3724,7 +4008,9 @@ task 36 and lands with task 33.
 
 **FRED point-in-time (not queued).** `H-2026-0008` needs four FRED series, and `loaders/fred.py` is a stub. A point-in-time FRED loader (ALFRED vintages) comes after task 44. It needs its own spec.
 
-**The wiring (added 2026-10-07).** `decisions/0050` is decided. Not queued: `resolve_exposures`, and the `lookahead` veto extended to estimated parameters, which is an owner-only patch. It can land with the region axis still raising (OWNER-QUEUE L28).
+**The wiring.** Queued 2026-10-11 as task 54 (`decisions/0055`). The region axis keeps raising until the label map lands.
+
+**The label map file (added 2026-10-11).** `decisions/0054` rules the equity regions. Not queued: `data/universe/label_map.csv`. The region axis reads equities only (owner, 2026-10-11), so the equity regions could land without the bond labels; the owner has not said whether to split it (OWNER-QUEUE L28).
 
 **The solver's form is decided (2026-10-07, `decisions/0051`):** views become expected returns for `portfolio/long_only.solve`; nothing is held at a target. SUBSTRATE §6 still says otherwise (OWNER-QUEUE L31). Don't build the solver before §6 is transcribed. Its spec is not written.
 
@@ -3760,10 +4046,11 @@ run would have said.
   are in task 9. **§2 -- conditioning the frictionless covariance -- stays
   deferred**; do not add a ridge or eigenvalue floor on your own initiative.
 - **`decisions/proposed/0034`.** Proposed, not decided. Do not build it.
-- **Building from `decisions/0050` or `0051`.** Both are decided (owner,
-  2026-10-07) and neither is queued. `resolve_exposures` keeps raising until
-  a wiring task says otherwise, and no solver is built before SUBSTRATE §6
-  is transcribed (OWNER-QUEUE L31).
+- **Building from `decisions/0051`, or past task 54 from `0050`.** Task 54
+  wires `resolve_exposures` and nothing else. No solver, no alphas and no
+  view is built until a task says so; the solver's spec is not written.
+- **Building from `decisions/0054`.** The label map file is not queued.
+  Region, sector and style raise.
 - **Re-recording a golden.** `decisions/0048` allows three named constants,
   once, in task 50. Any other needs the owner.
 - **Anything in `params/`, `vetoes/` or `SUBSTRATE.md` not arriving as a cited
