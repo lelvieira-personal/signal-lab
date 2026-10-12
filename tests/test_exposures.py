@@ -1,6 +1,7 @@
 """
-The exposure map (HANDOFF task 54, decisions/0050 and 0055), on a synthetic store written with
-`write_store` in a temp folder. Nothing reads data/raw/, data/snapshots/ or the real store.
+The exposure map (HANDOFF tasks 54 and 55, decisions/0050, 0054 and 0055), on a synthetic store
+written with `write_store` in a temp folder and a synthetic label map. Nothing reads data/raw/,
+data/snapshots/ or the real store. The real label map is tested in test_label_map.py.
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from signal_lab.characteristics import store
+from signal_lab.characteristics import exposures, store
 from signal_lab.characteristics.exposures import ExposureMap, LabelMapMissing
 from signal_lab.harness.engine import (
     NoExposureRow,
@@ -31,6 +32,33 @@ CLASSES = {
     "HY": "HY Corporates",
 }
 STORE_ID = "synthetic-v1"
+
+# The synthetic label map says what each synthetic instrument is, whatever the store's class says:
+# TSY a US bond, EQ a US equity, CSH cash, IG a Global equity, HY a commodity.
+LABEL_HEADER = (
+    "ticker,asset_group,reporting_class,region,region_view,curve_currency,rating_class,"
+    "market_label,curve,rating,hy_bucket,market"
+)
+LABEL_ROWS = {
+    "TSY": "TSY,bond,Treasuries,US,no,USD,Government,DM,USD,Government,,DM",
+    "EQ": "EQ,equity,US Equities,US,yes,,,,,,,",
+    "CSH": "CSH,cash,Cash,US,no,USD,Government (bills),DM,USD,Government,,DM",
+    "IG": "IG,equity,DM ex-US Equities,Global,no,,,,,,,",
+    "HY": "HY,commodity,Commodities,Commodities,no,,,,,,,",
+}
+
+
+def write_label_map(path, rows=None):
+    rows = LABEL_ROWS if rows is None else rows
+    path.write_text("\n".join([LABEL_HEADER, *rows.values()]) + "\n", encoding="utf-8")
+    return path
+
+
+@pytest.fixture(autouse=True)
+def synthetic_label_map(tmp_path_factory, monkeypatch):
+    path = write_label_map(tmp_path_factory.mktemp("labels") / "label_map.csv")
+    monkeypatch.setattr(exposures, "LABEL_MAP_PATH", path)
+    return path
 
 
 class FakeParams:
@@ -222,17 +250,17 @@ def test_the_frame_has_the_factors_their_ses_the_measured_block_and_the_provenan
     assert set(frame.index) == set(CLASSES)
 
 
-def test_the_label_axes_raise_naming_decisions_0054_and_anything_else_is_a_value_error(emap):
-    for name in ("region", "sector", "style"):
+def test_sector_and_style_raise_naming_decisions_0054_and_anything_else_is_a_value_error(emap):
+    for name in ("sector", "style"):
         assert name in TARGET_AXES
-        with pytest.raises(LabelMapMissing, match="decisions/0054") as exc:
+        with pytest.raises(LabelMapMissing, match="decisions/0054 item 8") as exc:
             emap.axis(name, WEEKS[0])
         assert isinstance(exc.value, ExposureMatrixMissing)
     with pytest.raises(ValueError, match="unknown axis"):
         emap.axis("momentum", WEEKS[0])
 
 
-def test_the_rule_has_the_six_factors_and_four_axes_and_no_missing_value(emap):
+def test_the_rule_has_the_six_factors_four_axes_and_seven_regions_and_no_missing_value(emap):
     rule = emap(WEEKS[2])
     assert list(rule.columns) == [
         *FACTOR_NAMES,
@@ -240,6 +268,13 @@ def test_the_rule_has_the_six_factors_and_four_axes_and_no_missing_value(emap):
         "axis_real_nominal",
         "axis_credit",
         "axis_cash",
+        "region_us",
+        "region_dev_europe",
+        "region_japan",
+        "region_apac_ex_japan",
+        "region_canada",
+        "region_em",
+        "region_global",
     ]
     assert not rule.isna().any().any()
     assert emap.requires_row is True
@@ -359,3 +394,73 @@ def test_a_constant_matrix_does_not_carry_the_marker_and_nothing_changes():
         panel, lambda _d, _p: weights.copy(), pd.Series(0.0, index=panel.returns.index), rule
     )
     assert len(path.dates) > 0
+
+
+# --- the label map (HANDOFF task 55) --------------------------------------------------------
+
+
+def test_the_region_axis_is_a_frame_of_the_six_view_regions_and_only_an_equity_with_a_view_reads_1(
+    emap,
+):
+    frame = emap.axis("region", WEEKS[1])
+    assert isinstance(frame, pd.DataFrame)
+    assert list(frame.columns) == [
+        "US",
+        "Developed Europe",
+        "Japan",
+        "APAC ex-Japan",
+        "Canada",
+        "EM",
+    ]
+    assert frame.loc["EQ"].to_dict() == {
+        "US": 1.0,
+        "Developed Europe": 0.0,
+        "Japan": 0.0,
+        "APAC ex-Japan": 0.0,
+        "Canada": 0.0,
+        "EM": 0.0,
+    }
+    for none in ("IG", "TSY", "CSH", "HY"):  # a Global equity, a bond, cash, a commodity
+        assert (frame.loc[none] == 0.0).all(), none
+
+
+def test_the_region_reporting_columns_keep_a_bond_its_region_and_every_row_sums_to_0_or_1(emap):
+    rule = emap(WEEKS[1])
+    cols = [c for c in rule.columns if c.startswith("region_")]
+    assert len(cols) == 7
+    assert rule.loc["TSY", "region_us"] == 1.0  # a bond keeps a region for reporting
+    assert rule.loc["IG", "region_global"] == 1.0
+    assert (rule.loc["HY", cols] == 0.0).all()  # commodities read 0 in all seven
+    assert set(rule[cols].sum(axis=1)) <= {0.0, 1.0}
+
+
+def test_at_carries_the_label_columns_as_strings_blank_where_the_map_is_blank(emap):
+    frame = emap.at(WEEKS[0])
+    assert frame.loc["TSY", "curve"] == "USD" and frame.loc["TSY", "rating"] == "Government"
+    assert frame.loc["TSY", "market"] == "DM" and frame.loc["TSY", "region"] == "US"
+    assert frame.loc["EQ", "curve"] == "" and frame.loc["EQ", "market_label"] == ""
+    for col in exposures.LABEL_COLUMNS:
+        assert frame[col].map(type).eq(str).all(), col
+    assert "view_US" not in frame.columns
+
+
+def test_a_store_instrument_without_a_label_row_and_a_label_row_without_one_both_raise(
+    tmp_path, synthetic_label_map
+):
+    digest = _write(tmp_path)
+    fewer = {k: v for k, v in LABEL_ROWS.items() if k != "HY"}
+    path = write_label_map(tmp_path / "fewer.csv", fewer)
+    with pytest.raises(LabelMapMissing, match=r"in the store only \['HY'\]"):
+        ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path, label_map=path)
+    more = {**LABEL_ROWS, "EXTRA": "EXTRA,equity,US Equities,US,yes,,,,,,,"}
+    path = write_label_map(tmp_path / "more.csv", more)
+    with pytest.raises(LabelMapMissing, match=r"in the label map only \['EXTRA'\]"):
+        ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path, label_map=path)
+
+
+def test_a_missing_label_map_file_raises(tmp_path):
+    digest = _write(tmp_path)
+    with pytest.raises(LabelMapMissing, match="no label map"):
+        ExposureMap.from_params(
+            FakeParams(directory_hash=digest), tmp_path, label_map=tmp_path / "nope.csv"
+        )

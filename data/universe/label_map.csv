@@ -1,0 +1,85 @@
+ticker,asset_group,reporting_class,region,region_view,curve_currency,rating_class,market_label,curve,rating,hy_bucket,market
+I00183US,bond,HY Corporates,US,no,USD,HY Ba,DM,USD,HY,Ba,DM
+I00184US,bond,HY Corporates,US,no,USD,HY Ba,DM,USD,HY,Ba,DM
+I00185US,bond,HY Corporates,US,no,USD,HY B,DM,USD,HY,B,DM
+I00188US,bond,HY Corporates,US,no,USD,HY Caa,DM,USD,HY,Caa,DM
+LF98TRUU,bond,HY Corporates,US,no,USD,"HY, all ratings",DM,USD,HY,all,DM
+LDC5TRUU,bond,IG Corporates,US,no,USD,IG,DM,USD,IG,,DM
+LUACTRUU,bond,IG Corporates,US,no,USD,IG,DM,USD,IG,,DM
+LT11TRUU,bond,Long Treasuries,US,no,USD,Government,DM,USD,Government,,DM
+LUTLTRUU,bond,Long Treasuries,US,no,USD,Government,DM,USD,Government,,DM
+LUMSTRUU,bond,MBS,US,no,USD,Agency MBS,DM,USD,Agency,,DM
+LBUTTRUU,bond,TIPS,US,no,USD real,"Government, inflation-linked",DM,USD_real,Government,,DM
+LT01TRUU,bond,Treasuries,US,no,USD,Government,DM,USD,Government,,DM
+LT09TRUU,bond,Treasuries,US,no,USD,Government,DM,USD,Government,,DM
+LT13TRUU,bond,Treasuries,US,no,USD,Government,DM,USD,Government,,DM
+LD20TRUU,cash,Cash,US,no,USD,Government (bills),DM,USD,Government,,DM
+M1US000G,equity,US Equities,US,yes,,,,,,,
+M1US000V,equity,US Equities,US,yes,,,,,,,
+M1USMMT,equity,US Equities,US,yes,,,,,,,
+M1USMVOL,equity,US Equities,US,yes,,,,,,,
+M1USQU,equity,US Equities,US,yes,,,,,,,
+M1USSC,equity,US Equities,US,yes,,,,,,,
+MXUS0CD,equity,US Equities,US,yes,,,,,,,
+MXUS0CS,equity,US Equities,US,yes,,,,,,,
+MXUS0EN,equity,US Equities,US,yes,,,,,,,
+MXUS0FN,equity,US Equities,US,yes,,,,,,,
+MXUS0HC,equity,US Equities,US,yes,,,,,,,
+MXUS0IN,equity,US Equities,US,yes,,,,,,,
+MXUS0IT,equity,US Equities,US,yes,,,,,,,
+MXUS0MT,equity,US Equities,US,yes,,,,,,,
+MXUS0RE,equity,US Equities,US,yes,,,,,,,
+MXUS0TC,equity,US Equities,US,yes,,,,,,,
+MXUS0UT,equity,US Equities,US,yes,,,,,,,
+MXUSMC,equity,US Equities,US,yes,,,,,,,
+SPXT,equity,US Equities,US,yes,,,,,,,
+I02513EU,bond,Ex-USD Bonds,Developed Europe,no,"European, several (mostly EUR)",Government,DM,EUR_multi,Government,,DM
+I12823GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
+LET1TREU,bond,Ex-USD Bonds,Developed Europe,no,EUR,Government,DM,EUR,Government,,DM
+LP05TREU,bond,Ex-USD Bonds,Developed Europe,no,"European, several (mostly EUR)",IG,DM,EUR_multi,IG,,DM
+MXEU0CD,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0CS,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0EN,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0FN,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0HC,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0IN,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0IT,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0MT,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0TC,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEU0UT,equity,European Equities,Developed Europe,yes,,,,,,,
+MXEUG,equity,European Equities,Developed Europe,yes,,,,,,,
+NDDUUK,equity,European Equities,Developed Europe,yes,,,,,,,
+I02913JP,bond,Ex-USD Bonds,Japan,no,JPY,"Aggregate, IG (mostly government)",DM,JPY,Aggregate,,DM
+NDDUJN,equity,Japanese Equities,Japan,yes,,,,,,,
+NDDUPXJ,equity,APAC ex-Japan Equities,APAC ex-Japan,yes,,,,,,,
+MXCA,equity,DM ex-US Equities,Canada,yes,,,,,,,
+I12877US,bond,EM Corporate Bonds,EM,no,USD,Mixed IG and HY,EM,USD,Mixed,,EM
+EMUSTRUU,bond,EM Sovereign Bonds,EM,no,USD,Mixed IG and HY,EM,USD,Mixed,,EM
+I20344US,bond,EM Sovereign Bonds,EM,no,"EM local, several","Government, mixed IG and HY",EM,EM_local_multi,Government,,EM
+M1CXBRV,equity,EM Equities,EM,yes,,,,,,,
+M1EF,equity,EM Equities,EM,yes,,,,,,,
+M1EF000G,equity,EM Equities,EM,yes,,,,,,,
+M1EF000V,equity,EM Equities,EM,yes,,,,,,,
+M1EFMMT,equity,EM Equities,EM,yes,,,,,,,
+M1EFMVOL,equity,EM Equities,EM,yes,,,,,,,
+M1EFQU,equity,EM Equities,EM,yes,,,,,,,
+MXCN,equity,EM Equities,EM,yes,,,,,,,
+MXIN,equity,EM Equities,EM,yes,,,,,,,
+MXKR,equity,EM Equities,EM,yes,,,,,,,
+MXLA,equity,EM Equities,EM,yes,,,,,,,
+TAMSCI,equity,EM Equities,EM,yes,,,,,,,
+LG38TRUU,bond,Ex-USD Bonds,Global,no,"Several (EUR, JPY, GBP and others)","Aggregate, IG","DM, with some EM",DM_multi,Aggregate,,DM
+M1EA000G,equity,DM ex-US Equities,Global,no,,,,,,,
+M1EA000V,equity,DM ex-US Equities,Global,no,,,,,,,
+M1EAHDVD,equity,DM ex-US Equities,Global,no,,,,,,,
+M1EAMVOL,equity,DM ex-US Equities,Global,no,,,,,,,
+M1WDU00G,equity,DM ex-US Equities,Global,no,,,,,,,
+M1WDUQU,equity,DM ex-US Equities,Global,no,,,,,,,
+M1WOUDY,equity,DM ex-US Equities,Global,no,,,,,,,
+NDUVWXUS,equity,DM ex-US Equities,Global,no,,,,,,,
+ENXG,real_asset_equity,Real Assets,Global,no,,,,,,,
+FGCIICUT,real_asset_equity,Real Assets,Global,no,,,,,,,
+M2WDCOMP,real_asset_equity,Real Assets,Global,no,,,,,,,
+SPGNRUT,real_asset_equity,Real Assets,Global,no,,,,,,,
+BCOMTR,commodity,Commodities,Commodities,no,,,,,,,
+BCOMGCTR,commodity,Gold,Commodities,no,,,,,,,

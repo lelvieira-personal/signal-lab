@@ -7,6 +7,6 @@ cells (`INDEX_OAD_TSY`, `INDEX_OAS_TSY`) beside them without merging. `store` wr
 versioned, hashed directory under `data/characteristics/` and refuses one that has changed.
 
 `exposures` reads a store as of a date (decisions/0050, 0055): `resolve_exposures` returns an
-`ExposureMap` for the store `params/` names. Region, sector and style still raise until the
-label map lands (decisions/0054).
+`ExposureMap` for the store `params/` names. Region reads the label map (decisions/0054);
+sector and style still raise (item 8).
 """
