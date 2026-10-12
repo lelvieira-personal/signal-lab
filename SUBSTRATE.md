@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.10, 2026-10-10. Owner: Leo. This document is the constitution of
+Status: v0.11, 2026-10-11. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -41,6 +41,12 @@ expected returns; nothing is held at a target), `decisions/0052` (two currency
 restatements leave the universe) and `decisions/0053` (every return is in
 dollars), decided by the owner on 2026-10-07 and 2026-10-10. Applied by Cowork
 at the owner's instruction. The v0.9 text is in git history.
+
+v0.11 amended §5.4a, §6 and §7, transcribing `decisions/0056` (one FX source:
+the four ex-USD bonds delivered in local currency are converted with
+Bloomberg's close) and `decisions/0057` (a view may carry a scope), decided by
+the owner on 2026-10-11. Applied by Cowork at the owner's instruction. The
+v0.10 text is in git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -294,9 +300,11 @@ come from Bloomberg.
 
 ### 5.4a Unhedged international fixed income
 
-The unhedged-USD series requested from Bloomberg have landed
-(`data/raw/bloomberg/bbg_exusd_bonds_usd_unhedged.csv`, local level times FRED
-spot):
+The ex-USD bond series requested from Bloomberg have landed
+(`data/raw/bloomberg/bbg_exusd_bonds_usd_unhedged.csv`). Four are delivered in
+their local currency and converted in the loader with Bloomberg's close, like
+every other series (`decisions/0056`); the file's FRED-converted columns are
+not read. `LG38TRUU` is delivered in dollars:
 - Euro Treasury 1-3y (`LET1TREU`; the 1-10y was requested, and the ticker's
   successor is `I02119EU`);
 - UK Gilt 1-10y (`I12823GB`);
@@ -397,6 +405,14 @@ Rules:
   hypotheses, ranked on out-of-sample loading fidelity rather than on net IR,
   because choosing the mapping by whichever one flatters the signals would
   select it on the outcome.
+- A view may carry a **scope**, a set of values of an instrument label (a
+  bond's curve, rating or market; an instrument's region) that restricts the
+  instruments it reaches, or a **grouping** by one such label, giving one view
+  per value. Its expected return on an instrument is the view times the
+  instrument's exposure on the axis, and zero on an instrument outside the
+  scope or without the label. Labels are the owner's map (`decisions/0054`,
+  `0057`), not estimates. A scope is registered with its hypothesis; the same
+  signal under another scope is another hypothesis and another test (§9).
 - Aggregation rule for v0.1 is shrunk z-score averaging across families.
   Entropy-weighted and BL-view-vector aggregation are registered
   alternatives, tested against that baseline, not instead of it.
@@ -419,6 +435,9 @@ rationale: >
   in a way that survives the long-only constraint?
 horizon_weeks: 4-13
 expected_expression: cross_sectional | directional | both
+scope:                       # optional; label -> allowed values (decisions/0057)
+  curve: [EUR]
+group_by: market             # optional; one view per label value; not with scope on the same label
 proposed_by: agent | owner
 ```
 

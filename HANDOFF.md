@@ -58,7 +58,17 @@ and 24 are done — receipts are in `## Done`.
 
 **As of 2026-10-10 (23:30 ET): queued, task 53 only.** The owner ruled OWNER-QUEUE L32 (`decisions/0053`): every return is in dollars, and eighteen local-currency series are converted with the FX file he supplied (`data/raw/bloomberg/bbg_curncy_hist.xlsx`). Cowork transcribed SUBSTRATE v0.10 (L31) into the working tree; step 0 commits it. **Task 53** converts the series, takes `NDDLUK` out, adds a currency guard, rebuilds the store as `huber6-v3`, fixes the spread table and `LET1TREU`'s name, and **pushes** (`CLAUDE.md`, owner 2026-10-10). **`resolve_exposures` stays raising.** **Waiting on the owner:** L28 (the label-map draft), L29, L33.
 
-**As of 2026-10-11 (14:30 ET): queued, task 54 only.** The owner ruled on 2026-10-11: OWNER-QUEUE L34 ("push as is"), L29 and L28 in part (`decisions/0054`), and "yes" to the wiring with its two owner-only patches (`decisions/0055`). Cowork applied params v0.10.0 and the `veto_lookahead` patch in the working tree, so **the suite is red until task 54's step 3**. **Task 54** makes `resolve_exposures` read `huber6-v3`, tests the veto's second half, closes task 53's loose ends and **pushes**. Region, sector and style keep raising, and no solver is built. **Waiting on the owner:** the bond labels (L28; he confirmed the same afternoon that the region axis reads equities only), L35, L33.
+**As of 2026-10-12 (08:10 ET): queued, 55 then 56.** The owner ruled OWNER-QUEUE L28 (the bond labels as drafted, `decisions/0054` addendum; how a hypothesis uses them, `decisions/0057`), L33 (`decisions/0056`) and L35 (`decisions/0058`) on the night of 2026-10-11, and L36 on 2026-10-12; "yes" to task 55, and (owner, 2026-10-12) "yes" to this note. Task 54 and its push have both landed: Cowork checked on 2026-10-12 that `origin/main` is `c8e755c`, equal to HEAD, so nothing earlier is waiting to be pushed. **Task 55** commits the records (SUBSTRATE v0.11) and builds the label map and the region axis; **task 56** builds store `huber6-v4`. Sector and style keep raising; no scope logic and no solver is built. **Waiting on the owner:** nothing for 55 or 56. **Not queued:** the phase-2 solver; Cowork is drafting its spec under `decisions/proposed/`, and nothing is built from it until a task says so.
+
+Notes for task 55 (Cowork, 2026-10-12; the task's text is unchanged):
+- **Superseded for task 55's scope:** the standing refusal "Building from `decisions/0054`" and the paragraph "The label map file (added 2026-10-11)" under "Not queued yet". Task 55 is the queued build of the label map and the region axis, and nothing beyond it.
+- **Step 1's normalisation.** Key the mapping on the verbatim strings as they appear in `decisions/0054`'s bond table, which are the draft's. `0057`'s table paraphrases three of them and names their tickers, so they are mapped, not unmapped: "European, several (mostly EUR)" is `EUR_multi` (`I02513EU`, `LP05TREU`); "Several (EUR, JPY, GBP and others)" is `DM_multi` (`LG38TRUU`); "HY, all ratings" is `HY` with `hy_bucket` `all` (`LF98TRUU`). A string in neither table is still an error.
+- **Step 0.** `.claude/settings.json` is modified in the working tree and is not one of step 0's files. Leave it uncommitted.
+- **New since the task was written:** `decisions/proposed/0059-the-phase-2-solver.md` (Cowork, 2026-10-12) and OWNER-QUEUE L37 and L38. `OWNER-QUEUE.md` is in step 0's files anyway; leave `0059` uncommitted. Step 0's "`decisions/proposed/` has no new file" was true when written.
+- **Step 4's push** carries step 0 and the build only; `c8e755c` is already on the remote.
+- Cowork dry-ran step 1's counts on the draft, outside the repo (pandas, Python 3.10), on 2026-10-12: the sha256 prefix and every count in the task's table matched. That checks the task's expectations; it does not replace the step.
+
+*(Earlier note:)* **As of 2026-10-11 (14:30 ET): queued, task 54 only.** The owner ruled on 2026-10-11: OWNER-QUEUE L34 ("push as is"), L29 and L28 in part (`decisions/0054`), and "yes" to the wiring with its two owner-only patches (`decisions/0055`). Cowork applied params v0.10.0 and the `veto_lookahead` patch in the working tree, so **the suite is red until task 54's step 3**. **Task 54** makes `resolve_exposures` read `huber6-v3`, tests the veto's second half, closes task 53's loose ends and **pushes**. Region, sector and style keep raising, and no solver is built. **Waiting on the owner:** the bond labels (L28; he confirmed the same afternoon that the region axis reads equities only), L35, L33.
 
 *(Earlier note:)* **As of 2026-10-11: nothing is queued.** Task 53 landed (`270ecb9`, receipt `aa1b157`); Cowork's review is the Project doc `claude/task-53-review-2026-10-11.md`, and every gate reproduced. **Its push did not happen:** `origin/main` is still `1b6babf`, 138 commits behind. **No task pushes until the owner rules OWNER-QUEUE L34** (the repository is public). **`resolve_exposures` stays raising.** **Waiting on the owner:** L34; L28 and L29 (the draft is written: `claude/label-map-draft-2026-10-11.md`); L33.
 
@@ -3251,6 +3261,357 @@ Then stop.
 
 ---
 
+### 56. Store `huber6-v4` (`decisions/0056`, `0058`): the ex-USD bonds on Bloomberg's close, the credit factor on FRED `BAA10Y`, estimation before `dev_start`; then push
+
+Added 2026-10-11 by Cowork. **Runs after task 55.** Revised at 23:10 the same
+night, before it ran: `BAA10Y` is dated by its observation, so the map's rule
+and the store's dating do not change (`0058` item 4).
+
+**Owner rulings of 2026-10-11:**
+- OWNER-QUEUE L33, `decisions/0056`: one FX source, Bloomberg;
+- L35, `decisions/0058`: estimation may read before `dev_start`, the
+  development window does not move, and the credit factor is FRED `BAA10Y`,
+  dated by its observation date like a Bloomberg close.
+
+**What this task does not do:**
+- **No owner-only edit.** `params/` keeps naming `huber6-v3`, so
+  `resolve_exposures` keeps reading it. Cowork writes the params patch
+  (`0058` item 6) from this task's receipt, and a later task commits it.
+  SUBSTRATE §5.4 waits on OWNER-QUEUE L36.
+- **`huber6-v1`, `v2` and `v3` are not edited or rebuilt.** The run of
+  record's reproduction (task 48) and the `v3` build must give the same
+  numbers as before: the `dev_start` cut and the old credit factor stay the
+  default, and `v4` selects the new ones.
+- No audit, no solver, no hypothesis changes state.
+- **Expected to move:** the weekly-returns hash (four series change), and any
+  golden that records it. Name each in the receipt. **Anything else that
+  moves, stop and list it.**
+
+**Budget:** 4 to 5 h, of which about 30 minutes is machine time.
+
+**Read first:**
+- `decisions/0056` and `decisions/0058`, all of each;
+- `decisions/0053` (its convention table and its test) and `decisions/0055`
+  ("What the wiring does");
+- `scripts/build_characteristics.py`, especially its gates against the run of
+  record.
+
+**Hard rules:**
+- **Vendor data never leaves the machine.** Report counts, dates, hashes and
+  the aggregates this task names. Never print a level, a rate or a spread.
+- **Nothing reads a date on or after 2020-01-01.** That includes the FRED
+  request.
+- **Never print `FRED_API_KEY`** or anything key-shaped.
+
+**1. Pull `BAA10Y` from FRED.**
+- **The call:** the FRED observations endpoint, as listed in
+  `params/data_sources.yaml`, `series_id=BAA10Y`,
+  `observation_start=1986-01-01`, `observation_end=2019-12-31`. The key is
+  read from `FRED_API_KEY`.
+- **If the key is unset, the call fails, or it is denied at the permission
+  prompt, stop** and write the message in the receipt.
+- **Write** `data/raw/fred/fred_baa10y.csv`, columns `date,BAA10Y`. FRED's
+  `.` is a missing value: written blank, never zero, never carried.
+- **Register it:** a row in `data/universe/raw_manifest.csv` (role
+  `fred_credit_spread`) and one in `data/universe/fred_coverage.csv` with
+  first and last date and the observation count.
+- *Cowork's expectation:* first date 1986-01-02, last on or before
+  2019-12-31.
+- `data/raw/` is not committed. FRED's page carries Moody's copyright
+  notice; the file stays on this machine like every vendor file.
+
+**2. The four ex-USD bonds on Bloomberg's close** (`decisions/0056`).
+- `read_exusd_csv` returns the `<ticker>_local_<CCY>` columns for
+  `LET1TREU`, `I12823GB`, `I02913JP` and `LP05TREU`, and
+  `LG38TRUU_USD_unhedged` as before.
+- The quote currency is the column suffix. It must equal `local_ccy` in
+  `bbg_exusd_bonds_coverage.csv`, or the loader refuses.
+- The `exempt` set that `load_returns` passes to `_to_usd` becomes
+  `{"LG38TRUU"}`.
+- **The test, before the store** (`0056` item 4): in
+  `scripts/check_fx_conversion.py`, each of the four converted against its
+  FRED-converted column. Weekly Friday closes, development window, same day.
+  - Report weekly tracking error, lag-1 autocorrelation and the cumulative
+    gap for each, under a new heading in `results/fx/conversion_check.{md,json}`.
+  - *Cowork's read:* 195 to 210 bp/yr weekly.
+  - **Above 1,000 bp/yr, stop.**
+  - The existing rows of that report must not change.
+- **Report** the days regained in the development window for each of the
+  four (dates with a converted return now and none before).
+
+**3. The factors for `v4`** (`decisions/0058` items 1, 3 and 4).
+- **Credit is the daily change in `BAA10Y`,** in the units the old credit
+  factor used. Read it from step 1's file. `LUACOAS` is not used by `v4`.
+- **Estimation reads from the factors' common start,** not from
+  `dev_start`, and is cut before 2020-01-01.
+- **Dating.** A `BAA10Y` observation on date *t* is dated *t*, like every
+  other factor and return (`0058` item 4). No lag.
+- **How `v4` selects this:** *Cowork's suggestion:* a store option such as
+  `factor_set: huber6-baa10y` with `estimation_start: common`, recorded in the
+  store's manifest. The defaults stay as they are, so `v1` to `v3` and the run
+  of record are untouched.
+- **The run-of-record gates do not apply to `v4`:** its factors differ by
+  design. Skip them only for this option, and record in the manifest that
+  they were skipped and why (`decisions/0058`).
+- **Report:** the first date on which all six factors exist, and the
+  factors' rolling correlation over the whole estimation sample, as the
+  `0046` §1 run did.
+
+**4. The map does not change** (`0058` item 4).
+- `huber6-v4` dates each week by its Friday, as `v3` does: `last_data_date`
+  is the week's Friday. `0055`'s rule stands.
+- **Every task-54 test in `tests/test_exposures.py` passes unchanged.**
+- **One test added:** on the real `v4` store, every week's `last_data_date`
+  equals that week's Friday.
+
+**5. Build `huber6-v4`.**
+- **Run** `make characteristics ARGS="--store-id huber6-v4 …"` with the
+  step-3 option and `--supersedes huber6-v3`.
+- **Manifest:** cites `decisions/0049`, `0056`, `0058` and task 56.
+- **Report:**
+  - `directory_hash`;
+  - first and last week, and the number of weeks;
+  - instruments at the first week, at 2001-01-05 and at the last week;
+  - each instrument whose first row is after 2001-01-05, with that date;
+  - estimated, not estimated and measured counts, as task 53 reported them;
+  - by reporting class, at 2019-12-27, `v3` against `v4`: the median credit
+    loading, the median explained share, and the median absolute change in
+    each of the other five loadings;
+  - the rank correlation of the credit loadings across instruments,
+    `v3` against `v4`, at 2019-12-27.
+- **Cowork's expectations, both estimates:**
+  - the first week on or before 2001-01-05, around 2000-12-29. The equity
+    factor and the breakeven are daily from 1999 by the coverage tables, which
+    give only the year;
+  - 55 to 65 instruments at 2001-01-05.
+  - **If the first week is after 2001-01-05, report it and carry on;** that
+    is what `0058` "What would reopen it" names.
+
+**6. The exposures check on `v4`.**
+- `make exposures-check`, against `huber6-v4` passed explicitly (`params/`
+  still names `v3`), into `results/characteristics/huber6-v4/`.
+- **Report** the task-54 step-4 table for `v4`. Expected differences: the
+  counts, and 2001-01-05 reads a week rather than raising, if step 5's first
+  week allows it. Friday usage rows still have `fitted_through` equal to
+  `used_on_date`; Tuesday rows, four days after.
+- **Also print** the median `axis_duration` by reporting class at
+  2019-12-27, beside `v3`'s from task 54.
+
+**7. Check, commit, push.**
+- **The check:** `scripts/unattended.sh check-full --digest`. It touches the
+  loader and the factors, so it is the whole suite.
+- **Commit the build:** `src/`, `scripts/`, `tests/`, `build.mk` if it
+  changed, `data/universe/raw_manifest.csv`,
+  `data/universe/fred_coverage.csv`, `data/characteristics/huber6-v4/` as
+  task 53 committed `v3`, `results/fx/` and `results/characteristics/huber6-v4/`,
+  as
+  `characteristics: store huber6-v4 -- ex-USD bonds on Bloomberg's close, credit factor BAA10Y, estimation before dev_start (HANDOFF task 56, decisions/0056, decisions/0058)`.
+- **Push:** `git push origin main`, under task 55's rule: a fast-forward
+  only. If it is denied at the prompt or rejected, stop, record it and
+  don't retry.
+- **Then the receipt,** committed and pushed under the same rule, and
+  `git rev-list --count @{u}..HEAD` printed in it.
+
+**Receipt:**
+- rc, commits, the log directory, the tier and the runtime;
+- **step 1:** the file's first and last date and its count, or why it
+  stopped;
+- **step 2:** the four series' figures beside Cowork's read, and the days
+  regained;
+- **step 3:** the option's names, the common start, the correlation table's
+  location, and each golden that moved;
+- **step 4:** the test added, and confirmation that the task-54 tests pass
+  unchanged;
+- **steps 5 and 6:** every figure asked for, beside its expectation;
+- **step 7:** the push's output and the final count;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
+### 55. The label map lands: `data/universe/label_map.csv` and the region axis (`decisions/0054` with its addendum); the records of 2026-10-11 night; then push
+
+Added 2026-10-11 by Cowork. **Revised at 22:55 the same night, before it
+ran,** to carry the owner's 22:39 rulings.
+
+**Owner rulings of 2026-10-11 night:**
+- OWNER-QUEUE L28: the bond labels are ruled as drafted (`decisions/0054`
+  addendum), and how a hypothesis uses them is `decisions/0057` ("B approved
+  as is"), SUBSTRATE §6 and §7 amended in v0.11;
+- L33: one FX source, Bloomberg (`decisions/0056`), SUBSTRATE §5.4a amended
+  in v0.11; **built in task 56, not here**;
+- L35: `decisions/0058`, the credit factor is FRED `BAA10Y`; **built in task
+  56, not here**;
+- the label map's hash is pinned in `params/` (`0058` item 6), **after** task
+  56, not here;
+- L12: parked (Dormant);
+- "yes" to this task.
+
+**What this task does not do:**
+- **No owner-only edit by you.** SUBSTRATE v0.11 is Cowork's transcription
+  of `0056` and `0057`, already in the working tree; step 0 commits it.
+  Verify it with `git diff --ignore-cr-at-eol SUBSTRATE.md`. Nothing in
+  `params/` or `vetoes/`. If a step seems to need an owner-only change, stop
+  and write the exact change in the receipt.
+- **No scope logic.** The labels, verbatim and normalised, are carried and
+  no axis reads a bond label. `scope` and `group_by` in the validator, and
+  the mask on the view-to-alpha mapping, come with the phase-2 solver
+  (`0057`, "Where it is built").
+- **Sector and style keep raising** (`0054` item 8).
+- No new store, no FX change, no vendor call, no audit, no solver. No
+  hypothesis changes state. **No golden moves.** If a test this task does
+  not name fails, stop and list it.
+
+**Budget:** 2 to 3 h, of which about 15 minutes is machine time.
+
+**Read first:**
+- `decisions/0054`, all of it, the 2026-10-11 night addendum especially;
+- `decisions/0050` item 1 (the label block) and `decisions/0055`;
+- `src/signal_lab/characteristics/exposures.py` as task 54 left it.
+
+**Hard rules:**
+- **Vendor data never leaves the machine.** The label map holds no vendor
+  value; the store does. Report counts and names only.
+- **The loader's `SeriesMeta.region` is not changed.** The non-synchronous
+  covariance rule reads it, and changing it would move recorded numbers.
+- **Nothing reads a date on or after 2020-01-01.**
+
+**0. Commit the records first, alone.**
+- **Files:** `SUBSTRATE.md` (v0.11), `HANDOFF.md`, `OWNER-QUEUE.md`,
+  `decisions/0054-…` (addendum), and new: `decisions/0056-…`,
+  `decisions/0057-…`, `decisions/0058-…`. `decisions/proposed/` has no new
+  file; `0057` was proposed there and moved before it was ever committed.
+- **Run** `make check` (records only, the fast tier) and `make governance`.
+  Both must pass.
+- **Message:** `substrate v0.11 and queue: tasks 55 and 56; SUBSTRATE §5.4a, §6 and §7 transcribed (decisions/0056, decisions/0057); decisions/0054 addendum, 0056, 0057 and 0058; OWNER-QUEUE L28, L33, L35 and L36 closed, L12 dormant (owner 2026-10-11 and 2026-10-12)`.
+
+**1. Write `data/universe/label_map.csv`.**
+- **Source:** `Claude outputs/label_map_draft_2026-10-11.csv`. It has no
+  owner corrections (the `owner_correction` column is empty). Its sha256
+  begins `6de22793765f2a24`; if it does not, stop.
+- **Rows:** every row whose `tier` is not `tradable-only`. **84 rows.**
+- **Columns, in this order:** `ticker`, `asset_group`, `reporting_class`,
+  `region`, `region_view`, `curve_currency`, `rating_class`, `market_label`,
+  `curve`, `rating`, `hy_bucket`, `market`.
+  - `region`: as drafted, except `(Commodities bucket)` becomes
+    `Commodities`.
+  - `region_view`: `yes` only for `asset_group` in `equity` or
+    `real_asset_equity` **and** `region` not `Global` (`0054` items 9 and
+    10); `no` otherwise.
+  - `curve_currency`, `rating_class` and `market_label` are verbatim from
+    the draft's `curve_currency`, `rating_class` and `market`. They are
+    blank except for the 23 bonds and `LD20TRUU`.
+  - `curve`, `rating`, `hy_bucket` and `market` are the normalised values
+    of `decisions/0057`'s vocabulary table, mapped from the verbatim ones.
+    **A verbatim value the table does not map is an error,** not a blank.
+    `hy_bucket` is `Ba`, `B`, `Caa` or `all` for the five HY rows and blank
+    elsewhere.
+- **Write it with a small script** (`scripts/build_label_map.py`, Cowork's
+  suggested name) so the file can be regenerated. After this task,
+  `label_map.csv` is the owner's record and the draft is not read again.
+- **Expected counts:**
+
+  | Count | Expected |
+  |---|---|
+  | rows | 84 |
+  | `asset_group`: equity, bond, real_asset_equity, commodity, cash | 54, 23, 4, 2, 1 |
+  | `region_view = yes` | 46: US 19, Developed Europe 12, EM 12, Japan 1, APAC ex-Japan 1, Canada 1 |
+  | `region` over all rows | US 34, Developed Europe 16, EM 15, Global 13, Japan 2, Commodities 2, APAC ex-Japan 1, Canada 1 |
+  | rows with a `curve_currency` | 24 |
+  | `curve` | USD 16, EUR_multi 2, USD_real 1, EUR 1, GBP 1, JPY 1, DM_multi 1, EM_local_multi 1 |
+  | `rating` | Government 11, HY 5, IG 3, Aggregate 2, Mixed 2, Agency 1 |
+  | `hy_bucket` | Ba 2, B 1, Caa 1, all 1 |
+  | `market` | DM 21, EM 3 |
+
+  These count `LD20TRUU` (USD, Government, DM), which is why they read one
+  more than `0057`'s table of bonds.
+
+- **Cross-check against the record.** A test parses the "Equity regions"
+  table of `decisions/0054` and asserts that each ticker's region in
+  `label_map.csv` equals the table's, for every ticker in both. The eight
+  tradable-only tickers are in the table and must be absent from the map.
+  Do the same for the bond table's three label columns.
+
+**2. `ExposureMap` reads the label map.**
+- **Where:** `characteristics/exposures.py`. The map's path is an argument
+  with a default of `data/universe/label_map.csv`; tests pass a temp file.
+- **Every instrument with a store row must have a label row,** and the
+  reverse. On the real store the two sets are the same 84. A mismatch
+  raises, naming the tickers.
+- **`at(date)`** gains the columns `region`, `curve_currency`,
+  `rating_class`, `market_label`, `curve`, `rating`, `hy_bucket` and
+  `market`, as strings. They are blank where the map is blank, and
+  **these columns are exempt from the "no missing value" rule** the engine's
+  `ExposureRule` applies.
+- **`axis("region", date)` returns a frame,** instruments by the six view
+  regions (US, Developed Europe, Japan, APAC ex-Japan, Canada, EM), 0 or 1.
+  An instrument has a 1 only where `region_view` is `yes`. Global has no
+  column. Say in the docstring that this axis returns a frame where the
+  others return a series, and why: a region view is one view per region.
+- **The engine's rule (`__call__`)** gains seven 0/1 columns
+  `region_<slug>` for reporting, Global included, from `region` over **all**
+  instruments (a bond keeps a region for reporting, `0054` item 9).
+  Commodities and cash read 0 in all seven except where their `region` names
+  one (cash is `US` in the map). *Cowork's suggestion for the slugs:* `us`,
+  `dev_europe`, `japan`, `apac_ex_japan`, `canada`, `em`, `global`.
+- **`sector` and `style` still raise `LabelMapMissing`,** now naming
+  `decisions/0054` item 8.
+- **The usage log is unchanged.** Labels are not estimated and have no
+  `fitted_through`.
+
+**3. Tests** (`tests/test_exposures.py`, and a new
+`tests/test_label_map.py`):
+- the step-1 counts and the cross-check against `decisions/0054`;
+- the normalised columns against `decisions/0057`'s table, and an unmapped
+  verbatim value raising;
+- `build_label_map.py` regenerates the committed file byte for byte;
+- the region view frame: a US equity reads 1 in `us` only; a Global equity
+  reads 0 everywhere; a bond reads 0 everywhere; the columns are the six;
+- the reporting columns: a US Treasury reads 1 in `region_us`; a Global
+  equity reads 1 in `region_global`; `BCOMTR` reads 0 in all seven; every row
+  sums to 0 or 1;
+- a store instrument without a label row raises; a label row without a
+  store instrument raises;
+- `sector` and `style` raise `LabelMapMissing`; an unknown axis is a
+  `ValueError`;
+- **change, don't weaken:** the task-54 test that `region` raises becomes a
+  test that it returns the frame. Name it in the receipt.
+
+**4. Check, commit, push.**
+- **The check:** `scripts/unattended.sh check-scoped --digest`. If it reports
+  any doubt about placing a changed file, run `check-full` instead.
+- **Report the label map's sha256,** of the file as committed and of the
+  working-tree file, saying which is CRLF. The owner has ruled that it is
+  pinned in `params/` (`0058` item 6); Cowork writes that patch after task
+  56. Not done here.
+- **Commit the build:** `data/universe/label_map.csv`,
+  `scripts/build_label_map.py`, `src/`, `tests/`, as
+  `labels: data/universe/label_map.csv, the region axis reads it (HANDOFF task 55, decisions/0054)`.
+- **Push:** `git push origin main`, as `CLAUDE.md` allows. It carries
+  `c8e755c` too, which is unpushed.
+  - It must be a fast-forward. Never `--force`, never pull, never rebase.
+  - **If it is denied at the permission prompt or rejected, stop.** Write
+    the exact message, or "denied at the prompt", in the receipt, commit the
+    receipt locally, and don't retry. Tasks 53 and 54 were both denied at
+    the prompt.
+- **Then the receipt.** Commit it and push again, under the same rule.
+- **Last:** `git rev-list --count @{u}..HEAD`, printed in the receipt.
+
+**Receipt:**
+- rc, commits, the log directory, the tier and the runtime;
+- **step 1:** every count beside its expectation, and the cross-check's
+  result;
+- **step 2:** the names you chose, and the store/label set check on the real
+  store;
+- **step 3:** every test added, and every existing test changed;
+- **step 4:** the label map's sha256, the push's output and the final count;
+- **Anything in this task you didn't do, said plainly.**
+
+Then stop.
+
+---
+
 ### 54. The wiring: `resolve_exposures` reads `huber6-v3` (`decisions/0050`, `0055`); params v0.10.0; the `lookahead` veto checks loadings; task 53's loose ends; then push
 
 Added 2026-10-11 by Cowork.
@@ -4010,7 +4371,7 @@ task 36 and lands with task 33.
 
 **The wiring.** Queued 2026-10-11 as task 54 (`decisions/0055`). The region axis keeps raising until the label map lands.
 
-**The label map file (added 2026-10-11).** `decisions/0054` rules the equity regions. Not queued: `data/universe/label_map.csv`. The region axis reads equities only (owner, 2026-10-11), so the equity regions could land without the bond labels; the owner has not said whether to split it (OWNER-QUEUE L28).
+**The label map file (added 2026-10-11).** *(Superseded 2026-10-12: queued as task 55.)* `decisions/0054` rules the equity regions. Not queued: `data/universe/label_map.csv`. The region axis reads equities only (owner, 2026-10-11), so the equity regions could land without the bond labels; the owner has not said whether to split it (OWNER-QUEUE L28).
 
 **The solver's form is decided (2026-10-07, `decisions/0051`):** views become expected returns for `portfolio/long_only.solve`; nothing is held at a target. SUBSTRATE §6 still says otherwise (OWNER-QUEUE L31). Don't build the solver before §6 is transcribed. Its spec is not written.
 
@@ -4049,7 +4410,7 @@ run would have said.
 - **Building from `decisions/0051`, or past task 54 from `0050`.** Task 54
   wires `resolve_exposures` and nothing else. No solver, no alphas and no
   view is built until a task says so; the solver's spec is not written.
-- **Building from `decisions/0054`.** The label map file is not queued.
+- **Building from `decisions/0054`.** The label map file is not queued. *(Superseded 2026-10-12 for task 55's scope: the label map and the region axis are queued. Sector, style and scope logic are still not built.)*
   Region, sector and style raise.
 - **Re-recording a golden.** `decisions/0048` allows three named constants,
   once, in task 50. Any other needs the owner.

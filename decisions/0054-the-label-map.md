@@ -147,3 +147,34 @@ The reasons and alternatives are in the Project doc.
   or on a sector or style.
 - The corrected bond labels, which complete item 6.
 - A candidate reaching phase 4, for item 7.
+
+## Addendum, 2026-10-11 (night): the bond labels are ruled
+
+**What the owner said** (22:10), on L28: "I am ok with the labels for
+currency, rating class and market in the decisions tabe".
+
+1. **Item 6 is complete.** The draft bond labels above (curve currency,
+   rating class, market, all 25 rows, `LD20TRUU` included) are the ruling as
+   written. The heading "The draft bond labels — NOT ruled" is superseded by
+   this addendum and left as it was, because this record is append-only.
+2. **The notes stay notes.** Two rows rest on Cowork's unverified
+   recollection of what an index holds (`I02513EU`'s currencies, `LG38TRUU`
+   holding some EM). The ruling fixes the labels, not those descriptions.
+3. **How a hypothesis uses a bond label** ("design and ammend", 22:25) is
+   proposed in `decisions/proposed/0057`. It is not decided. Until it is, no
+   axis reads a bond label.
+4. **The map lands as `data/universe/label_map.csv`** (HANDOFF task 55): a
+   new file read by `resolve_exposures`, as this record's "What it does not
+   decide" proposed. The loader's `SeriesMeta.region` is not changed, so no
+   recorded number moves.
+   - Its rows are the 84 instruments that are not tradable-only. The eight of
+     item 7 have no row.
+   - Region view (item 9): 46 equities, US 19, Developed Europe 12, EM 12,
+     Japan 1, APAC ex-Japan 1, Canada 1. The 12 Global instruments (8 equity
+     indices and the 4 real-asset equity indices) receive no region view
+     (item 10).
+   - Counts are Cowork's, from `Claude outputs/label_map_draft_2026-10-11.csv`
+     less the eight tradable-only rows; task 55 checks them against the
+     tables above.
+
+**Still open:** sector and style (item 8), and `0057`.

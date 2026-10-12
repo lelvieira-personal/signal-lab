@@ -19,135 +19,63 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L28. The label map: a region, a sector and a style for each instrument
-Added 2026-10-07 by Cowork, out of L27 (d). It wakes D3.
+### L37. The phase-2 solver: five open points in `decisions/proposed/0059`
+Added 2026-10-12 by Cowork. The owner ruled four design points on 2026-10-12
+(Grinold views with one fixed IC prior; directional and cross-sectional
+defined, `both` is two tests; the hard 6% budget; pilot first, thresholds
+second). They are recorded in the proposal as ruled. The rest is Cowork's
+draft.
 
-**Ruled in part, 2026-10-10 (owner):**
-- **The regions** are US, Developed Europe, Japan, APAC ex-Japan, EM and
-  Global.
-- **Gold and commodities carry no region.** They are their own Commodities
-  bucket (owner: "let it be its own Commodities bucket").
-- **A sector or style index carries its parent's region.**
-- **Sector and style labels wait** until a hypothesis targets them.
-- **Cowork drafts the map** for the owner to correct, with a parent for each
-  of the eight tradable-only instruments (L29) in the same table.
+**What the owner would be deciding** (the proposal's "Open points"):
+1. `IC_prior`. Cowork proposes 0.05, a prior and not a measurement.
+2. `h` as the geometric mean of a hypothesis's horizon range (4-13 gives 7).
+3. A 156-week burn-in for the score's standardisation, winsorised at ±3.
+4. Extracting the audit's rebalance step into `portfolio/` (gated on exact
+   reproduction of the audit's recorded numbers), against writing the
+   phase-2 rule separately.
+5. Equal-weighted region baskets as the region factor's return.
 
-**Drafted 2026-10-11 (Cowork):** Project doc
-`claude/label-map-draft-2026-10-11.md`; the editable copy is
-`Claude outputs/label_map_draft_2026-10-11.csv`.
+Once ruled, the record moves to `decisions/0059`, and a params patch and a
+build task follow. **Not built until then.**
 
-**Ruled further, 2026-10-11 (owner; `decisions/0054`):**
-- **Canada is a seventh region,** standing alone (`MXCA`).
-- **The twelve multi-region composites are Global:** "ok. They are
-  themselves a regional bet".
-- **Korea, Taiwan, China and India are EM.**
-- **The eight tradable-only instruments stay unholdable** in the development
-  window (L29, closed).
-- **A bond is labelled by its curve currency, its rating class and whether
-  its market is developed or emerging:** "it is important for hypotheses to
-  ditinguish the currency for bonds in terms of the yield curve currency
-  that the bond is associated to. Also important the rating class and
-  whether is developed or emerging market."
+### L38. Four pending hypotheses ask for a cross-section the lab cannot form
+Added 2026-10-12 by Cowork, out of `decisions/proposed/0059`.
 
-**Confirmed 2026-10-11, later (owner; `decisions/0054` items 9 and 10):**
-- **The region view axis reads equities only.** A bond keeps a region for
-  reporting.
-- **Global is its own line in the region exposure report.** No Global view
-  is formed.
+Under 0059's definitions (ruled 2026-10-12), a cross-section is formed across
+groups, and an axis has groups only through region or a registered `group_by`
+(`decisions/0057`).
+- **H-2026-0002** (real/nominal, `both`) and **H-2026-0003** (duration,
+  `both`): the directional test is defined; the cross-sectional one is not.
+- **H-2026-0007** (credit, cross-sectional, OAS z-score) and **H-2026-0010**
+  (duration, cross-sectional, carry): the only test is undefined. *Cowork's
+  reading:* both are instrument-level scores, which `decisions/0051` does not
+  authorise.
 
-**Still open:**
-- **His corrections to the draft bond labels** ("will do later"). 25 rows,
-  every entry Cowork's: `decisions/0054`, and the columns `curve_currency`,
-  `rating_class` and `market` of
-  `Claude outputs/label_map_draft_2026-10-11.csv`.
-- **How a hypothesis would use a bond label.** SUBSTRATE §6 has no axis for
-  a curve currency or a rating class. A duration view on one curve needs a
-  new axis or a qualifier, and an amendment. Not designed.
+**What the owner would be deciding,** for each: register a `group_by` (for
+example `rating` for 0007, `curve` for 0010, though `0057` found the curve
+universe thin), change the expression to directional, or rule on
+instrument-level signals. It must happen before any result is seen
+(`0057` rule 1). **Not urgent:** no signal module exists yet.
 
-**The equity half can land without the bond labels.** The region axis reads
-equities only, so `label_map.csv` with regions alone would stop the axis
-raising. Not queued; Cowork has asked the owner.
 
-`decisions/0050` gives the matrix a label block. Only `cash` has a source.
-`data/universe/investable_universe.csv` carries `section` and
-`reporting_class` and no region, sector or style column, and the loader's
-`region` is the workbook section, a placeholder (`decisions/0022`: "A real
-region map is an owner decision and has not been made").
+---
 
-**Why it is live.** H-2026-0001, 0006, 0009 and 0011 target `region`. The
-wiring can land without it, with the region axis still raising; those four
-cannot run until it exists. No hypothesis targets sector or style.
+## Blocked — waiting on a measurement
 
-**What the owner would be deciding:**
-- the list of regions, and which region each of the 93 investable series
-  belongs to, bonds included;
-- whether a sector or style index also carries its parent's region (a US
-  Financials index is both US and Financials);
-- whether sector and style labels are set now or when a hypothesis needs
-  them.
+### B4. `decisions/0030`'s threshold sensitivity to kurtosis
+The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
+the measured excess kurtosis of 2.37. But p99 is 1.48 at κ=1 and 1.92 at κ=4,
+and one Bloomberg cell read κ=14.65. Whether the threshold should sit at a
+conservative κ, or be re-measured per run, is unsettled.
 
-**Cowork has offered** to draft the map from `section` and the index names
-for the owner to correct. Every entry would be a guess until he confirms it.
+**Retired by:** the ten-seed audit's kurtosis distribution across cells. One
+outlier out of seventeen is not enough to choose on.
 
-### L35. The exposure matrix begins two years into the development window
-Added 2026-10-11 by Cowork, out of `decisions/0055`.
+---
 
-- **The store's first week is 2002-12-27. The development window opens on
-  2001-01-05.** The estimator needs 104 valid weeks. *Cowork's inference
-  from those two dates:* the build reads no return before the window opens.
-- **A run that maps views through exposures cannot rebalance in the first
-  103 weeks.** It has 17 years, not 19. Every audit so far started in 2001
-  because none of them used exposures.
-- Eleven instruments get their first row later still, the last in 2010-10
-  (`ENXG`).
+## Dormant — deferred on purpose, with the trigger that wakes them
 
-**What the owner would be deciding:**
-- (a) accept it: such runs start on 2002-12-27;
-- (b) fit the early loadings on returns before 2001, in a new store.
-  Whether the lab may read pre-2001 returns for estimation is his call, and
-  the factors may not reach back far enough. *Cowork's recollection of
-  SUBSTRATE §5.3:* the 10-year TIPS yield starts in 1997 and breakevens in
-  1999;
-- (c) a shorter minimum window for the first two years.
-
-**Not urgent.** Nothing rebalances through the matrix before the phase-2
-solver exists. **A measurement would size (b):** the first date on which all
-six factors exist.
-
-### L33. One FX source, and which
-Added 2026-10-10 by Cowork, out of L32.
-
-After HANDOFF task 53 the lab converts with two FX sources:
-- **FRED's noon New York spot:** the five ex-USD bonds, as delivered in
-  `bbg_exusd_bonds_usd_unhedged.csv`, about 200 dropped days each;
-- **Bloomberg's generic close** (`bbg_curncy_hist.xlsx`): the eighteen
-  series of `decisions/0053`.
-
-MSCI and, as far as Cowork knows, Bloomberg's indices convert at the WM 4pm
-London fix. Neither source is that.
-
-**The one test available** is MSCI UK, in sterling converted against the
-index in dollars, weekly, 2006-2019 *(Cowork's read)*:
-- **Bloomberg close:** 237 bp/yr tracking error;
-- **FRED noon:** 141 bp/yr.
-
-Both residuals reverse the next week (lag-1 autocorrelation about −0.5) and
-show no drift. The four ex-USD bonds converted both ways differ by 195 to
-210 bp/yr weekly.
-
-**What the owner would be deciding:**
-- (a) keep two sources, the state after task 53;
-- (b) everything on the Bloomberg file, with no dropped days;
-- (c) everything on FRED noon, which needs a FRED pull of six more series and
-  drops US holidays;
-- (d) a Bloomberg London 4pm source, if one resolves. *Cowork's
-  recollection, not verified:* Bloomberg's `BFIX` and `L160` pricing
-  sources.
-
-**Not urgent.** The noise is weekly and mean-reverting. It matters most for
-the region and dollar signals on the eighteen converted series.
-
-### L12. Is the registry the right shape, now that the stepdown is the bar?
+### L12. Is the registry the right shape, now that the stepdown is the bar? — DORMANT 2026-10-11
 Added 2026-09-21 at the owner's request. Bears on `decisions/0036` §6,
 SUBSTRATE §9 and §13, and on what is bought from Macrosynergy.
 
@@ -197,22 +125,20 @@ version is to estimate the joint distribution and read the effective number of
 independent tests off it rather than guess — and the owner has asked that it be
 revisited then.
 
----
+**Parked 2026-10-11 (owner: "ok, park it").** Cowork's suggestion, which he
+accepted:
+- **The procurement reason has passed:** the JPMaQS pull landed
+  (`P-20261002T032635Z`, 26 tickers).
+- **Families stay the economic families of SUBSTRATE §6,** where signals are
+  averaged. Regrouping by target axis would average unrelated theses.
+- **Shared target axes cost little multiplicity** under a stepdown on shared
+  block shuffles; what they cost is breadth. That is a registration question
+  (a soft cap per target axis per cycle), not a gate question.
+- **Any grouping is fixed before any statistic is seen.**
 
-## Blocked — waiting on a measurement
-
-### B4. `decisions/0030`'s threshold sensitivity to kurtosis
-The ceiling is 1.72, the p99 of the worst annual bias under a correct model at
-the measured excess kurtosis of 2.37. But p99 is 1.48 at κ=1 and 1.92 at κ=4,
-and one Bloomberg cell read κ=14.65. Whether the threshold should sit at a
-conservative κ, or be re-measured per run, is unsettled.
-
-**Retired by:** the ten-seed audit's kurtosis distribution across cells. One
-outlier out of seventeen is not enough to choose on.
-
----
-
-## Dormant — deferred on purpose, with the trigger that wakes them
+**Trigger:** the first family signals build from hypothesis files. Then
+estimate the effective number of tests from the null correlation matrix and
+revisit.
 
 ### L10. The `seed_stability` threshold has no measurement behind it
 Added 2026-09-20 by Cowork. **Rewritten and moved to Dormant on 2026-10-07**
@@ -320,6 +246,204 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L36. SUBSTRATE §5.4 says every spread comes from Bloomberg — CLOSED 2026-10-12 (ruled: "5.4 wording approved"; transcribed with the params change after HANDOFF task 56)
+Added 2026-10-11 by Cowork, out of `decisions/0058`.
+
+- **After `0058` one spread comes from FRED:** `BAA10Y`, the credit factor.
+  §5.4 now reads "Spreads come from Bloomberg."
+- **The proposed wording is in `decisions/0058`,** "SUBSTRATE §5.4 —
+  proposed wording, not applied".
+
+**What the owner would be deciding:** that wording, approved or edited. Cowork
+transcribes it with the params change after task 56.
+
+**Not urgent,** but it should land before or with `huber6-v4` in `params/`,
+so the constitution never describes a store the lab is not reading.
+
+**Ruled 2026-10-12 (owner):** "5.4 wording approved". The wording is the one in
+`decisions/0058`, as revised on 2026-10-11 at 23:10 (dated by its observation
+like a Bloomberg close). Cowork transcribes it in the same change that points
+`params/` at `huber6-v4`.
+
+### L35. The exposure matrix begins two years into the development window — CLOSED 2026-10-11 (ruled; `decisions/0058`; HANDOFF task 56 builds `huber6-v4`)
+Added 2026-10-11 by Cowork, out of `decisions/0055`.
+
+**Ruled 2026-10-11 night (owner): "accept recommendation (A)".** That is (b)
+below, widened:
+- **Estimation may read returns before `dev_start`.** SUBSTRATE §2 allows it;
+  the cut at `dev_start` is in `scripts/run_measurement.py`, not in the
+  constitution.
+- **The credit factor moves to one series with daily history before 1999,**
+  used for the whole sample, never spliced. *Cowork's inference from
+  `bbg_analytics_coverage.csv`, which gives only the year:* `LUACOAS` is daily
+  from 2001, so removing the cut alone would gain almost nothing.
+- **The development window does not move.** The bubble's run-up and its 2000
+  leg are a phase-4 stress scenario on a candidate's loadings, not part of
+  the backtest. Only 9 of 26 JPMaQS tickers and 52 of 92 investable series
+  are daily by 1999-01-01.
+- **It is built with `decisions/0056`** (L33), as one new store and one new
+  params version.
+
+**Still open: which credit series.** The record (`0058`) is written once the
+owner picks.
+- **ICE BofA US Corporate OAS (`C0A0`),** through a Bloomberg pull by the
+  owner. The closest like-for-like for `LUACOAS`. *Its start is Cowork's
+  recollection, end-1996, not verified.* FRED now keeps only three years of
+  it.
+- **FRED `BAA10Y`,** daily from 1986-01-02 (checked on FRED, 2026-10-11).
+  Moody's seasoned Baa yield less the 10-year constant-maturity Treasury: a
+  yield spread on long Baa bonds, not an option-adjusted spread, and partly a
+  curve-slope measure.
+
+- **The store's first week is 2002-12-27. The development window opens on
+  2001-01-05.** The estimator needs 104 valid weeks. *Cowork's inference
+  from those two dates:* the build reads no return before the window opens.
+- **A run that maps views through exposures cannot rebalance in the first
+  103 weeks.** It has 17 years, not 19. Every audit so far started in 2001
+  because none of them used exposures.
+- Eleven instruments get their first row later still, the last in 2010-10
+  (`ENXG`).
+
+**What the owner would be deciding:**
+- (a) accept it: such runs start on 2002-12-27;
+- (b) fit the early loadings on returns before 2001, in a new store.
+  Whether the lab may read pre-2001 returns for estimation is his call, and
+  the factors may not reach back far enough. *Cowork's recollection of
+  SUBSTRATE §5.3:* the 10-year TIPS yield starts in 1997 and breakevens in
+  1999;
+- (c) a shorter minimum window for the first two years.
+
+**Not urgent.** Nothing rebalances through the matrix before the phase-2
+solver exists. **A measurement would size (b):** the first date on which all
+six factors exist.
+
+**Ruled 2026-10-11, 22:39 (owner):** "go with FRED. There is no OAS stat for
+this index in bloomberg apparently." The credit factor is `BAA10Y`, dated by
+its observation date like a Bloomberg close (`decisions/0058` item 4; owner,
+23:05, after first ruling on a one-day lag Cowork had added). And "4) yes": the
+label map is pinned in `params/` with the store.
+
+### L28. The label map: a region, a sector and a style for each instrument — CLOSED 2026-10-11 (ruled; `decisions/0054` with its addendum, `decisions/0057`; HANDOFF task 55 builds it; sector and style wait for a hypothesis)
+Added 2026-10-07 by Cowork, out of L27 (d). It wakes D3.
+
+**Ruled in part, 2026-10-10 (owner):**
+- **The regions** are US, Developed Europe, Japan, APAC ex-Japan, EM and
+  Global.
+- **Gold and commodities carry no region.** They are their own Commodities
+  bucket (owner: "let it be its own Commodities bucket").
+- **A sector or style index carries its parent's region.**
+- **Sector and style labels wait** until a hypothesis targets them.
+- **Cowork drafts the map** for the owner to correct, with a parent for each
+  of the eight tradable-only instruments (L29) in the same table.
+
+**Drafted 2026-10-11 (Cowork):** Project doc
+`claude/label-map-draft-2026-10-11.md`; the editable copy is
+`Claude outputs/label_map_draft_2026-10-11.csv`.
+
+**Ruled further, 2026-10-11 (owner; `decisions/0054`):**
+- **Canada is a seventh region,** standing alone (`MXCA`).
+- **The twelve multi-region composites are Global:** "ok. They are
+  themselves a regional bet".
+- **Korea, Taiwan, China and India are EM.**
+- **The eight tradable-only instruments stay unholdable** in the development
+  window (L29, closed).
+- **A bond is labelled by its curve currency, its rating class and whether
+  its market is developed or emerging:** "it is important for hypotheses to
+  ditinguish the currency for bonds in terms of the yield curve currency
+  that the bond is associated to. Also important the rating class and
+  whether is developed or emerging market."
+
+**Confirmed 2026-10-11, later (owner; `decisions/0054` items 9 and 10):**
+- **The region view axis reads equities only.** A bond keeps a region for
+  reporting.
+- **Global is its own line in the region exposure report.** No Global view
+  is formed.
+
+**Ruled further, 2026-10-11 night (owner; `decisions/0054` addendum):**
+- **The bond labels are ruled as drafted:** "I am ok with the labels for
+  currency, rating class and market in the decisions tabe".
+- **How a hypothesis uses them:** "design and ammend". Cowork's design is
+  `decisions/proposed/0057` (a scope or a grouping on an existing axis, a
+  normalised vocabulary, SUBSTRATE §6 and §7 wording). **Awaiting his ruling.**
+- **The map lands** as `data/universe/label_map.csv`, HANDOFF task 55.
+
+**Still open:**
+- **`decisions/proposed/0057`:** the design, the vocabulary, the minimum
+  reach of a scope, and the SUBSTRATE wording.
+- **How a hypothesis would use a bond label** (now `0057`). SUBSTRATE §6 has no axis for
+  a curve currency or a rating class. A duration view on one curve needs a
+  new axis or a qualifier, and an amendment. Not designed.
+
+**The equity half can land without the bond labels.** The region axis reads
+equities only, so `label_map.csv` with regions alone would stop the axis
+raising. Not queued; Cowork has asked the owner.
+
+`decisions/0050` gives the matrix a label block. Only `cash` has a source.
+`data/universe/investable_universe.csv` carries `section` and
+`reporting_class` and no region, sector or style column, and the loader's
+`region` is the workbook section, a placeholder (`decisions/0022`: "A real
+region map is an owner decision and has not been made").
+
+**Why it is live.** H-2026-0001, 0006, 0009 and 0011 target `region`. The
+wiring can land without it, with the region axis still raising; those four
+cannot run until it exists. No hypothesis targets sector or style.
+
+**What the owner would be deciding:**
+- the list of regions, and which region each of the 93 investable series
+  belongs to, bonds included;
+- whether a sector or style index also carries its parent's region (a US
+  Financials index is both US and Financials);
+- whether sector and style labels are set now or when a hypothesis needs
+  them.
+
+**Cowork has offered** to draft the map from `section` and the index names
+for the owner to correct. Every entry would be a guess until he confirms it.
+
+**Ruled 2026-10-11, 22:39 (owner):** "0057: B approved as is": the design,
+the vocabulary and its mapping, the minimum reach and the SUBSTRATE §6 and §7
+wording, transcribed in v0.11. Sector and style stay unlabelled until a
+hypothesis targets them (`0054` item 8); that is D3's trigger, not an open
+question.
+
+### L33. One FX source, and which — CLOSED 2026-10-11 (ruled: (b), Bloomberg; `decisions/0056`; built with the L35 store)
+Added 2026-10-10 by Cowork, out of L32.
+
+After HANDOFF task 53 the lab converts with two FX sources:
+- **FRED's noon New York spot:** the five ex-USD bonds, as delivered in
+  `bbg_exusd_bonds_usd_unhedged.csv`, about 200 dropped days each;
+- **Bloomberg's generic close** (`bbg_curncy_hist.xlsx`): the eighteen
+  series of `decisions/0053`.
+
+MSCI and, as far as Cowork knows, Bloomberg's indices convert at the WM 4pm
+London fix. Neither source is that.
+
+**The one test available** is MSCI UK, in sterling converted against the
+index in dollars, weekly, 2006-2019 *(Cowork's read)*:
+- **Bloomberg close:** 237 bp/yr tracking error;
+- **FRED noon:** 141 bp/yr.
+
+Both residuals reverse the next week (lag-1 autocorrelation about −0.5) and
+show no drift. The four ex-USD bonds converted both ways differ by 195 to
+210 bp/yr weekly.
+
+**What the owner would be deciding:**
+- (a) keep two sources, the state after task 53;
+- (b) everything on the Bloomberg file, with no dropped days;
+- (c) everything on FRED noon, which needs a FRED pull of six more series and
+  drops US holidays;
+- (d) a Bloomberg London 4pm source, if one resolves. *Cowork's
+  recollection, not verified:* Bloomberg's `BFIX` and `L160` pricing
+  sources.
+
+**Not urgent.** The noise is weekly and mean-reverting. It matters most for
+the region and dollar signals on the eighteen converted series.
+
+**Ruled 2026-10-11 (owner):** "let's go with bloomberg (b)". Cowork then said a
+pull of local levels was needed; the owner: "I already shared this data from
+bloomberg for the 5 indices, they were already in local currency". He was
+right: `bbg_exusd_bonds_usd_unhedged.csv` carries a local column for each of
+the four converted bonds, unread until now (`decisions/0056`).
 
 ### L34. The push did not happen, and the repository is public — CLOSED 2026-10-11 (ruled: "push as is"; HANDOFF task 54 pushes)
 
