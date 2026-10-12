@@ -250,24 +250,51 @@ def _named_frame(frame: pd.DataFrame, columns: dict[str, int]) -> pd.DataFrame:
     return out
 
 
-def read_exusd_csv(path: Path) -> pd.DataFrame:
+def read_exusd_csv(path: Path, local_ccy: dict[str, str] | None = None) -> pd.DataFrame:
     """
-    The unhedged-USD international bond panel.
+    The international bond panel. Each ticker appears three times: local level, USD level
+    converted with FRED's spot, and the FRED rate used.
 
-    Each ticker appears three times -- local level, USD-unhedged level, and the
-    FX rate used to convert. Only the USD-unhedged column is a return series in
-    this panel's currency; the other two are the workings. The days where no
-    FRED fix existed were dropped at construction rather than interpolated, so
-    the gaps are genuine missing observations and stay NaN.
+    A ticker whose `local_ccy` (from `bbg_exusd_bonds_coverage.csv`) is not USD is read from its
+    `<ticker>_local_<CCY>` column, and the loader converts it with Bloomberg's close like every
+    other series (decisions/0056). The currency is the column's suffix, and it must equal
+    `local_ccy` or the read refuses. The FRED-converted columns are not read for it. A ticker
+    delivered in dollars is read from `<ticker>_USD_unhedged`. With no `local_ccy`, every ticker
+    is read from its `_USD_unhedged` column, as before. The currency each column is quoted in
+    is `frame.attrs["quote_currency"]`.
+
+    The days where no FRED fix existed were dropped at construction of the USD column; the local
+    column has no such gap. Gaps that remain are genuine missing observations and stay NaN.
     """
+    local_ccy = {t: c for t, c in (local_ccy or {}).items() if c}
     frame = pd.read_csv(path, index_col=0, parse_dates=True)
     frame.index = pd.DatetimeIndex(frame.index, name="date")
     suffix = "_USD_unhedged"
     cols = {c[: -len(suffix)]: c for c in frame.columns if c.endswith(suffix)}
+    quote = dict.fromkeys(cols, "USD")
+    for ticker, ccy in local_ccy.items():
+        if ccy == "USD":
+            continue
+        prefix = f"{ticker}_local_"
+        found = [c for c in frame.columns if c.startswith(prefix)]
+        if len(found) != 1:
+            raise InvariantViolation(
+                f"{path.name} has {len(found)} {prefix}* columns for {ticker}, expected one "
+                f"({ccy} by the coverage table); got {list(frame.columns)}"
+            )
+        column_ccy = found[0][len(prefix) :]
+        if column_ccy != ccy:
+            raise InvariantViolation(
+                f"{ticker}: the column {found[0]!r} is quoted in {column_ccy}, the coverage table "
+                f"says {ccy}. A series whose quote currency differs from its sheet's is refused "
+                f"(decisions/0053)."
+            )
+        cols[ticker], quote[ticker] = found[0], ccy
     if not cols:
         raise InvariantViolation(f"{path.name} has no *{suffix} columns; got {list(frame.columns)}")
     out = frame[list(cols.values())].copy()
     out.columns = list(cols)
+    out.attrs["quote_currency"] = quote
     return out
 
 
@@ -301,14 +328,17 @@ def _tier_from_start(start: pd.Timestamp, params: Params) -> str:
     return "tradable-only"
 
 
-def _series_currency(row, ticker: str, exusd_starts: dict[str, pd.Timestamp]) -> str:
+def _series_currency(
+    row, ticker: str, exusd_starts: dict[str, pd.Timestamp], exusd_currency: dict[str, str]
+) -> str:
     """
     The Index Map's quote currency as delivered. Blank stays blank, so the guard can report it
-    (decisions/0053 rule 5). The ex-USD series have no Index Map row and arrive in USD.
+    (decisions/0053 rule 5). The ex-USD series have no Index Map row; each arrives in the
+    currency of its column (decisions/0056), USD unless the coverage table says otherwise.
     """
     if row is not None and len(row):
         return _norm(row.get("currency")) or ""
-    return "USD" if ticker in exusd_starts else ""
+    return exusd_currency.get(ticker, "USD") if ticker in exusd_starts else ""
 
 
 def build_series_meta(
@@ -317,6 +347,7 @@ def build_series_meta(
     universe: dict[str, dict[str, str]],
     params: Params,
     exusd_starts: dict[str, pd.Timestamp] | None = None,
+    exusd_currency: dict[str, str] | None = None,
 ) -> dict[str, SeriesMeta]:
     """
     One SeriesMeta per series, from the Index Map and the universe table.
@@ -335,6 +366,7 @@ def build_series_meta(
     the loader report rather than invented here.
     """
     exusd_starts = exusd_starts or {}
+    exusd_currency = exusd_currency or {}
     by_ticker = {
         r["ticker"]: r
         for _, r in index_map.iterrows()
@@ -378,7 +410,7 @@ def build_series_meta(
             cost_bucket=(uni.get("cost_bucket") or "high"),
             month_end_only_before=month_end_before,
             region=section,
-            currency=_series_currency(row, ticker, exusd_starts),
+            currency=_series_currency(row, ticker, exusd_starts, exusd_currency),
         )
     return meta
 
@@ -479,7 +511,8 @@ class BloombergLoader:
         missing_sources = sorted(wanted_sources - set(cand_cols))
         candidates = _named_frame(candidates, cand_cols)
 
-        exusd = read_exusd_csv(self._path(self._entry("returns_ex_usd")))
+        exusd = read_exusd_csv(self._path(self._entry("returns_ex_usd")), self._exusd_local_ccy())
+        exusd_currency = dict(exusd.attrs["quote_currency"])
 
         combined = pd.concat(
             [levels, candidates[[c for c in candidates.columns if c not in levels.columns]]],
@@ -496,12 +529,19 @@ class BloombergLoader:
         )
         universe = read_universe(self.universe_dir)
         exusd_starts = self._exusd_starts()
-        meta = build_series_meta(list(combined.columns), index_map, universe, params, exusd_starts)
+        meta = build_series_meta(
+            list(combined.columns), index_map, universe, params, exusd_starts, exusd_currency
+        )
 
         # 1b. every return in dollars (decisions/0053): the guard, then the conversion, on the
-        # same date, before any truncation. The ex-USD CSV arrives converted and is exempt.
+        # same date, before any truncation. The ex-USD CSV is converted like the rest, with
+        # Bloomberg's close (decisions/0056); only a column delivered in dollars is exempt.
         hedged_blank = self._guard_hedged_sheet(index_map)
-        combined, meta, fx_report = self._to_usd(combined, meta, exempt=frozenset(exusd.columns))
+        combined, meta, fx_report = self._to_usd(
+            combined,
+            meta,
+            exempt=frozenset(t for t, c in exusd_currency.items() if c == fx.BASE_CURRENCY),
+        )
         fx_report["blank_quote_currency_hedged_sheet"] = hedged_blank
 
         # 2. truncate at the true daily start, per series.
@@ -677,6 +717,13 @@ class BloombergLoader:
                 for r in csv.DictReader(fh)
                 if r.get("usd_series_daily_start")
             }
+
+    def _exusd_local_ccy(self) -> dict[str, str]:
+        path = self.universe_dir / "bbg_exusd_bonds_coverage.csv"
+        if not path.exists():
+            return {}
+        with path.open(newline="", encoding="utf-8-sig") as fh:
+            return {r["ticker"]: r["local_ccy"] for r in csv.DictReader(fh) if r.get("local_ccy")}
 
     @staticmethod
     def _skipped_splices(

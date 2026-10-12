@@ -1,0 +1,161 @@
+store_id: huber6-v4
+built_at: '2026-10-12T13:23:11+00:00'
+decision: decisions/0049
+also:
+- decisions/0052
+- decisions/0053
+- decisions/0056
+- decisions/0058
+handoff_task: 56
+supersedes: huber6-v3
+estimator:
+  name: huber_m
+  hypothesis: H-2026-0013
+  huber_c: 1.345
+  mad_to_sd: 1.4826
+  window_weeks: 156
+  min_obs: 104
+  explained_share_window_weeks: 156
+  explained_share_min_weeks: 52
+factors:
+- equity
+- real_yield
+- inflation
+- credit
+- dollar
+- commodities
+params_version: 0.10.0
+params_hash: 413d84f6b631359bee74883cb63f93660023cc50d4ff49306579c401a4d61623
+weekly_returns_hash: 2fef64ef2014066db6f8997d1c3536fb6eeaf900ad77e4fb06ce572efefa605d
+factors_hash: 605fe4e763c01292bdd777f844e763bb81dfd5b0bcef5dd99afd4ec9010c00d3
+factors_equal_run_of_record: false
+run_of_record: M-20261003T181155Z
+thread_setting:
+  OMP_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+  MKL_NUM_THREADS: '1'
+n_estimated: 84
+n_not_estimated: 8
+not_estimated_reason: tradable-only series (daily start after 2009) inherit loadings
+  and are never estimated, SUBSTRATE section 5.2
+not_estimated:
+- LTP5TRUU
+- M1CXNNA
+- M1CXVRSD
+- M1EAMM
+- M1EAQU
+- M1EFHDY
+- M1WDUMMT
+- MXEU0RL
+estimated_but_no_row: []
+first_date: '2001-01-12'
+last_date: '2019-12-27'
+measured_fields:
+  oad: INDEX_OAD_TSY
+  oas: INDEX_OAS_TSY
+reproduction:
+  skipped: true
+factor_set: huber6-baa10y
+estimation_start: common
+factors_common_start: '1999-01-01'
+factors_n_complete_weeks: 1093
+credit_source: FRED BAA10Y, percent, dated by its observation date
+gates_against_run_of_record: skipped
+gates_skipped_reason: the factors differ from the run of record's by design (credit
+  is FRED BAA10Y, estimation starts at the factors' common start), decisions/0058
+factor_correlations:
+  full_sample:
+    equity:
+      equity: 1.0
+      real_yield: 0.0204
+      inflation: 0.4017
+      credit: -0.3729
+      dollar: -0.2833
+      commodities: 0.4116
+    real_yield:
+      equity: 0.0204
+      real_yield: 1.0
+      inflation: -0.155
+      credit: -0.2485
+      dollar: 0.2768
+      commodities: -0.09
+    inflation:
+      equity: 0.4017
+      real_yield: -0.155
+      inflation: 1.0
+      credit: -0.3618
+      dollar: -0.1252
+      commodities: 0.3262
+    credit:
+      equity: -0.3729
+      real_yield: -0.2485
+      inflation: -0.3618
+      credit: 1.0
+      dollar: -0.0293
+      commodities: -0.1605
+    dollar:
+      equity: -0.2833
+      real_yield: 0.2768
+      inflation: -0.1252
+      credit: -0.0293
+      dollar: 1.0
+      commodities: -0.4
+    commodities:
+      equity: 0.4116
+      real_yield: -0.09
+      inflation: 0.3262
+      credit: -0.1605
+      dollar: -0.4
+      commodities: 1.0
+  rolling_156w_range:
+    equity~real_yield:
+      min: -0.28099300687431056
+      max: 0.39659223313164815
+    equity~inflation:
+      min: -0.028539846311262964
+      max: 0.6794135881712736
+    equity~credit:
+      min: -0.64287440274528
+      max: -0.07116517671301667
+    equity~dollar:
+      min: -0.5965900648467916
+      max: 0.11449153272448327
+    equity~commodities:
+      min: 0.030695212773780973
+      max: 0.7239817860099793
+    real_yield~inflation:
+      min: -0.5024480394913785
+      max: 0.32649005778877455
+    real_yield~credit:
+      min: -0.5897150818395402
+      max: 0.07462219644507635
+    real_yield~dollar:
+      min: 0.0033945032119211175
+      max: 0.4553929858866279
+    real_yield~commodities:
+      min: -0.34130754539093966
+      max: 0.18277485369017746
+    inflation~credit:
+      min: -0.5674928188053924
+      max: -0.019495369101785558
+    inflation~dollar:
+      min: -0.48978756428606535
+      max: 0.2669534151983379
+    inflation~commodities:
+      min: 0.05483314320446244
+      max: 0.6301494093275144
+    credit~dollar:
+      min: -0.27845365846744385
+      max: 0.1547248757388772
+    credit~commodities:
+      min: -0.3233916082521872
+      max: 0.08080523469558311
+    dollar~commodities:
+      min: -0.5979066738266534
+      max: -0.09529847233893798
+row_counts:
+  loadings: 474750
+  fit: 79125
+  measured: 23117
+  instruments: 92
+directory_hash: b6181bcde28b7e95e69839ff29f2a0a0f19e7552f970b3a24804fcebb7569206

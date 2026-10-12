@@ -201,7 +201,7 @@ exusd-analytics-coverage: ## true daily start per ticker and field of the ex-USD
 	$(PY) --group dev python scripts/build_exusd_analytics_coverage.py
 
 exposures-check: ## every store week through resolve_exposures: counts, means and the usage log (HANDOFF task 54, decisions/0055)
-	$(PY) --group dev python scripts/check_exposures.py
+	$(PY) --group dev python scripts/check_exposures.py $(if $(ARGS),$(ARGS))
 
 fx-check: ## converted NDDLUK against NDDUUK, weekly, same day and lagged: the FX conversion's own check (HANDOFF task 53, decisions/0053)
 	$(PY) --group dev python scripts/check_fx_conversion.py

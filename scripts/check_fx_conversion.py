@@ -9,6 +9,10 @@ against `NDDUUK`, on weekly Friday closes from 2002-01-01 to 2019-12-27, shows h
 file reproduces MSCI's own conversion. Four figures, then the same with the FX rate lagged one
 business day. Writes `results/fx/conversion_check.md` and `.json`. Aggregates only: no level and
 no rate is printed or written.
+
+HANDOFF task 56 adds a section (`decisions/0056` item 4): the four ex-USD bonds delivered in local
+currency, converted with Bloomberg's close, against the same bonds converted with FRED's spot
+(the file's own `_USD_unhedged` columns), on weekly Friday closes over the development window.
 """
 
 from __future__ import annotations
@@ -29,12 +33,17 @@ COWORK = {"te_weekly_bp": 238.0, "te_4w_bp": 107.0, "autocorr_lag1": -0.51, "cum
 TOL = {"te_weekly_bp": 5.0, "te_4w_bp": 5.0, "autocorr_lag1": 0.02, "cum_gap_bp": 5.0}
 
 
-def _figures(conv, usd):
+# decisions/0056 item 4: Cowork's read is 195 to 210 bp/yr weekly; above 1,000 bp/yr stops.
+EXUSD_FILE_ROLE = "returns_ex_usd"
+EXUSD_COWORK_BP = (195.0, 210.0)
+
+
+def _figures(conv, usd, start=START, end=END):
     import numpy as np
     import pandas as pd
 
     both = pd.concat({"c": conv, "u": usd}, axis=1).dropna()
-    both = both.loc[(both.index >= START) & (both.index <= END)]
+    both = both.loc[(both.index >= start) & (both.index <= end)]
     fri = both.loc[both.index.dayofweek == 4]
     lr = np.log(fri).diff().dropna()
     diff = lr["c"] - lr["u"]
@@ -64,6 +73,35 @@ def _figures(conv, usd):
 GLOBAL_AGG = (("LGTRTRGU", "GBP"), ("LGTRTRJU", "JPY"))
 BENCHMARK_LEG = "LEGATRUU"
 STOP_ABOVE_BP = 1000.0
+
+
+def _exusd_against_fred(loader, panel, params):
+    """Each converted ex-USD bond against its FRED-converted column. Aggregates only."""
+    import pandas as pd
+
+    start = pd.Timestamp(params.require("data.windows.dev_start"))
+    end = pd.Timestamp(params.require("data.windows.dev_end"))
+    local_ccy = {t: c for t, c in loader._exusd_local_ccy().items() if c != "USD"}
+    raw = pd.read_csv(loader._path(loader._entry(EXUSD_FILE_ROLE)), index_col=0, parse_dates=True)
+    out = {}
+    for ticker, ccy in sorted(local_ccy.items()):
+        if panel.meta[ticker].quote_currency != ccy:
+            raise SystemExit(f"{ticker} was not converted from {ccy}; stopping")
+        fred = raw[f"{ticker}_USD_unhedged"]
+        fred = fred[fred.index.dayofweek < 5]
+        conv = panel.levels[ticker]
+        window = (conv.index >= start) & (conv.index <= end)
+        regained = conv[window].notna() & ~fred.reindex(conv.index)[window].notna()
+        figures = _figures(conv, fred, start, end)
+        out[ticker] = {
+            "currency": ccy,
+            "n_dates_dropped_for_want_of_a_rate": loader.report["fx"]["converted"][ticker][
+                "n_dates_dropped"
+            ],
+            "days_regained_in_dev_window": int(regained.sum()),
+            **figures,
+        }
+    return out
 
 
 def main() -> int:
@@ -112,6 +150,13 @@ def main() -> int:
     result["global_aggregate_same_day"] = pairs
     too_wide = {t: p["te_weekly_bp"] for t, p in pairs.items() if p["te_weekly_bp"] > STOP_ABOVE_BP}
     result["global_aggregate_above_1000bp"] = too_wide
+
+    exusd = _exusd_against_fred(loader, panel, get_params())
+    result["exusd_bonds_against_fred_converted"] = exusd
+    exusd_too_wide = {
+        t: p["te_weekly_bp"] for t, p in exusd.items() if p["te_weekly_bp"] > STOP_ABOVE_BP
+    }
+    result["exusd_bonds_above_1000bp"] = exusd_too_wide
 
     differs = {
         k: round(same[k] - COWORK[k], 3) for k in COWORK if abs(same[k] - COWORK[k]) > TOL[k]
@@ -165,9 +210,30 @@ def main() -> int:
         f"- Above {STOP_ABOVE_BP:.0f} bp/yr (the direction or the series would be wrong): "
         f"{too_wide or 'none'}.",
     ]
+    lines += [
+        "",
+        "## The ex-USD bonds on Bloomberg's close, against FRED's conversion (decisions/0056)",
+        "",
+        "Each bond delivered in local currency, converted with the FX file on the same date, "
+        "against the same bond converted with FRED's spot (the pull's own USD column). Weekly "
+        f"Friday closes over the development window. Cowork's read: {EXUSD_COWORK_BP[0]:.0f} to "
+        f"{EXUSD_COWORK_BP[1]:.0f} bp/yr weekly.",
+        "",
+        "| Series | Currency | Weekly TE (bp/yr) | Lag-1 autocorrelation | Cumulative gap (bp) "
+        "| Weeks | Days regained | FX dates dropped |",
+        "|---|---|---|---|---|---|---|---|",
+        *(
+            f"| `{t}` | {p['currency']} | {p['te_weekly_bp']:.2f} | {p['autocorr_lag1']:.2f} "
+            f"| {p['cum_gap_bp']:.2f} | {p['n_weeks']} | {p['days_regained_in_dev_window']} "
+            f"| {p['n_dates_dropped_for_want_of_a_rate']} |"
+            for t, p in exusd.items()
+        ),
+        "",
+        f"- Above {STOP_ABOVE_BP:.0f} bp/yr (stop): {exusd_too_wide or 'none'}.",
+    ]
     (OUT_DIR / "conversion_check.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
-    if too_wide:
+    if too_wide or exusd_too_wide:
         return 3
     return 0 if better else 2
 

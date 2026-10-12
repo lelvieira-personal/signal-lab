@@ -340,11 +340,30 @@ def build(target_dir: Path) -> dict[str, Path]:
                     row += [_level(base, i), _level(base * 1.1, i), 1.1]
             w.writerow(row)
 
-    _write_universe_tables(universe, workbook.name, csv_path.name)
-    return {"workbook": workbook, "exusd": csv_path, "universe": universe, "root": target}
+    # --- FX workbook (decisions/0053, 0056): EUR, GBP and JPY against the dollar --------------
+    fx_path = raw / "fx.xlsx"
+    fx_wb = openpyxl.Workbook()
+    fx_ws = fx_wb.active
+    fx_ws.title = "FX_Spot_USD"
+    fx_ws.append(["Date", "EURUSD", "GBPUSD", "USDJPY"])
+    for i, day in enumerate(days):
+        if day.weekday() < 5:
+            fx_ws.append([day, 1.10 + 0.0001 * i, 1.30 + 0.0001 * i, 110.0 - 0.001 * i])
+    fx_wb.save(fx_path)
+
+    _write_universe_tables(universe, workbook.name, csv_path.name, fx_path.name)
+    return {
+        "workbook": workbook,
+        "exusd": csv_path,
+        "fx": fx_path,
+        "universe": universe,
+        "root": target,
+    }
 
 
-def _write_universe_tables(universe: Path, workbook_name: str, exusd_name: str) -> None:
+def _write_universe_tables(
+    universe: Path, workbook_name: str, exusd_name: str, fx_name: str
+) -> None:
     """The manifest, the investable universe and the ex-USD coverage table."""
     with (universe / "raw_manifest.csv").open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
@@ -419,6 +438,16 @@ def _write_universe_tables(universe: Path, workbook_name: str, exusd_name: str) 
                 "PX_LAST",
                 "local_or_USD",
                 "returns_ex_usd",
+                1,
+                2,
+            ),
+            (
+                fx_name,
+                "FX_Spot_USD",
+                "wide_single_date",
+                "PX_LAST",
+                "per_quote_convention_table",
+                "fx_spot",
                 1,
                 2,
             ),

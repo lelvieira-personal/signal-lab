@@ -89,8 +89,31 @@ def _frame_hash(*frames: pd.DataFrame) -> str:
 LOADER_REPORT: dict = {}
 
 
-def load_inputs(params):
+BAA10Y_ROLE = "fred_credit_spread"
+FACTOR_SETS = ("huber6", "huber6-baa10y")
+ESTIMATION_STARTS = ("dev_start", "common")
+
+
+def read_baa10y(loader) -> pd.Series:
+    """FRED's BAA10Y in percent, indexed by observation date (HANDOFF task 56, decisions/0058)."""
+    from signal_lab.loaders.holdout import enforce_holdout
+
+    path = loader._path(loader._entry(BAA10Y_ROLE))
+    frame = pd.read_csv(path, index_col=0, parse_dates=True)
+    series = frame["BAA10Y"].astype(float).rename("BAA10Y")
+    enforce_holdout(series.to_frame(), loader.params, what="FRED BAA10Y")
+    return series
+
+
+def load_inputs(params, factor_set="huber6", estimation_start="dev_start"):
+    """
+    The panel, analytics and factors. The defaults are the run of record's: the credit factor is
+    the change in LUACOAS and everything is cut at `dev_start`. `factor_set="huber6-baa10y"`
+    builds credit from FRED's BAA10Y, and `estimation_start="common"` keeps every week from the
+    factors' common start, still cut before the holdout and at `dev_end` (decisions/0058).
+    """
     from signal_lab.audit.universe import _development_window, read_investable_flags
+    from signal_lab.loaders.base import ReturnPanel
     from signal_lab.loaders.bloomberg import BloombergLoader, read_universe
     from signal_lab.measurement.factors import build_factors
 
@@ -100,14 +123,33 @@ def load_inputs(params):
     analytics = loader.load_analytics()
     LOADER_REPORT.clear()
     LOADER_REPORT.update(loader.report)
-    ff = build_factors(panel, bench, analytics, params)
+    if factor_set not in FACTOR_SETS or estimation_start not in ESTIMATION_STARTS:
+        raise ValueError(
+            f"unknown factor set {factor_set!r} or estimation start {estimation_start!r}"
+        )
+    credit = read_baa10y(loader) if factor_set == "huber6-baa10y" else None
+    ff = build_factors(panel, bench, analytics, params, credit_series=credit)
     start = pd.Timestamp(params.require("data.windows.dev_start"))
     end = pd.Timestamp(params.require("data.windows.dev_end"))
+    if estimation_start == "common":
+        start = pd.Timestamp(ff.common_start)  # estimation reads from the factors' common start
     ff.frame = ff.frame.loc[(ff.frame.index >= start) & (ff.frame.index <= end)]
     complete = ff.frame.notna().all(axis=1)
     ff.common_start = pd.Timestamp(complete[complete].index[0])
     ff.n_weeks = int(complete.sum())
-    dev_panel = _development_window(panel, params)
+    if estimation_start == "common":
+        mask = panel.returns.index <= end
+        index = panel.returns.index[mask]
+        dev_panel = ReturnPanel(
+            levels=panel.levels.reindex(index),
+            returns=panel.returns.reindex(index),
+            meta=panel.meta,
+            splices=panel.splices,
+            snapshot_id=panel.snapshot_id,
+            source=panel.source,
+        )
+    else:
+        dev_panel = _development_window(panel, params)
     universe_rows = read_universe(loader.universe_dir)
     flags = read_investable_flags()
     return dev_panel, analytics, ff, universe_rows, flags

@@ -23,3 +23,16 @@
 | `LGTRTRJU` | JPY | 273.96 | -0.35 | -58.75 | 936 | 0 |
 
 - Above 1000 bp/yr (the direction or the series would be wrong): none.
+
+## The ex-USD bonds on Bloomberg's close, against FRED's conversion (decisions/0056)
+
+Each bond delivered in local currency, converted with the FX file on the same date, against the same bond converted with FRED's spot (the pull's own USD column). Weekly Friday closes over the development window. Cowork's read: 195 to 210 bp/yr weekly.
+
+| Series | Currency | Weekly TE (bp/yr) | Lag-1 autocorrelation | Cumulative gap (bp) | Weeks | Days regained | FX dates dropped |
+|---|---|---|---|---|---|---|---|
+| `I02913JP` | JPY | 209.33 | -0.56 | 31.96 | 958 | 162 | 0 |
+| `I12823GB` | GBP | 199.23 | -0.47 | -14.26 | 702 | 102 | 0 |
+| `LET1TREU` | EUR | 203.11 | -0.49 | -33.96 | 953 | 138 | 0 |
+| `LP05TREU` | EUR | 202.83 | -0.49 | -33.96 | 956 | 139 | 0 |
+
+- Above 1000 bp/yr (stop): none.

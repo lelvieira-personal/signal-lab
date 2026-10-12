@@ -28,13 +28,17 @@ def built(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def loader(built, params):
+    from signal_lab.loaders import fx
     from signal_lab.loaders.bloomberg import BloombergLoader
 
-    return BloombergLoader(
-        params,
-        raw_dir=built["root"] / "data" / "raw",
-        universe_dir=built["universe"],
-    )
+    # the fixture's FX workbook is not the vendor's file, so the loader is told its hash
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(fx, "SHA256_PREFIX", fx.file_sha256(built["fx"])[:16])
+        yield BloombergLoader(
+            params,
+            raw_dir=built["root"] / "data" / "raw",
+            universe_dir=built["universe"],
+        )
 
 
 @pytest.fixture(scope="module")
@@ -286,3 +290,54 @@ def test_report_records_what_was_decided(loader, panel):
     assert "retiered_by_splice" in report
     assert report["dropped_after_splice"] == ["G3OC"]
     assert report["region_source"].startswith("Section")
+
+
+# --- one FX source (HANDOFF task 56, decisions/0056) --------------------------------------
+
+
+def test_an_ex_usd_bond_in_local_currency_is_converted_with_the_fx_file_on_the_same_date(
+    loader, panel, built
+):
+    """The fixture's FRED-converted column is base*1.1; the FX file's EURUSD differs from 1.1 on
+    every date after the first, so reading the local column and converting gives another level."""
+    fx_rates = pd.read_excel(built["fx"], index_col=0)["EURUSD"]
+    local = pd.read_csv(built["exusd"], index_col=0, parse_dates=True)["LET1TREU_local_EUR"]
+    got = panel.levels["LET1TREU"].dropna()
+    expected = (local * fx_rates.reindex(local.index)).reindex(got.index)
+    assert np.allclose(got.to_numpy(), expected.to_numpy())
+    fred_converted = pd.read_csv(built["exusd"], index_col=0, parse_dates=True)[
+        "LET1TREU_USD_unhedged"
+    ]
+    assert not np.allclose(got.to_numpy(), fred_converted.reindex(got.index).to_numpy())
+    assert panel.meta["LET1TREU"].quote_currency == "EUR"
+    assert panel.meta["LET1TREU"].currency == "USD"
+
+
+def test_a_series_delivered_in_dollars_is_not_converted(panel, built):
+    pulled = pd.read_csv(built["exusd"], index_col=0, parse_dates=True)["LG38TRUU_USD_unhedged"]
+    got = panel.levels["LG38TRUU"].dropna()
+    assert np.allclose(got.to_numpy(), pulled.reindex(got.index).to_numpy())
+    assert panel.meta["LG38TRUU"].quote_currency is None
+
+
+def test_the_report_names_the_converted_bond_and_the_exempt_one(loader, panel):
+    rep = loader.report["fx"]
+    assert "LET1TREU" in rep["converted"] and rep["converted"]["LET1TREU"]["currency"] == "EUR"
+    assert "LG38TRUU" in rep["exempt_already_converted"]
+    assert "LET1TREU" not in rep["exempt_already_converted"]
+
+
+def test_a_column_quoted_in_another_currency_than_the_coverage_table_is_refused(tmp_path):
+    from signal_lab.loaders.bloomberg import read_exusd_csv
+    from signal_lab.loaders.invariants import InvariantViolation
+
+    path = tmp_path / "x.csv"
+    path.write_text(
+        ",A_local_GBP,A_USD_unhedged,A_fx_USDperGBP\n2005-01-03,1.0,1.3,1.3\n", encoding="utf-8"
+    )
+    with pytest.raises(InvariantViolation, match="quoted in GBP"):
+        read_exusd_csv(path, {"A": "EUR"})
+    out = read_exusd_csv(path, {"A": "GBP"})
+    assert out.attrs["quote_currency"] == {"A": "GBP"} and out["A"].iloc[0] == 1.0
+    # no coverage table: the dollar column, as before
+    assert read_exusd_csv(path)["A"].iloc[0] == 1.3

@@ -1,7 +1,8 @@
 """
 The exposure map (HANDOFF tasks 54 and 55, decisions/0050, 0054 and 0055), on a synthetic store
-written with `write_store` in a temp folder and a synthetic label map. Nothing reads data/raw/,
-data/snapshots/ or the real store. The real label map is tested in test_label_map.py.
+written with `write_store` in a temp folder and a synthetic label map. Nothing reads data/raw/ or
+data/snapshots/. The real label map is tested in test_label_map.py; the one test that reads a real
+store, `huber6-v4` (HANDOFF task 56), skips where the git-ignored store is absent.
 """
 
 from __future__ import annotations
@@ -464,3 +465,18 @@ def test_a_missing_label_map_file_raises(tmp_path):
         ExposureMap.from_params(
             FakeParams(directory_hash=digest), tmp_path, label_map=tmp_path / "nope.csv"
         )
+
+
+# --- the real v4 store (HANDOFF task 56) ----------------------------------------------------
+
+
+def test_every_week_of_the_real_v4_store_is_dated_by_its_friday():
+    """decisions/0058 item 4: a BAA10Y observation is dated by its own date, so `v4` dates each
+    week by its Friday as `v3` does, and `0055`'s rule (a Tuesday reads the Friday before) stands."""
+    path = store.STORE_ROOT / "huber6-v4" / "fit.parquet"
+    if not path.exists():
+        pytest.skip("the git-ignored huber6-v4 store is absent on this machine")
+    fit = pd.read_parquet(path, columns=["date", "last_data_date"])
+    dates = pd.DatetimeIndex(fit["date"])
+    assert (dates.dayofweek == 4).all()
+    assert (pd.DatetimeIndex(fit["last_data_date"]) == dates).all()

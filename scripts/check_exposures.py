@@ -3,6 +3,7 @@
 The exposure map's own check on real data (decisions/0050, 0055; HANDOFF task 54 step 4).
 
     make exposures-check
+    make exposures-check ARGS="--store-id huber6-v4"     (a store `params/` does not name, HANDOFF task 56)
 
 Walks every week of the store `params/` names through `resolve_exposures`, then the Tuesday after
 each one, and writes `results/characteristics/<store_id>/exposures_check.md` and `.json`.
@@ -12,6 +13,7 @@ printed or written.
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -61,13 +63,40 @@ COWORK_BY_CLASS_AT_LAST = {
 SHOULD_RAISE = ("2001-01-05", "2002-12-20")
 
 
-def main() -> int:
+class _NamedStore:
+    """`params/` with the store passed explicitly: its id, and the hash its own manifest records."""
+
+    def __init__(self, params, store_id, directory_hash):
+        self._params, self._values = (
+            params,
+            {
+                "data.characteristics.store_id": store_id,
+                "data.characteristics.directory_hash": directory_hash,
+            },
+        )
+
+    def get(self, dotted, default=None):
+        return self._values.get(dotted, self._params.get(dotted, default))
+
+
+def main(argv=None) -> int:
     import pandas as pd
 
+    from signal_lab.characteristics import store as store_mod
     from signal_lab.harness.experiment import ExposureMatrixMissing, resolve_exposures
     from signal_lab.params import get_params
 
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--store-id", help="check this store instead of the one params/ names (not wired in)"
+    )
+    args = parser.parse_args(argv)
     params = get_params()
+    if args.store_id:
+        digest = store_mod.load_store(args.store_id, store_mod.STORE_ROOT).manifest[
+            "directory_hash"
+        ]
+        params = _NamedStore(params, args.store_id, digest)
     emap = resolve_exposures(None, params)
     weeks = emap.weeks
     gaps = pd.Series(weeks[1:] - weeks[:-1]).dt.days
@@ -184,6 +213,16 @@ def main() -> int:
     L = [
         f"# Exposure map check, store `{emap.store.store_id}` (HANDOFF task 54)",
         "",
+        *(
+            [
+                f"Run with `--store-id {args.store_id}`; `params/` names "
+                f"`{get_params().get('data.characteristics.store_id')}`. The 'Cowork's read' "
+                "column is the task-54 read of that store, so differences are expected."
+            ]
+            if args.store_id
+            else []
+        ),
+        "",
         "Every store week walked through `resolve_exposures`, then the Tuesday after each one. "
         "Counts, dates, means and medians only.",
         "",
@@ -240,4 +279,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

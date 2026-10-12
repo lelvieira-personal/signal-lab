@@ -32,6 +32,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_RUN = "M-20261003T181155Z"
 STORE_ID = "huber6-v3"
 TASK = 53
+# HANDOFF task 56 (decisions/0056, 0058): `huber6-v4` selects the credit factor on FRED's BAA10Y and
+# estimation from the factors' common start. The defaults reproduce v1 to v3.
+V4_TASK = 56
+V4_SKIP_REASON = (
+    "the factors differ from the run of record's by design (credit is FRED BAA10Y, estimation "
+    "starts at the factors' common start), decisions/0058"
+)
 RESTATED = ("LGTRTRGU", "LGTRTRJU")  # decisions/0052: left the universe after the run of record
 NDDLUK = "NDDLUK"  # decisions/0053: MSCI UK in sterling, a restatement of NDDUUK
 LEFT = (*RESTATED, NDDLUK)  # instruments in the run of record that are not in this build
@@ -151,6 +158,13 @@ def reproduce_the_test(R, F, classes, ids, weeks, reference_dir: Path) -> dict:
 
 
 def checks_text(manifest: dict, check: dict) -> dict[str, str]:
+    if manifest.get("gates_against_run_of_record") == "skipped":
+        return {
+            "gates against the run of record": f"skipped: {manifest['gates_skipped_reason']}",
+            "no lookahead": "`assert_no_lookahead` passed on every instrument's path",
+            "factors": f"{manifest['factor_set']}, estimation from {manifest['estimation_start']}; "
+            f"all six factors exist from {manifest['factors_common_start']}",
+        }
     out = {
         "Huber loadings against the run of record": (
             f"`{manifest['run_of_record']}` stores {check['cells_compared']:,} Huber loadings for "
@@ -193,6 +207,7 @@ def main(argv=None) -> int:
 
     from signal_lab.characteristics import build, report, store
     from signal_lab.measurement.estimators import HUBER_C, MAD_TO_SD, MIN_OBS, WINDOW
+    from signal_lab.measurement.run import factor_correlations
     from signal_lab.params import get_params
 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -200,6 +215,19 @@ def main(argv=None) -> int:
     parser.add_argument("--root", default=str(store.STORE_ROOT))
     parser.add_argument("--report-root", default=str(REPO_ROOT / "results" / "characteristics"))
     parser.add_argument("--reference-run", default=REFERENCE_RUN)
+    parser.add_argument(
+        "--factor-set",
+        default="huber6",
+        choices=("huber6", "huber6-baa10y"),
+        help="huber6-baa10y builds the credit factor from FRED's BAA10Y (decisions/0058); "
+        "it skips the run-of-record gates, which cannot hold for other factors",
+    )
+    parser.add_argument(
+        "--estimation-start",
+        default="dev_start",
+        choices=("dev_start", "common"),
+        help="common reads from the factors' common start rather than dev_start (decisions/0058)",
+    )
     parser.add_argument(
         "--supersedes",
         default="huber6-v2",
@@ -224,7 +252,10 @@ def main(argv=None) -> int:
         return 0
 
     params = get_params()
-    panel, analytics, ff, universe_rows, flags = RM.load_inputs(params)
+    v4 = (args.factor_set, args.estimation_start) != ("huber6", "dev_start")
+    panel, analytics, ff, universe_rows, flags = RM.load_inputs(
+        params, args.factor_set, args.estimation_start
+    )
     fx_report = RM.LOADER_REPORT.get("fx", {}) if hasattr(RM, "LOADER_REPORT") else {}
     ids, classes = RM.select_instruments(panel, universe_rows, flags)  # Cash included
     skipped = tradable_only_ids(panel, universe_rows, flags)
@@ -237,27 +268,37 @@ def main(argv=None) -> int:
     )
 
     ref_dir = REPO_ROOT / "results" / "measurement" / args.reference_run
-    ref_summary = json.loads((ref_dir / "summary.json").read_text(encoding="utf-8"))
-    factors_match = RM._frame_hash(ff.frame) == ref_summary["hashes"]["factors_hash"]
-    print(f"factors hash equals the run of record's: {factors_match}")
-    if not factors_match:
-        print("STOP: the factors moved since the run of record.", file=sys.stderr)
-        return 4
+    if v4:
+        factors_match = False
+        check = {"skipped": True}
+        print(f"run-of-record gates skipped: {V4_SKIP_REASON}")
+        print(
+            f"all six factors exist from {ff.common_start.date()}; estimation reads "
+            f"{args.estimation_start}"
+        )
+    else:
+        ref_summary = json.loads((ref_dir / "summary.json").read_text(encoding="utf-8"))
+        factors_match = RM._frame_hash(ff.frame) == ref_summary["hashes"]["factors_hash"]
+        print(f"factors hash equals the run of record's: {factors_match}")
+        if not factors_match:
+            print("STOP: the factors moved since the run of record.", file=sys.stderr)
+            return 4
 
-    check = reproduce_the_test(R, F, classes, ids, weeks, ref_dir)
-    print(
-        f"Huber loadings against the run of record: {check['cells_compared']} cells compared, "
-        f"largest absolute difference {check['max_abs_loading_difference']:.1e}"
-    )
-    if "stop" in check:
-        print(f"STOP: {check['stop']}.", file=sys.stderr)
-        return 4
-    print(
-        f"on the {check['shared_instruments']} shared instruments: {check['shared_scored_cells']} "
-        f"scored cells, r2_oos {check['r2_oos']:.6f}, mean Huber loss {check['mean_huber_loss']:.6f} "
-        f"(fit.json, 86 instruments: {check['reference_r2_oos_86_instruments']:.6f}, "
-        f"{check['reference_mean_huber_loss_86_instruments']:.6f})"
-    )
+        check = reproduce_the_test(R, F, classes, ids, weeks, ref_dir)
+        print(
+            f"Huber loadings against the run of record: {check['cells_compared']} cells compared, "
+            f"largest absolute difference {check['max_abs_loading_difference']:.1e}"
+        )
+        if "stop" in check:
+            print(f"STOP: {check['stop']}.", file=sys.stderr)
+            return 4
+        print(
+            f"on the {check['shared_instruments']} shared instruments: "
+            f"{check['shared_scored_cells']} scored cells, r2_oos {check['r2_oos']:.6f}, "
+            f"mean Huber loss {check['mean_huber_loss']:.6f} "
+            f"(fit.json, 86 instruments: {check['reference_r2_oos_86_instruments']:.6f}, "
+            f"{check['reference_mean_huber_loss_86_instruments']:.6f})"
+        )
 
     built = build.build_estimated(R, F, ids, classes, weeks, params)  # assert_no_lookahead inside
     measured_ids = list(dict.fromkeys([*ids, *skipped]))
@@ -285,8 +326,12 @@ def main(argv=None) -> int:
     manifest = {
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "decision": "decisions/0049",
-        "also": ["decisions/0052", "decisions/0053"],
-        "handoff_task": TASK,
+        "also": (
+            ["decisions/0052", "decisions/0053", "decisions/0056", "decisions/0058"]
+            if v4
+            else ["decisions/0052", "decisions/0053"]
+        ),
+        "handoff_task": V4_TASK if v4 else TASK,
         "supersedes": args.supersedes,
         "estimator": {
             "name": build.ESTIMATOR,
@@ -316,7 +361,20 @@ def main(argv=None) -> int:
         "measured_fields": build.MEASURED_FIELDS,
         "reproduction": {k: (float(v) if isinstance(v, float) else v) for k, v in check.items()},
     }
-    if args.supersedes:
+    if v4:
+        manifest.update(
+            {
+                "factor_set": args.factor_set,
+                "estimation_start": args.estimation_start,
+                "factors_common_start": str(ff.common_start.date()),
+                "factors_n_complete_weeks": int(ff.n_weeks),
+                "credit_source": "FRED BAA10Y, percent, dated by its observation date",
+                "gates_against_run_of_record": "skipped",
+                "gates_skipped_reason": V4_SKIP_REASON,
+                "factor_correlations": factor_correlations(ff.frame),
+            }
+        )
+    if args.supersedes and not v4:
         old = store.load_store(args.supersedes, args.root)
         key = ["instrument", "date", "factor"]
         moved = set(CONVERTED) | set(LEFT)
@@ -380,6 +438,33 @@ def main(argv=None) -> int:
     checks = checks_text(manifest, check)
     (rep_dir / "report.md").write_text(report.build_report(loaded, checks), encoding="utf-8")
     print(f"wrote {rep_dir / 'report.md'}")
+    if v4:
+        corr = manifest["factor_correlations"]
+        (rep_dir / "factor_correlations.json").write_text(
+            json.dumps(corr, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        full = pd.DataFrame(corr["full_sample"]).round(2)
+        lines = [
+            f"# Factor correlations, `{args.store_id}` (decisions/0058)",
+            "",
+            f"Weeks with all six factors: {ff.n_weeks}, from {ff.common_start.date()} to "
+            f"{ff.frame.index[-1].date()}.",
+            "",
+            "Full-sample correlation:",
+            "",
+            "```",
+            full.to_string(),
+            "```",
+            "",
+            "Range of the rolling 156-week correlation, by pair:",
+            "",
+            *(
+                f"- `{pair}`: {r['min']:.2f} to {r['max']:.2f}"
+                for pair, r in corr["rolling_156w_range"].items()
+            ),
+        ]
+        (rep_dir / "factor_correlations.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"wrote {rep_dir / 'factor_correlations.md'}")
     return 0
 
 

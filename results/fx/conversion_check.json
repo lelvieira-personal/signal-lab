@@ -6,6 +6,53 @@
     "te_weekly_bp": 238.0
   },
   "differs_from_cowork_beyond_tolerance": {},
+  "exusd_bonds_above_1000bp": {},
+  "exusd_bonds_against_fred_converted": {
+    "I02913JP": {
+      "autocorr_lag1": -0.5624032356227461,
+      "cum_gap_bp": 31.960536326268475,
+      "currency": "JPY",
+      "days_regained_in_dev_window": 162,
+      "n_dates_dropped_for_want_of_a_rate": 0,
+      "n_weeks": 958,
+      "te_4w_bp": 107.77625460696889,
+      "te_4w_overlapping_bp": 100.64556076289522,
+      "te_weekly_bp": 209.3327896997353
+    },
+    "I12823GB": {
+      "autocorr_lag1": -0.4706857585670973,
+      "cum_gap_bp": -14.25582282533533,
+      "currency": "GBP",
+      "days_regained_in_dev_window": 102,
+      "n_dates_dropped_for_want_of_a_rate": 0,
+      "n_weeks": 702,
+      "te_4w_bp": 108.26072837937562,
+      "te_4w_overlapping_bp": 95.18174448248512,
+      "te_weekly_bp": 199.22928662958026
+    },
+    "LET1TREU": {
+      "autocorr_lag1": -0.48508672839019873,
+      "cum_gap_bp": -33.95522045963162,
+      "currency": "EUR",
+      "days_regained_in_dev_window": 138,
+      "n_dates_dropped_for_want_of_a_rate": 0,
+      "n_weeks": 953,
+      "te_4w_bp": 111.45245912492345,
+      "te_4w_overlapping_bp": 102.75475850539017,
+      "te_weekly_bp": 203.1103607319528
+    },
+    "LP05TREU": {
+      "autocorr_lag1": -0.4873255874984616,
+      "cum_gap_bp": -33.95522045963162,
+      "currency": "EUR",
+      "days_regained_in_dev_window": 139,
+      "n_dates_dropped_for_want_of_a_rate": 0,
+      "n_weeks": 956,
+      "te_4w_bp": 108.63620351762542,
+      "te_4w_overlapping_bp": 102.21682200071496,
+      "te_weekly_bp": 202.83403710503015
+    }
+  },
   "fx_file_sha256_prefix": "1d6fbb63e8a33e2e",
   "global_aggregate_above_1000bp": {},
   "global_aggregate_same_day": {

@@ -101,14 +101,21 @@ def build_factors(
     benchmark: ReturnPanel,
     analytics: AnalyticsPanel,
     params: Params | None = None,
+    credit_series: pd.Series | None = None,
 ) -> FactorFrame:
+    """
+    The six factors. `credit_series` replaces the OAS series the credit factor is built from
+    with another daily series quoted in percent (FRED's BAA10Y for store `huber6-v4`,
+    decisions/0058); each observation is dated by its own date, like every other factor. Left at
+    None, the credit factor is the change in `LUACOAS` exactly as before.
+    """
     params = params or get_params()
     acwi = _need(benchmark.returns, EQUITY, "benchmark panel")
     cash = _need(returns.returns, CASH, "return panel")
     bcom = _need(returns.returns, COMMODITIES, "return panel")
     real = _field(analytics, *REAL_YIELD)
     breakeven = _field(analytics, *BREAKEVEN)
-    oas = _field(analytics, *CREDIT)
+    oas = _field(analytics, *CREDIT) if credit_series is None else credit_series
     dxy = _field(analytics, *DOLLAR)
 
     daily = pd.concat({EQUITY: acwi, CASH: cash, COMMODITIES: bcom}, axis=1).sort_index()
@@ -116,7 +123,10 @@ def build_factors(
     dates = weekly_calendar(calendar_index, params)
 
     weekly = period_returns(daily, dates)
-    oas_scale, oas_unit = credit_scale(oas)
+    if credit_series is None:
+        oas_scale, oas_unit = credit_scale(oas)
+    else:
+        oas_scale, oas_unit = 1e-2, "percent (FRED BAA10Y)"
 
     def change(series: pd.Series, scale: float) -> pd.Series:
         lv = weekly_levels(series, dates)
