@@ -4527,11 +4527,32 @@ run would have said.
 
 ## Done
 
+### 2026-10-16 -- task 58: bbg_exusd_bonds_extra.xlsx described, structure only (Claude Code, Sonnet 5.5)
+
+**rc=0 on the second run.** The first `make inspect-raw` (2026-10-15) returned **rc=2**: `BadZipFile` on `~$bbg_impvol_all.xlsx`, a 165-byte Excel lock file left in `data/raw/bloomberg/` while the owner had that workbook open (`inspect_raw.py` globs `*.xlsx`). The owner closed the workbook, the lock file was gone, and the rerun returned rc=0. The printout went to `$HOME/inspect_raw.out`, not opened beyond error lines on the failed run. `inspect_raw.py` could skip `~$` files; not changed here (no code in this task). `sha256sum` first 16 hex: `7464927042b769de`; 5,823,494 bytes. Nothing from `raw_meta.json`; no row 2-8 printed.
+
+From `data/universe/raw_structure.json`, row 1 of the header, dimensions, dates:
+
+| Sheet | n_rows | n_cols | Row 1 / dates |
+|---|---|---|---|
+| `levels` | 10,958 | 15 | `date`, then `LEATTREU`, `LET3TREU`, `LET5TREU`, `LET7TREU`, `LET0TREU` (`_local_EUR`), `LSG1TRGU`, `I08043GB` to `I08048GB` (`_local_GBP`), `BEIG1T`, `BEIG3T` (`_local_EUR`). Col 1: 10,958 non-empty, 1990-01-01 to 2019-12-31 |
+| `analytics_wide` | 10,960 | 37 | `ticker`, then each of the 12 nominal tickers three times (`LEATTREU` ... `I08048GB`). Col 1: 10,960 non-empty, 1990-01-01 to 2019-12-31 |
+| `linker_fields` | 11 | 8 | `mnemonic`, `BEIG1T_result`, `BEIG3T_result`, `BEIG1T_is_number`, `BEIG3T_is_number`, (blank), `BEIG1T`, `BEIG3T` |
+| `japan_check` | 10,965 | 11 | `ticker`, `name`, then nine blank. Col 10: 10,958 non-empty, 1990-01-01 to 2019-12-31 |
+| `analytics` | 51,452 | 7 | `date`, `ticker`, `index_name`, `oad_tsy`, `yield_to_worst`, `oas`, `oas_field`. Col 1: 51,452 non-empty, 1998-06-30 to 2019-12-31 |
+| `Formula Version` | 79 | 3 | `sheet`, `cell`, `formula` |
+| `Loader Notes` | 37 | 2 | dimensions only, as asked |
+| `Pull Report` | 55 | 9 | `sheet`, `ticker`, `field`, `first_non_blank`, `first_unbroken_daily_run_start`, `non_blank_rows`, `#N/A_cells`, `other_error_cells`, `empty_cells`. Col 4 (55): 1998-06-30 to 2013-12-31; col 5 (55): 1998-07-31 to 2015-06-12 |
+
+**Against Cowork's expectation:** `levels` is 15 columns as expected, but the order is the five EUR, the eight GBP, then the two `BEIG` (the expectation listed `BEIG` before the GBP). Three sheets Cowork did not list: `analytics_wide`, `Formula Version`, `Pull Report`. `analytics` has 51,452 rows from 1998-06-30. `analytics_wide` row 1 is a ticker row, so its field names are on a later row (not read). **No sheet's last date is on or after 2020-01-01; the latest is 2019-12-31.** The file was not edited.
+
+- **Push:** see the line below, written after the push.
+
 ### 2026-10-15 -- task 57: decisions 0059 (decided) and 0060, OWNER-QUEUE L37 and L38 closed, L39 opened (Claude Code, Sonnet 5.5)
 
 **rc=0.** Commit `f4dcc64` (the records: `HANDOFF.md`, `OWNER-QUEUE.md`, new `decisions/0059-the-phase-2-solver.md` and `decisions/0060-four-hypotheses-get-their-cross-section.md`; nothing else). Before it, `git status --short` showed exactly those four paths and ` M .claude/settings.json` (not committed, still modified), and `git log` ended at `9b1e0d5`. `make check` rc=0 (24 passed, fast tier) and `make governance` rc=0 (no uncited owner-only change since 85694662). No code, no params, no audit, no vendor call.
 
-- **Push:** see the line below, written after the push.
+- **Push:** `git push origin main` was a fast-forward, `7cf303e..c2d6d42` (`f4dcc64`, `9b1e0d5` and the receipt commit `c2d6d42`). `git rev-list --count @{u}..HEAD` printed **3** before and **0** after.
 
 ### 2026-10-12 -- task 56: store huber6-v4, the ex-USD bonds on Bloomberg's close, the credit factor on BAA10Y (Claude Code, Sonnet 5.5)
 
