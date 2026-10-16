@@ -56,6 +56,13 @@ _bootstrap.require_one_thread()
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PENDING_DIR = REPO_ROOT / "hypotheses" / "pending"
+
+# The study's design: the twelve hypotheses of the signal registry it was built
+# and recorded on (HANDOFF tasks 34, 38 and 40). Pinned 2026-10-16 (HANDOFF task
+# 59): the live registry grows (H-2026-0018 to 0021 were registered that day,
+# one on a seventh axis), and a recorded study must not change shape with it.
+# Re-running the study on today's registry is a new study, not this one.
+STUDY_IDS = tuple(f"H-2026-{i:04d}" for i in range(1, 13))
 OUT_ROOT = REPO_ROOT / "results" / "fdr_vs_fwer"
 
 # Calibrated on task 30 (A-20260926-161749) and the knee grid (HANDOFF.md 2026-09-28
@@ -109,7 +116,7 @@ PROCEDURES = (
 # module's new default).
 
 
-def read_axis_groups(pending_dir: Path = PENDING_DIR):
+def read_axis_groups(pending_dir: Path = PENDING_DIR, ids: tuple[str, ...] = STUDY_IDS):
     """
     `(hyp_ids, group_index, axis_order)`: `hyp_ids` and `group_index` are
     parallel arrays over the `m` hypotheses, sorted by hypothesis id; axis
@@ -120,6 +127,9 @@ def read_axis_groups(pending_dir: Path = PENDING_DIR):
     are measurement hypotheses on the loading estimators, judged on loading
     fidelity and gated separately (decisions/0016); they are not part of the
     signal registry's shape this study was run on, which stays at twelve.
+
+    Reads only `ids` (by default the study's twelve, `STUDY_IDS`) and refuses if
+    any of them is not in `pending_dir`, so the shape cannot drift silently.
     """
     import yaml
 
@@ -128,7 +138,16 @@ def read_axis_groups(pending_dir: Path = PENDING_DIR):
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if doc.get("family") == "exposure_estimation":
             continue
+        if str(doc.get("id")) not in ids:
+            continue
         by_axis.setdefault(str(doc["target_axis"]), []).append(str(doc["id"]))
+    found = {h for hs in by_axis.values() for h in hs}
+    absent = sorted(set(ids) - found)
+    if absent:
+        raise RuntimeError(
+            f"the study's hypotheses are not all in {pending_dir}: {absent} "
+            "(STUDY_IDS pins the registry shape the study was recorded on)"
+        )
     axis_order = sorted(by_axis, key=lambda a: (-len(by_axis[a]), a))
     hyp_ids: list[str] = []
     group_index: list[int] = []
