@@ -19,44 +19,24 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L37. The phase-2 solver: five open points in `decisions/proposed/0059`
-Added 2026-10-12 by Cowork. The owner ruled four design points on 2026-10-12
-(Grinold views with one fixed IC prior; directional and cross-sectional
-defined, `both` is two tests; the hard 6% budget; pilot first, thresholds
-second). They are recorded in the proposal as ruled. The rest is Cowork's
-draft.
+### L39. The Japan curve exists only from 2013
+Added 2026-10-15 by Cowork, out of `decisions/0060`.
 
-**What the owner would be deciding** (the proposal's "Open points"):
-1. `IC_prior`. Cowork proposes 0.05, a prior and not a measurement.
-2. `h` as the geometric mean of a hypothesis's horizon range (4-13 gives 7).
-3. A 156-week burn-in for the score's standardisation, winsorised at ±3.
-4. Extracting the audit's rebalance step into `portfolio/` (gated on exact
-   reproduction of the audit's recorded numbers), against writing the
-   phase-2 rule separately.
-5. Equal-weighted region baskets as the region factor's return.
+H-2026-0003 ranks four markets by their real policy rate, JPY among them, and
+`decisions/0060` groups it by curve. The only Bloomberg Japan Government
+family ASKB could confirm (`I29064JP` to `I29068JP`, 1-3y to 20y+) starts on
+2013-01-31; the all-maturities `I29063JP` did not resolve. The lab's one long
+JPY series is `I02913JP`, the Japan Aggregate, which is not government-only.
 
-Once ruled, the record moves to `decisions/0059`, and a params patch and a
-build task follow. **Not built until then.**
+**What the owner would be deciding:**
+- (a) add the 2013 family: the JPY group enters in 2013, and 0003's JPY leg is
+  tested mostly on 2013-2019, near the zero bound;
+- (b) leave Japan out of the curve groups until a longer series is found;
+- (c) use `I02913JP` as the JPY curve's one instrument.
 
-### L38. Four pending hypotheses ask for a cross-section the lab cannot form
-Added 2026-10-12 by Cowork, out of `decisions/proposed/0059`.
-
-Under 0059's definitions (ruled 2026-10-12), a cross-section is formed across
-groups, and an axis has groups only through region or a registered `group_by`
-(`decisions/0057`).
-- **H-2026-0002** (real/nominal, `both`) and **H-2026-0003** (duration,
-  `both`): the directional test is defined; the cross-sectional one is not.
-- **H-2026-0007** (credit, cross-sectional, OAS z-score) and **H-2026-0010**
-  (duration, cross-sectional, carry): the only test is undefined. *Cowork's
-  reading:* both are instrument-level scores, which `decisions/0051` does not
-  authorise.
-
-**What the owner would be deciding,** for each: register a `group_by` (for
-example `rating` for 0007, `curve` for 0010, though `0057` found the curve
-universe thin), change the expression to directional, or rule on
-instrument-level signals. It must happen before any result is seen
-(`0057` rule 1). **Not urgent:** no signal module exists yet.
-
+**Retired in part by:** the owner's Terminal check of `I29063JP`, `BNJPGVJP`
+and `LJPNGVJP` (`DES`, and a BDH of `PX_LAST` from 1990). If a legacy series
+has daily history before 2001, (a) changes.
 
 ---
 
@@ -246,6 +226,52 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L37. The phase-2 solver: five open points in `decisions/proposed/0059` — CLOSED 2026-10-14 (ruled: "agree with proposal"; `decisions/0059`)
+**Ruled 2026-10-14 (owner):** "L37: agree with proposal". The five open points are ruled as Cowork proposed, and the record moved to `decisions/0059`. Its params patch follows the `huber6-v4` one; the build is not queued.
+
+Added 2026-10-12 by Cowork. The owner ruled four design points on 2026-10-12
+(Grinold views with one fixed IC prior; directional and cross-sectional
+defined, `both` is two tests; the hard 6% budget; pilot first, thresholds
+second). They are recorded in the proposal as ruled. The rest is Cowork's
+draft.
+
+**What the owner would be deciding** (the proposal's "Open points"):
+1. `IC_prior`. Cowork proposes 0.05, a prior and not a measurement.
+2. `h` as the geometric mean of a hypothesis's horizon range (4-13 gives 7).
+3. A 156-week burn-in for the score's standardisation, winsorised at ±3.
+4. Extracting the audit's rebalance step into `portfolio/` (gated on exact
+   reproduction of the audit's recorded numbers), against writing the
+   phase-2 rule separately.
+5. Equal-weighted region baskets as the region factor's return.
+
+Once ruled, the record moves to `decisions/0059`, and a params patch and a
+build task follow. **Not built until then.**
+
+### L38. Four pending hypotheses ask for a cross-section the lab cannot form — CLOSED 2026-10-15 (ruled; `decisions/0060`)
+**Ruled 2026-10-14 and 2026-10-15 (owner; `decisions/0060`):**
+- **H-2026-0007:** `group_by` rating, refined by `hy_bucket` ("yes for rating with hy bucket").
+- **H-2026-0002, 0003 and 0010:** `group_by` curve, blocked on a data request for the missing non-USD bonds ("yes on 0002 and 0003"). Japan is L39.
+- **Where an axis has no grouping,** a cross-section may be formed across instruments ("when there is no grouping the hypothesis can be done at instrument level"); amends `decisions/0051`.
+- **A missing instrument is a data request, not a redesign** ("What I want to do in these cases is to ask for more data").
+
+Added 2026-10-12 by Cowork, out of `decisions/proposed/0059`.
+
+Under 0059's definitions (ruled 2026-10-12), a cross-section is formed across
+groups, and an axis has groups only through region or a registered `group_by`
+(`decisions/0057`).
+- **H-2026-0002** (real/nominal, `both`) and **H-2026-0003** (duration,
+  `both`): the directional test is defined; the cross-sectional one is not.
+- **H-2026-0007** (credit, cross-sectional, OAS z-score) and **H-2026-0010**
+  (duration, cross-sectional, carry): the only test is undefined. *Cowork's
+  reading:* both are instrument-level scores, which `decisions/0051` does not
+  authorise.
+
+**What the owner would be deciding,** for each: register a `group_by` (for
+example `rating` for 0007, `curve` for 0010, though `0057` found the curve
+universe thin), change the expression to directional, or rule on
+instrument-level signals. It must happen before any result is seen
+(`0057` rule 1). **Not urgent:** no signal module exists yet.
 
 ### L36. SUBSTRATE §5.4 says every spread comes from Bloomberg — CLOSED 2026-10-12 (ruled: "5.4 wording approved"; transcribed with the params change after HANDOFF task 56)
 Added 2026-10-11 by Cowork, out of `decisions/0058`.

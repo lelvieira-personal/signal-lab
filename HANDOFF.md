@@ -15,43 +15,7 @@ anything needing the shell lands here as a task, in order, with the exact
 command and what to expect.
 
 **Claude Code appends a receipt, and never edits a task in place.** When a task
-is finished, move its heading into `## Done
-
-### 2026-10-12 -- task 56: store huber6-v4, the ex-USD bonds on Bloomberg's close, the credit factor on BAA10Y (Claude Code, Sonnet 5.5)
-
-**rc=0 for the work; the push did not happen.** Commit `e968f28` (the build; `ruff` clean). Log directory `results/audit/_unattended/20261012-092541-check-full/`: **tier check-full (the whole suite)**, rc=0, **588 s**, nothing left out, **no golden moved**. The weekly-returns hash moved as expected (`v3` `0377b3fc...`, `v4` `2fef64ef...`; four series changed).
-
-- **Step 1.** The FRED call was run by the owner in his own shell (`set -a; source .env; set +a`, so the key never reached this session; I did not open `.env`) with the new `scripts/fetch_fred_baa10y.py`, which reads the key through `FredLoader.api_key`, prints only the status code on an HTTP error, and refuses a request or a row on or after 2020-01-01. **`BAA10Y`: first 1986-01-02 (Cowork's expectation), last 2019-12-31, 8,503 observations, 366 blank.** Registered as `fred_credit_spread` in `raw_manifest.csv` and in `fred_coverage.csv`. `data/raw/fred/fred_baa10y.csv` is not committed.
-- **Step 2.** `read_exusd_csv(path, local_ccy)` reads `<ticker>_local_<CCY>` for the four bonds, takes the currency from the suffix and refuses if it differs from `local_ccy` in the coverage table; `LG38TRUU` is read from its `_USD_unhedged` column; the `exempt` set is derived and is `{"LG38TRUU"}`. The FRED-converted columns are not read. `scripts/check_fx_conversion.py`, new heading in `results/fx/conversion_check.{md,json}` (existing rows unchanged; additions only): weekly Friday closes, development window, same day, converted against the FRED-converted column:
-
-  | Series | Currency | Weekly TE (bp/yr) | Lag-1 autocorr. | Cumulative gap (bp) | Weeks | Days regained |
-  |---|---|---|---|---|---|---|
-  | `LET1TREU` | EUR | 203.11 | -0.49 | -33.96 | 953 | 138 |
-  | `LP05TREU` | EUR | 202.83 | -0.49 | -33.96 | 956 | 139 |
-  | `I12823GB` | GBP | 199.23 | -0.47 | -14.26 | 702 | 102 |
-  | `I02913JP` | JPY | 209.33 | -0.56 | 31.96 | 958 | 162 |
-
-  **All four are inside Cowork's 195 to 210 read; none is near the 1,000 stop.** FX dates dropped for want of a rate: 0 for each. *Days regained* is the business days in the development window with a converted level now and none in the FRED column.
-- **Step 3.** `build_factors(..., credit_series=None)` (the default path is unchanged; `v1` to `v3` are not rebuilt) and `run_measurement.load_inputs(params, factor_set, estimation_start)`. `build_characteristics.py` gains `--factor-set huber6-baa10y` and `--estimation-start common`; the manifest records `factor_set`, `estimation_start`, `credit_source`, `factors_common_start`, and `gates_against_run_of_record: skipped` with the reason. Credit is the weekly change in `BAA10Y` x 1e-2 (decimal), dated by its observation date, no lag. **Common start of the six factors: 1999-01-01 (1,093 complete weeks to 2019-12-27)**; Cowork's 2000-12-29 was an estimate. Correlations: `results/characteristics/huber6-v4/factor_correlations.{md,json}` (largest full-sample correlations: equity~commodities 0.41, equity~inflation 0.40, equity~credit -0.37). Goldens moved: none. **I did not run the default path's run-of-record gates after the loader change.** They compare every unconverted instrument at tolerance zero, and the four ex-USD bonds are no longer the FRED-converted series the run of record used, so I expect them to stop on those four unless `CONVERTED` is extended; that is for Cowork to rule, not changed here.
-- **Step 4.** The map's rule is unchanged. Test added: `test_every_week_of_the_real_v4_store_is_dated_by_its_friday` (skips where the git-ignored store is absent; it ran here and passed). Every task-54 test in `tests/test_exposures.py` passes unchanged except the two task 55 changed.
-- **Step 5.** `make characteristics ARGS="--store-id huber6-v4 --supersedes huber6-v3 --factor-set huber6-baa10y --estimation-start common"`. `directory_hash` **`b6181bcde28b7e95e69839ff29f2a0a0f19e7552f970b3a24804fcebb7569206`**. **990 weeks, 2001-01-12 to 2019-12-27.** Estimated 84, not estimated 8, measured 23,117 rows over 24 instruments (`v3`: 888 weeks, 21,722 measured rows). Instruments: 53 at the first week, **0 at 2001-01-05**, 84 at the last week. **Not as Cowork expected:** the first week is after 2001-01-05 (the 104-week estimation window needs two years from 1999-01-08), so `0058`'s "What would reopen it" applies and I carried on. First rows: 53 on 2001-01-12, 11 on 2001-01-19 (64 by then), 10 on 2002-12-27, 2 on 2003-11-28, then one each 2004-07-02, 2004-11-26, 2005-06-24, 2007-10-26, 2010-07-30, 2010-10-29 and two on 2007-12-28. Every instrument's first row is after 2001-01-05. At 2019-12-27, `v3` against `v4`, by class (84 common instruments; median credit loading, median explained share, median absolute change in equity / real_yield / inflation / dollar / commodities): US Equities 2.24 -> 1.68, 0.755 -> 0.757, 0.005 / 0.149 / 0.143 / 0.003 / 0.002; European Equities -6.18 -> -2.55, 0.620 -> 0.617; HY Corporates -5.48 -> -2.46, 0.586 -> 0.531; IG Corporates -4.89 -> -2.88, 0.816 -> 0.764; Long Treasuries -0.96 -> -6.20, 0.908 -> 0.930; Treasuries 0.56 -> 0.50, 0.900 -> 0.908; the other thirteen classes are in the store's report and the comparison is reproducible from the two stores. **Rank correlation of the credit loadings across the 84, `v3` against `v4`: 0.85.**
-- **Step 6.** `make exposures-check ARGS="--store-id huber6-v4"` (the target now forwards `ARGS`; `check_exposures.py` takes `--store-id`, `params/` still names `v3`) into `results/characteristics/huber6-v4/`. Weeks 990, all Fridays, none skipped; instrument-weeks 79,125 (Cowork's `v3` read 72,606); 53 / 84 instruments at the first / last week (73 / 84); duration measured / estimated / missing 7,375 / 71,750 / 0; no measured duration at or below zero; Friday usage rows 79,125 with `fitted_through` = `used_on_date`, Tuesday rows 79,125 four days after; `2001-01-05` still raises and **`2002-12-20` now reads a week**. Median `axis_duration` at 2019-12-27, `v4` against `v3`'s: Long Treasuries 18.32 (18.32), Gold 8.29 (8.63), IG 5.22 (5.22), TIPS 4.55, Treasuries 4.48, EM Equities 2.63 (2.12), European Equities -1.24 (-1.14). I first ran the target without `--store-id` working, which rewrote `huber6-v3/exposures_check.md` by one blank line; I restored it with `git checkout` before committing.
-- **Step 7.** `git push origin main` was **denied at the tool-permission prompt** again (the owner's `.claude/settings.json` rule is still uncommitted). Nothing pushed, no retry. `git rev-list --count @{u}..HEAD` printed **2** before this receipt's commit: `1be32c9` (task 55's receipt update, which the owner's push of `bf00dc7` did not carry) and `e968f28`; it reads 3 with this receipt.
-- **Push, update (2026-10-12).** The owner ran `git push origin main` himself after the denial: `bf00dc7..7cf303e  main -> main`, a fast-forward carrying `1be32c9`, `e968f28`, `fac4294` and `7cf303e`. `git rev-list --count @{u}..HEAD` printed **0** before this update; this line is the only commit after it, so it reads 1 until the owner pushes it. The task's push is otherwise satisfied.
-- **Not done / to know:** the push, and the receipt's own push. No `params/` edit (it still names `huber6-v3`; Cowork writes the patch from these figures). No audit, no solver, no hypothesis moved. Uncommitted and not mine: `.claude/settings.json`, `decisions/proposed/0059-the-phase-2-solver.md`.
-
-
-### 2026-10-12 -- task 55: the label map lands, the region axis reads it (Claude Code, Sonnet 5.5)
-
-**rc=0 for the work; the push did not happen.** Commits: `cbf5021` (step 0: SUBSTRATE v0.11 and the records; `make check` and `make governance` passed; the first attempt on 2026-10-11 was denied by the auto-mode classifier and nothing was committed then) and `65a583f` (the build). Log directory `results/audit/_unattended/20261012-082728-check-scoped/`: **tier FULL** (check-scoped could not place every changed file, so the whole suite ran), rc=0, 505 s, nothing left out. Two earlier check-scoped runs stopped at lint, mine (an import order in `tests/test_label_map.py`, one line `ruff format` rewrapped in `exposures.py`); fixed, no test had failed.
-
-- **Step 1.** `scripts/build_label_map.py` wrote `data/universe/label_map.csv` from the draft (sha256 begins `6de22793765f2a24`). **Every count equals the task's:** 84 rows; equity 54, bond 23, real_asset_equity 4, commodity 2, cash 1; region view 46 (US 19, Developed Europe 12, EM 12, Japan 1, APAC ex-Japan 1, Canada 1); region over all rows US 34, Developed Europe 16, EM 15, Global 13, Japan 2, Commodities 2, APAC ex-Japan 1, Canada 1; 24 rows with a curve currency; curve, rating, hy_bucket and market as tabled. **Cross-check against `decisions/0054`:** all 58 equity tickers in both match the table's region; 7 table tickers are absent from the map (tradable-only) and the eighth tradable-only ticker, `LTP5TRUU`, is in the bond table and absent from the map; the 23 bond rows match the bond table's three label columns. The task said eight tradable-only tickers sit in the equity table; it is seven, plus `LTP5TRUU` in the bond table.
-- **Step 2.** In `characteristics/exposures.py`: `load_label_map`, `LABEL_MAP_PATH`, `LABEL_COLUMNS`, `VIEW_REGIONS`, `REPORT_REGIONS`, `REGION_COLUMNS`, `UNBUILT_LABEL_AXES`; `ExposureMap(loaded, label_map=None)` and `from_params(params, root, label_map=None)`. Slugs as suggested: `region_us`, `region_dev_europe`, `region_japan`, `region_apac_ex_japan`, `region_canada`, `region_em`, `region_global`. **Store/label set check on the real store:** the task expected the same 84 in both. The store's `instruments` table lists **92** (the 8 tradable-only have no row), so the check compares the label map with the **84 instruments that have a row**; they are the same 84. Real store at 2019-12-27: `at` 84 x 36, region frame 84 x 6 summing to 19/12/1/1/1/12, the engine rule 84 x 17.
-- **Step 3.** New `tests/test_label_map.py` (11 tests: counts; the two cross-checks; the normalised columns; blanks outside bonds and cash; `region_view`; column order; an unmapped verbatim value raising; tradable-only dropped and the commodities rename; byte-for-byte regeneration, which **skips when the git-ignored draft is absent** and ran here; a draft with another hash refused). Added to `tests/test_exposures.py`: the region frame, the reporting columns, the label columns on `at`, a store/label mismatch both ways, a missing file, and an autouse synthetic label map. **Changed, not weakened:** `test_the_label_axes_raise_naming_decisions_0054_and_anything_else_is_a_value_error` became `test_sector_and_style_raise_naming_decisions_0054_and_anything_else_is_a_value_error` (region now returns the frame; sector and style still raise, naming `decisions/0054 item 8`), and `test_the_rule_has_the_six_factors_and_four_axes_and_no_missing_value` became `..._four_axes_and_seven_regions_...` (it lists the seven new columns).
-- **Step 4.** Label map sha256 `60ee1934bf89582c8630b1c4a8b2f9b55e1181ec0cd55dc982c2dfa3be85bdb5` for both the committed blob and the working-tree file; the working tree is LF (git has not rewritten it), so neither is CRLF yet. The test normalises CRLF. **`git push origin main` was denied at the tool-permission prompt** ("Permission to use Bash with command git push origin main ... has been denied"), so nothing was pushed, and I did not retry. The owner can run it. `git rev-list --count @{u}..HEAD` printed **2** before this receipt's commit (`cbf5021`, `65a583f`).
-- **Push, update (2026-10-12).** The owner ran `git push origin main` himself after the denial: `c8e755c..bf00dc7  main -> main`, a fast-forward carrying `cbf5021`, `65a583f` and `bf00dc7`. `git rev-list --count @{u}..HEAD` printed **0** before this update. I also tried the exact command a second time and it was denied again, although the working tree's `.claude/settings.json` allows it; that file is uncommitted, so the session may not have loaded it.
-- **Not done / to know:** the push; the receipt's own push; task 56 (it follows 55, and this task ends with "then stop"). Uncommitted and not mine to commit under step 0: `.claude/settings.json` (Cowork's push rule) and `decisions/proposed/0059-the-phase-2-solver.md`. No hypothesis changed state and no golden moved.
-` at the bottom with the stamp, the
+is finished, move its heading into `## Done` at the bottom with the stamp, the
 command's `rc`, and one line of outcome. Leave the task text intact so the next
 Cowork session can see what was asked as well as what happened.
 
@@ -95,6 +59,8 @@ and 24 are done — receipts are in `## Done`.
 **As of 2026-10-10 (23:30 ET): queued, task 53 only.** The owner ruled OWNER-QUEUE L32 (`decisions/0053`): every return is in dollars, and eighteen local-currency series are converted with the FX file he supplied (`data/raw/bloomberg/bbg_curncy_hist.xlsx`). Cowork transcribed SUBSTRATE v0.10 (L31) into the working tree; step 0 commits it. **Task 53** converts the series, takes `NDDLUK` out, adds a currency guard, rebuilds the store as `huber6-v3`, fixes the spread table and `LET1TREU`'s name, and **pushes** (`CLAUDE.md`, owner 2026-10-10). **`resolve_exposures` stays raising.** **Waiting on the owner:** L28 (the label-map draft), L29, L33.
 
 **As of 2026-10-12 (08:10 ET): queued, 55 then 56.** The owner ruled OWNER-QUEUE L28 (the bond labels as drafted, `decisions/0054` addendum; how a hypothesis uses them, `decisions/0057`), L33 (`decisions/0056`) and L35 (`decisions/0058`) on the night of 2026-10-11, and L36 on 2026-10-12; "yes" to task 55, and (owner, 2026-10-12) "yes" to this note. Task 54 and its push have both landed: Cowork checked on 2026-10-12 that `origin/main` is `c8e755c`, equal to HEAD, so nothing earlier is waiting to be pushed. **Task 55** commits the records (SUBSTRATE v0.11) and builds the label map and the region axis; **task 56** builds store `huber6-v4`. Sector and style keep raising; no scope logic and no solver is built. **Waiting on the owner:** nothing for 55 or 56. **Not queued:** the phase-2 solver; Cowork is drafting its spec under `decisions/proposed/`, and nothing is built from it until a task says so.
+
+**As of 2026-10-15 (22:15 ET): queued, 57 then 58.** The owner ruled OWNER-QUEUE L37 on 2026-10-14 ("agree with proposal": `decisions/0059`, moved out of `proposed/`) and L38 on 2026-10-14 and 2026-10-15 (`decisions/0060`), and said "queue the commits". Tasks 55 and 56 and their pushes have landed (`origin/main` was `7cf303e` on 2026-10-14; `9b1e0d5`, task 56's receipt update, was then the only unpushed commit). **Task 57** commits the records and pushes; nothing is built. **Cowork moved the receipts of tasks 55 and 56 into `## Done`:** they had been pasted inside the contract paragraph above, splitting its sentence. A receipt goes directly under the `## Done` heading, newest first. **Not queued:** the `huber6-v4` params patch (Cowork writes it, then the `0059` params patch after it); the phase-2 solver build (`0059`, with `0060`'s validator change); the JPMaQS catalogue check for GBP and JPY carry (`0060`); a loader for the new non-USD bonds. **The owner's Bloomberg pull landed** at 22:05 as `data/raw/bloomberg/bbg_exusd_bonds_extra.xlsx`; **task 58** only describes it. **Waiting on the owner:** L39 (Japan) and `FLDS` for `BEIG1T`.
 
 Notes for task 55 (Cowork, 2026-10-12; the task's text is unchanged):
 - **Superseded for task 55's scope:** the standing refusal "Building from `decisions/0054`" and the paragraph "The label map file (added 2026-10-11)" under "Not queued yet". Task 55 is the queued build of the label map and the region axis, and nothing beyond it.
@@ -3297,6 +3263,110 @@ Then stop.
 
 ---
 
+### 58. Describe the new Bloomberg file, `bbg_exusd_bonds_extra.xlsx` (`decisions/0060`, the data request): structure only, no loader; then push
+
+Added 2026-10-15 by Cowork. Runs after task 57. **Revised at 22:50 the same
+night, before it ran:** step 1 keeps the script's printout off the screen.
+
+**Why:** the owner pulled the non-USD government bonds `decisions/0060` asks
+for and saved them as `data/raw/bloomberg/bbg_exusd_bonds_extra.xlsx`
+(2026-10-15, 22:05; 5,823,494 bytes). Before a loader is specified, Cowork
+needs the file's structure from the repo's own script.
+
+**What this task does not do:**
+- **No loader, no code, no params, no store.** Nothing in `src/`, `scripts/`,
+  `tests/`, `params/`, `vetoes/`, `hypotheses/`, `data/universe/`.
+- **No value leaves the machine.** Report sheet names, headers, dimensions,
+  date ranges and counts only, as step 1 extracts them. Do not open the file
+  any other way.
+
+**Budget:** 15 minutes.
+
+**1. Describe it, without reading values out.** `scripts/inspect_raw.py`
+prints the first 8 rows of every sheet verbatim (`HEADER_ROWS = 8`). In this
+file, rows 2-8 of `analytics`, `linker_fields` and `japan_check` are vendor
+values. So:
+- Run it with its printout kept off the screen:
+  `make inspect-raw > "$HOME/inspect_raw.out" 2>&1`, and check `rc=0`. Do not
+  open, print or tail `inspect_raw.out`.
+- Read the structure from `data/universe/raw_structure.json` (git-ignored),
+  for `bbg_exusd_bonds_extra.xlsx` only, printing **only**: each sheet's name,
+  `n_rows`, `n_cols`, **row 1 of `header_rows`** (never rows 2-8), and, for
+  each column with a `date_min`, its column number, `n_non_empty`, `date_min`
+  and `date_max`. Use a one-off `python -c` that prints nothing else.
+- `sha256sum` of the file (report the first 16 hex).
+- Report those in the receipt. **Nothing from `raw_meta.json`** (it
+  transcribes the `Loader Notes` sheet in full).
+
+**What Cowork expects** (the owner's pull prompt, 2026-10-15; the file was not
+seen by Cowork):
+- `levels`: `date`, then `<TICKER>_local_<CCY>` for `LEATTREU`, `LET3TREU`,
+  `LET5TREU`, `LET7TREU`, `LET0TREU`, `BEIG1T`, `BEIG3T` (EUR) and
+  `LSG1TRGU`, `I08043GB` to `I08048GB` (GBP): 15 columns;
+- `analytics`: `date, ticker, index_name, oad_tsy, yield_to_worst, oas,
+  oas_field`, the 12 nominal tickers only;
+- `linker_fields`, `japan_check`: test sheets; headers and dimensions only;
+- `Loader Notes`: report its dimensions only;
+- dates from 1990-01-01 at the earliest to **2019-12-31 at the latest**.
+
+A difference from this is not an error; list it. **If any sheet's last date is
+on or after 2020-01-01, say so** (the loaders drop such rows; whether the file
+is re-pulled is the owner's call). Do not edit the file.
+
+**2. Commit the receipt and push.** `make check`, then commit `HANDOFF.md`
+alone: `handoff: task 58 receipt; bbg_exusd_bonds_extra.xlsx described`.
+`git push origin main`, fast-forward only. Then stop.
+
+---
+
+### 57. Commit the records of 2026-10-14 and 2026-10-15: `decisions/0059` (decided) and `0060`; OWNER-QUEUE L37 and L38 closed, L39 opened; then push
+
+Added 2026-10-15 by Cowork, at the owner's instruction ("queue the commits").
+
+**Owner rulings:**
+- OWNER-QUEUE L37, 2026-10-14: "agree with proposal". `decisions/0059`, the
+  phase-2 solver, is decided and moved out of `decisions/proposed/`;
+- OWNER-QUEUE L38, 2026-10-14 and 2026-10-15: `decisions/0060` (0007 grouped
+  by rating and HY bucket; 0002, 0003 and 0010 by curve, blocked on a data
+  request; an instrument-level fallback; a missing instrument is a data
+  request);
+- "queue the commits".
+
+**What this task does not do:**
+- **No code, no build, no params.** Nothing in `src/`, `scripts/`, `tests/`,
+  `params/`, `vetoes/`, `SUBSTRATE.md` or `hypotheses/`. `0060` proposes
+  SUBSTRATE wording; it is not applied, and you do not apply it.
+- No vendor call, no audit. No hypothesis changes state. No golden moves.
+- **Do not commit** `.claude/settings.json`; it stays as it is in the working
+  tree.
+
+**Budget:** 15 minutes.
+
+**Hard rules:** as `CLAUDE.md`. Never edit this task in place; the receipt goes
+directly under the `## Done` heading, newest first, and nowhere else in this
+file.
+
+**1. Commit the records, alone.**
+- **Files:** `HANDOFF.md`, `OWNER-QUEUE.md`, and new:
+  `decisions/0059-the-phase-2-solver.md` (Cowork moved it from
+  `decisions/proposed/`; it was never committed there, so git sees one new
+  file) and `decisions/0060-four-hypotheses-get-their-cross-section.md`.
+  Nothing else.
+- **Check first:** `git status --short` shows exactly those four paths and
+  ` M .claude/settings.json`. Anything else, stop and list it.
+- **Run** `make check` (records only, the fast tier) and `make governance`.
+  Both must pass. If either fails, stop and report; do not edit the records.
+- **Message:** `decisions 0059 (decided) and 0060; queue: task 57; OWNER-QUEUE L37 and L38 closed, L39 opened (owner 2026-10-14 and 2026-10-15)`.
+
+**2. Push.** `git push origin main`, after the receipt's commit. It must be a
+fast-forward; if it is rejected or would be anything else, stop and report.
+Record `git rev-list --count @{u}..HEAD` before and after.
+
+**Expect:** two commits (the records, the receipt), `9b1e0d5` carried with
+them, and `@{u}..HEAD` at 0 after the push. Then stop.
+
+---
+
 ### 56. Store `huber6-v4` (`decisions/0056`, `0058`): the ex-USD bonds on Bloomberg's close, the credit factor on FRED `BAA10Y`, estimation before `dev_start`; then push
 
 Added 2026-10-11 by Cowork. **Runs after task 55.** Revised at 23:10 the same
@@ -4456,6 +4526,41 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-12 -- task 56: store huber6-v4, the ex-USD bonds on Bloomberg's close, the credit factor on BAA10Y (Claude Code, Sonnet 5.5)
+
+**rc=0 for the work; the push did not happen.** Commit `e968f28` (the build; `ruff` clean). Log directory `results/audit/_unattended/20261012-092541-check-full/`: **tier check-full (the whole suite)**, rc=0, **588 s**, nothing left out, **no golden moved**. The weekly-returns hash moved as expected (`v3` `0377b3fc...`, `v4` `2fef64ef...`; four series changed).
+
+- **Step 1.** The FRED call was run by the owner in his own shell (`set -a; source .env; set +a`, so the key never reached this session; I did not open `.env`) with the new `scripts/fetch_fred_baa10y.py`, which reads the key through `FredLoader.api_key`, prints only the status code on an HTTP error, and refuses a request or a row on or after 2020-01-01. **`BAA10Y`: first 1986-01-02 (Cowork's expectation), last 2019-12-31, 8,503 observations, 366 blank.** Registered as `fred_credit_spread` in `raw_manifest.csv` and in `fred_coverage.csv`. `data/raw/fred/fred_baa10y.csv` is not committed.
+- **Step 2.** `read_exusd_csv(path, local_ccy)` reads `<ticker>_local_<CCY>` for the four bonds, takes the currency from the suffix and refuses if it differs from `local_ccy` in the coverage table; `LG38TRUU` is read from its `_USD_unhedged` column; the `exempt` set is derived and is `{"LG38TRUU"}`. The FRED-converted columns are not read. `scripts/check_fx_conversion.py`, new heading in `results/fx/conversion_check.{md,json}` (existing rows unchanged; additions only): weekly Friday closes, development window, same day, converted against the FRED-converted column:
+
+  | Series | Currency | Weekly TE (bp/yr) | Lag-1 autocorr. | Cumulative gap (bp) | Weeks | Days regained |
+  |---|---|---|---|---|---|---|
+  | `LET1TREU` | EUR | 203.11 | -0.49 | -33.96 | 953 | 138 |
+  | `LP05TREU` | EUR | 202.83 | -0.49 | -33.96 | 956 | 139 |
+  | `I12823GB` | GBP | 199.23 | -0.47 | -14.26 | 702 | 102 |
+  | `I02913JP` | JPY | 209.33 | -0.56 | 31.96 | 958 | 162 |
+
+  **All four are inside Cowork's 195 to 210 read; none is near the 1,000 stop.** FX dates dropped for want of a rate: 0 for each. *Days regained* is the business days in the development window with a converted level now and none in the FRED column.
+- **Step 3.** `build_factors(..., credit_series=None)` (the default path is unchanged; `v1` to `v3` are not rebuilt) and `run_measurement.load_inputs(params, factor_set, estimation_start)`. `build_characteristics.py` gains `--factor-set huber6-baa10y` and `--estimation-start common`; the manifest records `factor_set`, `estimation_start`, `credit_source`, `factors_common_start`, and `gates_against_run_of_record: skipped` with the reason. Credit is the weekly change in `BAA10Y` x 1e-2 (decimal), dated by its observation date, no lag. **Common start of the six factors: 1999-01-01 (1,093 complete weeks to 2019-12-27)**; Cowork's 2000-12-29 was an estimate. Correlations: `results/characteristics/huber6-v4/factor_correlations.{md,json}` (largest full-sample correlations: equity~commodities 0.41, equity~inflation 0.40, equity~credit -0.37). Goldens moved: none. **I did not run the default path's run-of-record gates after the loader change.** They compare every unconverted instrument at tolerance zero, and the four ex-USD bonds are no longer the FRED-converted series the run of record used, so I expect them to stop on those four unless `CONVERTED` is extended; that is for Cowork to rule, not changed here.
+- **Step 4.** The map's rule is unchanged. Test added: `test_every_week_of_the_real_v4_store_is_dated_by_its_friday` (skips where the git-ignored store is absent; it ran here and passed). Every task-54 test in `tests/test_exposures.py` passes unchanged except the two task 55 changed.
+- **Step 5.** `make characteristics ARGS="--store-id huber6-v4 --supersedes huber6-v3 --factor-set huber6-baa10y --estimation-start common"`. `directory_hash` **`b6181bcde28b7e95e69839ff29f2a0a0f19e7552f970b3a24804fcebb7569206`**. **990 weeks, 2001-01-12 to 2019-12-27.** Estimated 84, not estimated 8, measured 23,117 rows over 24 instruments (`v3`: 888 weeks, 21,722 measured rows). Instruments: 53 at the first week, **0 at 2001-01-05**, 84 at the last week. **Not as Cowork expected:** the first week is after 2001-01-05 (the 104-week estimation window needs two years from 1999-01-08), so `0058`'s "What would reopen it" applies and I carried on. First rows: 53 on 2001-01-12, 11 on 2001-01-19 (64 by then), 10 on 2002-12-27, 2 on 2003-11-28, then one each 2004-07-02, 2004-11-26, 2005-06-24, 2007-10-26, 2010-07-30, 2010-10-29 and two on 2007-12-28. Every instrument's first row is after 2001-01-05. At 2019-12-27, `v3` against `v4`, by class (84 common instruments; median credit loading, median explained share, median absolute change in equity / real_yield / inflation / dollar / commodities): US Equities 2.24 -> 1.68, 0.755 -> 0.757, 0.005 / 0.149 / 0.143 / 0.003 / 0.002; European Equities -6.18 -> -2.55, 0.620 -> 0.617; HY Corporates -5.48 -> -2.46, 0.586 -> 0.531; IG Corporates -4.89 -> -2.88, 0.816 -> 0.764; Long Treasuries -0.96 -> -6.20, 0.908 -> 0.930; Treasuries 0.56 -> 0.50, 0.900 -> 0.908; the other thirteen classes are in the store's report and the comparison is reproducible from the two stores. **Rank correlation of the credit loadings across the 84, `v3` against `v4`: 0.85.**
+- **Step 6.** `make exposures-check ARGS="--store-id huber6-v4"` (the target now forwards `ARGS`; `check_exposures.py` takes `--store-id`, `params/` still names `v3`) into `results/characteristics/huber6-v4/`. Weeks 990, all Fridays, none skipped; instrument-weeks 79,125 (Cowork's `v3` read 72,606); 53 / 84 instruments at the first / last week (73 / 84); duration measured / estimated / missing 7,375 / 71,750 / 0; no measured duration at or below zero; Friday usage rows 79,125 with `fitted_through` = `used_on_date`, Tuesday rows 79,125 four days after; `2001-01-05` still raises and **`2002-12-20` now reads a week**. Median `axis_duration` at 2019-12-27, `v4` against `v3`'s: Long Treasuries 18.32 (18.32), Gold 8.29 (8.63), IG 5.22 (5.22), TIPS 4.55, Treasuries 4.48, EM Equities 2.63 (2.12), European Equities -1.24 (-1.14). I first ran the target without `--store-id` working, which rewrote `huber6-v3/exposures_check.md` by one blank line; I restored it with `git checkout` before committing.
+- **Step 7.** `git push origin main` was **denied at the tool-permission prompt** again (the owner's `.claude/settings.json` rule is still uncommitted). Nothing pushed, no retry. `git rev-list --count @{u}..HEAD` printed **2** before this receipt's commit: `1be32c9` (task 55's receipt update, which the owner's push of `bf00dc7` did not carry) and `e968f28`; it reads 3 with this receipt.
+- **Push, update (2026-10-12).** The owner ran `git push origin main` himself after the denial: `bf00dc7..7cf303e  main -> main`, a fast-forward carrying `1be32c9`, `e968f28`, `fac4294` and `7cf303e`. `git rev-list --count @{u}..HEAD` printed **0** before this update; this line is the only commit after it, so it reads 1 until the owner pushes it. The task's push is otherwise satisfied.
+- **Not done / to know:** the push, and the receipt's own push. No `params/` edit (it still names `huber6-v3`; Cowork writes the patch from these figures). No audit, no solver, no hypothesis moved. Uncommitted and not mine: `.claude/settings.json`, `decisions/proposed/0059-the-phase-2-solver.md`.
+
+
+### 2026-10-12 -- task 55: the label map lands, the region axis reads it (Claude Code, Sonnet 5.5)
+
+**rc=0 for the work; the push did not happen.** Commits: `cbf5021` (step 0: SUBSTRATE v0.11 and the records; `make check` and `make governance` passed; the first attempt on 2026-10-11 was denied by the auto-mode classifier and nothing was committed then) and `65a583f` (the build). Log directory `results/audit/_unattended/20261012-082728-check-scoped/`: **tier FULL** (check-scoped could not place every changed file, so the whole suite ran), rc=0, 505 s, nothing left out. Two earlier check-scoped runs stopped at lint, mine (an import order in `tests/test_label_map.py`, one line `ruff format` rewrapped in `exposures.py`); fixed, no test had failed.
+
+- **Step 1.** `scripts/build_label_map.py` wrote `data/universe/label_map.csv` from the draft (sha256 begins `6de22793765f2a24`). **Every count equals the task's:** 84 rows; equity 54, bond 23, real_asset_equity 4, commodity 2, cash 1; region view 46 (US 19, Developed Europe 12, EM 12, Japan 1, APAC ex-Japan 1, Canada 1); region over all rows US 34, Developed Europe 16, EM 15, Global 13, Japan 2, Commodities 2, APAC ex-Japan 1, Canada 1; 24 rows with a curve currency; curve, rating, hy_bucket and market as tabled. **Cross-check against `decisions/0054`:** all 58 equity tickers in both match the table's region; 7 table tickers are absent from the map (tradable-only) and the eighth tradable-only ticker, `LTP5TRUU`, is in the bond table and absent from the map; the 23 bond rows match the bond table's three label columns. The task said eight tradable-only tickers sit in the equity table; it is seven, plus `LTP5TRUU` in the bond table.
+- **Step 2.** In `characteristics/exposures.py`: `load_label_map`, `LABEL_MAP_PATH`, `LABEL_COLUMNS`, `VIEW_REGIONS`, `REPORT_REGIONS`, `REGION_COLUMNS`, `UNBUILT_LABEL_AXES`; `ExposureMap(loaded, label_map=None)` and `from_params(params, root, label_map=None)`. Slugs as suggested: `region_us`, `region_dev_europe`, `region_japan`, `region_apac_ex_japan`, `region_canada`, `region_em`, `region_global`. **Store/label set check on the real store:** the task expected the same 84 in both. The store's `instruments` table lists **92** (the 8 tradable-only have no row), so the check compares the label map with the **84 instruments that have a row**; they are the same 84. Real store at 2019-12-27: `at` 84 x 36, region frame 84 x 6 summing to 19/12/1/1/1/12, the engine rule 84 x 17.
+- **Step 3.** New `tests/test_label_map.py` (11 tests: counts; the two cross-checks; the normalised columns; blanks outside bonds and cash; `region_view`; column order; an unmapped verbatim value raising; tradable-only dropped and the commodities rename; byte-for-byte regeneration, which **skips when the git-ignored draft is absent** and ran here; a draft with another hash refused). Added to `tests/test_exposures.py`: the region frame, the reporting columns, the label columns on `at`, a store/label mismatch both ways, a missing file, and an autouse synthetic label map. **Changed, not weakened:** `test_the_label_axes_raise_naming_decisions_0054_and_anything_else_is_a_value_error` became `test_sector_and_style_raise_naming_decisions_0054_and_anything_else_is_a_value_error` (region now returns the frame; sector and style still raise, naming `decisions/0054 item 8`), and `test_the_rule_has_the_six_factors_and_four_axes_and_no_missing_value` became `..._four_axes_and_seven_regions_...` (it lists the seven new columns).
+- **Step 4.** Label map sha256 `60ee1934bf89582c8630b1c4a8b2f9b55e1181ec0cd55dc982c2dfa3be85bdb5` for both the committed blob and the working-tree file; the working tree is LF (git has not rewritten it), so neither is CRLF yet. The test normalises CRLF. **`git push origin main` was denied at the tool-permission prompt** ("Permission to use Bash with command git push origin main ... has been denied"), so nothing was pushed, and I did not retry. The owner can run it. `git rev-list --count @{u}..HEAD` printed **2** before this receipt's commit (`cbf5021`, `65a583f`).
+- **Push, update (2026-10-12).** The owner ran `git push origin main` himself after the denial: `c8e755c..bf00dc7  main -> main`, a fast-forward carrying `cbf5021`, `65a583f` and `bf00dc7`. `git rev-list --count @{u}..HEAD` printed **0** before this update. I also tried the exact command a second time and it was denied again, although the working tree's `.claude/settings.json` allows it; that file is uncommitted, so the session may not have loaded it.
+- **Not done / to know:** the push; the receipt's own push; task 56 (it follows 55, and this task ends with "then stop"). Uncommitted and not mine to commit under step 0: `.claude/settings.json` (Cowork's push rule) and `decisions/proposed/0059-the-phase-2-solver.md`. No hypothesis changed state and no golden moved.
 
 ### 2026-10-11 -- task 54: the wiring, resolve_exposures reads huber6-v3, params v0.10.0, the lookahead veto checks loadings (Claude Code, Sonnet 5.5)
 
