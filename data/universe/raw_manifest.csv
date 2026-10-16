@@ -13,3 +13,6 @@ fred_panel.csv,,wide_single_date,various,n/a,fred,1,2
 bbg_exusd_bonds_analytics.xlsx,BBG Values,long_date_ticker,various,n/a,analytics_exusd,1,2
 bbg_curncy_hist.xlsx,FX_Spot_USD,wide_single_date,PX_LAST,per_quote_convention_table,fx_spot,1,2
 fred/fred_baa10y.csv,,wide_single_date,BAA10Y,n/a,fred_credit_spread,1,2
+bbg_impvol_values_only.xlsx,IV_Weekly_v,series_blocks,various,n/a,implied_vol,4,5
+bbg_impvol_values_only.xlsx,IV_Daily_v,series_blocks,various,n/a,implied_vol_daily,4,5
+bbg_impvol_values_only.xlsx,Probe_Summary_v,table,n/a,n/a,implied_vol_probe,1,2

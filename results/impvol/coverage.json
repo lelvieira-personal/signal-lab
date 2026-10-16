@@ -1,0 +1,812 @@
+{
+  "sha256": "aeb90f8758e46fbd98b913c6f49a9760efc9d4045bac42be317cd89c68ea0a4e",
+  "totals": {
+    "series": 80,
+    "weeks_before_rule": 59090,
+    "stale_removed": 385,
+    "weeks_kept": 58705,
+    "stale_run_weeks": 6
+  },
+  "series": [
+    {
+      "series_id": "EEM US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWA US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-02-02",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 674,
+      "stale_removed": 0,
+      "weeks_kept": 674,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWA US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-02-02",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 674,
+      "stale_removed": 0,
+      "weeks_kept": 674,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWA US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-02-02",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 674,
+      "stale_removed": 0,
+      "weeks_kept": 674,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWA US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-02-02",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 674,
+      "stale_removed": 0,
+      "weeks_kept": 674,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWA US Equity|IV3M_M100",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-02-02",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 674,
+      "stale_removed": 0,
+      "weeks_kept": 674,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWC US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWC US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWC US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWC US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWC US Equity|IV3M_M100",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWJ US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-11-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 739,
+      "stale_removed": 0,
+      "weeks_kept": 739,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWJ US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-11-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 739,
+      "stale_removed": 0,
+      "weeks_kept": 739,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWJ US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-11-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 739,
+      "stale_removed": 0,
+      "weeks_kept": 739,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWJ US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-11-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 739,
+      "stale_removed": 0,
+      "weeks_kept": 739,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EWJ US Equity|IV3M_M100",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-11-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 739,
+      "stale_removed": 0,
+      "weeks_kept": 739,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EZU US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2008-04-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 587,
+      "stale_removed": 0,
+      "weeks_kept": 587,
+      "missing_fridays": 26
+    },
+    {
+      "series_id": "EZU US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2008-04-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 587,
+      "stale_removed": 0,
+      "weeks_kept": 587,
+      "missing_fridays": 26
+    },
+    {
+      "series_id": "EZU US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2008-04-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 587,
+      "stale_removed": 0,
+      "weeks_kept": 587,
+      "missing_fridays": 26
+    },
+    {
+      "series_id": "EZU US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2008-04-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 587,
+      "stale_removed": 0,
+      "weeks_kept": 587,
+      "missing_fridays": 26
+    },
+    {
+      "series_id": "EZU US Equity|IV3M_M100",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2008-04-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 587,
+      "stale_removed": 0,
+      "weeks_kept": 587,
+      "missing_fridays": 26
+    },
+    {
+      "series_id": "HYG US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-05-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 658,
+      "stale_removed": 0,
+      "weeks_kept": 658,
+      "missing_fridays": 3
+    },
+    {
+      "series_id": "HYG US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-05-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 658,
+      "stale_removed": 0,
+      "weeks_kept": 658,
+      "missing_fridays": 3
+    },
+    {
+      "series_id": "HYG US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-05-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 658,
+      "stale_removed": 0,
+      "weeks_kept": 658,
+      "missing_fridays": 3
+    },
+    {
+      "series_id": "HYG US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-05-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 658,
+      "stale_removed": 0,
+      "weeks_kept": 658,
+      "missing_fridays": 3
+    },
+    {
+      "series_id": "HYG US Equity|IV3M_ATM",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2007-05-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 658,
+      "stale_removed": 0,
+      "weeks_kept": 658,
+      "missing_fridays": 3
+    },
+    {
+      "series_id": "LQD US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "LQD US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "LQD US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "LQD US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "LQD US Equity|IV3M_ATM",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SKEW Index|PX_LAST",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "1990-02-02",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 1560,
+      "stale_removed": 0,
+      "weeks_kept": 1560,
+      "missing_fridays": 1
+    },
+    {
+      "series_id": "SPX Index|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_ATM",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "TLT US Equity|IV3M_10DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "TLT US Equity|IV3M_10DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "TLT US Equity|IV3M_25DC",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "TLT US Equity|IV3M_25DP",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "TLT US Equity|IV3M_ATM",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "XAUUSD10B3M BGN Curncy|IV3M_10B",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 710,
+      "stale_removed": 86,
+      "weeks_kept": 624,
+      "missing_fridays": 16
+    },
+    {
+      "series_id": "XAUUSD10R3M BGN Curncy|IV3M_10R",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 710,
+      "stale_removed": 83,
+      "weeks_kept": 627,
+      "missing_fridays": 16
+    },
+    {
+      "series_id": "XAUUSD25B3M BGN Curncy|IV3M_25B",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 726,
+      "stale_removed": 102,
+      "weeks_kept": 624,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "XAUUSD25R3M BGN Curncy|IV3M_25R",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 726,
+      "stale_removed": 38,
+      "weeks_kept": 688,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "XAUUSDV3M BGN Curncy|IV3M_ATM",
+      "sheet": "IV_Weekly_v",
+      "first_friday": "2002-12-06",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 891,
+      "stale_removed": 76,
+      "weeks_kept": 815,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "AS51 Index|IV3M_M090",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "AS51 Index|IV3M_M095",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "AS51 Index|IV3M_M100",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "AS51 Index|IV3M_M105",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "AS51 Index|IV3M_M110",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_M090",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_M095",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_M100",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_M105",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "EEM US Equity|IV3M_M110",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-03-31",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 718,
+      "stale_removed": 0,
+      "weeks_kept": 718,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "NKY Index|IV3M_M090",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 725,
+      "stale_removed": 0,
+      "weeks_kept": 725,
+      "missing_fridays": 1
+    },
+    {
+      "series_id": "NKY Index|IV3M_M095",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 725,
+      "stale_removed": 0,
+      "weeks_kept": 725,
+      "missing_fridays": 1
+    },
+    {
+      "series_id": "NKY Index|IV3M_M100",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 725,
+      "stale_removed": 0,
+      "weeks_kept": 725,
+      "missing_fridays": 1
+    },
+    {
+      "series_id": "NKY Index|IV3M_M105",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 725,
+      "stale_removed": 0,
+      "weeks_kept": 725,
+      "missing_fridays": 1
+    },
+    {
+      "series_id": "NKY Index|IV3M_M110",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 725,
+      "stale_removed": 0,
+      "weeks_kept": 725,
+      "missing_fridays": 1
+    },
+    {
+      "series_id": "SPTSX60 Index|IV3M_M090",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPTSX60 Index|IV3M_M095",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPTSX60 Index|IV3M_M100",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPTSX60 Index|IV3M_M105",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPTSX60 Index|IV3M_M110",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-06-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 761,
+      "stale_removed": 0,
+      "weeks_kept": 761,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_10DP",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_M090",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_M095",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_M100",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_M105",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SPX Index|IV3M_M110",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2005-02-04",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 778,
+      "stale_removed": 0,
+      "weeks_kept": 778,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SX5E Index|IV3M_M090",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 726,
+      "stale_removed": 0,
+      "weeks_kept": 726,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SX5E Index|IV3M_M095",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 726,
+      "stale_removed": 0,
+      "weeks_kept": 726,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SX5E Index|IV3M_M100",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 726,
+      "stale_removed": 0,
+      "weeks_kept": 726,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SX5E Index|IV3M_M105",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 726,
+      "stale_removed": 0,
+      "weeks_kept": 726,
+      "missing_fridays": 0
+    },
+    {
+      "series_id": "SX5E Index|IV3M_M110",
+      "sheet": "IV_Daily_v",
+      "first_friday": "2006-02-03",
+      "last_friday": "2019-12-27",
+      "weeks_before_rule": 726,
+      "stale_removed": 0,
+      "weeks_kept": 726,
+      "missing_fridays": 0
+    }
+  ]
+}

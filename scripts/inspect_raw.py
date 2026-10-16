@@ -210,6 +210,11 @@ def main(argv=None) -> int:
     for path in sorted(raw.rglob("*")):
         if not path.is_file() or path.name.startswith("."):
             continue
+        if path.name.startswith("~$"):
+            # Excel's lock file, left beside a workbook while it is open (HANDOFF
+            # task 58: 165 bytes, not a zip). Not data.
+            print(f"skipped Excel lock file: {path.name}")
+            continue
         if path.suffix.lower() in (".xlsx", ".xlsm"):
             described.append(describe_workbook(path))
         elif path.suffix.lower() in (".csv", ".tsv"):
