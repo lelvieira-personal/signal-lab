@@ -1,0 +1,131 @@
+hypothesis_id: H-2026-0018
+signal: implied_tail_ratio_10d_3m
+family: volatility_stress
+requested_by: owner
+status: awaiting_loader
+series:
+- id: SPX Index|IV3M_10DP
+  source: bloomberg
+  security: SPX Index
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_PUT
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Daily_v
+  frequency: daily
+  workbook_series_id: SPX_IV3M_10DP
+- id: SPX Index|IV3M_10DC
+  source: bloomberg
+  security: SPX Index
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_CALL
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: SPX_IV3M_10DC
+- id: EZU US Equity|IV3M_10DP
+  source: bloomberg
+  security: EZU US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_PUT
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EZU_IV3M_10DP
+- id: EZU US Equity|IV3M_10DC
+  source: bloomberg
+  security: EZU US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_CALL
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EZU_IV3M_10DC
+- id: EWJ US Equity|IV3M_10DP
+  source: bloomberg
+  security: EWJ US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_PUT
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EWJ_IV3M_10DP
+- id: EWJ US Equity|IV3M_10DC
+  source: bloomberg
+  security: EWJ US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_CALL
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EWJ_IV3M_10DC
+- id: EWA US Equity|IV3M_10DP
+  source: bloomberg
+  security: EWA US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_PUT
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EWA_IV3M_10DP
+- id: EWA US Equity|IV3M_10DC
+  source: bloomberg
+  security: EWA US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_CALL
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EWA_IV3M_10DC
+- id: EWC US Equity|IV3M_10DP
+  source: bloomberg
+  security: EWC US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_PUT
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EWC_IV3M_10DP
+- id: EWC US Equity|IV3M_10DC
+  source: bloomberg
+  security: EWC US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_CALL
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EWC_IV3M_10DC
+- id: EEM US Equity|IV3M_10DP
+  source: bloomberg
+  security: EEM US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_PUT
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EEM_IV3M_10DP
+- id: EEM US Equity|IV3M_10DC
+  source: bloomberg
+  security: EEM US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_CALL
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: EEM_IV3M_10DC
+reason: 'H-2026-0018 requires 12 series that are delivered (Bloomberg, pulled 2026-10-15)
+  but not in the snapshot: no loader reads bbg_impvol_values_only.xlsx yet and it is not in
+  data/universe/raw_manifest.csv. The hypothesis is blocked:data until a loader task lands;
+  no substitute is run.'
+available_already: []

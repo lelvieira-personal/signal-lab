@@ -242,3 +242,25 @@ is an OWNER-QUEUE item, not something this record decides.
    E; the tests of F. No hypothesis runs.
 3. **Pilot task** (G), then the owner's thresholds, then the acceptance run.
 4. Then `signals/`.
+
+## Addendum, 2026-10-16: the burn-in is 52 weeks, lab-wide
+
+**Ruled 2026-10-16 (owner):** "52 weeks, lab wide". This replaces open point
+3's 156 weeks; the ±3 winsorisation stands. One rule for every hypothesis,
+built in one place as B says. No family-specific burn-in.
+
+Why it changed:
+- **B's reason for 156 does not hold.** It said the burn-in "matches the
+  covariance window so neither starts before the other". The covariance is
+  fitted on instrument returns, which exist from 2001 whatever a signal's own
+  history is, so a shorter score burn-in never starts a view before the
+  covariance is ready. Cowork's error in the draft.
+- **What prompted it:** the options-implied tail-asymmetry family
+  (`claude/impvol-coverage-2026-10-15.md` in the Project) has a common start
+  near 2008-04; at 156 weeks its first view would land near 2011-04.
+- **The cost:** an early `z` estimated on 52 weeks of an autocorrelated score
+  rests on far fewer independent observations than 52; the winsorisation is
+  what bounds it. *Cowork's reading, not measured.*
+
+Nothing is built yet: the params patch of "What it would take to build" item
+1 carries 52, not 156.

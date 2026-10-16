@@ -229,6 +229,7 @@ directory that gets cloned and archived. Hygiene, owner's call.
 
 ### L37. The phase-2 solver: five open points in `decisions/proposed/0059` — CLOSED 2026-10-14 (ruled: "agree with proposal"; `decisions/0059`)
 **Ruled 2026-10-14 (owner):** "L37: agree with proposal". The five open points are ruled as Cowork proposed, and the record moved to `decisions/0059`. Its params patch follows the `huber6-v4` one; the build is not queued.
+**Amended 2026-10-16 (owner):** "52 weeks, lab wide". Point 3's burn-in is 52 weeks, not 156 (`decisions/0059` addendum, 2026-10-16).
 
 Added 2026-10-12 by Cowork. The owner ruled four design points on 2026-10-12
 (Grinold views with one fixed IC prior; directional and cross-sectional

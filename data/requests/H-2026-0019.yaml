@@ -1,0 +1,30 @@
+hypothesis_id: H-2026-0019
+signal: implied_tail_ratio_10d_3m_tlt
+family: volatility_stress
+requested_by: owner
+status: awaiting_loader
+series:
+- id: TLT US Equity|IV3M_10DP
+  source: bloomberg
+  security: TLT US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_PUT
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: TLT_IV3M_10DP
+- id: TLT US Equity|IV3M_10DC
+  source: bloomberg
+  security: TLT US Equity
+  fields:
+  - IVOL_DELTA
+  overrides: IVOL_MATURITY=MATURITY_90D; IVOL_DELTA_LEVEL=DELTA_LVL_10; IVOL_DELTA_PUT_OR_CALL=IVOL_CALL
+  raw_file: data/raw/bloomberg/bbg_impvol_values_only.xlsx
+  sheet: IV_Weekly_v
+  frequency: weekly (Friday)
+  workbook_series_id: TLT_IV3M_10DC
+reason: 'H-2026-0019 requires 2 series that are delivered (Bloomberg, pulled 2026-10-15) but
+  not in the snapshot: no loader reads bbg_impvol_values_only.xlsx yet and it is not in data/universe/raw_manifest.csv.
+  The hypothesis is blocked:data until a loader task lands; no substitute is run.'
+available_already: []

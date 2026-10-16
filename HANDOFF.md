@@ -62,6 +62,12 @@ and 24 are done — receipts are in `## Done`.
 
 **As of 2026-10-15 (22:15 ET): queued, 57 then 58.** The owner ruled OWNER-QUEUE L37 on 2026-10-14 ("agree with proposal": `decisions/0059`, moved out of `proposed/`) and L38 on 2026-10-14 and 2026-10-15 (`decisions/0060`), and said "queue the commits". Tasks 55 and 56 and their pushes have landed (`origin/main` was `7cf303e` on 2026-10-14; `9b1e0d5`, task 56's receipt update, was then the only unpushed commit). **Task 57** commits the records and pushes; nothing is built. **Cowork moved the receipts of tasks 55 and 56 into `## Done`:** they had been pasted inside the contract paragraph above, splitting its sentence. A receipt goes directly under the `## Done` heading, newest first. **Not queued:** the `huber6-v4` params patch (Cowork writes it, then the `0059` params patch after it); the phase-2 solver build (`0059`, with `0060`'s validator change); the JPMaQS catalogue check for GBP and JPY carry (`0060`); a loader for the new non-USD bonds. **The owner's Bloomberg pull landed** at 22:05 as `data/raw/bloomberg/bbg_exusd_bonds_extra.xlsx`; **task 58** only describes it. **Waiting on the owner:** L39 (Japan) and `FLDS` for `BEIG1T`.
 
+**As of 2026-10-16 (15:30 ET): task 59 RE-RELEASED after its stop at step 0.** Cowork ruled the stop (option (b): the FDR-vs-FWER study is pinned to its twelve hypotheses) and made the edit; read the task's second revision note. Run it from step 0 again. A tip from the stopped run, for any one-off `python -c`: set `PYTHONPATH=src:.` and `UV_PROJECT_ENVIRONMENT=$HOME/.venvs/signal-lab`.
+
+**As of 2026-10-16 (14:40 ET): queued, task 59 (RELEASED); task 60 written, NOT released.** The owner said yes to `decisions/0061` ("i am ok with the decisions on 0061"), asked for `.claude/settings.json` to be committed (task 59 step 0, revised) and for the pending owner-only params to be drafted: they are in `Claude outputs/params-v0.11.0-draft/` (task 60). *(Superseded part of the note below: task 59 is released.)*
+
+**As of 2026-10-16 (15:00 ET): task 59 is written, NOT released.** Tasks 57 and 58 and their pushes have landed (Cowork checked on 2026-10-16: `origin/main` is `32bdd9f`, equal to HEAD; task 58's missing push line is added to its receipt). The owner registered H-2026-0018 to 0021 on 2026-10-16 (options-implied tail ratio; `decisions/0061`, proposed) and ruled the burn-in at 52 weeks, lab-wide (`decisions/0059` addendum; OWNER-QUEUE L37 amended). **Task 59** commits those records, makes `inspect_raw` skip Excel lock files, loads the implied-vol file, writes its coverage report and reports task 56's open run-of-record gate. **Do not start it until this line says the owner said yes to `decisions/0061`.** **Not queued:** the `huber6-v4` and `0059` params patches (Cowork writes them, owner-only); the phase-2 solver build; a loader for `bbg_exusd_bonds_extra.xlsx`. **Waiting on the owner:** yes to `0061`; L39 (Japan) and `FLDS` for `BEIG1T`.
+
 Notes for task 55 (Cowork, 2026-10-12; the task's text is unchanged):
 - **Superseded for task 55's scope:** the standing refusal "Building from `decisions/0054`" and the paragraph "The label map file (added 2026-10-11)" under "Not queued yet". Task 55 is the queued build of the label map and the region axis, and nothing beyond it.
 - **Step 1's normalisation.** Key the mapping on the verbatim strings as they appear in `decisions/0054`'s bond table, which are the draft's. `0057`'s table paraphrases three of them and names their tickers, so they are mapped, not unmapped: "European, several (mostly EUR)" is `EUR_multi` (`I02513EU`, `LP05TREU`); "Several (EUR, JPY, GBP and others)" is `DM_multi` (`LG38TRUU`); "HY, all ratings" is `HY` with `hy_bucket` `all` (`LF98TRUU`). A string in neither table is still an error.
@@ -3263,6 +3269,254 @@ Then stop.
 
 ---
 
+### 60. Params v0.11.0 and SUBSTRATE v0.12 (`decisions/0058` item 6; `0059` item 1 and its 2026-10-16 addendum): the store read is `huber6-v4`, the label map is pinned, the `views` block lands; the tests follow; then push
+
+Added 2026-10-16 by Cowork. **Written, NOT released.** It is released when
+three things are true, and the queue note at the top will say so: task 59's
+receipt has landed; the owner has read the draft's diff; and **Cowork has
+applied the draft to the working tree** (the owner-only edit is Cowork's, at
+the owner's instruction: "yes draft the pending owner-only params",
+2026-10-16). Claude Code never copies the draft into `params/` or
+`SUBSTRATE.md` itself.
+
+**The draft:** `Claude outputs/params-v0.11.0-draft/` (git-ignored): the
+seven params files and `SUBSTRATE.md` as they will be, CRLF kept, and
+`params-v0.11.0.diff` (160 lines). What changes:
+- `params_version: "0.11.0"` in all seven files.
+- `data.characteristics`: `store_id: huber6-v4`, `directory_hash:
+  b6181bcde28b7e95e69839ff29f2a0a0f19e7552f970b3a24804fcebb7569206` (task
+  56), and a new `label_map: {path: data/universe/label_map.csv, sha256:
+  60ee1934bf89582c8630b1c4a8b2f9b55e1181ec0cd55dc982c2dfa3be85bdb5}` (task
+  55; Cowork re-hashed the working-tree file on 2026-10-16 and it matches).
+- A new `constraints.views` block: `ic_prior: 0.05`, `horizon_rule:
+  geometric_mean_rounded`, `standardisation: {window: expanding,
+  burn_in_weeks: 52, winsorise_at: 3.0}`.
+- SUBSTRATE v0.12: §5.4 gains `BAA10Y` in its list and `0058`'s wording for
+  its last paragraph; the version note says so.
+
+**New params hash `4f13f3736b3e3ea86b3ce8fac4ac5ca93a6aea4c35c0818c6b3e836774840d1e`**
+(Cowork, with the repo's rule: name, NUL, bytes, NUL in `PARAM_FILES` order;
+the same script reproduces today's `413d84f6...1623`).
+
+**What this task does not do:** no solver, no view is formed, nothing reads
+`views` but a params test; no audit; no store is built; `huber6-v3` and its
+committed `exposures_check.{md,json}` are not touched.
+
+**0. Check what Cowork applied.** `git status --short` shows the seven
+`params/*.yaml` and `SUBSTRATE.md` modified (plus `HANDOFF.md` and
+`OWNER-QUEUE.md` if Cowork touched them), and nothing else of Cowork's.
+`git diff --ignore-cr-at-eol params SUBSTRATE.md` matches the draft's diff;
+every file is still CRLF; the params hash is `4f13f373...0d1e`. Any
+difference: stop and report. **The suite is expected red** until steps 1 to 3.
+
+**1. The label map's pin is read.** Where the label map is loaded for a run
+(`characteristics/exposures.py`, `load_label_map` / `ExposureMap.from_params`),
+take its path from `data.characteristics.label_map.path` and refuse a file
+whose sha256 differs from `.sha256`, naming both. Tests: the matching file
+passes; one changed byte is refused; the synthetic label map the tests use is
+passed in explicitly and never compared with the real pin.
+
+**2. The store read is `huber6-v4`.** Every test that reads the store through
+`params/` now reads `v4`. A test that pins a `v3` figure through `params/`
+is changed to the `v4` figure from task 56's receipt, or to read the store it
+names explicitly; list each one in the receipt as changed, not weakened.
+`make exposures-check` without `ARGS` now writes
+`results/characteristics/huber6-v4/exposures_check.{md,json}`; **every figure
+equals task 56's step 6**: 990 weeks from 2001-01-12 to 2019-12-27, all
+Fridays; 79,125 instrument-weeks; 53 and 84 instruments at the first and
+last week; duration measured 7,375, estimated 71,750, missing 0; median
+`axis_duration` at 2019-12-27: Long Treasuries 18.32, Gold 8.29, IG 5.22,
+TIPS 4.55, Treasuries 4.48, EM Equities 2.63, European Equities -1.24. A
+difference: stop.
+
+**3. The `views` block.** A params test: the block loads, `ic_prior` is 0.05,
+`horizon_rule` is `geometric_mean_rounded`, `burn_in_weeks` is 52,
+`winsorise_at` is 3.0. Any test pinning the old params hash takes the new
+one. **No golden may move;** if one does, stop and report it.
+
+**4. Check, commit, push.**
+- `scripts/unattended.sh check-full` (a params change), rc=0;
+  `make governance` passes with the commit citing both records.
+- Commit: `params+substrate: v0.11.0 / v0.12 -- store huber6-v4, label map pinned, views block (HANDOFF task 60, decisions/0058, decisions/0059)`.
+- The receipt in `## Done`, directly under the heading: step 0's hash, the
+  tests changed, step 2's figures, the log directory, tier and runtime.
+  Commit it, `git push origin main` (fast-forward only), the push line.
+  Then stop.
+
+---
+
+### 59. The implied-vol file (`decisions/0061`): commit the records of 2026-10-16, `inspect_raw` skips Excel lock files, a loader for `bbg_impvol_values_only.xlsx` and its coverage report; task 56's open gate, reported only; then push
+
+Added 2026-10-16 by Cowork. **Released 2026-10-16** (owner: "i am ok with the
+decisions on 0061"). **Revised the same day, before it ran:** step 0 also
+commits `.claude/settings.json` (owner: "I want the settings.json committed").
+**Revised again 2026-10-16 (15:30 ET), after the first attempt stopped at step
+0** (receipt in `## Done`): `make check` failed in `tests/test_fdr_vs_fwer.py`
+because `scripts/fdr_vs_fwer.py` read the live `hypotheses/pending/`, and the
+four new files made it 16 hypotheses on seven axes. **Cowork's ruling: option
+(b).** The study is a recorded measurement (tasks 34, 38, 40), so its script
+is pinned to the twelve it was designed on (`STUDY_IDS`, H-2026-0001 to 0012)
+and refuses if any is absent; the tests are unchanged. Cowork made the edit
+(20 lines) and exercised `read_axis_groups` on the real `pending/` with
+Python 3.10: 12 ids, groups 4/3/2/1/1/1, `region` first, six axes; an absent
+id is refused. Re-running the study on the grown registry would be a new
+study; nothing asks for it. Step 0 now commits the pin first.
+
+**Read first:** `decisions/0061` (the rules), the `0059` addendum of
+2026-10-16 (the burn-in is 52 weeks), and the Project doc
+`claude/impvol-coverage-2026-10-15.md` (mirror copy in
+`Claude outputs/project-mirror/`).
+
+**What this task does not do:**
+- **No signal, no solver, no Black premiums, no view.** Nothing reads the
+  panel except the coverage report.
+- **No snapshot change** (`0061` rule 6). The four hypotheses stay pending and
+  their request files stay `awaiting_loader`. Do not edit `hypotheses/` or
+  `data/requests/` beyond committing them in step 0.
+- **No owner-only edit.** `params/`, `vetoes/` and `SUBSTRATE.md` are not
+  touched. `params/` still names `huber6-v3`; that patch is Cowork's to write.
+- **No value leaves the machine.** Report dates, counts and hashes only. The
+  workbook is opened by the repo's code, never printed.
+
+**Budget:** about 2 hours, most of it the check.
+
+**0. Commit the records first.**
+- `git status --short` should show exactly: ` M scripts/fdr_vs_fwer.py`,
+  ` M HANDOFF.md`,
+  ` M OWNER-QUEUE.md`, ` M decisions/0059-the-phase-2-solver.md`,
+  `?? decisions/0061-the-implied-vol-file.md`,
+  `?? hypotheses/pending/H-2026-0018.yaml` to `0021.yaml` (four),
+  `?? data/requests/H-2026-0018.yaml` to `0021.yaml` (four), and
+  ` M .claude/settings.json`. **Commit `.claude/settings.json` too,** in its
+  own commit after the records: `settings: allow a fast-forward push of main,
+  deny every forced push (owner 2026-10-16)`. Print its `git diff
+  --ignore-cr-at-eol` in the receipt (it is a permission list, no secret).
+  Anything else in `git status`: stop and report.
+- **Validate the four new hypotheses with the repo's own validator** before
+  committing: `HypothesisRegistry(params=get_params()).load("pending")` under
+  `uv run --python 3.12 --group dev python -c ...` (thread variables set to 1),
+  printing only each id, `kind`, `family`, `target_axis` and
+  `expected_expression`. **Expect 16 pending, none rejected**, and the four
+  new rows: 0018 signal / volatility_stress / region / both; 0019 signal /
+  volatility_stress / duration / directional; 0020 signal / volatility_stress /
+  credit / directional; 0021 measurement / covariance / covariance / both. Also
+  check that **no id in their `data_required` matches
+  `loaders.jpmaqs.TICKER_RE`** (Cowork checked with a copy of the pattern on
+  Python 3.10; the repo's import does not run there). A rejection or a match:
+  stop and report; do not edit the file.
+- `make check` (expect it green now: the two `test_fdr_vs_fwer.py` tests read
+  the pinned twelve) and `make governance`. Commit
+  `scripts/fdr_vs_fwer.py` alone first: `scripts: the FDR-vs-FWER study reads
+  its twelve hypotheses, not the live registry (HANDOFF task 59)`. Then commit
+  the records:
+  `records: decisions/0061 (decided, the implied-vol file) and the 0059 addendum (52-week burn-in); H-2026-0018 to 0021 registered; OWNER-QUEUE L37 amended (owner 2026-10-16)`.
+
+**1. `inspect_raw.py` skips Excel lock files** (task 58's receipt). It globs
+`*.xlsx` and failed on `~$bbg_impvol_all.xlsx`, the 165-byte lock file Excel
+leaves while a workbook is open. Skip any file whose name starts with `~$`
+and say so in its output; add a test (a `~$x.xlsx` of junk bytes beside a real
+synthetic workbook: the run succeeds and describes only the real one).
+
+**2. Describe the file, structure only.** As in task 58:
+`make inspect-raw > "$HOME/inspect_raw.out" 2>&1`, check `rc=0`, do not open
+the printout (it holds rows 5-8, which are values). From
+`data/universe/raw_structure.json`, for `bbg_impvol_values_only.xlsx` only,
+print each sheet's name, `n_rows`, `n_cols` and the count of non-empty cells
+in row 1. `sha256sum` (first 16 hex). **Cowork expects** (openpyxl, read-only,
+2026-10-16): `IV_Daily_v` 5,466 x 92 with 31 series ids in row 1; `IV_Weekly_v`
+1,918 x 146 with 49; `Probe_Summary_v` 215 x 14; sha256 prefix
+`aeb90f8758e46fbd`. A difference in dimensions is not an error; list it. A
+different hash: stop.
+
+**3. The loader: `src/signal_lab/loaders/impvol.py`.** Modelled on
+`loaders/exusd_analytics.py` (pure functions, a `SHA256_PREFIX` pin, the
+holdout dropped first, `enforce_holdout` on the output). Implement `0061`'s
+rules 1 to 5 exactly:
+- read the blocks of `IV_Weekly_v` and `IV_Daily_v` (row 1 `series_id`, row 2
+  security, row 3 field, row 4 overrides, data from row 5; date, value, blank).
+  A block with an empty header cell, or a value cell that is text (a Bloomberg
+  error such as `#N/A N/A`), is refused with its `series_id` named;
+- the lab id `<security>|<point>` (rule 1), with the workbook id kept;
+- holdout, then weekly by Friday (rule 3), then the stale rule (rule 4,
+  `STALE_RUN_WEEKS = 6` as a module constant citing `0061`);
+- return a long frame: `date` (the Friday), `series_id` (lab id),
+  `workbook_series_id`, `security`, `field`, `overrides`, `sheet`, `value`;
+  plus the stale weeks removed, per series.
+
+Add three rows to `data/universe/raw_manifest.csv`:
+`bbg_impvol_values_only.xlsx,IV_Weekly_v,series_blocks,various,n/a,implied_vol,4,5`;
+the same for `IV_Daily_v` with role `implied_vol_daily`; and
+`bbg_impvol_values_only.xlsx,Probe_Summary_v,table,n/a,n/a,implied_vol_probe,1,2`.
+If the manifest reader validates layouts, add `series_blocks` to its list.
+`bbg_impvol_all.xlsx` gets no row.
+
+**Tests** (synthetic workbooks only, never the vendor file): the block layout
+read back; a text value refused; an empty header refused; every lab id fails
+`TICKER_RE`, and `SPX_IV3M_10DP` itself matches it (that is why rule 1
+exists); `SKEW` becomes `SKEW Index|PX_LAST`; a non-Friday date on the weekly
+sheet refused; daily to Friday takes the last day of the week and drops a week
+whose Friday is on or after the holdout; a run of 5 identical weeks is kept
+whole and a run of 6 keeps 1 and removes 5; nothing on or after the holdout in
+the output; a wrong hash refused.
+
+**4. The coverage report.** `scripts/impvol_coverage.py`, a `make
+impvol-coverage` target, writing `results/impvol/coverage.{md,json}`: per lab
+id, the sheet, first and last Friday, weeks before the stale rule, stale weeks
+removed, weeks kept, and missing Fridays between first and last. **Every
+figure below is Cowork's, computed 2026-10-16 from the same file with the same
+rules on Python 3.10 (a copy, not the repo's code).** Report any difference
+and do not change the rules to match.
+
+| Series (lab id prefix) | Points | First Friday | Weeks (before rule) | Stale removed | Missing Fridays |
+|---|---|---|---|---|---|
+| `EZU US Equity` | 10DP 25DP 25DC 10DC M100 | 2008-04-04 | 587 each | 0 | 26 (one hole, 2011-01-14 to 2011-07-22) |
+| `EWJ US Equity` | same five | 2005-11-04 | 739 | 0 | 0 |
+| `EWA US Equity` | same five | 2007-02-02 | 674 | 0 | 0 |
+| `EWC US Equity` | same five | 2006-03-31 | 718 | 0 | 0 |
+| `EEM US Equity` (weekly) | 10DP 25DP 25DC 10DC | 2006-03-31 | 718 | 0 | 0 |
+| `TLT US Equity`, `LQD US Equity` | 10DP 25DP 25DC 10DC ATM | 2005-02-04 | 778 | 0 | 0 |
+| `HYG US Equity` | same five | 2007-05-04 | 658 | 0 | 3 |
+| `SPX Index` (weekly) | 25DP 25DC 10DC ATM | 2005-02-04 | 778 | 0 | 0 |
+| `XAUUSDV3M BGN Curncy` | ATM | 2002-12-06 | 891 | 76 | 0 |
+| `XAUUSD25R3M` / `25B3M BGN Curncy` | 25R / 25B | 2006-02-03 | 726 | 38 / 102 | 0 |
+| `XAUUSD10R3M` / `10B3M BGN Curncy` | 10R / 10B | 2006-02-03 | 710 | 83 / 86 | 16 |
+| `SKEW Index` | PX_LAST | 1990-02-02 | 1,560 | 0 | 0 |
+| `SPX Index` (daily) | M090 to M110, 10DP | 2005-02-04 | 778 | 0 | 0 |
+| `SX5E Index` (daily) | M090 to M110 | 2006-02-03 | 726 | 0 | 0 |
+| `NKY Index` (daily) | M090 to M110 | 2006-02-03 | 725 | 0 | 1 |
+| `AS51 Index` (daily) | M090 to M110 | 2005-06-03 | 761 | 0 | 0 |
+| `EEM US Equity` (daily) | M090 to M110 | 2006-03-31 | 718 | 0 | 0 |
+| `SPTSX60 Index` (daily) | M090 to M110 | 2005-06-03 | 761 | 0 | 0 |
+
+Last Friday is 2019-12-27 for every series. **Totals: 80 series, 59,114
+weeks before the stale rule, 385 removed (all gold: 76 + 38 + 102 + 83 + 86),
+58,729 kept.** EEM appears twice, from different sheets and fields
+(`IVOL_DELTA` weekly, the moneyness fields daily); their lab ids differ by
+point and do not collide. Check that no two series share a lab id.
+
+**5. Task 56's open gate, reported only.** Task 56's receipt: "I did not run
+the default path's run-of-record gates after the loader change ... I expect
+them to stop on those four unless `CONVERTED` is extended; that is for Cowork
+to rule". Rebuild `huber6-v3` into a scratch root outside the repo exactly as
+task 54 step 1 did (`scripts/build_characteristics.py --store-id huber6-v3
+--root <tmp> --report-root <tmp> --supersedes ""`) and report: does the
+run-of-record gate pass, and if not, which instruments and how many cells
+differ, and by how much at most. **Change no code and do not extend
+`CONVERTED`.** Delete the scratch store afterwards. Cowork rules from the
+report.
+
+**6. Check, commit, push.**
+- `scripts/unattended.sh check-scoped` (it leaves a log), rc=0.
+- Commit the build: `loaders: the implied-vol file, inspect_raw skips Excel lock files, coverage report (HANDOFF task 59, decisions/0061)`.
+- The receipt in `## Done`, directly under the heading, newest first: the
+  step-0 validator printout, step 2's dimensions and hash, the coverage
+  totals and every row that differs from the table, step 5's answer, the
+  check's log directory, tier and runtime. Commit it, then
+  `git push origin main` (fast-forward only), and add the push line to the
+  receipt. Then stop.
+
+---
+
 ### 58. Describe the new Bloomberg file, `bbg_exusd_bonds_extra.xlsx` (`decisions/0060`, the data request): structure only, no loader; then push
 
 Added 2026-10-15 by Cowork. Runs after task 57. **Revised at 22:50 the same
@@ -4527,6 +4781,22 @@ run would have said.
 
 ## Done
 
+### 2026-10-16 -- task 59: STOPPED at step 0, nothing committed; for Cowork to rule (Claude Code, Sonnet 5.5)
+
+**Task 59 stays in the queue; nothing in it was done beyond step 0's checks.** No commit, no push, no code, no edit except this receipt. `git status --short` was exactly the list step 0 expects.
+
+- **Validator (step 0):** `HypothesisRegistry(params=get_params()).load_tolerant("pending")` gave **16 valid, 0 rejected**. New rows: 0018 signal / volatility_stress / region / both; 0019 signal / volatility_stress / duration / directional; 0020 signal / volatility_stress / credit / directional; 0021 measurement / covariance / covariance / both. No `data_required` id matches `TICKER_RE`. (A bare `uv run python -c` cannot import `signal_lab`; it needs `PYTHONPATH=src:.` as pytest's `pythonpath` does, and `UV_PROJECT_ENVIRONMENT=$HOME/.venvs/signal-lab`.)
+- **`make governance`:** rc=0, no uncited owner-only change since 85694662.
+- **`make check`: FAILED, 2 failed, 812 passed, 64 deselected, 121 s**, both in `tests/test_fdr_vs_fwer.py`:
+  - `test_reads_twelve_hypotheses_grouped_as_the_task_describes`: `assert len(hyp_ids) == 12`, got 16.
+  - `test_spread_true_covers_every_axis_before_doubling_up`: expected axis groups `{0..5}`, got an extra group `6`.
+- **Cause:** `study.read_axis_groups()` reads the live `hypotheses/pending/`. The tests hard-code the 12 hypotheses and 6 target axes of the study's design. The four new untracked files add 4 hypotheses and a seventh axis (`covariance`, H-2026-0021). Not a code defect, and not caused by anything in task 59's build steps.
+- **Decision for Cowork** (I did not change `tests/`, and did not commit the records, per "stop and report on the first failure"):
+  - (a) Pin the two tests to the 12 ids the study was designed around, or to a fixed fixture directory, so the live registry can grow. Tests only, not owner-only. Claude Code's recommendation.
+  - (b) Let `read_axis_groups()` take a pending directory or an id list, with the study's script passing the 12.
+  - (c) Rule that the study should now read all 16, and rewrite the expectations (this changes what the FDR-vs-FWER study means, so it is a judgement).
+- **Also check:** whether step 0's "`make check`" expectation should have anticipated this, and whether any other fast-tier test counts the pending directory. This run found only these two.
+
 ### 2026-10-16 -- task 58: bbg_exusd_bonds_extra.xlsx described, structure only (Claude Code, Sonnet 5.5)
 
 **rc=0 on the second run.** The first `make inspect-raw` (2026-10-15) returned **rc=2**: `BadZipFile` on `~$bbg_impvol_all.xlsx`, a 165-byte Excel lock file left in `data/raw/bloomberg/` while the owner had that workbook open (`inspect_raw.py` globs `*.xlsx`). The owner closed the workbook, the lock file was gone, and the rerun returned rc=0. The printout went to `$HOME/inspect_raw.out`, not opened beyond error lines on the failed run. `inspect_raw.py` could skip `~$` files; not changed here (no code in this task). `sha256sum` first 16 hex: `7464927042b769de`; 5,823,494 bytes. Nothing from `raw_meta.json`; no row 2-8 printed.
@@ -4547,6 +4817,7 @@ From `data/universe/raw_structure.json`, row 1 of the header, dimensions, dates:
 **Against Cowork's expectation:** `levels` is 15 columns as expected, but the order is the five EUR, the eight GBP, then the two `BEIG` (the expectation listed `BEIG` before the GBP). Three sheets Cowork did not list: `analytics_wide`, `Formula Version`, `Pull Report`. `analytics` has 51,452 rows from 1998-06-30. `analytics_wide` row 1 is a ticker row, so its field names are on a later row (not read). **No sheet's last date is on or after 2020-01-01; the latest is 2019-12-31.** The file was not edited.
 
 - **Push:** see the line below, written after the push.
+- **Push, update (2026-10-16, Cowork):** the line above was never followed by one. Checked from `git` on 2026-10-16: `origin/main` is `32bdd9f`, equal to HEAD (this receipt's commit), and the remote-tracking reflog's last entry is an `update by push`. So task 58's push landed.
 
 ### 2026-10-15 -- task 57: decisions 0059 (decided) and 0060, OWNER-QUEUE L37 and L38 closed, L39 opened (Claude Code, Sonnet 5.5)
 

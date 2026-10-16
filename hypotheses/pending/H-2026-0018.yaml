@@ -1,0 +1,75 @@
+id: H-2026-0018
+family: volatility_stress
+signal: implied_tail_ratio_10d_3m
+direction: positive
+target_axis: region
+rationale: >
+  Option prices are a forward-looking estimate of the distribution of an
+  asset's returns, and the two tails carry separate information: out-of-the-money
+  puts price the left tail and out-of-the-money calls the right. The ratio of
+  the two premiums at equal delta is a market-implied measure of how much upside
+  is priced against downside, the options analogue of the ratio of expected tail
+  gain to expected tail loss. The claim, after Alankar, DePalma and Scholes, is
+  that this ratio forecasts the asymmetry of the coming quarter's returns, so an
+  equity market whose options price relatively more upside than downside should
+  outperform one whose options price the reverse. The relationship is positive:
+  a higher tail ratio implies a higher regional equity weight. The horizon is
+  the option tenor, three months, which is also where listed equity options are
+  liquid; anything beyond one quarter is extrapolation the options do not make.
+  It survives the long-only constraint because the cross-sectional test is a
+  relative tilt within an equity budget that is always positive, and the
+  directional test times each region against cash. The declared weakness is the
+  sign itself. A competing explanation reads the same ratio as a price of crash
+  insurance: when puts are expensive the holder of the asset is paid for bearing
+  crash risk and later returns are higher, which predicts the opposite sign, and
+  at index level that reading has had at least as much support as this one. A
+  result in that direction is recorded as a failure of this hypothesis, not
+  flipped. A second weakness is the sample: the European leg starts in April 2008,
+  so the development window has about ten and a half years after the burn-in,
+  with the 2008 crisis inside it.
+horizon_weeks: 4-13
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - SPX Index|IV3M_10DP
+  - SPX Index|IV3M_10DC
+  - EZU US Equity|IV3M_10DP
+  - EZU US Equity|IV3M_10DC
+  - EWJ US Equity|IV3M_10DP
+  - EWJ US Equity|IV3M_10DC
+  - EWA US Equity|IV3M_10DP
+  - EWA US Equity|IV3M_10DC
+  - EWC US Equity|IV3M_10DP
+  - EWC US Equity|IV3M_10DC
+  - EEM US Equity|IV3M_10DP
+  - EEM US Equity|IV3M_10DC
+notes: >
+  Signal definition, fixed before any result: for each region's proxy, the Black
+  premium of the 3-month 10-delta call and of the 3-month 10-delta put, each
+  computed from its own implied vol at the strike that delta implies, in units
+  of the forward, with rates and dividends set to zero; the score is the log of
+  call premium over put premium. Equal delta rather than fixed moneyness,
+  because a fixed 90/110 strike sits at a different distance into the tail for
+  each asset and would rank volatility, not asymmetry. A 25-delta version is a
+  separate registration if wanted, not a variant of this one. The 5% Rachev
+  ratio is not used: the quoted points stop at 10 delta and 90-110% moneyness,
+  so it would need an extrapolation the data does not pin down.
+  Proxies, one per region (decisions/0054): US = SPX Index; Developed Europe =
+  EZU US Equity; Japan = EWJ; APAC ex-Japan = EWA (Australia only, declared);
+  Canada = EWC; EM = EEM. All are USD-priced except SPX, which is a USD index;
+  so the options price USD returns, as the lab's base currency requires
+  (decisions/0053). Global has no view (decisions/0054 item 10).
+  Data: data/raw/bloomberg/bbg_impvol_values_only.xlsx, sheets IV_Weekly_v and
+  IV_Daily_v (SPX_IV3M_10DP is daily only), pulled 2026-10-15. Bloomberg's
+  IVOL_DELTA delta convention (spot or forward) is not confirmed. EZU has one
+  27-week hole, 2011-01-14 to 2011-07-22; a region without a score on a date
+  gets no view on that date and the cross-section is formed across the rest.
+  Fast block, weekly. Burn-in 52 weeks (decisions/0059 addendum 2026-10-16).
+  Moved from the SAA programme, where the same idea was judged out of horizon;
+  source idea Alankar, DePalma and Scholes (AllianceBernstein, 2013, white
+  paper, not peer-reviewed) and the Janus Henderson Adaptive Multi-Asset
+  prospectus. The ratio itself is the Rachev ratio (Biglova, Ortobelli, Rachev
+  and Stoyanov, Journal of Portfolio Management, 2004; citation to be verified
+  before any move to literature provenance).

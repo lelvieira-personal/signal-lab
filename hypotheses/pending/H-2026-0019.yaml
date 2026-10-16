@@ -1,0 +1,42 @@
+id: H-2026-0019
+family: volatility_stress
+signal: implied_tail_ratio_10d_3m_tlt
+direction: positive
+target_axis: duration
+rationale: >
+  The same claim as H-2026-0018 applied to the long end of the US Treasury curve.
+  Options on a long-duration Treasury fund price the tails of its price, so
+  calls price a rally in bonds, a fall in yields, and puts a sell-off. When the
+  options price relatively more upside than downside, the market sees a fall in
+  yields as the larger tail risk, and the claim is that this asymmetry is
+  realised over the following quarter. The relationship is positive: a higher
+  tail ratio implies more duration. The horizon is the option tenor, three
+  months. It is a directional view on the USD curve only, expressed through the
+  duration of USD-curve bonds against the benchmark, and needs no short because
+  the benchmark already holds duration across the curve; the scope keeps a US
+  options signal from moving Bunds or gilts. The declared weaknesses are the
+  insurance reading of the same ratio, which predicts the opposite sign, and the
+  fact that long-bond option skew moves with the stock-bond correlation: in a
+  regime where bonds hedge equities, demand for bond calls is a hedge demand
+  rather than a forecast, and the signal may then measure the hedge, not the
+  outlook.
+horizon_weeks: 4-13
+expected_expression: directional
+scope:
+  curve: [USD]
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - TLT US Equity|IV3M_10DP
+  - TLT US Equity|IV3M_10DC
+notes: >
+  Signal definition as H-2026-0018 (log ratio of 10-delta call to put Black
+  premium, 3 months, zero rates and dividends). TLT is 20-year-plus; using it to
+  time the whole USD curve assumes its tail asymmetry speaks for shorter tenors,
+  which the owner has questioned for the 10-year (signal-lab factor notes:
+  "a poor guide to short-tenor sensitivity"); declared, not corrected.
+  USD_real (TIPS) is outside the scope. Treasury futures options were not
+  available from Bloomberg history; swaption skew is pending VCUB tickers and
+  would be a separate registration. Data from 2005-02, weekly, no gaps.
+  Fast block. Burn-in 52 weeks.

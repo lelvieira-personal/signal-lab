@@ -1,0 +1,50 @@
+id: H-2026-0021
+kind: measurement
+family: covariance
+signal: implied_downside_vs_realised_downside
+direction: positive
+target_axis: covariance
+rationale: >
+  The ex-ante risk term in the solver is tracking error estimated from trailing
+  returns, and the owner has said he is open to replacing it with a measure that
+  captures active-drawdown risk better. Options give a forward-looking estimate
+  of downside that trailing returns cannot: the price of a 10-delta put is the
+  market's price for the left tail over the next three months. The claim under
+  test is positive: an instrument's implied downside, the 10-delta put premium,
+  predicts its realised downside over the next thirteen weeks, measured as
+  downside semideviation of weekly returns, better than the trailing
+  semideviation the lab would otherwise use. This is a measurement, not a
+  strategy: it is judged on out-of-sample forecast quality of realised downside,
+  not on net IR, so that the risk machinery is not chosen by whichever version
+  flatters the signals (decisions/0016). If it passes, the next question, how a
+  per-instrument implied downside becomes a portfolio-level active risk term,
+  is a separate design; the joint tail is not in the options data. The declared
+  weakness is that implied vol carries a variance risk premium, so implied
+  downside is biased upward against realised; the test is of ranking and
+  correlation through time, which a stable premium does not affect, and the
+  bias is reported, not corrected.
+horizon_weeks: 13-13
+expected_expression: both
+proposed_by: owner
+provenance: adaptation
+reference: null
+data_required:
+  - SPX Index|IV3M_10DP
+  - EZU US Equity|IV3M_10DP
+  - EWJ US Equity|IV3M_10DP
+  - EWA US Equity|IV3M_10DP
+  - EWC US Equity|IV3M_10DP
+  - EEM US Equity|IV3M_10DP
+  - TLT US Equity|IV3M_10DP
+  - HYG US Equity|IV3M_10DP
+  - LQD US Equity|IV3M_10DP
+notes: >
+  Directional here means through time for each instrument; cross-sectional
+  means across the nine instruments on each date. Realised returns are the
+  instruments' own weekly total returns in the lab's universe; the proxy-to-
+  instrument mapping is the one in H-2026-0018 plus TLT, HYG and LQD to their
+  closest index. Scoring rule and the comparison benchmark (trailing 52-week
+  semideviation) are fixed here; the pass threshold is the owner's, after the
+  first run. Not counted in the signal stepdown. Sits beside H-2026-0012 as a
+  measurement of the risk term; can run before phase 3 because it needs no
+  regime model.
