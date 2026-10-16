@@ -4527,6 +4527,12 @@ run would have said.
 
 ## Done
 
+### 2026-10-15 -- task 57: decisions 0059 (decided) and 0060, OWNER-QUEUE L37 and L38 closed, L39 opened (Claude Code, Sonnet 5.5)
+
+**rc=0.** Commit `f4dcc64` (the records: `HANDOFF.md`, `OWNER-QUEUE.md`, new `decisions/0059-the-phase-2-solver.md` and `decisions/0060-four-hypotheses-get-their-cross-section.md`; nothing else). Before it, `git status --short` showed exactly those four paths and ` M .claude/settings.json` (not committed, still modified), and `git log` ended at `9b1e0d5`. `make check` rc=0 (24 passed, fast tier) and `make governance` rc=0 (no uncited owner-only change since 85694662). No code, no params, no audit, no vendor call.
+
+- **Push:** see the line below, written after the push.
+
 ### 2026-10-12 -- task 56: store huber6-v4, the ex-USD bonds on Bloomberg's close, the credit factor on BAA10Y (Claude Code, Sonnet 5.5)
 
 **rc=0 for the work; the push did not happen.** Commit `e968f28` (the build; `ruff` clean). Log directory `results/audit/_unattended/20261012-092541-check-full/`: **tier check-full (the whole suite)**, rc=0, **588 s**, nothing left out, **no golden moved**. The weekly-returns hash moved as expected (`v3` `0377b3fc...`, `v4` `2fef64ef...`; four series changed).
