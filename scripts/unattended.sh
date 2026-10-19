@@ -29,6 +29,17 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# One run at a time (decisions/0062 item 5): the lock scripts/nightly/run.sh holds.
+# A child of a nightly run inherits the lock (SIGNAL_LAB_LOCK_HELD=1) and skips this.
+if [ "${SIGNAL_LAB_LOCK_HELD:-}" != "1" ] && command -v flock >/dev/null 2>&1; then
+  mkdir -p "$HOME/.locks"
+  exec 9>"$HOME/.locks/signal-lab.lock"
+  if ! flock -n 9; then
+    echo "another run holds $HOME/.locks/signal-lab.lock; not starting (decisions/0062)" >&2
+    exit 75
+  fi
+fi
+
 target="${1:-check}"
 digest="${2:-}"
 case "$target" in

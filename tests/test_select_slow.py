@@ -266,7 +266,11 @@ def test_the_output_says_which_tier_ran(tree):
 # test_governance.py runs scripts/check_governance.py; scripts/check_governance.py
 # is also imported by name there, so the selector does see it. This file shells
 # out to `pytest --collect-only` below.
-INVISIBLE = {"tests/test_governance.py", "tests/test_select_slow.py"}
+#
+# test_nightly.py loads scripts/nightly/*.py by path with importlib and runs
+# run.sh and the hook by subprocess. It is in the fast tier and no slow test
+# imports what it runs (HANDOFF task 61, decisions/0062).
+INVISIBLE = {"tests/test_governance.py", "tests/test_nightly.py", "tests/test_select_slow.py"}
 
 
 def _reaches_by_other_means(path: Path) -> bool:
