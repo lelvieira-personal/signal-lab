@@ -50,6 +50,10 @@ owner-only change: those arrive as patches citing a `decisions/` record.
 add an item or move a closed one to its `## Closed` section; **never answer
 one.**
 
+When started by `scripts/nightly/run.sh`, work only the ids on HANDOFF's
+`Nightly-release:` line (`decisions/0062`); nobody is there to answer, so stop
+and write the receipt rather than ask.
+
 ## Routine, unattended work
 `scripts/unattended.sh <check|check-scoped|check-full|audit-lean|audit> [--digest]`
 runs `make check` for the bare `check` target, `make check-scoped` for
@@ -60,5 +64,5 @@ When asked for a digest, read `status.txt`, the log tails and the newest
 digest: pass/fail, runtime, the tier that ran, the slow files left out, the
 load averages at the start and the end, the five slowest tests (`junit.xml`),
 veto failures, net IR by cell against the 0.30
-bar, `te_p95_to_budget`, `bias_stat`, `inaccurate_share`, turnover against the
-400% backstop. Flag anything surprising. Do not propose changes to params.
+bar, `te_p95_to_budget`, `bias_stat`, `inaccurate_share`, turnover, highlighted
+above 200% (never vetoed, `decisions/0038`). Flag anything surprising. Do not propose changes to params.

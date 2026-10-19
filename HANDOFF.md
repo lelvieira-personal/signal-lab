@@ -33,9 +33,29 @@ and leave the number where the run wrote it.
 **One at a time.** Do not launch a second `scripts/unattended.sh` while one is
 running; they compete and the loser dies with `Error 143`.
 
+**Nightly runs (`decisions/0062`).** Claude Code also runs headless at 23:00 and
+12:30 ET, started by `scripts/nightly/run.sh`. It works only the task ids on the
+`Nightly-release:` line below, in order, and only when that line's stamp has
+not run before. With nobody there to answer, it asks nothing: on the first
+failure it writes a STOPPED receipt that says what failed, what it tried, and
+which column of `0062` item 8 the stop falls in (its own reading; Cowork
+checks it). It pushes only where the task says so and the line says
+`push=yes`. The line's `model=` names the model (`sonnet` when absent). Cowork
+reviews at 05:30 and 16:30 ET, may rule alone only on what `0062` item 8 lists, and
+brings everything else to the owner. A task that expects a run of more than
+five hours needs `long` on the line, and starts only on a Thursday, Friday or
+Saturday night. While `results/audit/_nightly/RUNNING` is fresh, Cowork edits
+no tracked file.
+
 ---
 
 ## Queue
+
+Nightly-release: none @2026-10-19T08:00 by=owner push=no
+
+**As of 2026-10-19 (11:00 ET): queued, task 61 (run by hand), then the canary, task 62.** The owner said "ok to put 61 and 62 in handoff". **Task 61** commits `decisions/0062`, this contract change and the nightly build (`scripts/nightly/`, `tests/test_nightly.py`, the lock in `scripts/unattended.sh`, `.gitattributes`), runs the checks and pushes. Run it interactively, as before: the nightly worker does not exist until it lands. **Task 62** runs through the worker: after 61's push, the release line is set to `62 ... push=no` and the owner starts `bash scripts/nightly/run.sh day` by hand. The line stays `none` until then, so nothing runs on its own. Task 60 stays NOT released.
+
+**As of 2026-10-19 (08:00 ET): nothing is released.** The owner decided `decisions/0062` ("consider it approved"): the nightly run and the morning review. Cowork applied the contract paragraph above, the release line and two `CLAUDE.md` edits in the working tree; nothing is committed. The nightly scripts are not built yet, so nothing runs tonight. Next: the build (the scripts, `.claude/nightly.json`, the hook, the `unattended.sh` lock) and a canary task for one supervised run, both written by Cowork and shown to the owner first. Task 60 stays NOT released.
 
 Tasks **0-11 are complete**; receipts are in `## Done` and the text as issued is
 in git history. The queue below starts at 12.
@@ -3268,6 +3288,71 @@ manifest and its report, as
 Then stop.
 
 ---
+
+### 61. The nightly worker lands (`decisions/0062`): commit the record and the build; then push
+
+Added 2026-10-19 by Cowork. Run by hand, in an interactive session: the
+nightly machinery this task commits is what will run later tasks. No
+owner-only path is touched.
+
+**Step 0. The working tree.** `git status --short` must be exactly:
+
+     M .gitattributes
+     M CLAUDE.md
+     M HANDOFF.md
+     M scripts/unattended.sh
+    ?? decisions/0062-the-nightly-run-and-the-morning-review.md
+    ?? scripts/nightly/
+    ?? tests/test_nightly.py
+
+and `scripts/nightly/` must hold exactly `config.sh guard.py nightly_gate.py
+prompt.md run.sh settings.json`. Anything else: stop and report.
+`git diff --ignore-cr-at-eol` on the four modified files should show: in
+`HANDOFF.md`, the contract's "Nightly runs" paragraph, the `Nightly-release:`
+line, the 2026-10-19 queue notes and the text of tasks 61 and 62 (and
+nothing in any other task); in `CLAUDE.md`,
+one sentence added and "400% backstop" replaced; in `scripts/unattended.sh`,
+the 11-line lock block (a blank line, two comment lines and the block) after `cd`; in `.gitattributes`, `*.sh text eol=lf`.
+
+**Step 1. Checks before committing.**
+- `bash -n scripts/nightly/run.sh` → rc 0.
+- `python3 scripts/nightly/nightly_gate.py gate --handoff HANDOFF.md --slot day
+  --ran /tmp/ran --runs /tmp --month-cap 100 --sonnet-cap 6 --opus-cap 12`
+  → prints `GO=0` and `REASON='nothing is released'`. (System python3, no
+  venv: the gate is stdlib only.)
+- The lock: in one terminal `exec 9>~/.locks/signal-lab.lock; flock 9` (after
+  `mkdir -p ~/.locks`), then in a second `scripts/unattended.sh check; echo
+  rc=$?` → `rc=75` with "another run holds" on stderr, and no new directory
+  under `results/audit/_unattended/`. Close the first terminal (or `exec 9>&-`).
+- `scripts/unattended.sh check-scoped` → rc 0. Expect tier FULL (new files
+  cannot be placed), about 10 minutes. `tests/test_nightly.py` is in the fast
+  tier: 46 tests, none slow.
+
+**Step 2. Two commits.**
+
+    git add decisions/0062-the-nightly-run-and-the-morning-review.md HANDOFF.md CLAUDE.md
+    git commit -m "records: decisions/0062 (decided 2026-10-19), the nightly run and the morning review; the HANDOFF contract and CLAUDE.md follow"
+    git add .gitattributes scripts/unattended.sh scripts/nightly tests/test_nightly.py
+    git commit -m "scripts: the nightly worker, its gate and its guard; unattended.sh takes the one-run lock (HANDOFF task 61, decisions/0062)"
+
+**Step 3. Receipt, then push.** Receipt under `## Done` as usual, committed
+alone; then `git push origin main`, a fast-forward. Report `git rev-list
+--count @{u}..HEAD` before and after.
+
+### 62. Canary: one supervised nightly run (`decisions/0062` item 12)
+
+Added 2026-10-19 by Cowork. **Run only after task 61's receipt and push have
+landed, and only once the `Nightly-release:` line names 62** (`push=no`). Started by
+the owner by hand: `bash scripts/nightly/run.sh day` between 11:00 and 17:00
+(or `night` between 22:00 and 04:30).
+
+1. `git log --oneline -3` and `git status --short`; put both in the receipt.
+2. `scripts/unattended.sh check` → rc 0 (the fast tier, about 2 minutes).
+   Name its `results/audit/_unattended/` directory in the receipt. It must
+   not fail with rc 75: the nightly run's child inherits the lock.
+3. Receipt, committed alone (`HANDOFF.md`). **No push.**
+
+Expected: under $1 on Sonnet, under 15 minutes.
 
 ### 60. Params v0.11.0 and SUBSTRATE v0.12 (`decisions/0058` item 6; `0059` item 1 and its 2026-10-16 addendum): the store read is `huber6-v4`, the label map is pinned, the `views` block lands; the tests follow; then push
 
