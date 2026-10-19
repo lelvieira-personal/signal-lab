@@ -51,7 +51,9 @@ no tracked file.
 
 ## Queue
 
-Nightly-release: none @2026-10-19T08:00 by=owner push=no
+Nightly-release: 62 @2026-10-19T15:25 by=owner push=no
+
+**As of 2026-10-19 (15:25 ET): task 61 landed and is verified; task 62, the canary, is RELEASED** on the line above (`push=no`, Sonnet). The owner released it on 2026-10-19 ("ok to put 61 and 62 in handoff"; `decisions/0062` item 12, "4) yes"). It runs once: by hand with `bash scripts/nightly/run.sh day` before 17:00, or else at the first scheduled slot. Task 60 stays NOT released.
 
 **As of 2026-10-19 (11:00 ET): queued, task 61 (run by hand), then the canary, task 62.** The owner said "ok to put 61 and 62 in handoff". **Task 61** commits `decisions/0062`, this contract change and the nightly build (`scripts/nightly/`, `tests/test_nightly.py`, the lock in `scripts/unattended.sh`, `.gitattributes`), runs the checks and pushes. Run it interactively, as before: the nightly worker does not exist until it lands. **Task 62** runs through the worker: after 61's push, the release line is set to `62 ... push=no` and the owner starts `bash scripts/nightly/run.sh day` by hand. The line stays `none` until then, so nothing runs on its own. Task 60 stays NOT released.
 
@@ -4866,6 +4868,10 @@ run would have said.
 
 ## Done
 
+### 2026-10-19 -- task 62: canary STOPPED at step 2 (Claude Code, sonnet, nightly 2026-10-19T15:25)
+
+**STOPPED, no rc (the command never ran).** Step 1 done: `git log --oneline -3` was `b22236a`, `c4892c2`, `2c48413`; `git status --short` showed only ` M HANDOFF.md` (the release line and queue note, Cowork's, uncommitted). Step 2: `scripts/unattended.sh check` was **denied by the permission mode** ("don't ask mode") before it started, so there is no log directory and no rc 75 check. I tried nothing else: running it another way would work around the denial. Uncommitted: `HANDOFF.md` (Cowork's release-line edit, plus this receipt). Nothing pushed. Reading of `decisions/0062` item 8: owner: a permission denial in the nightly run's settings is not Cowork's to rule on (when unsure, owner). Cowork to check first: whether the headless run's allow-list (`.claude/`) covers `scripts/unattended.sh` and `make`; task 62 exists to find exactly this.
+
 ### 2026-10-19 -- task 61: the nightly worker lands; decisions/0062 and the build committed (Claude Code, Sonnet 5.5)
 
 **rc=0.** Commits: `2c48413` (decisions/0062, HANDOFF, CLAUDE.md), `c4892c2` (the build) and this receipt's commit.
@@ -4875,6 +4881,7 @@ run would have said.
 - **A stop, then a ruling.** The first `check-scoped` returned rc=2: `tests/test_select_slow.py::test_nothing_reaches_repo_code_in_a_way_the_selector_cannot_see` found `tests/test_nightly.py` (importlib, subprocess) missing from `INVISIBLE`. Reported; the owner ruled "option 1, add it to INVISIBLE". **Not in the task's file set:** `tests/test_select_slow.py` gained `tests/test_nightly.py` in `INVISIBLE` with a comment, and is in the second commit.
 - **Second `check-scoped`.** rc=0, 428 s, tier=FULL, slow files left out: none; 938 passed. Log: `results/audit/_unattended/20261019-150833-check-scoped`.
 - **Anything not done:** the two-terminal form of the lock test was done from one shell. The push follows this receipt's commit.
+- **Push, update (2026-10-19 15:25, Cowork):** checked from the remote itself (`git ls-remote`): GitHub's `main` is `b22236a`, this receipt's commit, equal to HEAD and to `origin/main`. Both `check-scoped` logs read: the first rc=2 at 11:15 (the `INVISIBLE` test, Cowork's miss in writing `tests/test_nightly.py`), the second rc=0 at 15:15, 428 s, tier FULL, on files last written before it started.
 
 ### 2026-10-16 -- task 59: the implied-vol file loaded, coverage report written, task 56's gate reported (Claude Code, Sonnet 5.5)
 
