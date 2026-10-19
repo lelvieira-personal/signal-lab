@@ -4866,6 +4866,16 @@ run would have said.
 
 ## Done
 
+### 2026-10-19 -- task 61: the nightly worker lands; decisions/0062 and the build committed (Claude Code, Sonnet 5.5)
+
+**rc=0.** Commits: `2c48413` (decisions/0062, HANDOFF, CLAUDE.md), `c4892c2` (the build) and this receipt's commit.
+
+- **Step 0.** `git status --short` and `scripts/nightly/` (six files) were as specified; the HANDOFF diff was additions only, in the places the task lists; the other three diffs were as described.
+- **Step 1.** `bash -n scripts/nightly/run.sh` rc 0. The gate printed `GO=0`, `REASON='nothing is released'`. The lock: with the lock held, `scripts/unattended.sh check` gave rc=75 with "another run holds" on stderr, and `results/audit/_unattended/` stayed at 67 directories (held from a subshell with `flock`, not two terminals).
+- **A stop, then a ruling.** The first `check-scoped` returned rc=2: `tests/test_select_slow.py::test_nothing_reaches_repo_code_in_a_way_the_selector_cannot_see` found `tests/test_nightly.py` (importlib, subprocess) missing from `INVISIBLE`. Reported; the owner ruled "option 1, add it to INVISIBLE". **Not in the task's file set:** `tests/test_select_slow.py` gained `tests/test_nightly.py` in `INVISIBLE` with a comment, and is in the second commit.
+- **Second `check-scoped`.** rc=0, 428 s, tier=FULL, slow files left out: none; 938 passed. Log: `results/audit/_unattended/20261019-150833-check-scoped`.
+- **Anything not done:** the two-terminal form of the lock test was done from one shell. The push follows this receipt's commit.
+
 ### 2026-10-16 -- task 59: the implied-vol file loaded, coverage report written, task 56's gate reported (Claude Code, Sonnet 5.5)
 
 **rc=0.** Commits: `7301e42` (`scripts/fdr_vs_fwer.py` pinned to its twelve), `2dcd030` (the records), `23c9f0a` (`.claude/settings.json`), `391c424` (the build and `results/impvol/coverage.{md,json}`). The first attempt's stop is the receipt below this one; Cowork's option (b) ruling cleared it.
