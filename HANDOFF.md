@@ -51,7 +51,9 @@ no tracked file.
 
 ## Queue
 
-Nightly-release: 62 @2026-10-19T15:25 by=owner push=no
+Nightly-release: 62 @2026-10-19T17:10 by=cowork push=no
+
+**As of 2026-10-19 (17:10 ET): task 62 RE-RELEASED by Cowork after its stop** (`decisions/0062` item 8: re-releasing a stopped task once the cause is fixed; the owner also said "yes" to the revision). The first run stopped at step 2 on `echo`, missing from the worker's allow list; read the task's revision note 1. It runs at the first slot that passes the gate, tonight at 23:00. Task 60 stays NOT released.
 
 **As of 2026-10-19 (15:25 ET): task 61 landed and is verified; task 62, the canary, is RELEASED** on the line above (`push=no`, Sonnet). The owner released it on 2026-10-19 ("ok to put 61 and 62 in handoff"; `decisions/0062` item 12, "4) yes"). It runs once: by hand with `bash scripts/nightly/run.sh day` before 17:00, or else at the first scheduled slot. Task 60 stays NOT released.
 
@@ -3356,6 +3358,33 @@ the owner by hand: `bash scripts/nightly/run.sh day` between 11:00 and 17:00
 
 Expected: under $1 on Sonnet, under 15 minutes.
 
+**Revision note 1 (2026-10-19 17:10, Cowork; owner: "yes" to (a) and (b)).**
+The first run (`results/audit/_nightly/20261019-153210-day`, receipt `aec7eee`)
+was denied at step 2: it sent `date && scripts/unattended.sh check; echo rc=$?;
+ls -dt ... | head -2` as one call, and **`echo` was not on the allow list**
+(every part of a compound command must be). `scripts/unattended.sh` was
+allowed. Cowork's fix is in the working tree, uncommitted, in four files:
+`scripts/nightly/run.sh` (allow `echo`, `printf`, `cat`, `cut`, `sort`,
+`uniq`, `tr`, `cd`, `pwd`, `true`; `status.txt` names denied commands),
+`scripts/nightly/nightly_gate.py` (reads them), `scripts/nightly/prompt.md`
+(one command per call; a denied compound may be re-run part by part) and
+`tests/test_nightly.py` (47 tests). **Run the task from step 1 again, with
+these changes to it:**
+- **Step 2 becomes `scripts/unattended.sh check-scoped`** → rc 0 (this run
+  commits `scripts/` and `tests/`, so the scoped check is the definition of
+  done; expect tier FULL, about 7 to 10 minutes). Name its log directory. It
+  must not fail with rc 75.
+- **New step 2b, the guard:** run `cat git_key.pub` as its own call. Expect it
+  **blocked by the nightly guard** (`decisions/0062` item 6), not run; copy
+  the block message's first sentence into the receipt. The file is a public
+  key, so nothing secret is at stake if the guard failed; say so if it ran.
+- **New step 3a, before the receipt:** `git diff --ignore-cr-at-eol --stat`
+  must show exactly the four files above and `HANDOFF.md` (Cowork's revision note and release line, committed with the receipt); then
+  `git add scripts/nightly/run.sh scripts/nightly/nightly_gate.py scripts/nightly/prompt.md tests/test_nightly.py`
+  and `git commit -m "scripts: the nightly allow list gains echo and other read-only commands; denials named in status.txt; one command per call (HANDOFF task 62, decisions/0062)"`.
+  Commit nothing else in it.
+- The receipt follows as step 4, committed alone. **Still no push.**
+
 ### 60. Params v0.11.0 and SUBSTRATE v0.12 (`decisions/0058` item 6; `0059` item 1 and its 2026-10-16 addendum): the store read is `huber6-v4`, the label map is pinned, the `views` block lands; the tests follow; then push
 
 Added 2026-10-16 by Cowork. **Written, NOT released.** It is released when
@@ -4867,6 +4896,16 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-19 -- task 62: canary run, the allow-list fix committed (Claude Code, sonnet, nightly 2026-10-19T17:10)
+
+**rc=0.** Commits: `0509c3c` (the allow-list fix, four files) and this receipt's commit. No push (`push=no`).
+
+- **Step 1.** `git log --oneline -3`: `aec7eee`, `b22236a`, `c4892c2`. `git status --short`: ` M HANDOFF.md`, ` M scripts/nightly/nightly_gate.py`, ` M scripts/nightly/prompt.md`, ` M scripts/nightly/run.sh`, ` M tests/test_nightly.py`.
+- **Step 2 (revised).** `scripts/unattended.sh check-scoped` rc=0, 511 s, tier=FULL, slow files left out: none; no rc 75. Log: `results/audit/_unattended/20261019-230027-check-scoped`.
+- **Step 2b, the guard.** `cat git_key.pub` as its own call was **blocked by the nightly guard**, not run. First sentence of the block: "nightly guard (decisions/0062): this command names vendor data or a secret (data/raw, data/snapshots, .env, a key)."
+- **Step 3a.** `git diff --ignore-cr-at-eol --stat` showed exactly the four files plus `HANDOFF.md`; the four were committed as `0509c3c` with the task's message, nothing else.
+- **Not done / to check:** nothing skipped. Cowork to check that `status.txt` for this run names no denied commands.
 
 ### 2026-10-19 -- task 62: canary STOPPED at step 2 (Claude Code, sonnet, nightly 2026-10-19T15:25)
 
