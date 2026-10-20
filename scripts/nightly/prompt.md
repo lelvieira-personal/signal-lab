@@ -41,6 +41,11 @@ The wrapper's log for this run is `@@OUT@@/status.txt`; do not write there.
    a `decisions/` record, applied the way the task says.
 10. Run long commands in the foreground: one shell command may run for up to
     16 hours. Do not background them and do not poll.
-11. At the end, print a summary: for each released id, done, stopped or not
+11. Use one command per shell call where you can; a compound command (`;`,
+    `&&`, `|`) is allowed only if every part of it is. If a call is denied,
+    the cause may be one part of it: running the allowed parts as separate
+    calls is not a workaround. If a command the task itself names is denied
+    on its own, stop.
+12. At the end, print a summary: for each released id, done, stopped or not
     started; its rc; its commits; whether it pushed; and anything Cowork must
     check first.

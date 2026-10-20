@@ -132,6 +132,8 @@ allow=(
   "Bash(git push origin main)"
   "Bash(ls *)" "Bash(wc *)" "Bash(head *)" "Bash(tail *)" "Bash(grep *)" "Bash(sha256sum *)"
   "Bash(date)" "Bash(date *)" "Bash(mkdir *)" "Bash(mktemp *)"
+  "Bash(echo *)" "Bash(printf *)" "Bash(cat *)" "Bash(cut *)" "Bash(sort *)" "Bash(uniq *)"
+  "Bash(tr *)" "Bash(cd *)" "Bash(pwd)" "Bash(true)"
 )
 deny=(
   WebFetch WebSearch
@@ -174,6 +176,7 @@ esac
 
 eval "$(python3 scripts/nightly/nightly_gate.py result "$out/transcript.jsonl" "$out/result.json")"
 log "claude rc=$rc ($elapsed s) end_reason='$why' subtype=$SUBTYPE cost_usd=$COST turns=$TURNS denials=$DENIALS"
+[ -n "$DENIED" ] && log "denied: $DENIED"
 end_head="$(git rev-parse --short HEAD)"
 log "end head=$end_head (start $start_head)"
 log "commits: $(git log --format='%h %s' "$start_head..HEAD" | tr '\n' ';' | sed 's/;$//')"

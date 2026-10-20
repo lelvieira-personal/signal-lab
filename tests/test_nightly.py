@@ -219,7 +219,9 @@ def test_result_reads_the_last_result_message(tmp_path):
                         "subtype": "success",
                         "total_cost_usd": 1.23456,
                         "num_turns": 42,
-                        "permission_denials": [{"tool_name": "Bash"}],
+                        "permission_denials": [
+                            {"tool_name": "Bash", "tool_input": {"command": "date && echo rc=$?"}}
+                        ],
                     }
                 ),
             ]
@@ -227,7 +229,12 @@ def test_result_reads_the_last_result_message(tmp_path):
         + "\n"
     )
     vals = gate_mod.result(tr, tmp_path / "r.json")
-    assert vals == {"SUBTYPE": "success", "COST": "1.2346", "TURNS": "42", "DENIALS": "1"}
+    assert vals["SUBTYPE"] == "success" and vals["COST"] == "1.2346"
+    assert (
+        vals["TURNS"] == "42"
+        and vals["DENIALS"] == "1"
+        and vals["DENIED"] == "Bash: date && echo rc=$?"
+    )
     assert json.loads((tmp_path / "r.json").read_text())["num_turns"] == 42
     assert (
         gate_mod.result(tmp_path / "missing.jsonl", tmp_path / "r2.json")["SUBTYPE"] == "no-result"
@@ -299,3 +306,17 @@ def test_the_worker_cannot_edit_its_own_plumbing():
     settings = json.loads((NIGHTLY / "settings.json").read_text())
     hook = settings["hooks"]["PreToolUse"][0]
     assert hook["matcher"] == "Bash" and "guard.py" in hook["hooks"][0]["command"]
+
+
+def test_the_canary_command_is_allowed_part_by_part():
+    # Task 62's first run (2026-10-19) was denied on `echo`: every part of a
+    # compound command must be on the allow list.
+    run_sh = (NIGHTLY / "run.sh").read_text()
+    for rule in (
+        "Bash(echo *)",
+        "Bash(ls *)",
+        "Bash(head *)",
+        "Bash(date *)",
+        "Bash(scripts/unattended.sh *)",
+    ):
+        assert f'"{rule}"' in run_sh

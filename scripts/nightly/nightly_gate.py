@@ -192,7 +192,7 @@ def result(transcript: Path, out: Path) -> dict[str, str]:
     except OSError:
         pass
     if last is None:
-        return {"SUBTYPE": "no-result", "COST": "", "TURNS": "", "DENIALS": ""}
+        return {"SUBTYPE": "no-result", "COST": "", "TURNS": "", "DENIALS": "", "DENIED": ""}
     keep = {
         k: last.get(k)
         for k in (
@@ -211,6 +211,12 @@ def result(transcript: Path, out: Path) -> dict[str, str]:
     }
     out.write_text(json.dumps(keep, indent=2), encoding="utf-8")
     denials = last.get("permission_denials") or []
+    shown = []
+    for d in denials[:3]:
+        tool = d.get("tool_name", "?") if isinstance(d, dict) else "?"
+        inp = d.get("tool_input", {}) if isinstance(d, dict) else {}
+        what = (inp.get("command") or inp.get("file_path") or "") if isinstance(inp, dict) else ""
+        shown.append(f"{tool}: {' '.join(str(what).split())[:160]}")
     return {
         "SUBTYPE": str(last.get("subtype", "")),
         "COST": ""
@@ -218,6 +224,7 @@ def result(transcript: Path, out: Path) -> dict[str, str]:
         else f"{float(last['total_cost_usd']):.4f}",
         "TURNS": str(last.get("num_turns", "")),
         "DENIALS": str(len(denials)),
+        "DENIED": " | ".join(shown),
     }
 
 
