@@ -51,7 +51,9 @@ no tracked file.
 
 ## Queue
 
-Nightly-release: 63 @2026-10-21T09:40 by=owner push=no
+Nightly-release: 63 @2026-10-21T15:20 by=owner push=no
+
+**As of 2026-10-21 (15:20 ET): task 63 RE-RELEASED to resume at step 4, by Cowork on the owner's instruction.** The 12:30 run did steps 0 to 3 (commit `5501945`) and stopped: its step 4 command was denied. Cause, read from the run's `result.json`: the allow list has `Bash(uv run --python 3.12 --group dev *)` and `Bash(make *)`, and the worker started the command with `env VAR=...` / `VAR=...`, which matches neither. It is a command-shape problem, not a settings problem; `scripts/nightly/` is not touched. Fix: a `make` target (task 63, step 4a). Tasks 64 and 65 stay NOT released, and run after this receipt; 65 also waits for the owner's file (`data/raw/bloomberg/bbg_japan_govt.xlsx`, 410,623 bytes, saved 2026-10-21, not yet opened by anyone).
 
 **As of 2026-10-21 (09:45 ET): tasks 64 and 65 written, NOT released.** The owner ruled OWNER-QUEUE L39 option (a) (add the 2013 Japan family, `I29064JP` to `I29068JP`). **Task 64** commits `decisions/0063`; Cowork copies the draft from `Claude outputs/decision-0063-draft/` into `decisions/` at release, and it runs after task 63's receipt. **Task 65** describes the Japan file and is released only after the owner has pulled it (request: `Claude outputs/bbg_pull_japan_govt_2026-10-21.csv`) and saved it under `data/raw/bloomberg/`; the release note will name the file. L39 stays open until the instruments are admitted.
 
@@ -3430,6 +3432,25 @@ point on rule 1).
 6. Anything matching none of these is rejected with the offending entry named, in the
    existing `HypothesisRejected` form.
 
+**RESUME 2026-10-21 (Cowork, 15:20 ET). Steps 0 to 3 are done and committed (`5501945`). Skip them. Start at step 4a.** This block overrides step 0 and the run line of step 4; everything else in the task stands.
+
+**Step 0 (resume).** `git status --short` must show exactly:
+
+     M HANDOFF.md
+     M OWNER-QUEUE.md
+     M decisions/proposed/0034-a-data-required-name-must-resolve.md
+    ?? AGENTS.md
+    ?? scripts/check_registry_names.py
+
+(`scripts/check_registry_names.py` is the worker's own file from the 12:30 run: read it, fix it if it is wrong, never run it by any command except the make target below.) Anything else: stop and report.
+
+**Step 4a. A make target.** Add to `build.mk` (and its `.PHONY` line), in the style of `inspect-raw`:
+
+    registry-names: ## one-off: data_required names the resolver rejects (HANDOFF task 63)
+    	$(PY) --group dev python scripts/check_registry_names.py
+
+Run it as **`make registry-names`**, nothing in front of it (no `env`, no variable assignments, no `cd`, no `for` loops: the allow list matches the start of the command and `make *` is on it; the `$(PY)` line in `build.mk` is how the other targets set the environment; if it does not set the three thread variables, put them in the target line, not on the command line). To look at a coverage table use `head -3 data/universe/<file>.csv`, one file per call. If `make registry-names` is denied anyway, **stop** and report the exact command and the denial; try nothing else.
+
 **Step 0. The working tree.** `git status --short` must show exactly:
 
      M HANDOFF.md
@@ -5096,6 +5117,17 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-21 -- task 63: done, resumed at step 4a (Claude Code, sonnet, interactive 2026-10-21T15:30)
+
+**rc=0.** Commits: `5501945` (steps 1 to 3, earlier run), `c7b51b6` (`scripts: a one-off report of data_required names the resolver rejects (HANDOFF task 63)`: `scripts/check_registry_names.py`, `build.mk`), `eafee95` (`records: decisions/0034 decided; the "fabricated" LT08TRUU corrections (HANDOFF task 63)`). No push (`push=no`).
+
+- **Step 4a.** `registry-names` target added to `build.mk` and `.PHONY`. The script first failed with `No module named 'signal_lab'`; fixed by `import _bootstrap` like the other scripts. `make registry-names` then ran, rc 0.
+- **The pass: 21 files, 136 entries; 35 entries rejected in 9 files.** (a) 25 entries in `H-2026-0018` to `0021` (pending), all `<ticker>|IV3M_10DP` or `|IV3M_10DC` (SPX Index, EZU, EWJ, EWA, EWC, EEM, TLT, HYG US Equity; `0021` also LQD): no coverage table covers the implied-vol file, as Cowork guessed. (b) **10 entries Cowork did not guess:** `GTII10` and `DXY` in each of `H-2026-0013` to `0017` (done, measurement hypotheses). Both are SUBSTRATE §5.3 analytics-tab series; reading is that the resolver's sources do not cover them. Nothing edited, nothing added to the owner-confirmed list; what to do is the owner's.
+- **`check-scoped` for the script commit:** rc 0, 166 s, tier SCOPED (not FULL), slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_scripts`. Directory `results/audit/_unattended/20261021-153419-check-scoped/`.
+- **Step 5.** `git grep "H-2026-0010" -- tests scripts src` found only id references in `scripts/jpmaqs_name_search.py`, nothing pinning the file's text, so the note edit was **made** (YAML parses). `0034` moved to `decisions/` with Status decided (the proposed file's status text was `Status: **proposed**.` inline, not `**Status:** **proposed**`); 0032 addendum, OWNER-QUEUE L6 correction line added. The first attempt (one Python command) was denied by the auto-mode classifier; the owner then told me to use the Edit tool, which I did. L39 committed as Cowork left it.
+- **`check` (docs tier):** rc 0, 160 s, directory `results/audit/_unattended/20261021-154618-check/` (log stamp 15:46:18).
+- **Uncommitted:** `AGENTS.md` (left alone), this receipt.
 
 ### 2026-10-21 -- task 63: STOPPED at step 4, the pass could not run (Claude Code, sonnet, nightly 2026-10-21T09:40)
 
