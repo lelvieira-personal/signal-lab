@@ -19,6 +19,7 @@ even after the files have moved.
 
 from __future__ import annotations
 
+import csv
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ from signal_lab.results.store import ResultsStore
 REPO_ROOT = Path(__file__).resolve().parents[3]
 HYPOTHESES_DIR = REPO_ROOT / "hypotheses"
 REQUESTS_DIR = REPO_ROOT / "data" / "requests"
+UNIVERSE_DIR = REPO_ROOT / "data" / "universe"
 
 STATES = ("pending", "running", "done")
 
@@ -226,7 +228,12 @@ def get_resolver(params: Params | None = None):
 # --- parse and validate ------------------------------------------------------
 
 
-def parse_hypothesis(path: Path | str, params: Params | None = None) -> Hypothesis:
+def parse_hypothesis(
+    path: Path | str,
+    params: Params | None = None,
+    resolve_names: bool = False,
+    universe_dir: Path | str | None = None,
+) -> Hypothesis:
     """Read one YAML file and validate it. Raises HypothesisRejected."""
     path = Path(path)
     try:
@@ -235,11 +242,103 @@ def parse_hypothesis(path: Path | str, params: Params | None = None) -> Hypothes
         raise HypothesisRejected(f"{path.name}: not valid YAML: {exc}") from exc
     if not isinstance(doc, dict):
         raise HypothesisRejected(f"{path.name}: top level must be a mapping")
-    return validate_hypothesis(doc, params=params, path=path)
+    return validate_hypothesis(
+        doc, params=params, path=path, resolve_names=resolve_names, universe_dir=universe_dir
+    )
+
+
+# --- name resolution (decisions/0034) ----------------------------------------
+
+
+def _split_name(entry: str) -> tuple[str, str]:
+    """`SPX Index|FIELD` -> (`SPX`, `FIELD`); a bare name has an empty field."""
+    ticker, _, fld = entry.partition("|")
+    ticker = ticker.strip()
+    if ticker.endswith(" Index"):
+        ticker = ticker[: -len(" Index")].strip()
+    return ticker, fld.strip()
+
+
+def _read_csv_column(path: Path, column: str) -> list[str]:
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8-sig", newline="") as fh:
+        return [row[column].strip() for row in csv.DictReader(fh) if row.get(column)]
+
+
+def _known_names(params: Params, universe_dir: Path) -> tuple[set[str], set[tuple[str, str]]]:
+    """(tickers that resolve bare, (ticker, field) pairs that resolve with a field)."""
+    tickers: set[str] = set()
+    pairs: set[tuple[str, str]] = set()
+    for fname, column in (
+        ("investable_universe.csv", "ticker"),
+        ("bbg_index_coverage.csv", "ticker"),
+        ("bbg_exusd_bonds_coverage.csv", "ticker"),
+        ("fred_coverage.csv", "series_id"),
+    ):
+        tickers.update(_read_csv_column(universe_dir / fname, column))
+    for fname in ("bbg_analytics_coverage.csv", "bbg_exusd_analytics_coverage.csv"):
+        for tf in _read_csv_column(universe_dir / fname, "ticker_field"):
+            ticker, fld = _split_name(tf)
+            tickers.add(ticker)
+            pairs.add((ticker, fld))
+    bench = params.get("constraints.benchmark", {}) or {}
+    for key in ("equity", "bond", "alternative_bond_leg"):
+        if bench.get(key):
+            tickers.add(str(bench[key]))
+    for leg in (bench.get("pre_1999_extension", {}) or {}).values():
+        if isinstance(leg, str) and re.fullmatch(r"[A-Z0-9]+", leg):
+            tickers.add(leg)
+    confirmed = universe_dir / "owner_confirmed_names.csv"
+    if confirmed.exists():
+        with confirmed.open(encoding="utf-8-sig", newline="") as fh:
+            for row in csv.DictReader(fh):
+                name = (row.get("name") or "").strip()
+                if not name:
+                    continue
+                ticker, _ = _split_name(name)
+                fld = (row.get("field") or "").strip()
+                if fld:
+                    pairs.add((ticker, fld))
+                else:
+                    tickers.add(ticker)
+    return tickers, pairs
+
+
+def unresolved_names(
+    data_required: list[str],
+    params: Params | None = None,
+    universe_dir: Path | str | None = None,
+) -> list[str]:
+    """
+    The `data_required` entries that name nothing (decisions/0034).
+
+    A Bloomberg or FRED name resolves against the coverage tables, the benchmark
+    legs and the owner-confirmed list; with a `|FIELD` the pair must be in an
+    analytics table or on the owner-confirmed list. A JPMaQS name resolves on the
+    form of decisions/0014, with no catalogue lookup. Resolution catches
+    inventions, not mistakes: a real ticker that is the wrong one passes.
+    """
+    from signal_lab.loaders.jpmaqs import is_jpmaqs_ticker
+
+    params = params or get_params()
+    tickers, pairs = _known_names(params, Path(universe_dir or UNIVERSE_DIR))
+    bad: list[str] = []
+    for entry in data_required:
+        if "|" in entry:
+            if _split_name(entry) not in pairs:
+                bad.append(entry)
+        elif _split_name(entry)[0] not in tickers and not is_jpmaqs_ticker(entry):
+            bad.append(entry)
+    return bad
 
 
 def validate_hypothesis(
-    doc: dict[str, Any], params: Params | None = None, path: Path | None = None
+    doc: dict[str, Any],
+    params: Params | None = None,
+    path: Path | None = None,
+    resolve_names: bool = False,
+    universe_dir: Path | str | None = None,
 ) -> Hypothesis:
     params = params or get_params()
     where = path.name if path else doc.get("id", "<unnamed>")
@@ -327,6 +426,14 @@ def validate_hypothesis(
     data_required = doc["data_required"]
     if not isinstance(data_required, list) or not all(isinstance(s, str) for s in data_required):
         raise HypothesisRejected(f"{where}: data_required must be a list of series ids")
+    if resolve_names:
+        unresolved = unresolved_names(data_required, params, universe_dir)
+        if unresolved:
+            raise HypothesisRejected(
+                f"{where}: data_required entries {unresolved} resolve to no known series "
+                f"(decisions/0034). A real name that was never pulled belongs in "
+                f"data/universe/owner_confirmed_names.csv, which only the owner extends."
+            )
 
     proxy_for = doc.get("proxy_for")
     if proxy_for is not None and not isinstance(proxy_for, dict):
@@ -512,13 +619,32 @@ class HypothesisRegistry:
         store: ResultsStore | None = None,
         params: Params | None = None,
         requests_dir: Path | str = REQUESTS_DIR,
+        universe_dir: Path | str = UNIVERSE_DIR,
     ):
         self.root = Path(root)
         self.store = store
         self.params = params or get_params()
         self.requests_dir = Path(requests_dir)
+        self.universe_dir = Path(universe_dir)
         for state in STATES:
             (self.root / state).mkdir(parents=True, exist_ok=True)
+
+    def register(self, path: Path | str) -> Path:
+        """
+        Validate a hypothesis with its names resolved (decisions/0034) and put it
+        under `pending/`. A file already there is validated and left in place; one
+        elsewhere is moved in, and never over an existing registration.
+        """
+        path = Path(path)
+        parse_hypothesis(path, self.params, resolve_names=True, universe_dir=self.universe_dir)
+        pending = self.root / "pending"
+        if path.resolve().parent == pending.resolve():
+            return path
+        target = pending / path.name
+        if target.exists():
+            raise FileExistsError(f"{target} already exists; refusing to overwrite a registration")
+        shutil.move(str(path), str(target))
+        return target
 
     def paths(self, state: str) -> list[Path]:
         if state not in STATES:
