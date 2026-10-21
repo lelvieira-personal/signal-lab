@@ -51,7 +51,11 @@ no tracked file.
 
 ## Queue
 
-Nightly-release: 62 @2026-10-19T17:10 by=cowork push=no
+Nightly-release: 63 @2026-10-21T09:40 by=owner push=no
+
+**As of 2026-10-21 (09:45 ET): tasks 64 and 65 written, NOT released.** The owner ruled OWNER-QUEUE L39 option (a) (add the 2013 Japan family, `I29064JP` to `I29068JP`). **Task 64** commits `decisions/0063`; Cowork copies the draft from `Claude outputs/decision-0063-draft/` into `decisions/` at release, and it runs after task 63's receipt. **Task 65** describes the Japan file and is released only after the owner has pulled it (request: `Claude outputs/bbg_pull_japan_govt_2026-10-21.csv`) and saved it under `data/raw/bloomberg/`; the release note will name the file. L39 stays open until the instruments are admitted.
+
+**As of 2026-10-21 (08:20 ET): task 63 written, NOT released.** The owner ruled on `decisions/proposed/0034` ("I agree with the proposed validation", 2026-10-21) and asked for the task. It waits for the owner's release on the line above. Suggested release: `Nightly-release: 63 @<time> by=owner push=no`, Sonnet. Cowork's working-tree edits for it are `OWNER-QUEUE.md` (L39 restated, nothing answered) and `decisions/proposed/0034` (the ruling and a correction). Task 60 stays NOT released.
 
 **As of 2026-10-19 (17:10 ET): task 62 RE-RELEASED by Cowork after its stop** (`decisions/0062` item 8: re-releasing a stopped task once the cause is fixed; the owner also said "yes" to the revision). The first run stopped at step 2 on `echo`, missing from the worker's allow list; read the task's revision note 1. It runs at the first slot that passes the gate, tonight at 23:00. Task 60 stays NOT released.
 
@@ -3385,6 +3389,202 @@ these changes to it:**
   Commit nothing else in it.
 - The receipt follows as step 4, committed alone. **Still no push.**
 
+### 63. A `data_required` name must resolve when a hypothesis is registered (`decisions/0034`, ruled 2026-10-21); the "fabricated" corrections
+
+Added 2026-10-21 by Cowork. **Written, NOT released.** The owner releases it on the
+`Nightly-release:` line (suggested `63`, `push=no`, Sonnet; escalate to Opus only if it
+stops on the design). No owner-only path is touched: `src/`, `tests/`, `scripts/`,
+`data/universe/`, `decisions/`, `OWNER-QUEUE.md` and one hypothesis note.
+
+**Why.** `decisions/proposed/0034` asks the harness to refuse a fabricated instrument
+the way it already refuses a fabricated citation. The owner ruled 2026-10-21: "In any
+case i agree with the proposed validation." Read the record first, including its two
+2026-10-21 sections (the ruling, and the correction about `LT08TRUU` with the open
+point on rule 1).
+
+**Where the record was silent, Cowork decided as follows (the owner may strike any):**
+1. **Where the check applies.** `validate_hypothesis` is also what loading runs, and
+   there is no registration step today (`STATES` is pending, running, done; agents write
+   files). So the check is a keyword, `resolve_names: bool = False`, and loading behaves
+   exactly as now (0034: "does not re-validate retroactively"). A new
+   `HypothesisRegistry.register(path)` validates with `resolve_names=True`, then moves a
+   file not already under `hypotheses/pending/` into it, refusing to overwrite. Nothing
+   calls `register` yet.
+2. **What is real, for a Bloomberg or FRED name.** Take the text before `|` as the
+   ticker (drop a trailing ` Index`), and the text after as the field. The ticker
+   resolves if it is in any of: `investable_universe.csv` (`ticker`),
+   `bbg_index_coverage.csv` (`ticker`), `bbg_exusd_bonds_coverage.csv` (`ticker`),
+   `fred_coverage.csv` (`series_id`), the ticker part of `ticker_field` in
+   `bbg_analytics_coverage.csv` and `bbg_exusd_analytics_coverage.csv`, the benchmark
+   legs named under `benchmark:` in `params/constraints.yaml`, or the owner-confirmed
+   list (item 3). If a field is given, the pair must be in an analytics table or on the
+   owner-confirmed list.
+3. **The owner-confirmed list** (the open point on rule 1): a new tracked file
+   `data/universe/owner_confirmed_names.csv`, header `name,field,confirmed_by,confirmed_on,how,note`.
+   It holds real vendor names that no coverage table has yet. Only the owner (or
+   Cowork, on the owner's written statement) adds a row; **the worker adds none beyond
+   the seed row below.** Seed row: `LT08TRUU,,owner,2026-10-21,owner statement,"US Treasury: Intermediate Index, 1 to 9.9999 years; future ticker I00049US (not verified by Cowork)"`.
+4. **JPMaQS names** (rule 2): `is_jpmaqs_ticker` from `signal_lab.loaders.jpmaqs`
+   (the `CCY_CATEGORY_TRANSFORM` form of `decisions/0014`). No catalogue lookup.
+5. **A measurement hypothesis** with an empty `data_required` still validates.
+6. Anything matching none of these is rejected with the offending entry named, in the
+   existing `HypothesisRejected` form.
+
+**Step 0. The working tree.** `git status --short` must show exactly:
+
+     M HANDOFF.md
+     M OWNER-QUEUE.md
+     M decisions/proposed/0034-a-data-required-name-must-resolve.md
+    ?? AGENTS.md
+
+(`AGENTS.md` is a Codex orientation file the owner is not using; leave it untouched and
+uncommitted.) Anything else: stop and report.
+
+**Step 1. The code** (`src/signal_lab/harness/hypotheses.py`): the resolver as a
+function that returns the list of unresolved entries, `resolve_names` on
+`validate_hypothesis` and `parse_hypothesis`, and `HypothesisRegistry.register`. The
+coverage tables are read once per call to the resolver, with `utf-8-sig`. `load` and
+`load_tolerant` must not change behaviour. Create `data/universe/owner_confirmed_names.csv`
+with the seed row.
+
+**Step 2. Tests** (`tests/test_hypotheses.py`, or a new `tests/test_name_resolution.py`),
+three per rule as 0034 says (passing, failing, boundary), in a temporary directory with
+small fixture tables, never the real registry: a bare ticker; `TICKER Index|FIELD`; a
+field not in the analytics tables; a FRED id; a benchmark leg; the seed row's `LT08TRUU`;
+a well-formed and a malformed JPMaQS name; a measurement hypothesis with an empty list;
+**`load_tolerant` still returns a file whose name does not resolve while `register` rejects it**.
+
+**Step 3. The check.** `scripts/unattended.sh check-scoped` → rc 0 (this commit touches
+`src/`, `scripts/`/`tests/` and a data file; expect tier FULL, about 7 to 10 minutes).
+Name its log directory. Then commit: `git add` exactly the files changed in steps 1 and 2 and
+`data/universe/owner_confirmed_names.csv`, with the message
+`harness: a data_required name must resolve at registration (HANDOFF task 63, decisions/0034)`.
+
+**Step 4. The one-off pass over the registry** (0034 asks for it once the rule exists).
+Add `scripts/check_registry_names.py`: for every file in `hypotheses/pending/` and
+`hypotheses/done/` print the file name and each entry the resolver rejects, then the
+totals; it writes nothing and exits 0. Run it with the three thread variables set to 1.
+**Put the totals and the rejected names in the receipt. Do not edit any hypothesis, and
+add no row to the owner-confirmed list, to make it pass.** `scripts/` is touched, so run
+`scripts/unattended.sh check-scoped` again (rc 0; name its directory), then commit the script in its own
+commit: `scripts: a one-off report of data_required names the resolver rejects (HANDOFF task 63)`.
+*Cowork's guess, from a simplified dry run outside the repo's environment:* of 136 entries
+in 21 files, about 25 come back unresolved, all of the form `<ticker>|IV3M_10DP` or
+`<ticker>|IV3M_10DC` in `H-2026-0018` to `H-2026-0021`, because no coverage table covers
+the implied-vol file. If the real pass differs, report it as it is; that is not a failure.
+
+**Step 5. The records** (one commit, docs tier). Before editing the hypothesis note,
+run `git grep -n "H-2026-0010" -- tests scripts src`; if any test or script pins that
+file's text or hash, **skip the note edit, say so in the receipt, and do the rest.**
+- `git mv decisions/proposed/0034-a-data-required-name-must-resolve.md decisions/0034-a-data-required-name-must-resolve.md`,
+  and replace its `**Status:** **proposed**` with `**Status:** **decided** 2026-10-21 by
+  the owner ("In any case i agree with the proposed validation"); resolution sources
+  fixed by HANDOFF task 63.` Edit nothing else in the file (Cowork's two 2026-10-21
+  sections stay).
+- `decisions/0032-the-registry-tickers-against-the-real-panel.md`: append a section
+  `## Addendum 2026-10-21 (owner)` saying `LT08TRUU` is a real Bloomberg index, the US
+  Treasury: Intermediate Index, 1 to 9.9999 years, future ticker `I00049US` (owner's
+  statement, not verified by Cowork); that "fabricated" at the lines naming it was wrong
+  for it and right for `LUALTRUU` on the owner's word; and that the rulings stand,
+  because `LT01TRUU` against `LT11TRUU` was chosen on the panel and not on the
+  existence of `LT08TRUU`. Do not edit the earlier text.
+- `OWNER-QUEUE.md`, closed item L6: add one line under it, dated 2026-10-21, pointing to
+  that addendum. L39 is already restated by Cowork in the working tree; commit it as it is.
+- `hypotheses/pending/H-2026-0010.yaml`, `notes`: replace the sentence `The phase-0
+  name LT08TRUU does not exist and was removed.` with `The phase-0 name LT08TRUU is a
+  real Bloomberg index (the US Treasury: Intermediate Index; owner, 2026-10-21,
+  decisions/0032 addendum) that was in no coverage table; it was removed from this spec
+  and is not used.` Keep the YAML folded block intact and check it parses.
+Message: `records: decisions/0034 decided; the "fabricated" LT08TRUU corrections (HANDOFF task 63)`.
+Then `scripts/unattended.sh check` → rc 0 (docs tier, about 2 minutes); name its directory.
+
+**Step 6. Receipt**, committed alone (`HANDOFF.md`). **No push.** Say what the pass
+reported, whether the note edit was skipped, and the two `check` directories.
+
+**Not in this task:** no change to `params/`, `vetoes/` or `SUBSTRATE.md`; no hypothesis
+edited apart from that one note; no data pull (the owner's offered `LT08TRUU` pull is
+not needed by `H-2026-0010` as specified); no caller of `register`; nothing added to
+the owner-confirmed list. What to do about the names the pass rejects is the owner's
+call and goes to OWNER-QUEUE, written by Cowork.
+
+Expected: under $2 on Sonnet, under 30 minutes.
+
+### 64. Commit `decisions/0063`: the Japan government family joins the panel (OWNER-QUEUE L39, option (a))
+
+Added 2026-10-21 by Cowork. **Written, NOT released.** Run only after task 63's
+receipt has landed. Records only: nothing in `src/`, `scripts/`, `tests/`,
+`params/`, `vetoes/`, `hypotheses/` or `data/` changes. The owner's ruling is
+"L39: option A" (2026-10-21).
+
+**Step 0. The working tree.** Cowork copies the draft into place when it
+releases this task. `git status --short` must show exactly:
+
+     M HANDOFF.md
+    ?? decisions/0063-the-japan-government-family.md
+    ?? AGENTS.md
+
+(`AGENTS.md`: leave it.) Anything else: stop and report. If task 63's receipt is
+not at the top of `## Done`, stop.
+
+**Step 1.** `git diff --ignore-cr-at-eol --stat` and read the new file's first
+12 lines: its Status must say `decided 2026-10-21 by the owner`.
+
+**Step 2. The check.** `scripts/unattended.sh check` → rc 0 (docs tier, about 2
+minutes). Name its `results/audit/_unattended/` directory.
+
+**Step 3. Commit** `decisions/0063-the-japan-government-family.md` alone, with the
+message `records: decisions/0063, the Japan government family joins the panel (HANDOFF task 64, OWNER-QUEUE L39)`.
+Do not move L39 out of `OWNER-QUEUE.md`: it stays open until the instruments are admitted.
+
+**Step 4. Receipt**, committed alone (`HANDOFF.md`). **No push.**
+
+Expected: under $1 on Sonnet, under 10 minutes.
+
+### 65. Describe the Japan government file: structure only (`decisions/0063`)
+
+Added 2026-10-21 by Cowork. **Written, NOT released.** Released only after the
+owner has pulled the file (request list:
+`Claude outputs/bbg_pull_japan_govt_2026-10-21.csv`) and saved it under
+`data/raw/bloomberg/`; the queue note at release names the file and its size.
+Runs after task 64. The pattern is task 58's.
+
+**What this task does not do:**
+- **No loader, no code, no params, no store.** Nothing in `src/`, `scripts/`,
+  `tests/`, `params/`, `vetoes/`, `hypotheses/`, `data/universe/`.
+- **No value leaves the machine.** Report sheet names, headers, dimensions,
+  date ranges and counts only. Do not open the file any other way.
+
+**Budget:** 15 minutes.
+
+**1. Describe it, without reading values out.** `scripts/inspect_raw.py` prints
+the first 8 rows of every sheet verbatim, and rows 2 to 8 are vendor values. So:
+- Run `make inspect-raw > "$HOME/inspect_raw.out" 2>&1` and check `rc=0`. Do not
+  open, print or tail `inspect_raw.out`.
+- Read the structure from `data/universe/raw_structure.json` (git-ignored), for
+  the new file only, printing **only**: each sheet's name, `n_rows`, `n_cols`,
+  **row 1 of `header_rows`** (never rows 2 to 8), and, for each column with a
+  `date_min`, its column number, `n_non_empty`, `date_min` and `date_max`. Use a
+  one-off `python -c` that prints nothing else.
+- `sha256sum` of the file (report the first 16 hex).
+- **Nothing from `raw_meta.json`** (it transcribes the `Loader Notes` sheet in
+  full).
+
+**What Cowork expects** (from the request list; the file has not been seen by
+Cowork, and the layout is a guess from task 58's description of the earlier
+file): a `levels` sheet with `date` and one `<TICKER>_local_JPY` column for each of
+`I29064JP` to `I29068JP`; an analytics sheet with `INDEX_OAD_TSY` and
+`INDEX_YIELD_TO_WORST` for the same five; dates from 2013-01-31 at the earliest to
+**2019-12-31 at the latest.** A difference from this is not an error; list it.
+
+**Stop rule (holdout).** If any sheet's last date is on or after 2020-01-01,
+**stop**, report only that sheet's name and that date, and read nothing further
+from the file.
+
+**2. Receipt**, committed alone (`HANDOFF.md`). **No push.** The receipt holds the
+structure report and nothing from inside the file.
+
+Expected: under $1 on Sonnet, under 15 minutes.
+
 ### 60. Params v0.11.0 and SUBSTRATE v0.12 (`decisions/0058` item 6; `0059` item 1 and its 2026-10-16 addendum): the store read is `huber6-v4`, the label map is pinned, the `views` block lands; the tests follow; then push
 
 Added 2026-10-16 by Cowork. **Written, NOT released.** It is released when
@@ -4896,6 +5096,16 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-21 -- task 63: STOPPED at step 4, the pass could not run (Claude Code, sonnet, nightly 2026-10-21T09:40)
+
+**STOPPED. Steps 0 to 3 done; step 4's run was denied, so no rc.** Commit `5501945` (`harness: a data_required name must resolve at registration (HANDOFF task 63, decisions/0034)`: `src/signal_lab/harness/hypotheses.py`, `tests/test_name_resolution.py`, `data/universe/owner_confirmed_names.csv` with the seed row only). No push (`push=no`).
+
+- **Step 0.** `git status --short` was exactly the four lines the task lists.
+- **Steps 1 to 3.** `resolve_names` (default `False`) on `validate_hypothesis` and `parse_hypothesis`, `unresolved_names`, `UNIVERSE_DIR`, `HypothesisRegistry.register` (and a `universe_dir` constructor argument). `load` and `load_tolerant` unchanged. `scripts/unattended.sh check-scoped` rc=0, 508 s, tier=FULL, slow files left out: none. Log: `results/audit/_unattended/20261021-123125-check-scoped`.
+- **Step 4, the stop.** I wrote `scripts/check_registry_names.py` (reads `hypotheses/pending/` and `done/`, prints rejected entries and totals, writes nothing, exits 0). Running it was **denied by the permission mode** ("don't ask mode") in both forms I tried: `env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=src:. UV_PROJECT_ENVIRONMENT=$HOME/.venvs/signal-lab uv run --python 3.12 --group dev python scripts/check_registry_names.py`, and the same without `env` and `UV_PROJECT_ENVIRONMENT`. The task names this command, and the Makefile has no target for a one-off script, so I tried nothing else. Earlier in the run a compound `cd ... && for ...` call was also denied; I read the files with the Read tool instead, which is not a workaround for step 4. There is no totals line and no rejected-name list to report.
+- **Uncommitted:** `scripts/check_registry_names.py` (untracked, never run, never put through `check-scoped`); `HANDOFF.md` (Cowork's edits, plus this receipt); `OWNER-QUEUE.md` and `decisions/proposed/0034-...` (Cowork's); `AGENTS.md`. **Not done:** step 4's run, its `check-scoped` and commit, step 5 (the records, including `git mv` of decision 0034, the 0032 addendum, the OWNER-QUEUE L6 line and the `H-2026-0010` note; the `git grep` for pins was not run) and its `check`.
+- **Reading of `decisions/0062` item 8:** owner: a permission denial in the nightly run's settings is not Cowork's to rule on (when unsure, owner). Cowork to check first: whether the allow list covers `uv run --python 3.12 --group dev python scripts/<file>.py` with the thread variables set, or whether the task should name a make target for it.
 
 ### 2026-10-19 -- task 62: canary run, the allow-list fix committed (Claude Code, sonnet, nightly 2026-10-19T17:10)
 
