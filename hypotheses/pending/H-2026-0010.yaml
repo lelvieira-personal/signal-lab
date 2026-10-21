@@ -39,7 +39,10 @@ data_required:
 notes: >
   The term spread is LT01TRUU (1-3y) against LT11TRUU (20+y), owner ruling
   2026-09-19, decisions/0032; LT09TRUU (7-10y) is available as a mid-curve
-  check. The phase-0 name LT08TRUU does not exist and was removed.
+  check. The phase-0 name LT08TRUU is a
+  real Bloomberg index (the US Treasury: Intermediate Index; owner, 2026-10-21,
+  decisions/0032 addendum) that was in no coverage table; it was removed from this spec
+  and is not used.
   Amended 2026-09-19 under decisions/0032 (owner ruling the same day); the
   phase-0 names are in git history.
   Fast block, though the underlying curve shape moves slowly. Risk

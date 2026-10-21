@@ -38,6 +38,34 @@ JPY series is `I02913JP`, the Japan Aggregate, which is not government-only.
 and `LJPNGVJP` (`DES`, and a BDH of `PX_LAST` from 1990). If a legacy series
 has daily history before 2001, (a) changes.
 
+
+**Update 2026-10-21 (Cowork, restating; nothing answered).** The owner ran
+ASKB on the Japan tickers and passed the result on. Findings, as the owner
+reported them (Cowork has not re-run them):
+- `I29063JP` still does not resolve. `I29064JP` to `I29068JP` start
+  2013-01-31, as before.
+- A longer history exists, but as **yields, not total-return indices**:
+  `JGBS5` from 1974-09-24, `JGBS10` from 1986-07-05, `GJGB10` from
+  1987-10-22, `GJGB5` from 1988-04-04, `GJGB2` from 1990-09-03, `GJGB30` from
+  1999-09-02; S&P current 10Y and 5Y Japan sovereign from 1998 and 2000.
+- `YCGT0018` and `YCGT0268` (curve objects) returned no start date.
+- `BNJPGVJP` and `LJPNGVJP` were **not** in that query; the check named above
+  is still open for those two.
+
+Cowork's reading (an inference from `decisions/0060`, which says the curve
+instruments are bonds the lab *holds*; not checked further): a yield series
+can feed a signal but is not a holdable return, so it does not by itself
+retire (a), (b) or (c). It would make a fourth option possible, **(d)** build
+a JPY curve return from the JGB yields (a modelling choice with its own
+assumptions, not a pull), which Cowork does not recommend without a record of
+how the return is constructed. Still the owner's call.
+
+**Owner's ruling 2026-10-21: option (a)** (the owner's message, "L39: option A";
+recorded by Cowork, not answered by it). Add the 2013 family, `I29064JP` to
+`I29068JP`. The JPY group enters in 2013, and `H-2026-0003`'s JPY leg is
+tested mostly on 2013-2019, near the zero bound (the option's own stated
+cost). `I29063JP` is not part of it: it does not resolve. **Not done yet:** the
+pull, its decision record and its task. The item stays open until they land.
 ---
 
 ## Blocked — waiting on a measurement
@@ -1515,6 +1543,8 @@ removed not substituted. `H-2026-0010`'s term spread is **`LT01TRUU` vs
 collinearity disclosed in advance.
 
 The validator gap it uncovered moves to its own record, `0034`.
+
+**Correction 2026-10-21 (owner):** `LT08TRUU` is a real index, not fabricated; see the addendum of 2026-10-21 in `decisions/0032`.
 
 When an item closes it moves here with the decision and its date rather than
 being deleted — the record of how long a question sat is worth keeping.

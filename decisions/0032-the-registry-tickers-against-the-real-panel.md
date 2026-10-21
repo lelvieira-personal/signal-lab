@@ -268,3 +268,11 @@ decomposition to show whether cross-sectional carry is a tilt or a single
 term-premium factor wearing its clothes (`decisions/0016`). That decomposition
 still cannot be built; re-specifying the signal from term spread to carry does
 not resolve it.
+
+## Addendum 2026-10-21 (owner)
+
+`LT08TRUU` is a real Bloomberg index: the US Treasury: Intermediate Index, 1 to
+9.9999 years, future ticker `I00049US` (owner's statement, not verified by
+Cowork). "Fabricated" at the lines naming it was wrong for it, and right for
+`LUALTRUU` on the owner's word. The rulings stand: `LT01TRUU` against `LT11TRUU`
+was chosen on the panel and not on the existence of `LT08TRUU`.
