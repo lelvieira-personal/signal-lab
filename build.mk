@@ -55,7 +55,7 @@
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
 .DEFAULT_GOAL := check
-.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check fdr-study impvol-coverage
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check fdr-study impvol-coverage registry-names
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -226,6 +226,9 @@ coverage: ## rebuild bbg_index_coverage.csv from the Index Map (decisions/0022)
 
 universe: ## rebuild investable_universe.csv from the coverage table
 	$(PY) --group dev python scripts/build_universe.py
+
+registry-names: ## one-off: data_required names the resolver rejects (HANDOFF task 63)
+	$(PY) --group dev python scripts/check_registry_names.py
 
 inspect-raw: ## describe data/raw/ -- sheet names, headers, dimensions, date ranges; no values
 	$(PY) --with openpyxl python scripts/inspect_raw.py
