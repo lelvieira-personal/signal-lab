@@ -3601,8 +3601,10 @@ Runs after task 64. The pattern is task 58's.
 
 **1. Describe it, without reading values out.** `scripts/inspect_raw.py` prints
 the first 8 rows of every sheet verbatim, and rows 2 to 8 are vendor values. So:
-- Run `make inspect-raw > "$HOME/inspect_raw.out" 2>&1` and check `rc=0`. Do not
-  open, print or tail `inspect_raw.out`.
+- Run `make inspect-raw > results/audit/inspect_raw.out 2>&1` (a git-ignored path inside the
+  repo; revision note 2) and check `rc=0`. Do not open, print or tail `inspect_raw.out`.
+  If that exact command is denied too, **stop** and report; do not run `make inspect-raw`
+  without the redirect (it prints vendor rows).
 - Read the structure from `data/universe/raw_structure.json` (git-ignored), for
   the new file only, printing **only**: each sheet's name, `n_rows`, `n_cols`,
   **row 1 of `header_rows`** (never rows 2 to 8), and, for each column with a
@@ -3642,6 +3644,15 @@ and it contains no `data/raw` string, so the guard passes it. I ran its logic on
 `bbg_exusd_bonds_extra.xlsx` (structure fields only) and it printed one line per
 sheet. Not tested in the headless worker itself; if it is denied anyway, stop and
 report the denial, as task 63 did. No file other than this one changed.
+
+**Revision note 2, 2026-10-22 (Cowork, on the owner's instruction).** The nightly run of 2026-10-21 23:00
+stopped at step 1: `make inspect-raw > "$HOME/inspect_raw.out" 2>&1` was denied twice (receipt `49d25d6`).
+Revision note 1 fixed the `python -c` line and missed this one: that was Cowork's miss. The probable cause,
+unconfirmed, is the redirect to a path outside the repo (the allow list has `Bash(make *)`). The redirect now
+points to `results/audit/inspect_raw.out`, which `.gitignore` ignores (`git check-ignore` confirms). Run it
+interactively with the owner present, not through the nightly worker; if the redirect inside the repo is still
+denied, the next fix is a `make` target that writes its own output file (a lane-2 task). The file is unchanged:
+`data/raw/bloomberg/bbg_japan_govt.xlsx` has not been opened by anyone.
 
 ### 66. Land `decisions/0064`: the `poll` slot, the 15-minute scheduler entry, the records
 
@@ -5249,6 +5260,23 @@ run would have said.
 
 ## Done
 
+### 2026-10-22 -- task 67: done (Claude Code, sonnet, interactive 2026-10-22T17:10)
+
+**rc=0.** Commits `922fbec` (`records: decisions/0065, Cowork executes through a restricted server (HANDOFF task 67)`: `decisions/0065-cowork-executes.md`, `CLAUDE.md`) and `22efdb0` (`scripts: signal-lab-exec, the restricted exec server (HANDOFF task 67, decisions/0065)`: `scripts/exec_server/{server.py,allow.json}`, `tests/test_exec_server.py`, `tests/test_select_slow.py`). No push.
+
+- **Step 1.** Cowork copied the four files in on the owner's instruction (my own copy command was denied by the auto-mode classifier, "Create RCE Surface"); `git status --short` showed exactly those four new files.
+- **Step 3.** The first two `check-scoped` runs were rc 2 at lint: 28 x E702 in `tests/test_exec_server.py` (`20261022-120236-check-scoped`, `20261022-150105-check-scoped`). Cowork fixed the file. The third run (`20261022-171034-check-scoped`) was rc 2, 959 passed, 1 failed: `tests/test_select_slow.py::test_nothing_reaches_repo_code_in_a_way_the_selector_cannot_see`, because `tests/test_exec_server.py` was missing from `INVISIBLE`. I added it (the one edit the task pre-approves), with a comment. The fourth run, `results/audit/_unattended/20261022-171907-check-scoped/`: **rc 0, 489 s, tier FULL, 960 passed**, slow files left out: none.
+- **Step 5.** Smoke test: three response lines came back; seven tools listed (`repo_state`, `git_read`, `start_job`, `job_status`, `job_tail`, `commit`, `push`); `repo_state` showed HEAD `22efdb0`, 13 ahead of origin/main, status ` M HANDOFF.md` and `?? AGENTS.md`, no nightly run live, no locks. Push unknown: `env -u SSH_AUTH_SOCK -u GIT_SSH_COMMAND bash -c 'git push --dry-run origin main'` rc 0, first line `To github.com-personal:lelvieira-personal/signal-lab.git`, then `20d96e6..22efdb0  main -> main`, so a push without the agent socket resolves and would be a fast-forward. Nothing was pushed.
+- **Step 6.** `claude_desktop_config.json` not found: no `/mnt/c/Users/*/AppData/Roaming/Claude/` directory exists (a Store install may keep it elsewhere). Not edited. The snippet for the owner, next to `signal-lab-files` (README, Install step 2):
+
+      "signal-lab-exec": {
+        "command": "wsl.exe",
+        "args": ["-d", "Ubuntu", "-u", "lelvieira", "--cd", "/mnt/c/AI/signal-lab", "--",
+                 "env", "SIGNAL_LAB_REPO=/mnt/c/AI/signal-lab", "python3", "scripts/exec_server/server.py"]
+      }
+
+- **Committed with this receipt:** Cowork's task 65 revision note (step 1's redirect, revision note 2), already in `HANDOFF.md`. **Uncommitted:** `AGENTS.md`.
+
 ### 2026-10-22 -- task 66: steps 0 to 4 done, STOPPED at step 5 (Claude Code, sonnet, interactive 2026-10-22T09:30)
 
 **Steps 1 to 4 rc=0; step 5's `schtasks.exe /Create` was denied, so steps 5 and 6 are not done.** Commits `3b6bfd7` (`records: decisions/0064, the lanes and the 15-minute poll (HANDOFF task 66)`: `decisions/0064-handoff-lanes-and-trigger.md`, `CLAUDE.md`) and `a60b874` (`scripts: the poll slot (HANDOFF task 66, decisions/0064)`: `scripts/nightly/nightly_gate.py`, `scripts/nightly/run.sh`, `tests/test_nightly.py`). No push.
@@ -5258,6 +5286,7 @@ run would have said.
 - **Step 3.** `check-scoped` rc 0, 500 s, tier FULL, slow files left out: none. Directory `results/audit/_unattended/20261022-093604-check-scoped/`.
 - **Step 5.** `schtasks.exe` is callable from WSL. Existing entries (names differ from the task's wording): `\signal-lab worker (day)` and `\signal-lab worker (night)`, both Run As User `lelvi`, Logon Mode Interactive only, running `run.sh day` and `run.sh night`. The `/Create` of `SignalLabNightlyPoll` was **denied by the auto-mode classifier ("Unauthorized Persistence")**. Not retried and no other route tried. **The owner creates it by hand** with the command in step 5, or adds a permission rule. Until then the poll slot is landed but nothing starts it.
 - **Step 6.** Not done (needs the entry).
+- **Follow-up 2026-10-22, steps 5 and 6.** The owner created the entry by hand: `signal-lab worker (poll)` (not `SignalLabNightlyPoll`), every 15 minutes, `lelvi`, Interactive only. `gate.log` then read `2026-10-22T12:02:02-04:00 slot=poll skip: stamp 2026-10-21T15:58 has already run`. Not tested: a console window flashing every 15 minutes, and WSL staying awake.
 
 ### 2026-10-21 -- task 65: STOPPED at step 1, `make inspect-raw` was denied (Claude Code, sonnet, nightly 2026-10-21T15:58)
 
