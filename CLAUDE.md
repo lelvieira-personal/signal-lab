@@ -50,6 +50,9 @@ owner-only change: those arrive as patches citing a `decisions/` record.
 add an item or move a closed one to its `## Closed` section; **never answer
 one.**
 
+Records-only work and structure reports the owner asks for in chat need no
+HANDOFF task (`decisions/0064`, lane 1); leave a one-line receipt in `## Done`.
+
 When started by `scripts/nightly/run.sh`, work only the ids on HANDOFF's
 `Nightly-release:` line (`decisions/0062`); nobody is there to answer, so stop
 and write the receipt rather than ask.
