@@ -1,0 +1,20 @@
+{
+  "_comment": "signal-lab-exec permissions as data (decisions/0064 follow-up). Owner-edited: scripts/exec_server/ is in protected_paths, so the server cannot commit changes to this file. Read at every call.",
+  "unattended": ["check", "check-scoped", "check-full"],
+  "make_readonly": ["governance", "lint", "test-fast", "holdout", "registry-names"],
+  "make_task": [
+    "inspect-raw", "coverage", "universe", "impvol-coverage", "exposures-check", "fx-check",
+    "exusd-analytics-coverage", "jpmaqs-coverage", "measurement-loadings", "describe-loadings",
+    "describe-fit", "characteristics", "fdr-study", "digest", "report"
+  ],
+  "tail_ok": ["governance", "lint", "test-fast", "holdout", "registry-names", "check", "check-scoped", "check-full"],
+  "commit_paths": [
+    "^HANDOFF\\.md$", "^OWNER-QUEUE\\.md$", "^decisions/.+", "^hypotheses/.+", "^docs/.+",
+    "^src/.+", "^scripts/.+", "^tests/.+", "^build\\.mk$", "^data/universe/.+\\.csv$", "^data/requests/.+"
+  ],
+  "protected_paths": [
+    "^scripts/nightly/", "^scripts/exec_server/", "^tests/test_nightly\\.py$", "^tests/test_exec_server\\.py$",
+    "^\\.claude/", "^CLAUDE\\.md$", "^\\.githooks/", "^\\.gitattributes$"
+  ],
+  "_never_allowed_here": "audits (run on the nightly worker), make clean|lock|install, jpmaqs-catalogue|candidates|name-search|pull and macro-snapshot (credentials, network), push without a task that says so, SUBSTRATE.md, params/, vetoes/ (hard-coded in the server)"
+}

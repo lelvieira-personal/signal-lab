@@ -270,7 +270,14 @@ def test_the_output_says_which_tier_ran(tree):
 # test_nightly.py loads scripts/nightly/*.py by path with importlib and runs
 # run.sh and the hook by subprocess. It is in the fast tier and no slow test
 # imports what it runs (HANDOFF task 61, decisions/0062).
-INVISIBLE = {"tests/test_governance.py", "tests/test_nightly.py", "tests/test_select_slow.py"}
+# test_exec_server.py starts scripts/exec_server/server.py by subprocess and loads
+# it by importlib, and no slow test imports it (HANDOFF task 67, decisions/0065).
+INVISIBLE = {
+    "tests/test_exec_server.py",
+    "tests/test_governance.py",
+    "tests/test_nightly.py",
+    "tests/test_select_slow.py",
+}
 
 
 def _reaches_by_other_means(path: Path) -> bool:
