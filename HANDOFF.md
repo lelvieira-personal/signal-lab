@@ -47,11 +47,33 @@ five hours needs `long` on the line, and starts only on a Thursday, Friday or
 Saturday night. While `results/audit/_nightly/RUNNING` is fresh, Cowork edits
 no tracked file.
 
+**Lanes and release (`decisions/0064`, decided by the owner 2026-10-21).**
+(1) *Direct:* records-only commits (`decisions/`, `hypotheses/`, docs, `HANDOFF.md`,
+`OWNER-QUEUE.md`), structure reports of `data/raw/` files and read-only reviews need
+no task here: the owner asks in chat, the work is done, a one-line receipt goes in
+`## Done`. (2) *Task:* anything touching `src/`, `scripts/`, `tests/`, `params/` or
+`vetoes/`, any push, anything that makes a number. (3) *Nightly/long:* audits and
+anything over an hour. **Release:** when the owner has asked for the work in chat,
+Cowork may release a lane-2 task that touches no owner-only path, with `push=no`,
+`by=cowork`; pushes, params, vetoes, SUBSTRATE and anything that changes what a
+verdict means need the owner's explicit "release". **Numbers are made in WSL only:**
+Cowork's device shell is a Linux VM on the laptop (2 cores, small disk) where
+`make test-fast` gave 889 passed and 2 failed (the two `tests/test_baseline.py`
+byte-hash pins); its results are never the definition of done. **The 15-minute
+`poll` slot** (`scripts/nightly/run.sh poll`) takes effect when task 66 lands it;
+until then the 12:30 and 23:00 slots are the only starts.
+
 ---
 
 ## Queue
 
-Nightly-release: 63 @2026-10-21T15:20 by=owner push=no
+Nightly-release: 64,65 @2026-10-21T15:58 by=owner push=no
+
+**Clerical correction, 2026-10-21 17:58 ET (Cowork, `decisions/0062` item 8):** the line above read `64 65`; the gate's grammar takes comma-separated ids (`0062` item 2), so it refused the line ("the release line does not parse") and tonight's 23:00 slot would have run nothing. Now `64,65`. The owner's release, its stamp, `push=no` and the order are unchanged.
+
+**As of 2026-10-21 (17:55 ET): task 66 written, NOT released, and it cannot go through the nightly worker.** The owner decided `decisions/0064` in chat (lanes, a 15-minute poll, Cowork's release authority). Task 66 lands the poll slot, the scheduler entry and the records. It edits `scripts/nightly/` and calls `schtasks.exe`, which the worker's deny list and allow list forbid, so it is run **interactively by the owner in Claude Code (WSL), after tasks 64 and 65's receipts**. **Task 67 follows it** (the restricted exec server, `decisions/0065`, decided by the owner in chat the same day); run 66 and 67 in one session if convenient. It is the last time a start waits for an owner "go" of this kind. The patch and the decision text are in `Claude outputs/decision-0064-draft/` (git-ignored, so tonight's step 0 is unaffected).
+
+**As of 2026-10-21 (15:58 ET): tasks 64 and 65 RELEASED (written `64 65`, corrected above to `64,65`), in that order, `push=no`, Sonnet.** The owner said "release 64 65". Task 63 had been done by hand in Claude Code (receipt `c360858`), so the line no longer names it. Cowork copied `decisions/0063-the-japan-government-family.md` into `decisions/` (untracked, as task 64 step 0 expects) and changed only this line and this note. Task 65 needs the owner's file `data/raw/bloomberg/bbg_japan_govt.xlsx`, which is on disk.
 
 **As of 2026-10-21 (15:20 ET): task 63 RE-RELEASED to resume at step 4, by Cowork on the owner's instruction.** The 12:30 run did steps 0 to 3 (commit `5501945`) and stopped: its step 4 command was denied. Cause, read from the run's `result.json`: the allow list has `Bash(uv run --python 3.12 --group dev *)` and `Bash(make *)`, and the worker started the command with `env VAR=...` / `VAR=...`, which matches neither. It is a command-shape problem, not a settings problem; `scripts/nightly/` is not touched. Fix: a `make` target (task 63, step 4a). Tasks 64 and 65 stay NOT released, and run after this receipt; 65 also waits for the owner's file (`data/raw/bloomberg/bbg_japan_govt.xlsx`, 410,623 bytes, saved 2026-10-21, not yet opened by anyone).
 
@@ -3584,8 +3606,14 @@ the first 8 rows of every sheet verbatim, and rows 2 to 8 are vendor values. So:
 - Read the structure from `data/universe/raw_structure.json` (git-ignored), for
   the new file only, printing **only**: each sheet's name, `n_rows`, `n_cols`,
   **row 1 of `header_rows`** (never rows 2 to 8), and, for each column with a
-  `date_min`, its column number, `n_non_empty`, `date_min` and `date_max`. Use a
-  one-off `python -c` that prints nothing else.
+  `date_min`, its column number, `n_non_empty`, `date_min` and `date_max`. Run
+  exactly this, as one command, with nothing before `uv` (no `env`, no `VAR=`, no
+  `cd`, no `&&`); `run.sh` already exports the thread variables and
+  `UV_PROJECT_ENVIRONMENT` (revision note 1):
+
+      uv run --python 3.12 --group dev python -c "import json;d=json.load(open('data/universe/raw_structure.json'));f=[x for x in d['files'] if x['file'].endswith('bbg_japan_govt.xlsx')][0];[print(s['sheet'],s['n_rows'],s['n_cols'],s['header_rows'][0],[(c['col'],c['n_non_empty'],c['date_min'],c['date_max']) for c in s['columns'] if c.get('date_min')]) for s in f['sheets']]"
+
+  If `f['sheets']` is missing (a non-workbook `kind`), stop and report that.
 - `sha256sum` of the file (report the first 16 hex).
 - **Nothing from `raw_meta.json`** (it transcribes the `Loader Notes` sheet in
   full).
@@ -3605,6 +3633,109 @@ from the file.
 structure report and nothing from inside the file.
 
 Expected: under $1 on Sonnet, under 15 minutes.
+
+**Revision note 1, 2026-10-21 16:55 ET (Cowork, on the owner's instruction).** Step 1's
+"one-off `python -c`" had no allowed shape: the worker's allow list has no bare
+`python`, and task 63's 12:30 stop was an `env VAR=...` prefix on `uv run`. The
+command above is the allow-listed form (`Bash(uv run --python 3.12 --group dev *)`),
+and it contains no `data/raw` string, so the guard passes it. I ran its logic on
+`bbg_exusd_bonds_extra.xlsx` (structure fields only) and it printed one line per
+sheet. Not tested in the headless worker itself; if it is denied anyway, stop and
+report the denial, as task 63 did. No file other than this one changed.
+
+### 66. Land `decisions/0064`: the `poll` slot, the 15-minute scheduler entry, the records
+
+Added 2026-10-21 by Cowork. **Written, NOT released. Interactive only** (Claude Code in WSL, started by
+the owner): it edits `scripts/nightly/**`, `CLAUDE.md` and calls `schtasks.exe`, all outside the nightly
+worker's allow list. Run it **after tasks 64 and 65's receipts** have landed: those two expect
+`git status --short` to show ` M HANDOFF.md`, `?? AGENTS.md` and `?? decisions/0063-...`, and this task changes
+the tree. No push (`push=no`).
+
+**Step 0.** `git status --short` shows nothing under `scripts/`, `tests/`, `src/`, `params/`, `vetoes/` or
+`decisions/` except what 64 and 65 left (nothing). If the receipts of 64 and 65 are not at the top of `## Done`, stop.
+
+**Step 1. The gate's change.** `git apply --check --ignore-whitespace "Claude outputs/decision-0064-draft/poll-slot.patch"`,
+then apply it. `git diff --ignore-cr-at-eol --stat` must list exactly `scripts/nightly/nightly_gate.py`,
+`scripts/nightly/run.sh` and `tests/test_nightly.py` (about 38 added lines in all). It adds a `poll` slot with no
+clock window and a 5-hour wall; `long` still waits for the night slot. Cowork ran the 51 tests of
+`tests/test_nightly.py` on a scratch copy: all passed. That is not the definition of done.
+
+**Step 2. The records.** Copy `Claude outputs/decision-0064-draft/0064-handoff-lanes-and-trigger.md` to
+`decisions/0064-handoff-lanes-and-trigger.md` (Status already reads decided). In `CLAUDE.md`, section "Where your
+work comes from", add one paragraph: "Records-only work and structure reports the owner asks for in chat need no
+HANDOFF task (`decisions/0064`, lane 1); leave a one-line receipt in `## Done`." Change nothing else in it.
+
+**Step 3. The check.** `scripts/unattended.sh check-scoped` → rc 0. `scripts/nightly/` and `tests/test_nightly.py`
+are among the files the selector cannot place, so expect tier FULL (about 8 minutes). Name the directory and the tier.
+
+**Step 4. Two commits.** `records: decisions/0064, the lanes and the 15-minute poll (HANDOFF task 66)`
+(`decisions/0064-*.md`, `CLAUDE.md`), then `scripts: the poll slot (HANDOFF task 66, decisions/0064)`
+(the three files). No owner-only path is touched.
+
+**Step 5. The scheduler entry.** From WSL, `schtasks.exe /Query /FO LIST /V` and report only the task names,
+schedules and the "Run As User" / logon mode of the entries that start `scripts/nightly/run.sh` (the 23:00 and
+12:30 ones). Create a third with the same user and logon mode as the 23:00 one, every 15 minutes:
+
+    schtasks.exe /Create /TN "SignalLabNightlyPoll" /SC MINUTE /MO 15 /F /TR "wsl.exe -d Ubuntu -u lelvieira --cd /mnt/c/AI/signal-lab -- bash -lc 'bash scripts/nightly/run.sh poll'"
+
+Keep the 23:00 entry (it is the only start for `long` releases); leave the 12:30 entry alone. If `schtasks.exe`
+cannot be called from WSL, or the names above do not match, stop and report: the owner creates the entry by
+hand with the command above. Do not change the owner's power or battery conditions on the existing entries.
+
+**Step 6. Verify.** After the next quarter-hour, the last two lines of `results/audit/_nightly/gate.log` must read
+`slot=poll skip: nothing is released` (or `stamp ... has already run`). Report them. Open question the owner
+should watch for the first day: a console window flashing every 15 minutes, and WSL staying awake. Neither
+was tested; both are guesses.
+
+**Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.**
+
+Expected: 20 to 30 minutes, interactive.
+
+### 67. Land `decisions/0065`: the restricted exec server for Cowork (`scripts/exec_server/`), its tests, the record
+
+Added 2026-10-21 by Cowork. **Written, NOT released. Interactive only** (Claude Code in WSL, started by the owner):
+it adds `scripts/exec_server/` and edits `CLAUDE.md`, both outside the nightly worker's allow list. Run it **after
+tasks 64, 65 and 66** have their receipts. No push (`push=no`). The owner ruled `decisions/0065` in chat
+(2026-10-21: "keep the long audits in the worker ... You can push", then "yes").
+
+**Step 0.** `git status --short` shows nothing under `scripts/`, `tests/`, `src/`, `params/`, `vetoes/` or `decisions/`.
+If the receipts of 64, 65 and 66 are not at the top of `## Done`, stop.
+
+**Step 1. Copy from `Claude outputs/signal-lab-exec/` (git-ignored; written and tested by Cowork):**
+`server.py` → `scripts/exec_server/server.py`; `allow.json` → `scripts/exec_server/allow.json`;
+`test_exec_server.py` → `tests/test_exec_server.py`; `0065-cowork-executes.md` → `decisions/0065-cowork-executes.md`
+(its Status already reads decided). `git status --short` must show exactly those four new files.
+
+**Step 2. `CLAUDE.md`.** In the section "Where your work comes from" add one paragraph, changing nothing else:
+"Cowork can also execute, through the `signal-lab-exec` server inside WSL (`decisions/0065`): checks, records and
+code commits gated by `check-scoped`, and a push for a task that says to push. It never edits `scripts/nightly/`,
+`scripts/exec_server/`, `.claude/` or this file. Its commits cite a HANDOFF task or a decision."
+
+**Step 3. The check.** `scripts/unattended.sh check-scoped`. Cowork ran `tests/test_exec_server.py` on a scratch
+copy (1 passed in 1.3 s, and it fails when a rule is broken); that is not the definition of done. Expect tier FULL.
+If, and only if, `tests/test_select_slow.py::test_nothing_reaches_repo_code_in_a_way_the_selector_cannot_see`
+fails because `tests/test_exec_server.py` (subprocess, importlib) is missing from `INVISIBLE`, add it there with a
+comment, as task 61 did for `tests/test_nightly.py` (the owner pre-approves exactly this edit). Anything else that
+fails: stop and report. Name the log directory and the tier.
+
+**Step 4. Two commits.** `records: decisions/0065, Cowork executes through a restricted server (HANDOFF task 67)`
+(`decisions/0065-*.md`, `CLAUDE.md`), then `scripts: signal-lab-exec, the restricted exec server (HANDOFF task 67, decisions/0065)`
+(`scripts/exec_server/` both files, `tests/test_exec_server.py`, and `tests/test_select_slow.py` if step 3 changed it).
+No owner-only path is touched.
+
+**Step 5. Smoke test in WSL, read-only calls only.** From the repo root:
+`printf '%s\n%s\n%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"repo_state","arguments":{}}}' | SIGNAL_LAB_REPO="$PWD" python3 scripts/exec_server/server.py`
+Report: three response lines came back, seven tools listed, and `repo_state` shows HEAD and the status. Print nothing else.
+Then test how a non-interactive process would push, **without pushing**: `env -u SSH_AUTH_SOCK -u GIT_SSH_COMMAND bash -c 'git push --dry-run origin main'`;
+report rc and the first line of output. This is the one unknown the push tool has.
+
+**Step 6. The desktop app's config.** Do **not** edit it. Report whether `claude_desktop_config.json` exists under
+`/mnt/c/Users/*/AppData/Roaming/Claude/` (path only), and print the snippet the owner adds next to `signal-lab-files`
+(it is in `Claude outputs/signal-lab-exec/README.md`, section Install, step 2).
+
+**Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.**
+
+Expected: 25 to 35 minutes, interactive.
 
 ### 60. Params v0.11.0 and SUBSTRATE v0.12 (`decisions/0058` item 6; `0059` item 1 and its 2026-10-16 addendum): the store read is `huber6-v4`, the label map is pinned, the `views` block lands; the tests follow; then push
 
@@ -5117,6 +5248,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-21 -- task 64: done (Claude Code, sonnet, nightly 2026-10-21T15:58)
+
+**rc=0.** Commit `8a1cfb9` (`records: decisions/0063, the Japan government family joins the panel (HANDOFF task 64, OWNER-QUEUE L39)`, the one file). No push (`push=no`).
+
+- **Step 0.** `git status --short` was exactly the three lines the task lists (`M HANDOFF.md`, `?? AGENTS.md`, `?? decisions/0063-...`); task 63's receipt was at the top of `## Done`.
+- **Step 1.** The new file's Status reads `decided 2026-10-21 by the owner`.
+- **Step 2.** `scripts/unattended.sh check` rc=0, 149 s, docs tier. Directory `results/audit/_unattended/20261021-230030-check/`.
+- **Uncommitted:** `AGENTS.md` (left alone), this receipt. L39 not moved out of `OWNER-QUEUE.md`, as the task says.
 
 ### 2026-10-21 -- task 63: done, resumed at step 4a (Claude Code, sonnet, interactive 2026-10-21T15:30)
 
