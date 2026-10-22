@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # The nightly worker (decisions/0062, with its 2026-10-19 addendum).
 #
-# Started by Windows Task Scheduler, twice a day:
-#   wsl.exe -d Ubuntu -u lelvieira --cd /mnt/c/AI/signal-lab -- bash -lc 'bash scripts/nightly/run.sh night'   (23:00)
-#   wsl.exe -d Ubuntu -u lelvieira --cd /mnt/c/AI/signal-lab -- bash -lc 'bash scripts/nightly/run.sh day'     (12:30)
+# Started by Windows Task Scheduler (decisions/0064):
+#   wsl.exe -d Ubuntu -u lelvieira --cd /mnt/c/AI/signal-lab -- bash -lc 'bash scripts/nightly/run.sh poll'    (every 15 minutes)
+#   wsl.exe -d Ubuntu -u lelvieira --cd /mnt/c/AI/signal-lab -- bash -lc 'bash scripts/nightly/run.sh night'   (23:00, for `long` releases)
+# `day` (12:30) is the older slot and still works.
 # (`bash run.sh`, not `./run.sh`: git on /mnt/c may not keep the execute bit.)
 #
 # A slot with nothing released makes no model call: the lock, git, power and the
@@ -18,8 +19,8 @@ set -uo pipefail
 
 slot="${1:-}"
 case "$slot" in
-  night | day) ;;
-  *) echo "usage: run.sh night|day" >&2; exit 2 ;;
+  night | day | poll) ;;
+  *) echo "usage: run.sh night|day|poll" >&2; exit 2 ;;
 esac
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$repo" || exit 2

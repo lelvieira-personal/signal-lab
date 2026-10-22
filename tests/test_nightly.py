@@ -118,10 +118,24 @@ def test_a_stamp_runs_once(tmp_path):
         ("2026-10-20T12:30", "day", "1"),
         ("2026-10-20T17:00", "day", "0"),
         ("2026-10-20T12:30", "night", "0"),
+        # decisions/0064: the poll slot has no clock window.
+        ("2026-10-20T08:00", "poll", "1"),
+        ("2026-10-20T19:30", "poll", "1"),
+        ("2026-10-20T03:00", "poll", "1"),
     ],
 )
 def test_the_slot_windows_and_the_last_start(tmp_path, now, slot, go):
     assert _gate(tmp_path, LINE, now, slot=slot)["GO"] == go
+
+
+def test_a_poll_run_gets_five_hours_and_never_a_long_release(tmp_path):
+    out = _gate(tmp_path, LINE, "2026-10-20T08:00", slot="poll")
+    assert out["WALL_SECONDS"] == str(5 * 3600)
+    long_line = "Nightly-release: 61 @2026-10-19T09:00 by=owner push=no long"
+    # Thursday night would let a long release go on the night slot; the poll slot refuses it.
+    assert _gate(tmp_path, long_line, "2026-10-22T23:00", slot="night")["GO"] == "1"
+    out = _gate(tmp_path, long_line, "2026-10-22T23:00", slot="poll")
+    assert out["GO"] == "0" and "night slot" in out["REASON"]
 
 
 def test_the_day_slot_ends_at_18(tmp_path):

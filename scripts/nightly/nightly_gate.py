@@ -3,7 +3,7 @@ The nightly worker's gate and its result reader (decisions/0062, with its
 2026-10-19 addendum). Stdlib only: `run.sh` calls it with the system python3
 before any model call, so it must not need the project virtualenv.
 
-    nightly_gate.py gate --handoff HANDOFF.md --slot night|day \
+    nightly_gate.py gate --handoff HANDOFF.md --slot night|day|poll \
         --ran results/audit/_nightly/ran-stamps.txt --runs results/audit/_nightly \
         --month-cap 100 --sonnet-cap 6 --opus-cap 12 [--now 2026-10-22T23:00]
 
@@ -46,6 +46,8 @@ DAY_LAST = dt.time(17, 0)
 DAY_END = dt.time(18, 0)
 LONG_NIGHTS = {3, 4, 5}  # Thursday, Friday, Saturday nights (Monday is 0)
 LONG_WALL = dt.timedelta(hours=18)
+# decisions/0064: the `poll` slot has no clock window. A run that is not `long` gets this wall.
+POLL_WALL = dt.timedelta(hours=5)
 
 
 class Refusal(Exception):
@@ -89,6 +91,9 @@ def window(slot: str, now: dt.datetime) -> tuple[dt.date, dt.datetime, dt.dateti
             raise Refusal(f"{t:%H:%M} is outside the day slot (11:00 to 17:00)")
         d = now.date()
         return d, dt.datetime.combine(d, DAY_LAST), dt.datetime.combine(d, DAY_END)
+    if slot == "poll":
+        end = now + POLL_WALL
+        return now.date(), end, end
     raise Refusal(f"unknown slot {slot!r}")
 
 
@@ -238,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("gate")
     g.add_argument("--handoff", required=True)
-    g.add_argument("--slot", required=True, choices=["night", "day"])
+    g.add_argument("--slot", required=True, choices=["night", "day", "poll"])
     g.add_argument("--ran", required=True)
     g.add_argument("--runs", required=True)
     g.add_argument("--month-cap", type=float, required=True)
