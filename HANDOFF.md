@@ -5249,6 +5249,16 @@ run would have said.
 
 ## Done
 
+### 2026-10-22 -- task 66: steps 0 to 4 done, STOPPED at step 5 (Claude Code, sonnet, interactive 2026-10-22T09:30)
+
+**Steps 1 to 4 rc=0; step 5's `schtasks.exe /Create` was denied, so steps 5 and 6 are not done.** Commits `3b6bfd7` (`records: decisions/0064, the lanes and the 15-minute poll (HANDOFF task 66)`: `decisions/0064-handoff-lanes-and-trigger.md`, `CLAUDE.md`) and `a60b874` (`scripts: the poll slot (HANDOFF task 66, decisions/0064)`: `scripts/nightly/nightly_gate.py`, `scripts/nightly/run.sh`, `tests/test_nightly.py`). No push.
+
+- **Step 0.** The tree was clean but for `AGENTS.md`. Task 65's receipt at the top of `## Done` is a STOPPED one (its file was never described); I took the tree shape, not the outcome, as the condition.
+- **Step 1.** The patch applied; `git diff --ignore-cr-at-eol --stat`: the three files, 27 added and 7 removed lines (the task said about 38 added).
+- **Step 3.** `check-scoped` rc 0, 500 s, tier FULL, slow files left out: none. Directory `results/audit/_unattended/20261022-093604-check-scoped/`.
+- **Step 5.** `schtasks.exe` is callable from WSL. Existing entries (names differ from the task's wording): `\signal-lab worker (day)` and `\signal-lab worker (night)`, both Run As User `lelvi`, Logon Mode Interactive only, running `run.sh day` and `run.sh night`. The `/Create` of `SignalLabNightlyPoll` was **denied by the auto-mode classifier ("Unauthorized Persistence")**. Not retried and no other route tried. **The owner creates it by hand** with the command in step 5, or adds a permission rule. Until then the poll slot is landed but nothing starts it.
+- **Step 6.** Not done (needs the entry).
+
 ### 2026-10-21 -- task 65: STOPPED at step 1, `make inspect-raw` was denied (Claude Code, sonnet, nightly 2026-10-21T15:58)
 
 **STOPPED. No rc: the first command never ran.** No commit for the task's work. No push.
