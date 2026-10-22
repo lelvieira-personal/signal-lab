@@ -53,6 +53,12 @@ one.**
 Records-only work and structure reports the owner asks for in chat need no
 HANDOFF task (`decisions/0064`, lane 1); leave a one-line receipt in `## Done`.
 
+Cowork can also execute, through the `signal-lab-exec` server inside WSL
+(`decisions/0065`): checks, records and code commits gated by `check-scoped`,
+and a push for a task that says to push. It never edits `scripts/nightly/`,
+`scripts/exec_server/`, `.claude/` or this file. Its commits cite a HANDOFF task
+or a decision.
+
 When started by `scripts/nightly/run.sh`, work only the ids on HANDOFF's
 `Nightly-release:` line (`decisions/0062`); nobody is there to answer, so stop
 and write the receipt rather than ask.
