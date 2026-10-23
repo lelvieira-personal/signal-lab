@@ -524,8 +524,9 @@ def test_the_ladder_prices_through_objective_and_keeps_no_second_copy():
     import inspect
 
     from signal_lab.audit import ladder
+    from signal_lab.portfolio.rebalance import RebalanceStep
 
-    src = inspect.getsource(ladder._OptimiserRule)
+    src = inspect.getsource(ladder._OptimiserRule) + inspect.getsource(RebalanceStep)
     assert "created_marginal_quadratic" in src and "created_marginal_shadow" in src
     assert "prefilled_trailing_traded" in src
     assert "span * w_periods" not in src, "the (a, b) arithmetic lives in objective only"
