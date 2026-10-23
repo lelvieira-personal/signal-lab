@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 60 @2026-10-23T11:22 by=owner push=yes
+Nightly-release: 60 @2026-10-23T11:58 by=owner push=yes
+
+**Re-release 2, 2026-10-23 11:58 ET (Cowork, `decisions/0062` item 8).** The 11:32 run stopped at step 0 (receipt `383bf0a`) on the CRLF `grep -c $'\r$'` that **Cowork's** revision note 1 named; the `$'...'` quoting matches no allow rule. Cowork's miss. Every other step-0 check held, both hashes included. Revision note 2 drops the CRLF check. The owner's release of 10:49 is unchanged; only the stamp is new.
 
 **Re-release, 2026-10-23 11:22 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once the cause is fixed).** The 11:17 run stopped at step 0 (receipt `7df15b0`): its hash command carried a `PYTHONPATH=... UV_PROJECT_ENVIRONMENT=...` prefix, which no allow rule matches. Task 60's revision note 1 gives step 0 allow-listed, one-command-per-call forms. The owner's release of 10:49 ("release 60", `push=yes`) is unchanged; only the stamp is new, so the gate runs it again.
 
@@ -3896,6 +3898,12 @@ allow-listed form, **one command per call, nothing before the first word** (no `
 - `?? AGENTS.md` is expected and is not Cowork's; leave it (it has been untracked since before task 63).
 If any of these is denied, stop and report it, as before. Steps 1 to 4 are unchanged.
 
+**Revision note 2, 2026-10-23 11:58 ET (Cowork, after the STOPPED receipt `383bf0a`).** **Drop the CRLF check from
+step 0;** do not count CRs any other way. The params hash and `sha256sum SUBSTRATE.md` (both held at 11:32) prove the
+eight files are the draft byte for byte, and Cowork counted the draft's line endings at 10:49 and 11:21: every line of
+the seven params files and `SUBSTRATE.md` ends in CR LF (`SUBSTRATE.md` 709 of 709). Step 0 is: `git status --short`, the
+`--stat` line, the params hash, the `SUBSTRATE.md` sha256. Then steps 1 to 4.
+
 ---
 
 ### 59. The implied-vol file (`decisions/0061`): commit the records of 2026-10-16, `inspect_raw` skips Excel lock files, a loader for `bbg_impvol_values_only.xlsx` and its coverage report; task 56's open gate, reported only; then push
@@ -5333,6 +5341,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 60: done (Claude Code, sonnet, nightly 2026-10-23T11:58)
+
+- **Step 0 (revision note 2's four checks, one per call):** `git status --short` as expected (`AGENTS.md` untracked, left alone); `--stat` 8 files, 51 insertions, 13 deletions; params hash `4f13f3736b3e3ea86b3ce8fac4ac5ca93a6aea4c35c0818c6b3e836774840d1e`; `sha256sum SUBSTRATE.md` `97b0635b585b9b00aa8ae57a23e1c49958945c968333370c48e692080f3f9c3b`. All held.
+- **Step 1:** `exposures.py` gains `pinned_label_map(params)`; `ExposureMap.from_params` reads `data.characteristics.label_map.path` (relative to the repo root) and refuses a file whose sha256 differs, naming both. An explicit `label_map=` is never compared. Params that name no label map read the module default unpinned. Three tests in `tests/test_exposures.py`: match passes, one extra byte refused, explicit synthetic map not compared.
+- **Step 2:** no test pinned a `v3` figure through `params/`, so **none changed**, none weakened. `make exposures-check` wrote `results/characteristics/huber6-v4/exposures_check.{md,json}` (`.md` changed, `.json` identical): 990 weeks from 2001-01-12, all Fridays; 79,125 instrument-weeks; 53 / 84 instruments at first / last week; duration measured 7,375, estimated 71,750, missing 0; median `axis_duration` at 2019-12-27: Long Treasuries 18.32, Gold 8.29, IG 5.22, TIPS 4.55, Treasuries 4.48, EM Equities 2.63, European Equities -1.24. All equal task 56's step 6. The report's "differ from Cowork's read" list is the script's hard-coded v3 comparison column; the script says differences are expected there, and I left it.
+- **Step 3:** two params tests in `tests/test_params.py` (version 0.11.0; `views` block: `ic_prior` 0.05, `geometric_mean_rounded`, `expanding`, `burn_in_weeks` 52, `winsorise_at` 3.0; store `huber6-v4` and the pinned label-map path). No test pinned the old params hash; no golden moved. `make test-fast`: 901 passed.
+- **Step 4:** `scripts/unattended.sh check-full` rc=0, 739 s, tier full, log `results/audit/_unattended/20261023-120728-check-full/`; load at start 1.34 0.94 0.52, end 1.56 1.20 0.90. `make governance`: OK. Commit `edf7950`.
+- **Push:** see the line below the receipt commit's push in the run summary.
 
 ### 2026-10-23 -- task 60: STOPPED at step 0, the CRLF `grep` was denied (Claude Code, sonnet, nightly 2026-10-23T11:22)
 
