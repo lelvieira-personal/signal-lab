@@ -118,6 +118,31 @@ def test_the_seed_row_admits_lt08truu_and_the_real_list_holds_only_it(params):
     assert [r.split(",")[0] for r in rows[1:]] == ["LT08TRUU"]
 
 
+def test_every_yellow_key_is_stripped(universe, params):
+    (universe / "bbg_analytics_coverage.csv").write_text(
+        "ticker_field,n\nDXY Curncy|PX_LAST,1\nGTII10 Govt|YLD_YTM_MID,1\n", encoding="utf-8"
+    )
+    assert bad(["DXY", "GTII10", "DXY Curncy"], universe, params) == []
+    assert bad(["DXY|PX_LAST", "GTII10 Govt|YLD_YTM_MID"], universe, params) == []
+    assert bad(["FOO Curncy"], universe, params) == ["FOO Curncy"]
+
+
+def test_the_impvol_coverage_is_a_source(universe, params, tmp_path):
+    cov = tmp_path / "coverage.json"
+    cov.write_text('{"series": [{"series_id": "EEM US Equity|IV3M_10DP"}]}', encoding="utf-8")
+    ok = unresolved_names(["EEM US Equity|IV3M_10DP"], params, universe, cov)
+    assert ok == []
+    bad_names = ["EEM US Equity|IV3M_99DP", "FOO Curncy"]
+    assert unresolved_names(bad_names, params, universe, cov) == bad_names
+
+
+def test_a_missing_impvol_coverage_adds_nothing(universe, params, tmp_path):
+    missing = tmp_path / "none.json"
+    name = "EEM US Equity|IV3M_10DP"
+    assert unresolved_names([name], params, universe, missing) == [name]
+    assert unresolved_names(["AAAAAA"], params, universe, missing) == []
+
+
 def test_without_the_confirmed_file_a_confirmed_name_is_rejected(universe, params):
     (universe / "owner_confirmed_names.csv").unlink()
     assert bad(["ZZREAL"], universe, params) == ["ZZREAL"]

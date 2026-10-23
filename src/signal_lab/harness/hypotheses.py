@@ -20,6 +20,7 @@ even after the files have moved.
 from __future__ import annotations
 
 import csv
+import json
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -35,6 +36,21 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 HYPOTHESES_DIR = REPO_ROOT / "hypotheses"
 REQUESTS_DIR = REPO_ROOT / "data" / "requests"
 UNIVERSE_DIR = REPO_ROOT / "data" / "universe"
+IMPVOL_COVERAGE = REPO_ROOT / "results" / "impvol" / "coverage.json"
+
+# Bloomberg's yellow keys (decisions/0034): one trailing key is stripped from a name.
+YELLOW_KEYS = (
+    "Index",
+    "Curncy",
+    "Govt",
+    "Comdty",
+    "Equity",
+    "Corp",
+    "Mtge",
+    "Muni",
+    "Pfd",
+    "M-Mkt",
+)
 
 STATES = ("pending", "running", "done")
 
@@ -254,8 +270,10 @@ def _split_name(entry: str) -> tuple[str, str]:
     """`SPX Index|FIELD` -> (`SPX`, `FIELD`); a bare name has an empty field."""
     ticker, _, fld = entry.partition("|")
     ticker = ticker.strip()
-    if ticker.endswith(" Index"):
-        ticker = ticker[: -len(" Index")].strip()
+    for key in YELLOW_KEYS:
+        if ticker.endswith(" " + key):
+            ticker = ticker[: -len(key) - 1].strip()
+            break
     return ticker, fld.strip()
 
 
@@ -266,7 +284,9 @@ def _read_csv_column(path: Path, column: str) -> list[str]:
         return [row[column].strip() for row in csv.DictReader(fh) if row.get(column)]
 
 
-def _known_names(params: Params, universe_dir: Path) -> tuple[set[str], set[tuple[str, str]]]:
+def _known_names(
+    params: Params, universe_dir: Path, impvol_coverage: Path | str | None = None
+) -> tuple[set[str], set[tuple[str, str]]]:
     """(tickers that resolve bare, (ticker, field) pairs that resolve with a field)."""
     tickers: set[str] = set()
     pairs: set[tuple[str, str]] = set()
@@ -276,12 +296,19 @@ def _known_names(params: Params, universe_dir: Path) -> tuple[set[str], set[tupl
         ("bbg_exusd_bonds_coverage.csv", "ticker"),
         ("fred_coverage.csv", "series_id"),
     ):
-        tickers.update(_read_csv_column(universe_dir / fname, column))
+        tickers.update(_split_name(t)[0] for t in _read_csv_column(universe_dir / fname, column))
     for fname in ("bbg_analytics_coverage.csv", "bbg_exusd_analytics_coverage.csv"):
         for tf in _read_csv_column(universe_dir / fname, "ticker_field"):
             ticker, fld = _split_name(tf)
             tickers.add(ticker)
             pairs.add((ticker, fld))
+    if impvol_coverage is not None and Path(impvol_coverage).exists():
+        doc = json.loads(Path(impvol_coverage).read_text(encoding="utf-8"))
+        for row in doc.get("series", []):
+            ticker, fld = _split_name(str(row.get("series_id", "")))
+            if ticker:
+                tickers.add(ticker)
+                pairs.add((ticker, fld))
     bench = params.get("constraints.benchmark", {}) or {}
     for key in ("equity", "bond", "alternative_bond_leg"):
         if bench.get(key):
@@ -309,6 +336,7 @@ def unresolved_names(
     data_required: list[str],
     params: Params | None = None,
     universe_dir: Path | str | None = None,
+    impvol_coverage: Path | str | None = None,
 ) -> list[str]:
     """
     The `data_required` entries that name nothing (decisions/0034).
@@ -322,7 +350,9 @@ def unresolved_names(
     from signal_lab.loaders.jpmaqs import is_jpmaqs_ticker
 
     params = params or get_params()
-    tickers, pairs = _known_names(params, Path(universe_dir or UNIVERSE_DIR))
+    tickers, pairs = _known_names(
+        params, Path(universe_dir or UNIVERSE_DIR), impvol_coverage or IMPVOL_COVERAGE
+    )
     bad: list[str] = []
     for entry in data_required:
         if "|" in entry:
