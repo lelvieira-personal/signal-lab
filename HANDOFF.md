@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 69 @2026-10-23T14:50 by=cowork push=no
+Nightly-release: 69 @2026-10-23T16:06 by=cowork push=no
+
+**Re-release, 2026-10-23 16:06 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** The 14:50 run stopped at step 1 (receipt `0940b07`) on a test that reads the subclass's source. Revision note 1 allows the one test edit that keeps its intent. The 14:50 release (`by=cowork`, `push=no`, Sonnet) is unchanged; only the stamp is new.
 
 **As of 2026-10-23 (14:50 ET): task 69 RELEASED by Cowork, `push=no`, Sonnet** (`decisions/0064` C: the owner asked in chat to keep things moving; lane 2, no owner-only path, no push). It extracts the audit's rebalance step (`decisions/0059` C). Task 68 landed (`dedab62`, receipt `65dff15`). Only this line, this note and the task text changed.
 
@@ -3780,10 +3782,25 @@ diagnostics) and the alpha's source (`self.signal.alpha.reindex(...)`). Move the
 - **A move, not a rewrite.** Method bodies move with their logic and their comments unchanged. No renamed
   attribute, no reordered operation, no new default, no "while I am here". Floating-point order of operations is
   part of the contract: a reordered sum can move a golden in the last digit.
-- **`tests/` is not edited** except to add the new file of step 3. Every existing test passes unchanged. If one
-  cannot, stop and report which and why.
+- **`tests/` is not edited** except the new file of step 3 and the one edit of revision note 1. Every other
+  existing test passes unchanged. If one cannot, stop and report which and why.
 - `signal_lab.portfolio` must **not import `signal_lab.audit`** (the audit imports the portfolio, not the reverse).
 - No `params/`, `vetoes/`, `SUBSTRATE.md` edit. No data read; no audit run; nothing on or after 2020-01-01.
+
+**Revision note 1, 2026-10-23 16:05 ET (Cowork, `decisions/0062` item 8: a test fix that changes no expectation's meaning).**
+The 14:50 run stopped before editing (receipt `0940b07`), and it was right to: Cowork's spec missed that
+`tests/test_policy_defaults.py::test_the_ladder_prices_through_objective_and_keeps_no_second_copy` (line ~522) does
+`inspect.getsource(ladder._OptimiserRule)` and asserts the three `harness.objective` names are in it. After the move
+they live in `RebalanceStep`, so the text of the subclass no longer holds them. That test's intent is that the
+pricing has one copy, in `harness.objective`. **Make exactly this edit, and no other, to that test:** import
+`RebalanceStep` from `signal_lab.portfolio.rebalance` and build `src` as
+`inspect.getsource(ladder._OptimiserRule) + inspect.getsource(RebalanceStep)`. The three `in` assertions and the
+`"span * w_periods" not in src` assertion stay as written, so they now cover both classes. Do **not** leave names in
+`_OptimiserRule` as a comment or stub to satisfy the old text. In step 4, `git diff --ignore-cr-at-eol --stat -- tests`
+shows the new file of step 3 and that one test, nothing else. The run's other findings (test_audit's `__new__` tests
+~394-430, `test_baseline.py:946`, `scripts/te_path_probe.py:116`) are compatible with the plan; keep the
+constructor signature, and give `RebalanceStep` either `cell` or a `turnover_cap` attribute for
+`annual_wall_remaining`, whichever leaves `test_audit.py` untouched.
 
 **Step 0.** `git status --short` shows nothing under `src/`, `tests/`, `scripts/`, `params/`, `vetoes/` (only
 `HANDOFF.md`, `OWNER-QUEUE.md`, `?? AGENTS.md` may appear). Task 68's receipt is at the top of `## Done`; if not, stop.
@@ -5421,6 +5438,14 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 69: done (Claude Code, sonnet, nightly 2026-10-23T16:06)
+
+- **Step 0:** held (`git status --short` showed only `HANDOFF.md`, `?? AGENTS.md` and an untracked `decisions/proposed/0066-...`; task 68's receipt was in `## Done`).
+- **Steps 1-3:** `RebalanceStep` in `src/signal_lab/portfolio/rebalance.py` holds the methods moved unchanged (bodies and comments) plus `step(date, alpha, drifted=None)`; the universe and the cost model are arguments (no audit import), `turnover_cap` is an attribute for `annual_wall_remaining`. `_OptimiserRule` is now a subclass with its constructor signature kept, resolving the cell's settings; its `__call__` builds the planted alpha and calls `self.step`. `ladder.py` lost the now-unused imports. Revision note 1's one edit made to `tests/test_policy_defaults.py` (source of `_OptimiserRule` + `RebalanceStep`); `tests/test_audit.py` untouched. New `tests/test_rebalance_step.py`: `step` equals `_OptimiserRule.__call__` bit for bit (weights, diagnostics, turnover log, alpha frame) over the first book and two later rebalances, for the `trailing` and `created` forms; and the portfolio imports without the audit (an in-process `sys.modules` check, since `tests/test_select_slow.py` forbids `subprocess` in a test not on its `INVISIBLE` list).
+- **Step 4:** the first `scripts/unattended.sh check-full` (`20261023-161931-check-full`) rc=2, 546 s: 970 passed, 1 failed, my new test's `subprocess` tripped `test_select_slow.py::test_nothing_reaches_repo_code_in_a_way_the_selector_cannot_see`. I rewrote that test in-process; no other file touched. Second run `scripts/unattended.sh check-full` rc=0, 529 s, log `results/audit/_unattended/20261023-163040-check-full/`: 971 passed, holdout 24 passed. Every existing test and golden passed unchanged (`test_baseline.py` not edited). `git diff --ignore-cr-at-eol --stat -- tests`: only the one `test_policy_defaults.py` edit, plus the new file.
+- **Which branches of `step` have an exact-value test** (from test names; not traced line by line): trailing form and `created` form, first and later rebalances: exact (`test_an_explicit_trailing_override_reproduces_the_legacy_golden_bit_for_bit`, `test_the_full_default_cell_runs_the_overlay_and_reproduces_its_golden`, `test_shadow_coefficient_none_matches_params_exactly`, `test_at_coefficient_zero_created_equals_trailing`, plus the new bit-for-bit test). Per-session cap and annual wall: inequality tests only (`test_the_per_session_cap_holds_and_the_annual_figure_still_moves`, `test_the_turnover_cap_binds_and_costs_return`). The repair path (`status` ending `repair`, `repair_turnover`): no exact-value test found.
+- **Commit:** `7c3ef6d`. **Push:** none (`push=no`). OWNER-QUEUE untouched.
 
 ### 2026-10-23 -- task 69: STOPPED at step 1, an existing test cannot pass unchanged (Claude Code, sonnet, nightly 2026-10-23T14:50)
 
