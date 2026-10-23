@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 69 @2026-10-23T16:06 by=cowork push=no
+Nightly-release: 70 @2026-10-23T18:15 by=cowork push=no
+
+**As of 2026-10-23 (18:15 ET): task 70 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's ruling of the same day: the chain moves without him and stops only when an owner decision blocks it). Task 69 landed (`7c3ef6d`, receipt `8edd6ef`, check-full rc 0), so the next task of the M5 chain is 70: `portfolio/views.py`, pure functions, from `decisions/0059` A and B, a decided record; no owner-only path, no data, no golden. **Held back, for the chain's next step:** `sigma_k` and the alpha map (task 71), and the cross-sectional/region demeaning, which the record does not settle (see task 70, "Not in this task"). Only this line, this note and task 70's text changed.
 
 **Re-release, 2026-10-23 16:06 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** The 14:50 run stopped at step 1 (receipt `0940b07`) on a test that reads the subclass's source. Revision note 1 allows the one test edit that keeps its intent. The 14:50 release (`by=cowork`, `push=no`, Sonnet) is unchanged; only the stamp is new.
 
@@ -3760,6 +3762,86 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 70. `portfolio/views.py`: the horizon, the one-place standardisation and the view scale (`decisions/0059` sections A and B)
+
+Added 2026-10-23 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
+`decisions/0064`: no owner-only path, no push, no data read, no verdict changes). The second of the solver's three
+build tasks: **69** landed the rebalance step (`7c3ef6d`); **71** (the phase-2 rule, `build_weight_rule`, the
+`parameter_usage` rows, the reports of E, the validator's `scope` and `group_by`) is not written yet.
+
+**What it is.** Three pure functions and their tests, in a new `src/signal_lab/portfolio/views.py`. No hypothesis
+runs, no audit, no solver call, no data read, nothing on or after 2020-01-01. Every number it needs comes from
+`params/` (the `views` block of `params/constraints.yaml`, landed with params v0.11.0) or from the arguments.
+
+**Not in this task, on purpose.** (a) `sigma_k`, the trailing factor volatility (156 weeks, the scalar overlay, read
+through the resolver): task 71. (b) The cross-sectional form and the region axis: `decisions/0059` A and the ruled
+item 2 say the views "sum to zero across groups", but `sigma_k` is per group on the region axis, so whether the
+demeaning acts on the scores or on `z`, and what that does to the zero sum, is a reading the record does not settle.
+Cowork does not settle it here; it is held for the task that needs it (stop condition, `decisions/0067` item 3).
+(c) The alpha map `alpha_i = sum_k X_ik v_k,g(i) m_ik`: task 71. Do not add any of these "while you are there".
+
+**Step 0.** `git status --short` shows only: ` M CLAUDE.md`, `?? AGENTS.md`, `?? decisions/0067-the-chain-moves.md`,
+`?? decisions/proposed/0066-admitting-the-japan-government-family.md` (and ` M HANDOFF.md`). Task 69's receipt is at the
+top of `## Done` (commit `8edd6ef`). If anything else is dirty, or 69's receipt is not there, stop. Leave all of those
+files alone.
+
+**Step 1. `horizon_h`.** `horizon_h(lo, hi) -> int`: the geometric mean `sqrt(lo * hi)` rounded to the nearest week
+(`int(math.floor(x + 0.5))`), so 4-13 gives 7, 8-26 gives 14, 13-52 gives 26 (`decisions/0059` B, `params`
+`views.horizon_rule: geometric_mean_rounded`). It takes the `(lo, hi)` that `Hypothesis.horizon_range()` returns
+(`src/signal_lab/harness/hypotheses.py`) and refuses `lo < 1` or `hi < lo` with a `ValueError`. It reads the rule name
+from the params block and raises on any other value.
+
+**Step 2. `standardise`.** `standardise(scores, burn_in_weeks, winsorise_at) -> DataFrame` (dates by groups, the same
+shape and index as the input). `scores` holds knowledge-dated raw scores: a slow signal already holds its vintage
+value between releases (SUBSTRATE §6), and a group may be missing before its own start. For each column:
+- the mean and the standard deviation are **expanding** over the column's non-missing scores **up to and including
+  the date** (so nothing later is read), `ddof=1`;
+- `z = (score - mean) / std`, then clipped to `[-winsorise_at, +winsorise_at]`;
+- `z` is `0.0` until the column has `burn_in_weeks` non-missing scores (the view is zero, `decisions/0059` B), and
+  `0.0` when the standard deviation is zero; a date where the score itself is missing carries `0.0`;
+- the function takes `burn_in_weeks` and `winsorise_at` as arguments; a thin wrapper `standardise_from_params(scores, params)` reads
+  `views.standardisation.burn_in_weeks` (52) and `winsorise_at` (3.0) and refuses `window != expanding`. Find how
+  `signal_lab/params.py` exposes the other blocks of `constraints.yaml` (see how `solver` is read) and follow it; do
+  not hard-code 52, 3.0 or 0.05 anywhere in `src/`.
+
+*Cowork's readings, since the record does not spell them out. Each is reported in the receipt and is one line to
+change:* `ddof=1`; the date's own score is in its own window; the winsorisation clips `z`, not the raw score; the
+burn-in counts non-missing scores, not calendar weeks.
+
+**Step 3. `view_scale`.** `view_scale(z, sigma, h, ic_prior) -> same shape` computing
+`v = ic_prior * sigma * z / sqrt(h)` elementwise (`decisions/0059` "What the owner decided" item 1), with
+`view_scale_from_params(z, sigma, h, params)` reading `views.ic_prior` (0.05). `sigma` may be a scalar, a Series
+over dates, or a DataFrame like `z`; align with pandas and refuse a `sigma` that does not align rather than
+broadcasting silently. `h` must be a positive int.
+
+**Step 4. Tests**, one new file `tests/test_views.py`, synthetic frames only (no data read), all fast:
+- `horizon_h`: the three ranges above, a range with one element (`5-5` gives 5), and the two refusals;
+- `standardise`: `z` is `0.0` for the first `burn_in_weeks - 1` scores of a column and nonzero on the next
+  (compare against a hand-computed expanding z on a short series with `burn_in_weeks=3`); a spike is clipped at
+  exactly `winsorise_at`; a constant column gives `0.0` and no NaN; a column that starts later than the others
+  burns in on its own count; **no lookahead:** appending rows, or changing the last row, leaves every earlier `z`
+  bit-identical;
+- `view_scale`: equals a hand calculation on a 2 by 2 frame; `ic_prior` 0 gives exactly zero; misaligned `sigma`
+  raises;
+- `*_from_params`: with the live params the burn-in is 52, the clip 3.0 and `ic_prior` 0.05; with a params object whose
+  value is changed (use the fixture the other params tests use, see `tests/test_params.py`) the output changes, so
+  nothing is hard-coded.
+Existing tests are not edited.
+
+**Step 5. The gate.** `ruff format` and `ruff check` on the two new files first (a formatting miss stopped task 68's
+first check). Then `scripts/unattended.sh check-scoped`, rc 0; no existing test or golden may move. Report: rc,
+tier, runtime, the log directory, slow files left out, the pass count.
+
+**Step 6. Commit** (`src/signal_lab/portfolio/views.py`, `tests/test_views.py` only): `portfolio: horizon, standardisation and view scale, as pure functions (HANDOFF task 70, decisions/0059 A and B)`.
+
+**Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.** Leave OWNER-QUEUE alone. The receipt lists the four
+readings of step 2 and says, for each, whether a test pins it.
+
+**Stop and report, without committing,** if any existing test or golden moves; if step 0 does not hold; if
+`params` lacks a key named above; or if a command is denied (do not work around it).
+
+Expected: under $2 on Sonnet (a guess from task 68's $0.62), well under an hour with the check. Opus is not needed.
+
 ### 69. Extract the audit's rebalance step into `portfolio/rebalance.py`: a pure move, gated on exact reproduction (`decisions/0059` section C)
 
 Added 2026-10-23 by Cowork, at the owner's "I want things to keep moving" in chat. **Written, released by Cowork**
@@ -5438,6 +5520,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 70: done (Claude Code, sonnet, nightly 2026-10-23T18:15)
+
+- **Step 0:** held (`git status --short` showed only ` M CLAUDE.md`, ` M HANDOFF.md`, `?? AGENTS.md`, `?? decisions/0067-...`, `?? decisions/proposed/0066-...`; task 69's receipt at the top of `## Done`).
+- **Steps 1-3:** `src/signal_lab/portfolio/views.py`: `horizon_h` (+ `horizon_h_from_params`, reads `views.horizon_rule`), `standardise` (+ `standardise_from_params`, refuses `window != expanding`), `view_scale` (+ `view_scale_from_params`, reads `views.ic_prior`). No 52, 3.0 or 0.05 in `src/`. `view_scale` accepts a scalar, a Series over dates or a DataFrame like `z`, and raises `ValueError` on a Series or DataFrame whose index (or columns) is not `z`'s, or an `h` that is not a positive int.
+- **Step 4:** new `tests/test_views.py` (synthetic frames, no data read, no existing test edited). The first `check-scoped` (`20261023-181825-check-scoped`) rc=2: two of my new tests failed on my own test data (a hand-picked score equal to its running mean gives a legitimate z of 0); fixed the data in the new file only, no source change.
+- **Step 5:** `ruff format` and `ruff check` clean on both files. `scripts/unattended.sh check-scoped` rc=0, 211 s, tier SCOPED, log `results/audit/_unattended/20261023-182247-check-scoped/`: 935 passed, holdout 24 passed. Slow files left out: `tests/test_audit.py`, `test_baseline.py`, `test_engine.py`, `test_experiment.py`, `test_measurement_estimators.py`, `test_measurement_fidelity.py`, `test_multiple_testing.py`, `test_scripts.py`. No existing test or golden moved.
+- **Cowork's four readings (step 2), and whether a test pins each:** (1) `ddof=1`: pinned (hand-computed expanding z with `std(ddof=1)`, `test_standardise_matches_a_hand_computed_expanding_z`). (2) The date's own score is in its own window: pinned by the same test (window `x[:t+1]`). (3) The winsorisation clips `z`, not the raw score: pinned in effect (`test_standardise_clips_a_spike_at_exactly_the_winsorisation`, a spike at 1000 gives exactly the clip) but a clip of the raw score is not tested against. (4) The burn-in counts non-missing scores, not calendar weeks: pinned (`test_standardise_a_late_column_burns_in_on_its_own_count`; a missing score carrying 0.0 is `test_standardise_a_missing_score_carries_zero`). No-lookahead (appending rows, changing the last row) is bit-exact in `test_standardise_has_no_lookahead`.
+- **Commit:** `6c01d39`. **Push:** none (`push=no`). OWNER-QUEUE untouched.
 
 ### 2026-10-23 -- task 69: done (Claude Code, sonnet, nightly 2026-10-23T16:06)
 
