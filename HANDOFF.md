@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 68 @2026-10-23T12:26 by=cowork push=no
+Nightly-release: 69 @2026-10-23T14:50 by=cowork push=no
+
+**As of 2026-10-23 (14:50 ET): task 69 RELEASED by Cowork, `push=no`, Sonnet** (`decisions/0064` C: the owner asked in chat to keep things moving; lane 2, no owner-only path, no push). It extracts the audit's rebalance step (`decisions/0059` C). Task 68 landed (`dedab62`, receipt `65dff15`). Only this line, this note and the task text changed.
 
 **As of 2026-10-23 (12:26 ET): task 68 RELEASED by Cowork, `push=no`, Sonnet** (`decisions/0064`: the owner asked for the work in chat, "yes" at 11:08; lane 2, no owner-only path). Task 60 landed and pushed at 12:24 (`edf7950`, receipt `990b3ba`, `origin/main` = `990b3ba`), which was 68's precondition. Only this line and this note changed.
 
@@ -3756,6 +3758,82 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 69. Extract the audit's rebalance step into `portfolio/rebalance.py`: a pure move, gated on exact reproduction (`decisions/0059` section C)
+
+Added 2026-10-23 by Cowork, at the owner's "I want things to keep moving" in chat. **Written, released by Cowork**
+(`push=no`, `by=cowork`, Sonnet; lane 2, `decisions/0064` C: no owner-only path, no push, changes no verdict).
+This is the first of the solver's build tasks. `decisions/0059` "What it would take to build" item 2 is one task
+too large for an unattended run, so Cowork splits it: **69** this extraction; **70** `portfolio/views.py` and the
+standardisation (pure functions, tests); **71** the phase-2 rule, `build_weight_rule`, the `parameter_usage` rows,
+the reports of section E, the validator's `scope` and `group_by`. 70 and 71 are not written yet.
+
+**Why first.** `decisions/0059` C: the ruler audit's weight rule already is the phase-2 rebalance with a planted
+alpha. Writing a second copy would let the two drift. The extraction changes **nothing** a number depends on, so
+it must reproduce every recorded audit number exactly, or the task stops.
+
+**What it does.** `audit/ladder.py::_OptimiserRule` (lines ~422-683 at HEAD `65dff15`) mixes two things: the
+rebalance (covariance, holdable set, `LongOnlySpec`, cost vector, session cap, shadow cost, `solve`, turnover log,
+diagnostics) and the alpha's source (`self.signal.alpha.reindex(...)`). Move the first into a class in
+`src/signal_lab/portfolio/rebalance.py`; leave the second in the audit.
+
+**Hard rules:**
+- **A move, not a rewrite.** Method bodies move with their logic and their comments unchanged. No renamed
+  attribute, no reordered operation, no new default, no "while I am here". Floating-point order of operations is
+  part of the contract: a reordered sum can move a golden in the last digit.
+- **`tests/` is not edited** except to add the new file of step 3. Every existing test passes unchanged. If one
+  cannot, stop and report which and why.
+- `signal_lab.portfolio` must **not import `signal_lab.audit`** (the audit imports the portfolio, not the reverse).
+- No `params/`, `vetoes/`, `SUBSTRATE.md` edit. No data read; no audit run; nothing on or after 2020-01-01.
+
+**Step 0.** `git status --short` shows nothing under `src/`, `tests/`, `scripts/`, `params/`, `vetoes/` (only
+`HANDOFF.md`, `OWNER-QUEUE.md`, `?? AGENTS.md` may appear). Task 68's receipt is at the top of `## Done`; if not, stop.
+
+**Step 1. The class.** `RebalanceStep` in `src/signal_lab/portfolio/rebalance.py` holds everything in
+`_OptimiserRule` except the alpha's source: `annual_wall_remaining`, `session_cap`, `trailing_annual_turnover`,
+`_shadow`, `_prefilled_P`, `_shadow_quadratic_coeffs`, `ex_ante_te`, `alpha`, and a new method
+`step(date, alpha, drifted=None)` whose body is today's `__call__` from `cov = self.u.covariance(...)` to
+`return sol.weights`, with the one line `alpha = self.signal.alpha.reindex(...).iloc[0].fillna(0.0)` replaced by the
+`alpha` argument (a Series over the holdable ids; the caller fills missing with 0.0 exactly as today, and `step`
+records it in `_alpha_rows` as today). It needs from the universe only `covariance(date, halflife, overlay)`,
+`holdable`, `leg_ids`, `leg_weights`, `cash`, and from the costs only `half_spread_vector(hold)`; take them as
+arguments rather than importing audit types. The imports it needs (`solve`, `LongOnlySpec`, `BPS`,
+`created_marginal_quadratic`, `created_marginal_shadow`, `prefilled_trailing_traded`) move with it.
+
+**Step 2. The audit rule.** `_OptimiserRule` becomes a subclass of `RebalanceStep` that keeps its constructor
+signature, resolves `cost_multiplier`, `shadow_coefficient`, `per_rebalance_cap`, `turnover_cap`, the shadow form
+and the volatility overlay from the cell exactly as today (`audit_cost_model`, `resolve_shadow_form`,
+`resolve_vol_overlay` stay in `ladder.py`), and whose `__call__` computes its alpha from the planted signal and
+calls `self.step`. **Keep the attribute names** (`ppy`, `shadow_coeff`, `shadow_start`, `shadow_reference`,
+`turnover_log`, `repair_turnover`, `diagnostics`, `_alpha_rows`, ...): `tests/test_audit.py` builds the rule with
+`_OptimiserRule.__new__` and sets some of them directly (around lines 394-430), and must keep working.
+`annual_wall_remaining` reads `self.cell.turnover_cap` today; if moving it forces a test edit, stop.
+
+**Step 3. One new test file, `tests/test_rebalance_step.py`:** on the synthetic universe the existing audit tests
+use (read how `small_universe` or `universe` is built there; reuse it), (a) `RebalanceStep.step` with a given
+alpha returns the same weights and the same `diagnostics` rows as `_OptimiserRule.__call__` for the planted alpha
+of the same date, first rebalance and a later one; (b) `signal_lab.portfolio` imports without importing
+`signal_lab.audit` (check `sys.modules` in a fresh subprocess or with the module removed). Mark slow only if it is.
+
+**Step 4. The gate.** `scripts/unattended.sh check-full`, rc 0 (not `check-scoped`: this is the extraction
+`decisions/0059` C gates on exact reproduction, and `check-full` is the answer when scoped is in doubt). Report:
+runtime, log directory, the pass count, and **that `tests/test_baseline.py::GOLDEN_NET_IR`,
+`GOLDEN_NET_IR_CREATED_MARGINAL` and the hash goldens passed unchanged.** `git diff --ignore-cr-at-eol --stat -- tests`
+must show only the new file. *Cowork's reading, not verified branch by branch:* the goldens cover the trailing
+and `created` shadow forms and the cap; the repair path and the annual-wall branch may be covered by inequality
+tests only. List, from the test names, which branches of `step` have an exact-value test and which do not. That
+list goes in the receipt; it is a finding, not a failure.
+
+**Step 5. Commit** (`src/signal_lab/portfolio/rebalance.py`, `src/signal_lab/audit/ladder.py`,
+`tests/test_rebalance_step.py`): `portfolio: the audit's rebalance step moves into portfolio/rebalance.py, behaviour unchanged (HANDOFF task 69, decisions/0059 C)`.
+
+**Step 6. Receipt**, committed alone (`HANDOFF.md`). **No push.** Leave OWNER-QUEUE alone.
+
+**Stop and report, without committing,** if any existing test or golden moves, in any digit; if the audit would need
+to import from the portfolio in a cycle; or if a command is denied (do not work around it).
+
+Expected: under $5 on Sonnet (a guess), one to two hours, most of it the check. Opus is not needed: the spec is a
+move with an exact gate.
+
 ### 68. The name resolver: every Bloomberg yellow key is stripped, and the implied-vol file is a source (`decisions/0034`; task 63's 35 rejected names)
 
 Added 2026-10-23 by Cowork, at the owner's "yes" in chat (board item R4). **Written, NOT released.** Lane 2,
@@ -5343,6 +5421,16 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 69: STOPPED at step 1, an existing test cannot pass unchanged (Claude Code, sonnet, nightly 2026-10-23T14:50)
+
+- **Step 0:** held. `git status --short` showed only `HANDOFF.md` and `?? AGENTS.md`; task 68's receipt was at the top of `## Done`.
+- **What failed:** nothing was run and nothing was edited. Reading the code before the move showed that the task's own hard rule ("every existing test passes unchanged; if one cannot, stop") cannot be met. `tests/test_policy_defaults.py::test_the_ladder_prices_through_objective_and_keeps_no_second_copy` (line ~522) does `inspect.getsource(ladder._OptimiserRule)` and asserts that the text contains `created_marginal_quadratic`, `created_marginal_shadow` and `prefilled_trailing_traded`. `inspect.getsource` of a subclass returns only the subclass body. Step 1 moves `_shadow_quadratic_coeffs`, `_prefilled_P` and the `created_marginal_shadow` call into `RebalanceStep`, so the assertion would fail. Making it pass would mean leaving those names in `_OptimiserRule` as a comment or a stub, which satisfies the test without keeping what it checks. I did not do that.
+- **Command and rc:** none run (no `make`, no `check-full`); no rc.
+- **Uncommitted:** nothing from this task. Working tree is as at the start (`HANDOFF.md` modified by Cowork, `AGENTS.md` untracked), plus this receipt.
+- **Other points for the revision:** `tests/test_audit.py` (~394-430) builds `_OptimiserRule.__new__` and sets `ppy`, `shadow_coeff`, `shadow_start`, `shadow_reference`, `turnover_log` directly; those attributes are all kept by the plan, so it should survive. `tests/test_baseline.py:946` and `scripts/te_path_probe.py:116` construct `_OptimiserRule(universe, signal, cell, params, solver)`; both are compatible with the planned subclass. `annual_wall_remaining` reads `self.cell.turnover_cap`; `RebalanceStep` will need `cell` or a `turnover_cap` attribute passed in.
+- **Reading of `decisions/0062` item 8:** Cowork alone: "A test fix that changes no expectation's meaning" (the test's intent, that no second copy of the pricing exists, would be kept by pointing it at `RebalanceStep` as well as `_OptimiserRule`). It is a `tests/` edit that Cowork has to write into the task as a revision note; I may not edit `tests/` here.
+- **Push:** none.
 
 ### 2026-10-23 -- task 68: done (Claude Code, sonnet, nightly 2026-10-23T12:26)
 
