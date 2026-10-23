@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 64,65 @2026-10-21T15:58 by=owner push=no
+Nightly-release: 60 @2026-10-23T10:49 by=owner push=yes
+
+**As of 2026-10-23 (10:49 ET): task 60 RELEASED, `push=yes`, Sonnet.** The owner said "release 60" after reading the draft's diff in chat. Task 59's receipt landed on 2026-10-16. Cowork copied the draft from `Claude outputs/params-v0.11.0-draft/` into the seven `params/*.yaml` and `SUBSTRATE.md` (owner-only edit, at the owner's instruction of 2026-10-16; `decisions/0058`, `0059`). Checked before release: nothing under `params/`, `SUBSTRATE.md` or `vetoes/` changed since 2026-10-12, so the draft's base is HEAD's; `git diff --ignore-cr-at-eol --stat` gives the 8 files, 51 added and 13 removed lines; every file is CRLF throughout; the params hash is `4f13f3736b3e3ea86b3ce8fac4ac5ca93a6aea4c35c0818c6b3e836774840d1e`; `label_map.csv` hashes to the pin `60ee1934...bdb5`. The push also carries the 14 commits ahead of `origin/main` (`20d96e6..c078b7b`). Only this line, this note and the eight owner-only files were changed.
 
 **Clerical correction, 2026-10-21 17:58 ET (Cowork, `decisions/0062` item 8):** the line above read `64 65`; the gate's grammar takes comma-separated ids (`0062` item 2), so it refused the line ("the release line does not parse") and tonight's 23:00 slot would have run nothing. Now `64,65`. The owner's release, its stamp, `push=no` and the order are unchanged.
 
@@ -3748,6 +3750,59 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 68. The name resolver: every Bloomberg yellow key is stripped, and the implied-vol file is a source (`decisions/0034`; task 63's 35 rejected names)
+
+Added 2026-10-23 by Cowork, at the owner's "yes" in chat (board item R4). **Written, NOT released.** Lane 2,
+no owner-only path: Cowork releases it with `push=no`, `by=cowork` (`decisions/0064`) **after task 60's receipt**.
+Sonnet. **No push.**
+
+**Why.** Task 63's pass (`make registry-names`) rejected 35 entries. Cowork's reading, from the code and the
+committed tables (not a ruling on any name):
+- **10 entries, `GTII10` and `DXY` in `H-2026-0013` to `0017`.** Both are in `data/universe/bbg_analytics_coverage.csv`
+  as `GTII10 Govt|YLD_YTM_MID` and `DXY Curncy|PX_LAST`. `_split_name` (`src/signal_lab/harness/hypotheses.py`)
+  strips only a trailing ` Index`, so the table yields `GTII10 Govt` and `DXY Curncy`, which never equal the bare
+  `GTII10` and `DXY`. `USGGBE10` in the same files resolves only because its yellow key is ` Index`. A bug, not a
+  missing name.
+- **25 entries, `<ticker>|IV3M_10DP` / `|IV3M_10DC` in `H-2026-0018` to `0021`.** Every one is a `series_id` in the
+  committed `results/impvol/coverage.json` (task 59, `decisions/0061`), in the same `ticker|field` form.
+  `_known_names` never reads that file.
+
+`data/universe/owner_confirmed_names.csv` stays for names with no file behind them (as `LT08TRUU`); none is added here.
+
+**What this task does not do:** no hypothesis file, coverage table, params or SUBSTRATE edit; no name is added to the
+owner-confirmed list; `load` and `load_tolerant` unchanged; nothing under `data/raw/` is read.
+
+**Step 0.** `git status --short` shows nothing under `src/`, `tests/`, `scripts/`, `params/`, `vetoes/` (only
+`HANDOFF.md`, `OWNER-QUEUE.md` or `?? AGENTS.md` may appear). Task 60's receipt is at the top of `## Done`; if not, stop.
+
+**Step 1. `_split_name`.** Strip one trailing Bloomberg yellow key, any of ` Index`, ` Curncy`, ` Govt`, ` Comdty`,
+` Equity`, ` Corp`, ` Mtge`, ` Muni`, ` Pfd`, ` M-Mkt` (whole word, case as Bloomberg writes it), instead of ` Index` only.
+It already runs on both sides (hypothesis entries and the analytics tables); keep it so. The bare-ticker tables
+(`investable_universe`, `bbg_index_coverage`, `bbg_exusd_bonds_coverage`, `fred_coverage`) hold no suffix today
+(Cowork counted: 102, 97, 5, 36 rows, all bare); pass their entries through `_split_name` too, so a suffix added
+later cannot reopen this.
+
+**Step 2. The implied-vol source.** In `_known_names`, read `results/impvol/coverage.json` (its `series` list, the
+`series_id` key) when it exists, and add each one through `_split_name` to `pairs` and its ticker to `tickers`, as the
+analytics tables are. A missing file adds nothing (as `_read_csv_column` does for a missing CSV). Take its path from
+a module constant beside `UNIVERSE_DIR`, overridable in tests the way `universe_dir` is.
+
+**Step 3. Tests** (`tests/test_name_resolution.py`): `DXY` resolves against a table row `DXY Curncy|PX_LAST`, `GTII10`
+against `GTII10 Govt|YLD_YTM_MID`, and `EEM US Equity|IV3M_10DP` against a synthetic coverage.json; an invented
+`FOO Curncy` and `EEM US Equity|IV3M_99DP` are still rejected; a missing coverage.json changes nothing. Every existing
+test passes unchanged.
+
+**Step 4. The pass.** `make registry-names`, rc 0. Expected: 136 entries in 21 files, **0 rejected**. Report the totals
+line. Any entry still rejected: list it and stop before committing (do not add it anywhere).
+
+**Step 5. Check and commit.** `scripts/unattended.sh check-scoped`, rc 0; name the tier, slow files left out, runtime
+and log directory. Commit: `harness: the resolver strips every yellow key and reads the implied-vol coverage (HANDOFF task 68, decisions/0034)`
+(`src/signal_lab/harness/hypotheses.py`, `tests/test_name_resolution.py`).
+
+**Step 6. Receipt**, committed alone (`HANDOFF.md`). **No push.** Leave OWNER-QUEUE alone; nothing was filed there.
+
+Expected: under $1.50 on Sonnet, under 30 minutes (most of it the check).
+
 ### 60. Params v0.11.0 and SUBSTRATE v0.12 (`decisions/0058` item 6; `0059` item 1 and its 2026-10-16 addendum): the store read is `huber6-v4`, the label map is pinned, the `views` block lands; the tests follow; then push
 
 Added 2026-10-16 by Cowork. **Written, NOT released.** It is released when
@@ -5259,6 +5314,24 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 60: STOPPED at step 0, the params hash could not be computed (Claude Code, sonnet, nightly 2026-10-23T10:49)
+
+- **Checked and held:** `git status --short` shows the seven `params/*.yaml` and `SUBSTRATE.md` modified, plus `HANDOFF.md` and an untracked `AGENTS.md` (not in step 0's list; left alone). `git diff --ignore-cr-at-eol --stat params SUBSTRATE.md` gives 8 files, 51 insertions, 13 deletions, as the release note says. A search for lines not ending in CR found none in `params/*.yaml`.
+- **What failed:** step 0 needs the params hash `4f13f373...0d1e`. The command that computes it, `PYTHONPATH=src UV_PROJECT_ENVIRONMENT=$HOME/.venvs/signal-lab uv run --python 3.12 --group dev python -c "from signal_lab.params import hash_params_dir; print(hash_params_dir())"`, was denied by the permission layer (don't-ask mode; the env-assignment prefix matches no allow-list entry, the same shape as task 63's stop). An earlier compound `for ... grep ...; grep` call was also denied. rc: not run.
+- **Not verified:** the params hash, the diff against the draft's `params-v0.11.0-draft/params-v0.11.0.diff`, SUBSTRATE's CRLF. I did not compare the hash another way, because the repo's own function is the reference.
+- **Nothing else started:** steps 1 to 4 not begun, nothing changed under `src/` or `tests/`, no check run, nothing pushed. The 8 owner-only files and `AGENTS.md` are still uncommitted in the working tree.
+- **For Cowork:** `decisions/0062` item 8, owner: a permission denial I cannot work within. Suggested fix: give step 0 a `make` target for the hash, as task 63 step 4a did, or run task 60 interactively.
+
+### 2026-10-23 -- task 65: step 1 done by Cowork through signal-lab-exec (lane 1, `decisions/0064`; `decisions/0065`), interactive with the owner
+
+**rc=0. Holdout stop rule not triggered: every sheet ends 2019-12-31.** No commit of its own (this receipt rides with the next `HANDOFF.md` commit). No push.
+
+- **How.** The owner chose this route in chat (board R3). `start_job make inspect-raw task=65`: the first try (10:52, job `20261023-105224-119603-make-inspect-raw`) failed at once, rc 2: `make: uv: No such file or directory` (Error 127; make's own lines only were read, Python never started, nothing from the file was opened). Cause: the server inherits the `wsl.exe` non-login PATH, which lacks `~/.local/bin`. **The owner added `PATH=/home/lelvieira/.local/bin:/usr/local/bin:/usr/bin:/bin` to the `signal-lab-exec` args in `claude_desktop_config.json`**; `make governance` then rc 0 (job `20261023-110004-057443-make-governance`, the server's first successful make job); the rerun `20261023-110232-948790-make-inspect-raw` rc 0, and `data/universe/raw_structure.json` was rewritten at 11:04. The job log was not read (the server refuses its tail).
+- **Side effect:** the 11:02 poll skipped task 60 (`skip: the lock is held`, my governance job held the one-run lock). Cowork starts nothing between :00 and :03, :15-:18, :30-:33, :45-:48 while a release is waiting.
+- **Structure, `bbg_japan_govt.xlsx`** (from `raw_structure.json`, the fields step 1 names only): `levels` 1,789 rows x 6 cols, row 1 `date, I29064JP_local_JPY, I29065JP_local_JPY, I29066JP_local_JPY, I29067JP_local_JPY, I29068JP_local_JPY`, col 1: 1,789 non-empty, 2013-01-31 to 2019-12-31. `analytics` 8,941 x 5, row 1 `date, ticker, index_name, oad_tsy, yield_to_worst`, col 1: 8,941 non-empty, 2013-01-31 to 2019-12-31. `Pull Report` 16 x 8, row 1 `sheet, ticker, field, first_non_blank, last_non_blank, non_blank_rows, #N/A_cells, other_error_cells`, cols 4 and 5: 16 non-empty each, 2013-01-31 and 2019-12-31.
+- **sha256** first 16 hex: `dfdf8ed9a39c5da1`. Nothing read from `raw_meta.json`.
+- **Against what task 65 expected:** the analytics sheet is long (one row per date and ticker, columns `oad_tsy` and `yield_to_worst`), not wide `INDEX_OAD_TSY` / `INDEX_YIELD_TO_WORST` columns; 8,940 data rows = 1,788 dates x 5 tickers (Cowork's arithmetic). A third sheet, `Pull Report`. Neither is an error; the Japan loader must read the long layout.
 
 ### 2026-10-22 -- task 67: done (Claude Code, sonnet, interactive 2026-10-22T17:10)
 
