@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 60 @2026-10-23T11:58 by=owner push=yes
+Nightly-release: 68 @2026-10-23T12:26 by=cowork push=no
+
+**As of 2026-10-23 (12:26 ET): task 68 RELEASED by Cowork, `push=no`, Sonnet** (`decisions/0064`: the owner asked for the work in chat, "yes" at 11:08; lane 2, no owner-only path). Task 60 landed and pushed at 12:24 (`edf7950`, receipt `990b3ba`, `origin/main` = `990b3ba`), which was 68's precondition. Only this line and this note changed.
 
 **Re-release 2, 2026-10-23 11:58 ET (Cowork, `decisions/0062` item 8).** The 11:32 run stopped at step 0 (receipt `383bf0a`) on the CRLF `grep -c $'\r$'` that **Cowork's** revision note 1 named; the `$'...'` quoting matches no allow rule. Cowork's miss. Every other step-0 check held, both hashes included. Revision note 2 drops the CRLF check. The owner's release of 10:49 is unchanged; only the stamp is new.
 
@@ -5341,6 +5343,14 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 68: done (Claude Code, sonnet, nightly 2026-10-23T12:26)
+
+- **Step 0:** `git status --short` showed only `HANDOFF.md` and `?? AGENTS.md`; task 60's receipt was at the top of `## Done`.
+- **Steps 1-3:** `_split_name` strips one trailing yellow key from the ten listed (`YELLOW_KEYS`), and the bare-ticker tables now pass through it. `_known_names` reads `results/impvol/coverage.json` (`series_id`) when it exists, through a module constant `IMPVOL_COVERAGE`, overridable as `unresolved_names(..., impvol_coverage=...)`; a missing file adds nothing. Three tests added in `tests/test_name_resolution.py`; no existing test changed.
+- **Step 4:** `make registry-names` rc 0: `21 files, 136 entries; 0 entries rejected in 0 files`.
+- **Step 5:** the first `check-scoped` run (`20261023-123116-check-scoped`) failed rc=2 at `ruff format --check` on my own two files, a formatting fix only, nothing worked around. After formatting, `scripts/unattended.sh check-scoped` rc=0, 467 s, tier SCOPED, log `results/audit/_unattended/20261023-123448-check-scoped/`; slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`; load at start 0.83 0.72 0.73, end 1.61 1.21 0.95. Commit `dedab62`.
+- **Push:** none (`push=no`). OWNER-QUEUE untouched.
 
 ### 2026-10-23 -- task 60: done (Claude Code, sonnet, nightly 2026-10-23T11:58)
 
