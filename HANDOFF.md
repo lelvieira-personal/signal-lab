@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 60 @2026-10-23T10:49 by=owner push=yes
+Nightly-release: 60 @2026-10-23T11:22 by=owner push=yes
+
+**Re-release, 2026-10-23 11:22 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once the cause is fixed).** The 11:17 run stopped at step 0 (receipt `7df15b0`): its hash command carried a `PYTHONPATH=... UV_PROJECT_ENVIRONMENT=...` prefix, which no allow rule matches. Task 60's revision note 1 gives step 0 allow-listed, one-command-per-call forms. The owner's release of 10:49 ("release 60", `push=yes`) is unchanged; only the stamp is new, so the gate runs it again.
 
 **As of 2026-10-23 (10:49 ET): task 60 RELEASED, `push=yes`, Sonnet.** The owner said "release 60" after reading the draft's diff in chat. Task 59's receipt landed on 2026-10-16. Cowork copied the draft from `Claude outputs/params-v0.11.0-draft/` into the seven `params/*.yaml` and `SUBSTRATE.md` (owner-only edit, at the owner's instruction of 2026-10-16; `decisions/0058`, `0059`). Checked before release: nothing under `params/`, `SUBSTRATE.md` or `vetoes/` changed since 2026-10-12, so the draft's base is HEAD's; `git diff --ignore-cr-at-eol --stat` gives the 8 files, 51 added and 13 removed lines; every file is CRLF throughout; the params hash is `4f13f3736b3e3ea86b3ce8fac4ac5ca93a6aea4c35c0818c6b3e836774840d1e`; `label_map.csv` hashes to the pin `60ee1934...bdb5`. The push also carries the 14 commits ahead of `origin/main` (`20d96e6..c078b7b`). Only this line, this note and the eight owner-only files were changed.
 
@@ -3877,6 +3879,23 @@ one. **No golden may move;** if one does, stop and report it.
   Commit it, `git push origin main` (fast-forward only), the push line.
   Then stop.
 
+**Revision note 1, 2026-10-23 11:22 ET (Cowork, after the STOPPED receipt `7df15b0`).** Step 0's checks, in
+allow-listed form, **one command per call, nothing before the first word** (no `VAR=`, no `env`, no `for`, no `&&`);
+`run.sh` already exports the thread variables and `UV_PROJECT_ENVIRONMENT`:
+- `git diff --ignore-cr-at-eol --stat params SUBSTRATE.md`: 8 files, 51 insertions, 13 deletions.
+- The params hash, stdlib only (no `signal_lab` import, so no `PYTHONPATH`):
+
+      uv run --python 3.12 --group dev python -c "import hashlib;h=hashlib.sha256();[h.update(n.encode()+b'\0'+open('params/'+n,'rb').read()+b'\0') for n in ('constraints.yaml','costs.yaml','vetoes.yaml','data.yaml','data_sources.yaml','agents.yaml','audit.yaml')];print(h.hexdigest())"
+
+  must print `4f13f3736b3e3ea86b3ce8fac4ac5ca93a6aea4c35c0818c6b3e836774840d1e` (the draft's hash; equal hashes mean the
+  seven params files are the draft byte for byte, which is step 0's "matches the draft's diff" for `params/`).
+- `sha256sum SUBSTRATE.md` must print `97b0635b585b9b00aa8ae57a23e1c49958945c968333370c48e692080f3f9c3b`, the draft's
+  `SUBSTRATE.md` (Cowork's reading, 11:21).
+- CRLF, one file per call: `grep -c $'\r$' SUBSTRATE.md` equals `wc -l SUBSTRATE.md` (709 and 709 at 11:21); the
+  same pair for each `params/*.yaml` if you check them again.
+- `?? AGENTS.md` is expected and is not Cowork's; leave it (it has been untracked since before task 63).
+If any of these is denied, stop and report it, as before. Steps 1 to 4 are unchanged.
+
 ---
 
 ### 59. The implied-vol file (`decisions/0061`): commit the records of 2026-10-16, `inspect_raw` skips Excel lock files, a loader for `bbg_impvol_values_only.xlsx` and its coverage report; task 56's open gate, reported only; then push
@@ -5314,6 +5333,14 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 60: STOPPED at step 0, the CRLF `grep` was denied (Claude Code, sonnet, nightly 2026-10-23T11:22)
+
+- **Checked and held (revision note 1's forms, one command per call):** `git status --short` shows the seven `params/*.yaml` and `SUBSTRATE.md` modified, plus `HANDOFF.md` and the expected untracked `AGENTS.md` (left alone). `git diff --ignore-cr-at-eol --stat params SUBSTRATE.md`: 8 files, 51 insertions, 13 deletions. The params hash printed `4f13f3736b3e3ea86b3ce8fac4ac5ca93a6aea4c35c0818c6b3e836774840d1e`, as required. `sha256sum SUBSTRATE.md` printed `97b0635b585b9b00aa8ae57a23e1c49958945c968333370c48e692080f3f9c3b`, as required. `wc -l SUBSTRATE.md` gave 709.
+- **What failed:** the CRLF check `grep -c $'\r$' SUBSTRATE.md` was denied by the permission layer (don't-ask mode), on its own, as a single command. rc: not run. The task says that a denial of any of these means stop and report.
+- **Not verified:** that `SUBSTRATE.md` has 709 CR-terminated lines (the `grep -c` half), and the same pair for each `params/*.yaml`. The equal params hash and `SUBSTRATE.md` hash are strong evidence of byte-for-byte equality with the draft, but I did not substitute another way of counting CRs.
+- **Nothing else started:** steps 1 to 4 not begun, nothing changed under `src/` or `tests/`, no check run, nothing pushed. The 8 owner-only files and `AGENTS.md` are still uncommitted in the working tree.
+- **For Cowork:** `decisions/0062` item 8, owner: a permission denial I cannot work within (a command the task names, denied on its own). Likely cause: the `$'\r$'` ANSI-C quoting, which the allow list does not match. Suggested fix: drop the CRLF check from step 0, since the two hashes already prove the bytes, or give it a `make` target; then re-release.
 
 ### 2026-10-23 -- task 60: STOPPED at step 0, the params hash could not be computed (Claude Code, sonnet, nightly 2026-10-23T10:49)
 
