@@ -1,6 +1,6 @@
 # Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
 # sections 3, 5 and 16. Owner-only.
-params_version: "0.10.0"
+params_version: "0.11.0"
 
 windows:
   dev_start: "2001-01-05"
@@ -73,8 +73,17 @@ characteristics:
   # and hashed; which one a run reads is an owner decision, and naming it here
   # puts it in the params hash every run records. `directory_hash` is the
   # store manifest's: a store of the same id with other contents is refused.
-  store_id: huber6-v3
-  directory_hash: "84a5088d82b135c48ba7da5709ebae3f58186c06b08575d1b233ba19e27270f7"
+  #
+  # v0.11.0 (decisions/0058 item 6, owner 2026-10-12): store huber6-v4 -- the
+  # ex-USD bonds on Bloomberg's close (decisions/0056), the credit factor on
+  # FRED BAA10Y, estimation before dev_start -- built by HANDOFF task 56, and the
+  # label map (decisions/0054, 0057; built by task 55) pinned beside it by its
+  # sha256 over the file's bytes as committed.
+  store_id: huber6-v4
+  directory_hash: "b6181bcde28b7e95e69839ff29f2a0a0f19e7552f970b3a24804fcebb7569206"
+  label_map:
+    path: data/universe/label_map.csv
+    sha256: "60ee1934bf89582c8630b1c4a8b2f9b55e1181ec0cd55dc982c2dfa3be85bdb5"
 
 fred:
   # SUBSTRATE section 5.4: ICE BofA spread series on FRED start 2023-09.

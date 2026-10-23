@@ -480,3 +480,42 @@ def test_every_week_of_the_real_v4_store_is_dated_by_its_friday():
     dates = pd.DatetimeIndex(fit["date"])
     assert (dates.dayofweek == 4).all()
     assert (pd.DatetimeIndex(fit["last_data_date"]) == dates).all()
+
+
+# --- the label map's pin (HANDOFF task 60, decisions/0059 item 1) ----------------------------
+
+
+class PinnedParams(FakeParams):
+    def __init__(self, directory_hash, path, sha256):
+        super().__init__(directory_hash=directory_hash)
+        self.values["data.characteristics.label_map.path"] = str(path)
+        self.values["data.characteristics.label_map.sha256"] = sha256
+
+
+def _sha(path):
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_a_label_map_that_matches_its_pin_is_read(tmp_path):
+    digest = _write(tmp_path)
+    path = write_label_map(tmp_path / "pinned.csv")
+    m = ExposureMap.from_params(PinnedParams(digest, path, _sha(path)), tmp_path)
+    assert set(m.at(WEEKS[0]).index) == set(LABEL_ROWS)
+
+
+def test_one_changed_byte_in_the_pinned_label_map_is_refused(tmp_path):
+    digest = _write(tmp_path)
+    path = write_label_map(tmp_path / "pinned.csv")
+    want = _sha(path)
+    path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(LabelMapMissing, match="pins " + want):
+        ExposureMap.from_params(PinnedParams(digest, path, want), tmp_path)
+
+
+def test_an_explicit_label_map_is_never_compared_with_the_pin(tmp_path):
+    digest = _write(tmp_path)
+    path = write_label_map(tmp_path / "explicit.csv")
+    m = ExposureMap.from_params(PinnedParams(digest, path, "0" * 64), tmp_path, label_map=path)
+    assert set(m.at(WEEKS[0]).index) == set(LABEL_ROWS)

@@ -1,6 +1,6 @@
 # Portfolio constraints. SUBSTRATE.md section 4.
 # Owner-only. Agents may not edit this file (SUBSTRATE section 2).
-params_version: "0.10.0"
+params_version: "0.11.0"
 
 direction: long_only
 leverage_allowed: false
@@ -160,6 +160,26 @@ fx:
   benchmark_unhedged: true
   # Section 4: hedged series are the counterfactual, not a separate live axis in v0.3.
   hedged_series_are_live_axis: false
+
+views:
+  # decisions/0059 (B), ruled 2026-10-12 and 2026-10-14; the burn-in amended to
+  # 52 weeks, lab-wide, on 2026-10-16 (0059 addendum). How a hypothesis's score
+  # becomes a view in return units, for every hypothesis alike:
+  #
+  #     v_k(t) = ic_prior * sigma_k(t) * z_k(t) / sqrt(h)
+  #
+  # ic_prior is a prior, not a measurement, and is never fitted from a run.
+  ic_prior: 0.05
+  # h is the geometric mean of the hypothesis's horizon_weeks range, rounded to
+  # the nearest week: 4-13 gives 7, 8-26 gives 14, 13-52 gives 26.
+  horizon_rule: geometric_mean_rounded
+  standardisation:
+    # z is built in one place: an expanding-window mean and standard deviation
+    # of the knowledge-dated scores, winsorised, after a burn-in of score
+    # history. Before the burn-in is met the view is zero.
+    window: expanding
+    burn_in_weeks: 52
+    winsorise_at: 3.0
 
 solver:
   # cvxpy with an open-source solver by default.

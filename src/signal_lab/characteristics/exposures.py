@@ -33,6 +33,7 @@ log as the `parameter_usage` table that `veto_lookahead` reads.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pandas as pd
@@ -43,7 +44,8 @@ from signal_lab.harness.hypotheses import TARGET_AXES
 from signal_lab.params import Params, get_params
 
 MEASURED_DURATION_CLASSES = ("Treasuries", "Long Treasuries", "IG Corporates", "TIPS")
-LABEL_MAP_PATH = Path(__file__).resolve().parents[3] / "data" / "universe" / "label_map.csv"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+LABEL_MAP_PATH = REPO_ROOT / "data" / "universe" / "label_map.csv"
 UNBUILT_LABEL_AXES = ("sector", "style")
 LABEL_COLUMNS = (
     "region",
@@ -89,6 +91,30 @@ def load_label_map(path: Path | str | None = None) -> pd.DataFrame:
     if not path.exists():
         raise LabelMapMissing(f"no label map at {path} (decisions/0054)")
     return pd.read_csv(path, dtype=str, keep_default_na=False).set_index("ticker")
+
+
+def pinned_label_map(params: Params) -> Path | None:
+    """The label map `data.characteristics.label_map` names, refused if its bytes are not the pin.
+
+    Returns None when params names no label map, so the module's default path is read unpinned.
+    A path in params is relative to the repository root (decisions/0059 item 1).
+    """
+    rel = params.get("data.characteristics.label_map.path", None)
+    want = params.get("data.characteristics.label_map.sha256", None)
+    if not rel or not want:
+        return None
+    path = Path(rel)
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    if not path.exists():
+        raise LabelMapMissing(f"no label map at {path} (decisions/0054)")
+    have = hashlib.sha256(path.read_bytes()).hexdigest()
+    if have != want:
+        raise LabelMapMissing(
+            f"the label map {path} hashes to {have}, params/ pins {want}; "
+            "a label map with other contents is refused (decisions/0059)"
+        )
+    return path
 
 
 class ExposureMap:
@@ -163,6 +189,8 @@ class ExposureMap:
                 f"{str(want)[:16]}...; a store of the same id with other contents is refused "
                 f"(decisions/0055)"
             )
+        if label_map is None:
+            label_map = pinned_label_map(params)
         return cls(loaded, label_map)
 
     # -- reading a date -------------------------------------------------------------------

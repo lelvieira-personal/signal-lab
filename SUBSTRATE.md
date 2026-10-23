@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.11, 2026-10-11. Owner: Leo. This document is the constitution of
+Status: v0.12, 2026-10-16. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -47,6 +47,12 @@ the four ex-USD bonds delivered in local currency are converted with
 Bloomberg's close) and `decisions/0057` (a view may carry a scope), decided by
 the owner on 2026-10-11. Applied by Cowork at the owner's instruction. The
 v0.10 text is in git history.
+
+v0.12 amended §5.4, transcribing `decisions/0058` (one spread comes from FRED:
+`BAA10Y`, the credit factor of the exposure matrix), approved by the owner on
+2026-10-12 ("5.4 wording approved") and transcribed with the params change of
+its item 6 (params v0.11.0). Applied by Cowork at the owner's instruction on
+2026-10-16. The v0.11 text is in git history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -293,10 +299,13 @@ map and converts yield views to return views.
 US Treasury curve 3m/2y/5y/10y/30y, 5y and 10y TIPS real yields, 5y/10y
 and 5y5y breakevens, fed funds, SOFR, VIX, Chicago Fed NFCI/ANFCI (weekly),
 St Louis Fed stress index (weekly), economic policy uncertainty (daily),
-broad/AFE/EM dollar indices (2006), WTI and Brent.
+broad/AFE/EM dollar indices (2006), WTI and Brent; `BAA10Y` (see below).
 
-FRED's ICE BofA spread series start 2023-09 and are **not used**. Spreads
-come from Bloomberg.
+FRED's ICE BofA spread series start 2023-09 and are **not used**. Index
+spreads come from Bloomberg. One spread comes from FRED: Moody's seasoned
+Baa yield less the 10-year Treasury (`BAA10Y`, daily from 1986), the credit
+factor of the exposure matrix, dated by its observation like a Bloomberg
+close (`decisions/0058`).
 
 ### 5.4a Unhedged international fixed income
 

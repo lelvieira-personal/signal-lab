@@ -125,3 +125,20 @@ def test_the_store_params_names_is_the_committed_one(params):
     doc = yaml.safe_load((manifest / "manifest.yaml").read_text(encoding="utf-8"))
     assert doc["store_id"] == store_id
     assert doc["directory_hash"] == params.require("data.characteristics.directory_hash")
+
+
+def test_the_views_block_is_the_one_decisions_0059_names(params):
+    """decisions/0059 item 1 and its 2026-10-16 addendum (HANDOFF task 60)."""
+    assert params.params_version == "0.11.0"
+    assert params.require("constraints.views.ic_prior") == 0.05
+    assert params.require("constraints.views.horizon_rule") == "geometric_mean_rounded"
+    assert params.require("constraints.views.standardisation.window") == "expanding"
+    assert params.require("constraints.views.standardisation.burn_in_weeks") == 52
+    assert params.require("constraints.views.standardisation.winsorise_at") == 3.0
+
+
+def test_params_name_huber6_v4_and_pin_the_label_map(params):
+    """decisions/0058 item 6: the store read is huber6-v4; the label map is pinned by sha256."""
+    assert params.require("data.characteristics.store_id") == "huber6-v4"
+    assert params.require("data.characteristics.label_map.path") == "data/universe/label_map.csv"
+    assert len(params.require("data.characteristics.label_map.sha256")) == 64
