@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 74 @2026-10-24T08:40 by=owner push=yes
+Nightly-release: 74 @2026-10-24T16:40 by=cowork push=yes
+
+**Re-release, 2026-10-24 16:40 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** The 08:47 run stopped at step 0 (receipt `34b5324`): the hash command was denied (not allow-listed). Revision note 1 to task 74 drops it; Cowork computed both hashes itself. The owner's release of 08:40 (`push=yes`, "Release japan params and push") is unchanged; only the stamp is new, `by=cowork`, `push=yes` as the owner had it. Task 72 is re-released after 74's receipt (new stamp, `push=no`).
 
 **As of 2026-10-24 08:40 ET: task 74 RELEASED by the owner, `push=yes`, Sonnet** ("Release japan params and push", chat). It commits the Japan label-map and universe rows and params v0.11.1 (`decisions/0066`), which Cowork applied to the working tree at the owner's instruction, then pushes. **Task 72 STOPPED** at 05:50 (receipt `92fe365`) on a contradiction in Cowork's own task text; revision note 1 (after the task's text) fixes it. Cowork re-releases 72 after 74's receipt (a new stamp, `push=no`), so the two do not share a run or a push.
 
@@ -5743,6 +5745,20 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-24 -- task 74: STOPPED at step 1, four failures, two need a script change (Claude Code, sonnet, nightly 2026-10-24T16:40)
+
+- **Step 0:** held. `git status --short` and `git diff --stat --ignore-cr-at-eol -- params data/universe` (9 files, 21 insertions, 8 deletions) as expected; the two hashes were supplied by Cowork (revision note 1), not recomputed.
+- **Command and rc:** `scripts/unattended.sh check-full` rc=2, 476 s, log `results/audit/_unattended/20261024-164721-check-full/`: 1018 passed, 4 failed (lint clean).
+- **The four failures:**
+  1. `tests/test_label_map.py::test_the_counts_are_the_ones_the_record_expects`: `89 == 84`. Tied to the five rows; task 74 authorises the edit (84 -> 89, bond 23 -> 28). **Not made.**
+  2. `tests/test_label_map.py::test_the_script_regenerates_the_committed_file_byte_for_byte`: the committed `label_map.csv` (with the five rows) differs from what the generating script writes, so the script lacks the five rows. Fixing it means editing `scripts/` (or its source record), which the task does not authorise.
+  3. `tests/test_params.py::test_the_views_block_is_the_one_decisions_0059_names`: pins `params_version == '0.11.0'`, now `0.11.1`. Caused by the version bump, not by the five rows; the task's edit list (counts and sets for the rows) does not cover it.
+  4. `tests/test_scripts.py::test_the_committed_universe_is_what_build_universe_produces`: `build_universe` does not produce the five rows (`I29064JP`..`I29068JP` are extra in the committed table). Same cause as 2: `scripts/build_universe.py` (or its inputs) must learn the five rows. The assertion message says "run `make universe` and commit the table", but regenerating would drop the rows Cowork applied, so I did not.
+- **Not done:** no edit, no commit of the nine files, no push. The working tree is as Cowork left it; only this receipt is new (committed with Cowork's pending `HANDOFF.md`).
+- **Column of `decisions/0062` item 8:** Cowork alone: a task text that does not foresee its own consequences (the generating scripts and the params-version pin), no owner judgement; the `scripts/` change is a lane-2 edit Cowork can write into a revision note (or split into a prior task). If the `0054` record is the source the label-map script reads, unsure whether that is owner-only; then owner.
+
+**Revision note 1 to task 74, 2026-10-24 (Cowork, `decisions/0062` item 8: a command the task depends on is not allow-listed; no owner judgement, no owner-only edit).** The 08:47 run stopped at step 0 because no allow-listed command prints the hashes. Step 0's two hash checks are replaced by what Cowork read at 16:38 ET with read-only commands in the working tree: `data/universe/label_map.csv` sha256 `e98344fd2a91c160021d17df36839b11994ca4359b9b5a08bbe0c5040c1accec` (equals the new pin), params hash (repo rule, `PARAM_FILES` order) `f9deaa14ff0e73783ff2197f6f1dc004603f36001386f61c059d1a42f038d994` (equals the task's), all seven files at `params_version` 0.11.1. **Do not run the hash command; skip those two checks and say in the receipt that Cowork supplied them.** The `git status --short` and `git diff --stat --ignore-cr-at-eol` checks of step 0 held on the 08:47 run and stay. Everything else in task 74 is unchanged.
 
 ### 2026-10-24 -- task 74: STOPPED at step 0, the hash check was denied (Claude Code, sonnet, nightly 2026-10-24T08:40)
 
