@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 72 @2026-10-24T05:50 by=cowork push=no
+Nightly-release: 74 @2026-10-24T08:40 by=owner push=yes
+
+**As of 2026-10-24 08:40 ET: task 74 RELEASED by the owner, `push=yes`, Sonnet** ("Release japan params and push", chat). It commits the Japan label-map and universe rows and params v0.11.1 (`decisions/0066`), which Cowork applied to the working tree at the owner's instruction, then pushes. **Task 72 STOPPED** at 05:50 (receipt `92fe365`) on a contradiction in Cowork's own task text; revision note 1 (after the task's text) fixes it. Cowork re-releases 72 after 74's receipt (a new stamp, `push=no`), so the two do not share a run or a push.
 
 **As of 2026-10-24 05:50 ET: task 72 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** Task 71 landed (`371d29f`, receipt `1e4c3f3`, check-scoped rc 0, 169 s; Cowork read the run's `status.txt` and the check's). Task 72 adds the cash and region axes and the cross-sectional views (demeaned standardised scores, `decisions/0059` A and the 2026-10-23 addendum), pure functions in `alpha.py`; no owner-only path, no data, no golden. **Held back, for the chain's next step:** the validator's `scope`/`group_by`, the phase-2 rule class, `build_weight_rule`, `parameter_usage` and the reports (task 73, not written). Only this line, this note and task 72's text changed.
 
@@ -3766,6 +3768,60 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 74. Japan government family, step 1: the label map and the universe gain the five rows, params v0.11.1 pins the new label map; then push (`decisions/0066`, ruled 2026-10-23; draft `Claude outputs/params-japan-draft/`)
+
+Added 2026-10-24 by Cowork. **Written and RELEASED by the owner** ("Release japan params and push", chat, 2026-10-24),
+`push=yes`, Sonnet. Same shape as task 60. **Cowork applied the draft to the working tree at the owner's instruction** (the
+owner-only edit; Claude Code never copies a draft into `params/` itself). What Cowork applied, and Cowork verified:
+- `data/universe/label_map.csv` (LF): the five rows `I29064JP` to `I29068JP` appended (`bond, Ex-USD Bonds, Japan, no, JPY,
+  Government, DM, JPY, Government, (blank), DM`). Its sha256 is now `e98344fd2a91c160021d17df36839b11994ca4359b9b5a08bbe0c5040c1accec`.
+- `data/universe/investable_universe.csv` (CRLF): the five rows, section "3. International Government Bonds", investable True,
+  hedged False, cost bucket `mid`, tier blank, source `bbg_japan_govt.xlsx`. **`first_daily` is 2013-01-31 for all five as a
+  placeholder; the loader task (step 2) corrects each from the Pull Report sheet.**
+- `params/*.yaml` (all seven, CRLF kept): `params_version` 0.11.0 -> 0.11.1; `params/data.yaml` label-map pin
+  `60ee1934...bdb5` -> `e98344fd...ccec`, plus a three-line comment. `store_id` stays `huber6-v4` and its `directory_hash` is unchanged.
+- **New params hash `f9deaa14ff0e73783ff2197f6f1dc004603f36001386f61c059d1a42f038d994`** (the repo's rule: name, NUL, bytes, NUL, in `PARAM_FILES` order,
+  working-tree bytes).
+Nothing under `SUBSTRATE.md` or `vetoes/` changes. No solver, no audit, no store is built, no data is read.
+
+**0. Check what Cowork applied (one command per call, allow-listed forms).** `git status --short` shows exactly: the seven
+`params/*.yaml`, `data/universe/label_map.csv`, `data/universe/investable_universe.csv` modified, plus Cowork's pending
+` M CLAUDE.md`, ` M decisions/0059-...`, ` M HANDOFF.md`, `?? AGENTS.md`, `?? decisions/0067-...`, `?? decisions/proposed/0066-...`.
+`git diff --stat -- params data/universe` gives 9 files, 21 insertions, 8 deletions. The label map hashes to the pin above (use the
+repo's own loader/hash code, not a shell pipeline with an env prefix) and the params hash is the one above (repo function). Any
+difference: stop and report.
+
+**1. Run `scripts/unattended.sh check-full`.** Expected red or green? Unknown. **Cowork's reading of what will move, and the
+only edits this task authorises** (`decisions/0062` item 8, ruled by Cowork on the record `decisions/0066`, which admits the five
+instruments): tests that pin the *real* label map or universe counts, which must now include the five admitted rows and nothing else.
+Known: `tests/test_label_map.py::test_the_counts_are_the_ones_the_record_expects` pins `len(m) == 84` and `bond: 23`; the expected
+values become 89 and 28 (the five new rows are `asset_group` bond, `region_view` no, so the equity/region counts do not change).
+Any other test whose failure is exactly "the five `I29064JP`..`I29068JP` rows are new" (a count, or a set compared with the record
+`decisions/0054`, which predates them, where the new rows are the difference) takes the same minimal change: add the five rows to the
+expectation, citing `decisions/0066`. **List every such edit in the receipt as changed-for-the-admitted-rows, not weakened.**
+**Stop and report, without committing,** on any other failure: a golden or figure that moves, a loader or `ExposureMap` that fails
+because these rows have no data in `huber6-v4`, a test that reads the store and now disagrees, any change you cannot tie to the five rows.
+Do not edit a test to hide a failure you cannot explain. No existing test is deleted or loosened.
+
+**2. Gate.** `scripts/unattended.sh check-full` rc 0, and `make governance` passes with the commit citing `decisions/0066` and
+`decisions/0058`. Report rc, tier, runtime, log directory.
+
+**3. Commit** (the nine files above plus any test edit of step 1; nothing of Cowork's pending files): `params+universe: Japan government family
+admitted -- five label-map and universe rows, label-map pin, params v0.11.1 (HANDOFF task 74, decisions/0066)`.
+
+**4. Receipt**, committed alone (`HANDOFF.md`), directly under `## Done`: step 0's two hashes, each test edited and why, the log
+directory, tier, runtime. Then `git push origin main` (fast-forward only; this carries every unpushed commit, tasks 68 to 71 and
+their receipts, 9 at last read, plus this task's), and the push line in the receipt. Then stop. If the push is refused, do not force;
+report.
+
+**Stop conditions:** step 0 differs; any failure not tied to the five rows; a command denied (do not work around it); the push is not a
+fast-forward.
+
+**Next (not in this task):** the Japan loader task (long-format analytics + levels sheets, dollar conversion per `0053`/`0056`, builds
+`huber6-v5`, corrects `first_daily`, lane 2, no params, no push), then a second owner-only params patch for `huber6-v5`; L39 closes then.
+
+Expected: under $4 on Sonnet (a guess), one to two hours, most of it `check-full`.
+
 ### 72. `portfolio/alpha.py`: the cash and region axes, `factor_sigma` for them, and the cross-sectional form with demeaned standardised scores (`decisions/0059` section A and the 2026-10-23 addendum)
 
 Added 2026-10-24 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
@@ -3848,6 +3904,8 @@ if a spec point needs a choice the records above do not make (name it, do not ch
 around it).
 
 Expected: under $3 on Sonnet (a guess from tasks 70 and 71), under an hour with the check. Opus is not needed.
+
+**Revision note 1 to task 72, 2026-10-24 (Cowork, `decisions/0062` item 8: a task text that contradicts its own constraints; no owner judgement, no owner-only path).** The 05:50 run stopped before any edit (receipt `92fe365`): `tests/test_alpha.py::test_alpha_refuses_the_axes_of_task_72` pins `NotImplementedError` for `cash` and `region` in `alpha_from_views`, which step 3 replaces. Ruling: **that one test is replaced**, in the same file, by the step 5 tests for `cash` and `region` (it asserted a refusal that task 72 removes; no behaviour the lab relies on is lost). `test_factor_sigma_refuses_the_axes_of_task_72` stays, so `factor_sigma`'s refusal message keeps the text "task 72" (e.g. "use relative_sigma; built in HANDOFF task 72"). No other existing test is edited or deleted; say in the receipt that the one test was replaced and why.
 
 ### 71. `portfolio/alpha.py`: the factor volatility `sigma_k` and the alpha map for the duration, real_nominal and credit axes, directional only (`decisions/0059` sections A and B, `0057`, `0050`)
 
@@ -5685,6 +5743,13 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-24 -- task 74: STOPPED at step 0, the hash check was denied (Claude Code, sonnet, nightly 2026-10-24T08:40)
+
+- **Held:** `git status --short` shows exactly the nine task files plus Cowork's pending `CLAUDE.md`, `HANDOFF.md`, `decisions/0059-...`, `AGENTS.md`, `decisions/0067-...`, `decisions/proposed/0066-...`. `git diff --stat --ignore-cr-at-eol -- params data/universe` gives 9 files, 21 insertions, 8 deletions, as the task expects.
+- **What stopped it:** step 0 asks for the label-map hash and the params hash from the repo's own code. The only way I found is `hash_params_dir` in `src/signal_lab/params.py`, and the call `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 uv run --python 3.12 --group dev python -c "from signal_lab.params import hash_params_dir; print(hash_params_dir())"` was denied (don't-ask mode; rc not returned). The Makefile has no hash target. I did not try a shell `sha256sum` pipeline, since the task rules that out, and I did not run the check without the verification.
+- **Not run:** `check-full`, the commit, the push. No edit was made; nothing of mine is uncommitted. Cowork's pending files are untouched. No push.
+- **Column of `decisions/0062` item 8:** Cowork alone: a command the task depends on, not allow-listed. The task should name an allow-listed form (a `make` target or script that prints the two hashes), or Cowork can read the hashes itself. Task 72's re-release stays after this.
 
 ### 2026-10-24 -- task 72: STOPPED before any edit, two existing tests contradict the spec (Claude Code, sonnet, nightly 2026-10-24T05:50)
 
