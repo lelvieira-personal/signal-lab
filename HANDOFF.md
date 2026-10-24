@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 70 @2026-10-23T18:15 by=cowork push=no
+Nightly-release: 71 @2026-10-23T21:47 by=cowork push=no
+
+**As of 2026-10-23 21:47 ET: task 71 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** Task 70 landed (`6c01d39`, receipt `ab81425`, check-scoped rc 0, 211 s; Cowork read the run's `status.txt` and the check's). The owner ruled the open reading on 2026-10-24 ("demean the standardized scores"; `decisions/0059` addendum), so the chain is not blocked. Task 71 builds the factor volatility, the scope mask and the alpha map for the three yield-like axes, directional only; the region axis, cash, the cross-sectional form with `group_by`, the validator, the phase-2 rule class, `build_weight_rule`, `parameter_usage` and the reports are 72, not written. Only this line, this note and task 71's text changed.
 
 **As of 2026-10-23 (18:15 ET): task 70 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's ruling of the same day: the chain moves without him and stops only when an owner decision blocks it). Task 69 landed (`7c3ef6d`, receipt `8edd6ef`, check-full rc 0), so the next task of the M5 chain is 70: `portfolio/views.py`, pure functions, from `decisions/0059` A and B, a decided record; no owner-only path, no data, no golden. **Held back, for the chain's next step:** `sigma_k` and the alpha map (task 71), and the cross-sectional/region demeaning, which the record does not settle (see task 70, "Not in this task"). Only this line, this note and task 70's text changed.
 
@@ -3762,6 +3764,84 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 71. `portfolio/alpha.py`: the factor volatility `sigma_k` and the alpha map for the duration, real_nominal and credit axes, directional only (`decisions/0059` sections A and B, `0057`, `0050`)
+
+Added 2026-10-24 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
+`decisions/0064`: no owner-only path, no push, no data read, no verdict changes). The third solver build task. **69**
+landed the rebalance step (`7c3ef6d`); **70** landed `portfolio/views.py` (`6c01d39`: `horizon_h`, `standardise`,
+`view_scale`). **72** (the region axis, cash, the cross-sectional form with its `group_by`, the validator's `scope` and
+`group_by`, the phase-2 rule class, `build_weight_rule`, the `parameter_usage` rows, the reports of E) is not written.
+
+**What it is.** New `src/signal_lab/portfolio/alpha.py` and `tests/test_alpha.py`. Pure functions. No hypothesis runs, no audit, no
+solver call, no data read, nothing on or after 2020-01-01. The inputs are arguments: a weekly factor frame (the shape
+`signal_lab.measurement.factors.FactorFrame.frame` has: weeks by the six factor names, indexed on the Friday that
+closes the week), the frame `ExposureMap.at(date)` returns (`signal_lab/characteristics/exposures.py`), and views.
+
+**Owner ruling to apply (2026-10-24, `decisions/0059` addendum).** The cross-sectional form demeans the *standardised*
+scores across groups. That form needs `group_by` and the region axis, which this task does not build: it is for 72.
+This task builds the directional form only: one group per axis, `z` undemeaned.
+
+**Step 0.** `git status --short` shows only: ` M CLAUDE.md`, ` M decisions/0059-the-phase-2-solver.md`, `?? AGENTS.md`,
+`?? decisions/0067-the-chain-moves.md`, `?? decisions/proposed/0066-admitting-the-japan-government-family.md` (and
+` M HANDOFF.md`). Task 70's receipt is at the top of `## Done` (commit `ab81425`). Anything else dirty, or no receipt: stop.
+Leave all of those files alone.
+
+**Step 1. `factor_sigma`.** `factor_sigma(factors, axis, params, overlay_scale=1.0) -> Series` indexed on the weekly dates:
+the trailing standard deviation of the weekly changes of the factor that axis is a view on (`decisions/0059` A table:
+duration -> the real-yield factor; real_nominal -> the inflation factor; credit -> the credit factor; the `FactorFrame`
+column names are in `measurement/factors.py`), over the covariance's window, read from `params` at the same key the
+covariance code reads (find it in `portfolio/covariance.py` / `trailing_covariance`; do not hard-code 156), using only
+weeks up to and including the date (nothing later), `NaN` until the window has its full length. `cash` and `region`
+raise `NotImplementedError` naming task 72.
+**The overlay.** `decisions/0059` A says `sigma_k` "uses the covariance's window and overlay: 156 weeks and the scalar
+26-week overlay of `decisions/0042`, read through the same resolver". Read `portfolio/covariance.volatility_scalar` and
+`rescale_volatility` and `audit/ladder.resolve_vol_overlay`, and apply the overlay to `sigma` the way `rescale_volatility`
+applies it to a standard deviation: the overlay scale is an argument (`overlay_scale`, a Series over dates or a
+scalar), computed by the caller. **If the code does not make clear whether the scalar multiplies a variance or a
+standard deviation, stop and report; do not choose.**
+
+**Step 2. `scope_mask`.** `scope_mask(frame, scope) -> Series` of 0.0 and 1.0 over the frame's instruments: `scope` is
+`None` (all 1.0) or a dict label -> list of allowed values (`decisions/0057`: `curve`, `rating`, `market`; the
+columns are strings in `ExposureMap.at`, blank where the map is blank). An instrument matches when, for every key, its
+label is in the list; an instrument whose label is blank, or a key that is not a label column of the frame, gets 0.0
+(a key that is not a column raises `ValueError` rather than silently zeroing everything). `sector` and `style` are the
+unbuilt label axes (`UNBUILT_LABEL_AXES`): refuse them with the same error the exposure map gives.
+
+**Step 3. `alpha_from_views`.** `alpha_from_views(frame, axis, view, scope=None) -> Series` over the frame's instruments:
+`alpha_i = X_i * view * m_i` (`decisions/0059` A) where `X_i` is the instrument's cell on the axis
+(`axis_duration`, `axis_real_nominal` or `axis_credit` in the frame, via `ExposureMap`'s own axis names, not new ones),
+`view` is a scalar for the date, `m_i` is `scope_mask`. An instrument with a missing cell gets `0.0` (it has no
+alpha; it is not holdable under C). A `cash` or `region` axis raises `NotImplementedError` naming 72.
+
+**Step 4. Tests**, new `tests/test_alpha.py`, synthetic frames only (build the small frames by hand; do not load the
+store), fast:
+- `factor_sigma`: equals a hand-computed trailing std on a short series with a short window passed through a params
+  object; `NaN` before the window is full; **no lookahead:** changing or appending later weeks leaves every earlier value
+  bit-identical; the window is read from params (change it, the output changes); `cash`/`region` raise.
+- `scope_mask`: `None` gives all 1.0; a scope keeps only the matching label; a blank label gets 0.0; an unknown key
+  raises; `sector` raises.
+- `alpha_from_views`: a zero view gives exactly zero alpha for every instrument (hard check F2, at the alpha level); a
+  positive view gives alpha with the sign of the cell (F3's first half, without the solver); an out-of-scope instrument
+  and an instrument with no label get exactly 0.0 (F4); a missing cell gets 0.0.
+- One integration test through `views.py`: `standardise` -> `view_scale` with the `factor_sigma` -> `alpha_from_views`
+  on a 3-instrument, 80-week synthetic case, equal to the same product computed by hand at one date.
+Existing tests are not edited.
+
+**Step 5. The gate.** `ruff format` and `ruff check` on the two new files first. Then `scripts/unattended.sh check-scoped`,
+rc 0; no existing test or golden may move. Report: rc, tier, runtime, the log directory, slow files left out, the pass count.
+
+**Step 6. Commit** (`src/signal_lab/portfolio/alpha.py`, `tests/test_alpha.py` only): `portfolio: the factor volatility, the scope mask and the alpha map for the directional views (HANDOFF task 71, decisions/0059 A)`.
+
+**Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.** Leave OWNER-QUEUE alone. The receipt says which of the
+overlay readings the code supports, and which hard checks of `decisions/0059` F (1 to 7) are now covered at the
+alpha level and which wait for 72.
+
+**Stop and report, without committing,** if any existing test or golden moves; if step 0 does not hold; if the overlay
+question of step 1 cannot be answered from the code; if `params` lacks a key you need; or if a command is denied (do not
+work around it).
+
+Expected: under $2.50 on Sonnet (a guess from tasks 68 to 70), under an hour with the check. Opus is not needed.
+
 ### 70. `portfolio/views.py`: the horizon, the one-place standardisation and the view scale (`decisions/0059` sections A and B)
 
 Added 2026-10-23 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
@@ -5520,6 +5600,17 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-23 -- task 71: done (Claude Code, sonnet, nightly 2026-10-23T21:47)
+
+- **Step 0:** held (`git status --short` showed only ` M CLAUDE.md`, ` M HANDOFF.md`, ` M decisions/0059-...`, `?? AGENTS.md`, `?? decisions/0067-...`, `?? decisions/proposed/0066-...`; task 70's receipt at the top of `## Done`).
+- **Steps 1-3:** new `src/signal_lab/portfolio/alpha.py`: `factor_sigma`, `scope_mask`, `alpha_from_views`. Window read at `audit.covariance.window_periods` (the key `audit/ladder.py` reads for `trailing_covariance`); no 156 in `src/`. `cash` and `region` raise `NotImplementedError` naming task 72 in `factor_sigma` and `alpha_from_views`; `sector`/`style` raise the exposure map's `LabelMapMissing` in `scope_mask`; a non-label key raises `ValueError`. Axis names come from `exposures._AXIS_OF`, label names from `exposures.LABEL_COLUMNS`.
+- **Overlay reading the code supports:** the scalar overlay multiplies a **variance**: `trailing_covariance(vol_overlay="scalar")` builds `cov.matrix * scale**2` with `scale = volatility_scalar(...) = sqrt(var_fast/var_slow)`. So a standard deviation is multiplied by `s`, which is what `factor_sigma(..., overlay_scale=s)` does (scalar or a Series on the frame's dates; the caller computes `s`). `resolve_vol_overlay` gives `(26.0, "scalar")` from `audit.covariance.vol_overlay`; it is the caller's job to read it. The question was answerable from the code, so I did not stop.
+- **One choice for Cowork to read:** `factor_sigma`'s standard deviation uses `ddof=0`, because the covariance's diagonal is `x.T @ x / n` (`ledoit_wolf`); the task did not say. `views.standardise` uses `ddof=1` (Cowork's reading). Pinned by `test_factor_sigma_equals_a_hand_computed_trailing_std`. The factor frame's columns are already weekly changes, so `sigma` is the rolling std of the column itself. No lookahead (a later change leaves every earlier value bit-identical): tested.
+- **Step 4:** new `tests/test_alpha.py` (23 tests, synthetic frames only, no data read, no existing test edited), including the integration test `standardise` -> `view_scale` with `factor_sigma` -> `alpha_from_views` against a hand-computed product at the last of 80 weeks.
+- **Step 5:** `ruff format` and `ruff check` clean on both files (run as `uv run --python 3.12 --group dev ruff ...`; a bare `ruff` was denied). `scripts/unattended.sh check-scoped` rc=0, 169 s, tier SCOPED, log `results/audit/_unattended/20261023-220339-check-scoped/`: 958 passed (935 before + 23 new), holdout 24 passed. Slow files left out: `tests/test_audit.py`, `test_baseline.py`, `test_engine.py`, `test_experiment.py`, `test_measurement_estimators.py`, `test_measurement_fidelity.py`, `test_multiple_testing.py`, `test_scripts.py`. No existing test or golden moved.
+- **`decisions/0059` F hard checks, at the alpha level:** F2 (a zero view gives exactly zero alpha, no negative zeros): covered. F3's first half (a positive view gives alpha with the sign of the cell, no solver): covered. F4 (an out-of-scope or unlabelled instrument gets exactly 0.0): covered. F1, F5, F6, F7 (the checks that need the solver, the cross-sectional form, the region axis or the reports) are not covered and wait for 72.
+- **Commit:** `371d29f`. **Push:** none (`push=no`). OWNER-QUEUE untouched.
 
 ### 2026-10-23 -- task 70: done (Claude Code, sonnet, nightly 2026-10-23T18:15)
 
