@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 71 @2026-10-23T21:47 by=cowork push=no
+Nightly-release: 72 @2026-10-24T05:50 by=cowork push=no
+
+**As of 2026-10-24 05:50 ET: task 72 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** Task 71 landed (`371d29f`, receipt `1e4c3f3`, check-scoped rc 0, 169 s; Cowork read the run's `status.txt` and the check's). Task 72 adds the cash and region axes and the cross-sectional views (demeaned standardised scores, `decisions/0059` A and the 2026-10-23 addendum), pure functions in `alpha.py`; no owner-only path, no data, no golden. **Held back, for the chain's next step:** the validator's `scope`/`group_by`, the phase-2 rule class, `build_weight_rule`, `parameter_usage` and the reports (task 73, not written). Only this line, this note and task 72's text changed.
 
 **As of 2026-10-23 21:47 ET: task 71 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** Task 70 landed (`6c01d39`, receipt `ab81425`, check-scoped rc 0, 211 s; Cowork read the run's `status.txt` and the check's). The owner ruled the open reading on 2026-10-24 ("demean the standardized scores"; `decisions/0059` addendum), so the chain is not blocked. Task 71 builds the factor volatility, the scope mask and the alpha map for the three yield-like axes, directional only; the region axis, cash, the cross-sectional form with `group_by`, the validator, the phase-2 rule class, `build_weight_rule`, `parameter_usage` and the reports are 72, not written. Only this line, this note and task 71's text changed.
 
@@ -3764,6 +3766,89 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 72. `portfolio/alpha.py`: the cash and region axes, `factor_sigma` for them, and the cross-sectional form with demeaned standardised scores (`decisions/0059` section A and the 2026-10-23 addendum)
+
+Added 2026-10-24 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
+`decisions/0064`: no owner-only path, no push, no data read, no verdict changes). The fourth solver build task. **69**
+landed the rebalance step (`7c3ef6d`); **70** `portfolio/views.py` (`6c01d39`); **71** the directional alpha map for the
+three yield-like axes (`371d29f`). **Not in this task, and not written:** the validator's `scope` and `group_by`
+(`decisions/0057` rule 4), the phase-2 rule class, `build_weight_rule`, the `parameter_usage` rows and the reports of E
+(task 73).
+
+**What it is.** Edit `src/signal_lab/portfolio/alpha.py` and `tests/test_alpha.py` (extend; no existing test is edited or
+deleted). Pure functions. No hypothesis runs, no audit, no solver call, no data read, nothing on or after 2020-01-01.
+Inputs are arguments, built by hand in the tests.
+
+**Rules to apply (decided records only).**
+- `decisions/0059` A, table: **cash** cell is 1 for cash and 0 otherwise (`axis_cash` in the `ExposureMap.at` frame); its
+  factor is "cash's weekly return less the benchmark's", and `sigma` is that difference's trailing std. **Region**: the
+  cell is 1 where `region_view` is yes and the instrument is in group *r* (`ExposureMap.axis("region", date)` returns one
+  0/1 column per view region, `VIEW_REGIONS`); the factor is group *r*'s weekly return less `NDUEACWF`'s, `sigma_g` is that
+  difference's trailing std, per group. A region group's return is the equal-weighted mean of its `region_view`
+  instruments that hold a row at the week.
+- `sigma` uses the covariance's window and the scalar overlay exactly as `factor_sigma` does today (window from
+  `audit.covariance.window_periods`; overlay multiplies a standard deviation by `s`; `ddof=0`).
+- **Addendum 2026-10-23 (owner, "demean the standardized scores"):** for a cross-sectional test `z` is built per group by
+  `views.standardise`; then at each date the groups' `z` are demeaned across the groups, `zc_g(t) = z_g(t) - mean_g z_g(t)`;
+  the view is `v_g(t) = ic_prior * sigma_g(t) * zc_g(t) / sqrt(h)` (`views.view_scale` computes the factor `ic_prior/sqrt(h)`
+  from its arguments; read its signature). The directional form uses `z` undemeaned (unchanged). The mean is over the groups
+  **present at the date**; a group still in its burn-in has `z = 0` and **stays in the mean** (the addendum's own reading,
+  stated there as Cowork's, one line to change). Do not drop burn-in groups.
+
+**Step 0.** `git status --short` shows only ` M CLAUDE.md`, ` M decisions/0059-the-phase-2-solver.md`, `?? AGENTS.md`,
+`?? decisions/0067-the-chain-moves.md`, `?? decisions/proposed/0066-admitting-the-japan-government-family.md` (and possibly
+` M HANDOFF.md`). Task 71's receipt is at the top of `## Done` (commit `371d29f`). Anything else dirty, or no receipt: stop.
+
+**Step 1. Group return and the difference factor.** Add `group_return(returns, members) -> Series`: the equal-weighted mean of
+the member columns that hold a value at each week (`NaN` members skipped; `NaN` if none), and
+`relative_factor(returns, members, benchmark) -> Series` = `group_return` minus the benchmark column. `returns` is a weekly
+frame of instrument returns indexed like the factor frame (Friday week close); names are arguments, not hard-coded
+tickers (`NDUEACWF` is passed by the caller; do not write it in `src/`). Using weeks up to and including *t* only.
+
+**Step 2. `factor_sigma` for cash and region.** Keep the current signature working for the three yield-like axes. Add
+`relative_sigma(factor, params, overlay_scale=1.0) -> Series`: the same trailing std over the same window and overlay applied to
+any one difference series (used for cash with `relative_factor` of the cash instrument(s), and per region group). Remove the
+`NotImplementedError` for `cash` and `region` from `_refuse_unbuilt` only where the new functions below take over; `factor_sigma`
+itself keeps refusing them with a message that points to `relative_sigma`.
+
+**Step 3. `alpha_from_views` for cash and region.** `cash`: `alpha_i = axis_cash_i * view * m_i`, as the existing form.
+`region`: `view` is a Series indexed by the view regions (a scalar is refused with `ValueError`) and the cell is the
+`ExposureMap.axis("region", date)` frame passed in as `region_cells` (a new keyword argument): `alpha_i = sum_r cell_ir * v_r * m_i`
+(a region view reaches only `region_view` instruments, which the 0/1 cells already encode). Missing cell or missing view
+gives 0.0 for that term; an out-of-scope instrument gets exactly 0.0.
+
+**Step 4. `cross_sectional_views`.** `cross_sectional_views(z, sigma, scale) -> DataFrame`: `z` is the standardised-score frame
+(dates by groups, from `views.standardise`), `sigma` a frame or Series aligned to it, `scale` as `views.view_scale` returns;
+output `v = scale * sigma * (z - z.mean(axis=1))` (row-wise mean over the groups present, `NaN` groups excluded from the mean
+and given view 0.0). A row with one group present gives a zero view (a single group cannot be ranked).
+
+**Step 5. Tests** (extend `tests/test_alpha.py`; synthetic frames; fast):
+- `group_return` / `relative_factor`: equal to a hand-computed mean with a `NaN` member skipped; no lookahead (a later change
+  leaves every earlier value bit-identical).
+- `relative_sigma`: equals a hand-computed trailing std on a short window passed through params; `NaN` before the window is full;
+  the overlay multiplies it.
+- `alpha_from_views` cash and region: zero view gives exactly zero alpha (F2); a positive region view gives alpha with the sign of
+  the cell in that region only and exactly 0.0 elsewhere (F4); an instrument in no region gets 0.0; a scalar region view raises.
+- `cross_sectional_views`: `zc` sums to zero across present groups at every date; with equal `sigma` the views sum to zero; with
+  unequal `sigma` they do not (the addendum says so; assert it); a group in burn-in (`z = 0`) stays in the mean; a row with one
+  group gives 0.0; swapping two groups swaps their views (F3's second half at the view level).
+- The existing 23 tests still pass unedited.
+
+**Step 6. The gate.** `ruff format` and `ruff check` via `uv run --python 3.12 --group dev ruff ...` (a bare `ruff` is denied) on
+the two files. Then `scripts/unattended.sh check-scoped`, rc 0; no existing test or golden may move. Report rc, tier, runtime,
+log directory, slow files left out, pass count.
+
+**Step 7. Commit** (`src/signal_lab/portfolio/alpha.py`, `tests/test_alpha.py` only): `portfolio: cash and region axes and the cross-sectional views with demeaned standardised scores (HANDOFF task 72, decisions/0059 A and addendum)`.
+
+**Step 8. Receipt**, committed alone (`HANDOFF.md`). **No push.** Leave OWNER-QUEUE alone. The receipt says which hard checks of
+`decisions/0059` F (1 to 7) are now covered at the alpha/view level and which wait for the solver (73).
+
+**Stop and report, without committing,** if any existing test or golden moves; if step 0 does not hold; if `params` lacks a key;
+if a spec point needs a choice the records above do not make (name it, do not choose); or if a command is denied (do not work
+around it).
+
+Expected: under $3 on Sonnet (a guess from tasks 70 and 71), under an hour with the check. Opus is not needed.
+
 ### 71. `portfolio/alpha.py`: the factor volatility `sigma_k` and the alpha map for the duration, real_nominal and credit axes, directional only (`decisions/0059` sections A and B, `0057`, `0050`)
 
 Added 2026-10-24 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
@@ -5600,6 +5685,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-24 -- task 72: STOPPED before any edit, two existing tests contradict the spec (Claude Code, sonnet, nightly 2026-10-24T05:50)
+
+- **Step 0:** held (`git status --short` showed only the six listed paths; task 71's receipt is at the top of `## Done`, commit `371d29f`).
+- **What stopped it:** the task says no existing test is edited or deleted, and `alpha_from_views` must now build `cash` and `region`. Two existing tests in `tests/test_alpha.py` pin the opposite: `test_alpha_refuses_the_axes_of_task_72` (line 191) calls `alpha_from_views(_map(), axis, 0.01)` for `cash` and `region` and expects `NotImplementedError` matching "72"; `test_factor_sigma_refuses_the_axes_of_task_72` (line 120) expects the same from `factor_sigma`, which is satisfiable if the new refusal message still contains "72". The alpha one is not: `_map()` has no `axis_cash` column and the region call passes a scalar view with no `region_cells`. Under step 3 a scalar region view is a `ValueError`, and a missing cell gives 0.0, so the test either fails or passes only if `alpha_from_views` keeps raising `NotImplementedError` for a cash call on a frame without `axis_cash` and for a region call without `region_cells`.
+- **The choice the records do not make (named, not chosen):** (a) edit or retire `test_alpha_refuses_the_axes_of_task_72` (the task forbids it; Cowork can authorise it in a revision), or (b) keep a `NotImplementedError` mentioning 72 for those two call shapes (a contrived reading that contradicts "missing cell gives 0.0" and "a scalar is refused with `ValueError`"). Smaller note: `factor_sigma`'s refusal message must keep "72" in it (e.g. "use relative_sigma; built in HANDOFF task 72") if the test at line 120 stays.
+- **Command and rc:** none run; no tool was denied. **Tried:** read `alpha.py`, `views.py`, `exposures.py` (`axis`, `VIEW_REGIONS`, `_AXIS_OF`) and the test file.
+- **Uncommitted:** nothing of mine; no source or test file was touched. `HANDOFF.md` carries this receipt on top of Cowork's pending edits to the file, committed with it.
+- **decisions/0062 item 8:** Cowork alone: a task text that contradicts its own constraints (a revision note to the task, no owner judgement, no owner-only path).
 
 ### 2026-10-23 -- task 71: done (Claude Code, sonnet, nightly 2026-10-23T21:47)
 
