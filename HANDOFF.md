@@ -67,7 +67,7 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 75 @2026-10-25T12:15 by=cowork push=no
+Nightly-release: 75 @2026-10-25T16:45 by=cowork push=no
 
 **Release, 2026-10-25 12:15 ET (Cowork).** Task 74 stopped a second time at 16:55 ET on 10-24 (receipt `421d8c7`): four check-full failures, two of them because `scripts/build_label_map.py` and `scripts/build_universe.py` do not carry the five Japan rows. **The owner chose option A in chat (2026-10-25):** Cowork writes a revision note to 74 and a small prior lane-2 task. That task is **75** (above 74): generators and pins, `scripts/` and `tests/` only, `push=no`. **Task 74 is re-released by Cowork after 75's receipt** (new stamp, `push=yes` as the owner had it); revision note 2 to task 74 says what changes. Task 72 follows 74.
 
@@ -5804,6 +5804,14 @@ run would have said.
 
 ## Done
 
+### 2026-10-25 -- task 75: done (Claude Code, sonnet, nightly 2026-10-25T16:45)
+
+- **Step 0:** held. The working tree had the nine task-74 files, Cowork's pending files and the four uncommitted edits of the 12:17 run, as revision note 3 says. I did not redo them.
+- **Edits, all changed-for-the-admitted-rows, none weakened:** `scripts/build_label_map.py` (five Japan rows through `build_rows`); `scripts/build_universe.py` (five rows in `build()`); `tests/test_label_map.py` (84->89, bond 23->28, Japan 2->7, bonds 24->29, JPY 1->6, Government 11->16, DM 21->26); `tests/test_params.py` ("0.11.0" -> "0.11.1"); `tests/test_scripts.py` (investable count 92 -> 97, step 3(c), one line plus a comment citing `decisions/0066`).
+- **Gate:** `scripts/unattended.sh check-full` rc=0, 764 s, log `results/audit/_unattended/20261025-164738-check-full/`. The tree was dirty with the nine Japan data and params files, so `check-full` was the right tier.
+- **Commit:** `ae41909`, the five scripts/tests files only. Cowork's pending files were not staged. No push.
+- Task 74 can be re-released.
+
 ### 2026-10-25 -- task 75: STOPPED at step 4, one failure outside (a) and (b) (Claude Code, sonnet, nightly 2026-10-25T12:15)
 
 - **Step 0:** held (`git status --short` showed exactly the listed files).
@@ -5812,6 +5820,8 @@ run would have said.
 - **The failure:** `tests/test_scripts.py::test_the_committed_universe_is_what_build_universe_produces`, line 293, `assert sum(r["investable"] == "True" ...) == 92` reads 97. The five new rows are investable, so the pin needs 92 -> 97. The task authorises edits only to the two pins in step 3 and says to stop if a test beyond (a) and (b) needs an edit, so I did not edit it.
 - **Left uncommitted:** the four files above, plus Cowork's pending files. Nothing staged, no commit, no push.
 - **Reading of `decisions/0062` item 8:** Cowork alone: re-releasing a stopped task once the cause is fixed (the fix is the one-line pin 92 -> 97, `decisions/0066`, same kind as the pins already named). Cowork should add it to task 75 as a revision note and re-release.
+
+**Revision note 3 to task 75, 2026-10-25 (Cowork, `decisions/0062` item 8: a test fix that changes no expectation's meaning; first stop of this task).** The 12:17 run (receipt `4d40f62`) left exactly one failure: `tests/test_scripts.py::test_the_committed_universe_is_what_build_universe_produces`, last assertion (about L293), `investable == 'True'` count `== 92`, now 97 because the five Japan rows are investable (`decisions/0066`). Ruling: this pin is the same kind as the step 3 pins and changes no meaning; **step 3 gains (c): edit that one number 92 -> 97, with a comment `decisions/0066`, and nothing else in that file.** Step 0 now expects the working tree to already hold the four uncommitted edits of the 12:17 run (`scripts/build_label_map.py`, `scripts/build_universe.py`, `tests/test_label_map.py`, `tests/test_params.py`); do not redo them, check they are present and go on to (c), then check-full, which must be green, then commit the scripts/tests files only (task 75's commit message), no push. If any other test fails, stop and report; do not edit it. Everything else in task 75 is unchanged. Re-released `Nightly-release: 75 @2026-10-25T16:45`. Task 74 follows after 75's receipt, as in revision note 2.
 
 ### 2026-10-24 -- task 74: STOPPED at step 1, four failures, two need a script change (Claude Code, sonnet, nightly 2026-10-24T16:40)
 
