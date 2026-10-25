@@ -55,10 +55,11 @@ def _bond_labels() -> dict[str, tuple[str, str, str]]:
 
 def test_the_counts_are_the_ones_the_record_expects(label_map):
     m = label_map
-    assert len(m) == 84
+    # decisions/0066 admits five Japan government bonds: 84 -> 89 rows, bond 23 -> 28
+    assert len(m) == 89
     assert Counter(m.asset_group) == {
         "equity": 54,
-        "bond": 23,
+        "bond": 28,
         "real_asset_equity": 4,
         "commodity": 2,
         "cash": 1,
@@ -78,25 +79,25 @@ def test_the_counts_are_the_ones_the_record_expects(label_map):
         "Developed Europe": 16,
         "EM": 15,
         "Global": 13,
-        "Japan": 2,
+        "Japan": 7,  # decisions/0066: +5
         "Commodities": 2,
         "APAC ex-Japan": 1,
         "Canada": 1,
     }
     bonds = m[m.curve_currency != ""]
-    assert len(bonds) == 24  # the 23 bonds and LD20TRUU
+    assert len(bonds) == 29  # the 28 bonds and LD20TRUU (decisions/0066: +5 JPY government)
     assert Counter(bonds.curve) == {
         "USD": 16,
         "EUR_multi": 2,
         "USD_real": 1,
         "EUR": 1,
         "GBP": 1,
-        "JPY": 1,
+        "JPY": 6,  # decisions/0066: +5
         "DM_multi": 1,
         "EM_local_multi": 1,
     }
     assert Counter(bonds.rating) == {
-        "Government": 11,
+        "Government": 16,  # decisions/0066: +5
         "HY": 5,
         "IG": 3,
         "Aggregate": 2,
@@ -104,7 +105,7 @@ def test_the_counts_are_the_ones_the_record_expects(label_map):
         "Agency": 1,
     }
     assert Counter(bonds.hy_bucket[bonds.hy_bucket != ""]) == {"Ba": 2, "B": 1, "Caa": 1, "all": 1}
-    assert Counter(bonds.market) == {"DM": 21, "EM": 3}
+    assert Counter(bonds.market) == {"DM": 26, "EM": 3}  # decisions/0066: +5
     assert not m.index.has_duplicates
 
 

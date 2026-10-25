@@ -129,7 +129,8 @@ def test_the_store_params_names_is_the_committed_one(params):
 
 def test_the_views_block_is_the_one_decisions_0059_names(params):
     """decisions/0059 item 1 and its 2026-10-16 addendum (HANDOFF task 60)."""
-    assert params.params_version == "0.11.0"
+    # 0.11.1: decisions/0066 pins the label map with the five Japan rows (HANDOFF task 74)
+    assert params.params_version == "0.11.1"
     assert params.require("constraints.views.ic_prior") == 0.05
     assert params.require("constraints.views.horizon_rule") == "geometric_mean_rounded"
     assert params.require("constraints.views.standardisation.window") == "expanding"

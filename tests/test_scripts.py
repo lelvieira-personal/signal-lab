@@ -290,7 +290,8 @@ def test_the_committed_universe_is_what_build_universe_produces():
         assert committed[restated]["investable"] == "False"
     assert committed["NDDLUK"]["investable"] == "False"
     assert "decisions/0053" in committed["NDDLUK"]["not_investable_because"]
-    assert sum(r["investable"] == "True" for r in committed.values()) == 92
+    # 92 + the five Japan government rows (decisions/0066)
+    assert sum(r["investable"] == "True" for r in committed.values()) == 97
 
 
 def test_a_cycle_run_by_a_test_leaves_the_real_registry_and_requests_untouched(tmp_path, capsys):

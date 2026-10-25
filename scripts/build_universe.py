@@ -166,6 +166,18 @@ COST_HIGH_CLASSES = {
 }
 
 
+# decisions/0066: the five Japan government instruments. first_daily is a placeholder, as in the
+# committed table; the Japan loader task corrects each from the Pull Report sheet.
+JAPAN_GOVT = (
+    ("I29064JP", "japan_govt_1_3y"),
+    ("I29065JP", "japan_govt_3_5y"),
+    ("I29066JP", "japan_govt_5_10y"),
+    ("I29067JP", "japan_govt_10_20y"),
+    ("I29068JP", "japan_govt_20y_plus"),
+)
+JAPAN_FIRST_DAILY = "2013-01-31"
+
+
 def reporting_class(ticker: str, section: str) -> str:
     if ticker in REPORTING:
         return REPORTING[ticker]
@@ -233,6 +245,23 @@ def build() -> list[dict]:
                         "source_file": "bbg_exusd_bonds_coverage.csv",
                     }
                 )
+
+    for ticker, name in JAPAN_GOVT:
+        rows.append(
+            {
+                "ticker": ticker,
+                "name": name,
+                "section": "3. International Government Bonds",
+                "first_daily": JAPAN_FIRST_DAILY,
+                "tier": "",
+                "hedged": False,
+                "investable": True,
+                "cost_bucket": cost_bucket(ticker, "Ex-USD Bonds"),
+                "reporting_class": "Ex-USD Bonds",
+                "not_investable_because": "",
+                "source_file": "bbg_japan_govt.xlsx",
+            }
+        )
 
     return sorted(rows, key=lambda r: (r["reporting_class"], r["ticker"]))
 
