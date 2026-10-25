@@ -67,7 +67,10 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 74 @2026-10-24T16:40 by=cowork push=yes
+Nightly-release: 75 @2026-10-25T12:15 by=cowork push=no
+
+**Release, 2026-10-25 12:15 ET (Cowork).** Task 74 stopped a second time at 16:55 ET on 10-24 (receipt `421d8c7`): four check-full failures, two of them because `scripts/build_label_map.py` and `scripts/build_universe.py` do not carry the five Japan rows. **The owner chose option A in chat (2026-10-25):** Cowork writes a revision note to 74 and a small prior lane-2 task. That task is **75** (above 74): generators and pins, `scripts/` and `tests/` only, `push=no`. **Task 74 is re-released by Cowork after 75's receipt** (new stamp, `push=yes` as the owner had it); revision note 2 to task 74 says what changes. Task 72 follows 74.
+
 
 **Re-release, 2026-10-24 16:40 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** The 08:47 run stopped at step 0 (receipt `34b5324`): the hash command was denied (not allow-listed). Revision note 1 to task 74 drops it; Cowork computed both hashes itself. The owner's release of 08:40 (`push=yes`, "Release japan params and push") is unchanged; only the stamp is new, `by=cowork`, `push=yes` as the owner had it. Task 72 is re-released after 74's receipt (new stamp, `push=no`).
 
@@ -3770,6 +3773,61 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 75. The two generators learn the five Japan rows, and the pins follow (prior to task 74; `decisions/0066`, `decisions/0062` item 8)
+
+Added 2026-10-25 by Cowork, **at the owner's choice of option A in chat (2026-10-25)** after task 74 stopped twice (receipts
+`34b5324`, `421d8c7`). **Written and RELEASED by Cowork, `push=no`, Sonnet.** Lane 2: `scripts/` and `tests/` only. Nothing under
+`params/`, `vetoes/`, `SUBSTRATE.md` or `data/`; no data is read; no push.
+
+**Why.** Task 74's check-full left four failures. Cowork's hand-applied rows (`I29064JP` to `I29068JP`, `decisions/0066`) are in
+the working tree's `data/universe/label_map.csv` and `investable_universe.csv`, but the two scripts that regenerate those files do
+not carry them, and tests pin the old counts or the old version. This task fixes the generators and the pins so that task 74
+finds the check green and only commits the nine data and params files.
+
+**0. Check.** `git status --short` shows the nine files of task 74 modified (the seven `params/*.yaml`, `data/universe/label_map.csv`,
+`data/universe/investable_universe.csv`) plus Cowork's pending files (`CLAUDE.md`, `decisions/0059-...`, `HANDOFF.md`, `AGENTS.md`,
+`decisions/0067-...`, `decisions/proposed/0066-...`). Anything else: stop and report. **Do not touch those files, do not stage them.**
+
+**1. `scripts/build_label_map.py`.** Add a module constant, with a comment citing `decisions/0066`, holding the five rows in the
+draft's own field shape (`ticker`, `tier`, `asset_group` "bond", `reporting_class` "Ex-USD Bonds", `region` "Japan", `curve_currency`
+"JPY", `rating_class` "Government", `market` "DM"; tickers `I29064JP`, `I29065JP`, `I29066JP`, `I29067JP`, `I29068JP`), and append
+them after the draft-derived rows (feed them through `build_rows` so the labels come from the 0057 vocabulary tables, not literals).
+The draft hash pin and the refusal stay unchanged. Update the module docstring: the map is the draft's rows plus these five.
+Each of the five must come out as `I2906xJP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM`, in that order at the
+end of the file. Acceptance: `tests/test_label_map.py::test_the_script_regenerates_the_committed_file_byte_for_byte` passes with
+`label_map.csv` unmodified (its sha256 stays `e98344fd2a91c160021d17df36839b11994ca4359b9b5a08bbe0c5040c1accec`).
+
+**2. `scripts/build_universe.py`.** Add a constant for the five instruments (ticker, name, comment citing `decisions/0066`) and append
+five rows in `build()`: names `japan_govt_1_3y`, `japan_govt_3_5y`, `japan_govt_5_10y`, `japan_govt_10_20y`, `japan_govt_20y_plus`
+(for the five tickers in order); section "3. International Government Bonds"; `first_daily` "2013-01-31" **(a placeholder, as in the
+committed table; the Japan loader task corrects each)**; tier ""; hedged False; investable True; `cost_bucket` from the existing
+function (mid); `reporting_class` "Ex-USD Bonds"; `not_investable_because` ""; `source_file` "bbg_japan_govt.xlsx". Do NOT run
+`make universe` or `build_universe.py` to rewrite the committed table: the committed file is CRLF and Cowork's order differs from the
+sorted order; `tests/test_scripts.py::test_the_committed_universe_is_what_build_universe_produces` compares content, not bytes, and must
+pass with `investable_universe.csv` unmodified.
+
+**3. The pins.** (a) `tests/test_label_map.py::test_the_counts_are_the_ones_the_record_expects`: `len(m)` 84 -> 89; `bond` 23 -> 28;
+`Counter(m.region)["Japan"]` 2 -> 7; `len(bonds)` 24 -> 29 (comment: the 28 bonds and LD20TRUU); `Counter(bonds.curve)["JPY"]` 1 -> 6;
+`Counter(bonds.rating)["Government"]` 11 -> 16; `Counter(bonds.market)["DM"]` 21 -> 26. Everything else in that test is unchanged
+(the region-view counts, 46, do not move). Cowork recomputed these from the working-tree file: 89 rows, bond 28, 29 with a curve,
+JPY 6, Government 16, DM 26, Japan 7, view 46. Add a comment citing `decisions/0066`.
+(b) `tests/test_params.py::test_the_views_block_is_the_one_decisions_0059_names`: `params_version` "0.11.0" -> "0.11.1", with a comment
+citing `decisions/0066` (task 74). Nothing else in that test changes. These are changed-for-the-admitted-rows edits, not weakenings;
+list each in the receipt.
+
+**4. Gate.** `scripts/unattended.sh check-full` rc 0 (the params edits are in the tree, so `check-scoped` would not exercise them).
+**Stop and report, without committing,** on any failure other than the four named in task 74's receipt; on a golden or figure that
+moves; or if a test beyond (a) and (b) needs an edit. Do not weaken a test.
+
+**5. Commit** only `scripts/build_label_map.py`, `scripts/build_universe.py`, `tests/test_label_map.py`, `tests/test_params.py`:
+`scripts: the label-map and universe generators carry the five Japan rows; pins follow (HANDOFF task 75, decisions/0066)`.
+**6. Receipt**, committed alone (`HANDOFF.md`), directly under `## Done`: the edits, rc, tier, runtime, log directory. **No push.**
+Then stop. Task 74 is re-released by Cowork after this receipt.
+
+**Stop conditions:** step 0 differs; any command denied (do not work around it); a failure outside the four.
+
+Expected: under $4 on Sonnet (a guess), about 30 to 60 minutes, most of it check-full.
+
 ### 74. Japan government family, step 1: the label map and the universe gain the five rows, params v0.11.1 pins the new label map; then push (`decisions/0066`, ruled 2026-10-23; draft `Claude outputs/params-japan-draft/`)
 
 Added 2026-10-24 by Cowork. **Written and RELEASED by the owner** ("Release japan params and push", chat, 2026-10-24),
@@ -5746,6 +5804,15 @@ run would have said.
 
 ## Done
 
+### 2026-10-25 -- task 75: STOPPED at step 4, one failure outside (a) and (b) (Claude Code, sonnet, nightly 2026-10-25T12:15)
+
+- **Step 0:** held (`git status --short` showed exactly the listed files).
+- **Edits made, uncommitted:** `scripts/build_label_map.py` (`JAPAN_TICKERS`/`JAPAN_ROWS`, fed through `build_rows` and appended in `main`; docstring updated); `scripts/build_universe.py` (`JAPAN_GOVT`, `JAPAN_FIRST_DAILY`, five rows appended in `build()`); `tests/test_label_map.py` (3a: 84->89, bond 23->28, Japan 2->7, bonds 24->29, JPY 1->6, Government 11->16, DM 21->26, each commented `decisions/0066`); `tests/test_params.py` (3b: "0.11.0" -> "0.11.1").
+- **Command and rc:** `scripts/unattended.sh check-full` rc=2, 786 s, log `results/audit/_unattended/20261025-121750-check-full/`: 1021 passed, 1 failed (lint clean). The label-map byte-for-byte test now passes.
+- **The failure:** `tests/test_scripts.py::test_the_committed_universe_is_what_build_universe_produces`, line 293, `assert sum(r["investable"] == "True" ...) == 92` reads 97. The five new rows are investable, so the pin needs 92 -> 97. The task authorises edits only to the two pins in step 3 and says to stop if a test beyond (a) and (b) needs an edit, so I did not edit it.
+- **Left uncommitted:** the four files above, plus Cowork's pending files. Nothing staged, no commit, no push.
+- **Reading of `decisions/0062` item 8:** Cowork alone: re-releasing a stopped task once the cause is fixed (the fix is the one-line pin 92 -> 97, `decisions/0066`, same kind as the pins already named). Cowork should add it to task 75 as a revision note and re-release.
+
 ### 2026-10-24 -- task 74: STOPPED at step 1, four failures, two need a script change (Claude Code, sonnet, nightly 2026-10-24T16:40)
 
 - **Step 0:** held. `git status --short` and `git diff --stat --ignore-cr-at-eol -- params data/universe` (9 files, 21 insertions, 8 deletions) as expected; the two hashes were supplied by Cowork (revision note 1), not recomputed.
@@ -5759,6 +5826,8 @@ run would have said.
 - **Column of `decisions/0062` item 8:** Cowork alone: a task text that does not foresee its own consequences (the generating scripts and the params-version pin), no owner judgement; the `scripts/` change is a lane-2 edit Cowork can write into a revision note (or split into a prior task). If the `0054` record is the source the label-map script reads, unsure whether that is owner-only; then owner.
 
 **Revision note 1 to task 74, 2026-10-24 (Cowork, `decisions/0062` item 8: a command the task depends on is not allow-listed; no owner judgement, no owner-only edit).** The 08:47 run stopped at step 0 because no allow-listed command prints the hashes. Step 0's two hash checks are replaced by what Cowork read at 16:38 ET with read-only commands in the working tree: `data/universe/label_map.csv` sha256 `e98344fd2a91c160021d17df36839b11994ca4359b9b5a08bbe0c5040c1accec` (equals the new pin), params hash (repo rule, `PARAM_FILES` order) `f9deaa14ff0e73783ff2197f6f1dc004603f36001386f61c059d1a42f038d994` (equals the task's), all seven files at `params_version` 0.11.1. **Do not run the hash command; skip those two checks and say in the receipt that Cowork supplied them.** The `git status --short` and `git diff --stat --ignore-cr-at-eol` checks of step 0 held on the 08:47 run and stay. Everything else in task 74 is unchanged.
+
+**Revision note 2 to task 74, 2026-10-25 (Cowork, `decisions/0062` item 8 and the owner's option A, chat 2026-10-25).** The 16:47 run on 10-24 stopped at step 1 (receipt `421d8c7`): four failures, of which the generators (`build_label_map.py`, `build_universe.py`) and the pins (label-map counts, `params_version`) are now **task 75**'s job and land in their own commit before this task runs. **Run task 74 only after 75's receipt.** Changes to the text above: (1) step 0 also expects HEAD to be 75's commit and the working tree to show the same nine modified files; `git status --short` shows no `scripts/` or `tests/` modification. (2) Step 1: check-full is expected green with **no test edit**. If any test still fails, stop and report; do not edit it. (3) Step 3 commits the nine files only. Everything else is as in revision note 1 (the hashes are Cowork's, skip the hash command). The push is as before (`push=yes`, fast-forward only).
 
 ### 2026-10-24 -- task 74: STOPPED at step 0, the hash check was denied (Claude Code, sonnet, nightly 2026-10-24T08:40)
 
