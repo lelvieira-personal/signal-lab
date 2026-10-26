@@ -11,7 +11,15 @@ import pandas as pd
 import pytest
 
 from signal_lab.characteristics.exposures import LabelMapMissing
-from signal_lab.portfolio.alpha import alpha_from_views, factor_sigma, scope_mask
+from signal_lab.portfolio.alpha import (
+    alpha_from_views,
+    cross_sectional_views,
+    factor_sigma,
+    group_return,
+    relative_factor,
+    relative_sigma,
+    scope_mask,
+)
 from signal_lab.portfolio.views import standardise, view_scale
 
 FACTORS = ["equity", "real_yield", "inflation", "credit", "dollar", "commodities"]
@@ -188,10 +196,156 @@ def test_a_missing_cell_gets_zero():
     assert a["UST"] == pytest.approx(0.07)
 
 
-@pytest.mark.parametrize("axis", ["cash", "region"])
-def test_alpha_refuses_the_axes_of_task_72(axis):
-    with pytest.raises(NotImplementedError, match="72"):
-        alpha_from_views(_map(), axis, 0.01)
+# Task 72 replaced the refusal of `cash` and `region` that stood here (revision note 1).
+
+REGIONS = ["US", "Developed Europe", "Japan"]
+
+
+def _cells():
+    return pd.DataFrame(
+        {"US": [1.0, 0.0, 0.0], "Developed Europe": [0.0, 1.0, 0.0], "Japan": [0.0, 0.0, 0.0]},
+        index=["UST", "EURBOND", "BLANK"],
+    )
+
+
+def test_cash_alpha_is_the_cash_cell_times_the_view():
+    f = _map(axis_cash=[0.0, 0.0, 1.0])
+    a = alpha_from_views(f, "cash", 0.003)
+    assert a.to_dict() == {"UST": 0.0, "EURBOND": 0.0, "BLANK": 0.003}
+    z = alpha_from_views(f, "cash", 0.0)
+    assert (z == 0.0).all() and not np.signbit(z.to_numpy()).any()
+
+
+def test_region_alpha_has_the_sign_of_the_cell_in_that_region_only():
+    view = pd.Series({"US": 0.01, "Developed Europe": -0.02, "Japan": 0.0})
+    a = alpha_from_views(_map(), "region", view, region_cells=_cells())
+    assert a["UST"] == pytest.approx(0.01)
+    assert a["EURBOND"] == pytest.approx(-0.02)
+    assert a["BLANK"] == 0.0 and not np.signbit(a["BLANK"])
+    only_us = alpha_from_views(_map(), "region", pd.Series({"US": 0.01}), region_cells=_cells())
+    assert only_us["UST"] == pytest.approx(0.01)
+    assert only_us["EURBOND"] == 0.0
+
+
+def test_a_zero_region_view_gives_exactly_zero_alpha():
+    a = alpha_from_views(_map(), "region", pd.Series(0.0, index=REGIONS), region_cells=_cells())
+    assert (a == 0.0).all() and not np.signbit(a.to_numpy()).any()
+
+
+def test_a_scalar_region_view_raises():
+    with pytest.raises(ValueError):
+        alpha_from_views(_map(), "region", 0.01, region_cells=_cells())
+    with pytest.raises(ValueError):
+        alpha_from_views(_map(), "region", pd.Series(0.01, index=REGIONS))
+
+
+# --- group_return, relative_factor, relative_sigma -------------------------
+
+
+def _returns():
+    idx = pd.date_range("2005-01-07", periods=8, freq="W-FRI")
+    rng = np.random.default_rng(9)
+    r = pd.DataFrame(rng.normal(0.0, 0.01, (8, 3)), index=idx, columns=["A", "B", "BM"])
+    r.loc[idx[2], "B"] = np.nan
+    return r
+
+
+def test_group_return_skips_nan_members_and_is_nan_if_none():
+    r = _returns()
+    g = group_return(r, ["A", "B"])
+    assert g.iloc[2] == pytest.approx(r["A"].iloc[2])
+    assert g.iloc[3] == pytest.approx((r["A"].iloc[3] + r["B"].iloc[3]) / 2)
+    r.loc[r.index[4], ["A", "B"]] = np.nan
+    assert np.isnan(group_return(r, ["A", "B"]).iloc[4])
+
+
+def test_relative_factor_is_the_group_less_the_benchmark():
+    r = _returns()
+    rel = relative_factor(r, ["A", "B"], "BM")
+    assert rel.iloc[3] == pytest.approx((r["A"].iloc[3] + r["B"].iloc[3]) / 2 - r["BM"].iloc[3])
+
+
+def test_group_return_has_no_lookahead():
+    r = _returns()
+    base = relative_factor(r.iloc[:5], ["A", "B"], "BM")
+    changed = r.copy()
+    changed.iloc[5:] = changed.iloc[5:] * 50.0
+    assert relative_factor(changed, ["A", "B"], "BM").iloc[:5].equals(base)
+
+
+def test_relative_sigma_equals_a_hand_computed_trailing_std(params):
+    rel = relative_factor(_returns(), ["A", "BM"], "BM")
+    s = relative_sigma(rel, _with_window(params, 4))
+    x = rel.to_numpy()
+    assert s.iloc[:3].isna().all()
+    for t in range(3, len(x)):
+        w = x[t - 3 : t + 1]
+        assert s.iloc[t] == pytest.approx(math.sqrt(np.mean((w - w.mean()) ** 2)))
+
+
+def test_relative_sigma_overlay_multiplies_it(params):
+    rel = relative_factor(_returns(), ["A"], "BM")
+    p = _with_window(params, 4)
+    base = relative_sigma(rel, p)
+    assert np.allclose(
+        relative_sigma(rel, p, 2.0).to_numpy(), (base * 2.0).to_numpy(), equal_nan=True
+    )
+
+
+# --- cross_sectional_views -------------------------------------------------
+
+
+def _z():
+    idx = pd.date_range("2005-01-07", periods=4, freq="W-FRI")
+    return pd.DataFrame(
+        {"g1": [1.0, 2.0, 0.0, 0.5], "g2": [-1.0, 0.0, 0.0, 1.5], "g3": [3.0, np.nan, 0.0, np.nan]},
+        index=idx,
+    )
+
+
+def test_demeaned_scores_sum_to_zero_across_present_groups():
+    z = _z()
+    sig = pd.DataFrame(1.0, index=z.index, columns=z.columns)
+    v = cross_sectional_views(z, sig, 1.0)
+    present = z.notna()
+    assert np.allclose(v.where(present).sum(axis=1).iloc[[0, 1, 2]], 0.0)
+
+
+def test_equal_sigma_views_sum_to_zero_and_unequal_do_not():
+    z = _z().iloc[[0]]
+    equal = pd.DataFrame(0.02, index=z.index, columns=z.columns)
+    assert cross_sectional_views(z, equal, 0.5).sum(axis=1).iloc[0] == pytest.approx(0.0, abs=1e-15)
+    unequal = pd.DataFrame([[0.01, 0.02, 0.05]], index=z.index, columns=z.columns)
+    assert abs(cross_sectional_views(z, unequal, 0.5).sum(axis=1).iloc[0]) > 1e-6
+
+
+def test_a_burn_in_group_stays_in_the_mean():
+    z = _z().iloc[[2]].copy()
+    z["g1"] = 3.0
+    sig = pd.DataFrame(1.0, index=z.index, columns=z.columns)
+    v = cross_sectional_views(z, sig, 1.0)
+    assert v["g1"].iloc[0] == pytest.approx(2.0)
+    assert v["g2"].iloc[0] == pytest.approx(-1.0)
+
+
+def test_a_row_with_one_group_gives_zero():
+    z = _z()
+    sig = pd.DataFrame(1.0, index=z.index, columns=z.columns)
+    v = cross_sectional_views(z, sig, 1.0)
+    one = pd.DataFrame({"g1": [2.0], "g2": [np.nan]}, index=z.index[:1])
+    assert (cross_sectional_views(one, one.fillna(1.0), 1.0).iloc[0] == 0.0).all()
+    assert v["g3"].iloc[1] == 0.0
+
+
+def test_swapping_two_groups_swaps_their_views():
+    z = _z().iloc[[0]]
+    sig = pd.DataFrame(0.02, index=z.index, columns=z.columns)
+    v = cross_sectional_views(z, sig, 0.5)
+    swapped = z.copy()
+    swapped["g1"], swapped["g2"] = z["g2"], z["g1"]
+    sw = cross_sectional_views(swapped, sig, 0.5)
+    assert sw["g2"].iloc[0] == pytest.approx(v["g1"].iloc[0])
+    assert sw["g1"].iloc[0] == pytest.approx(v["g2"].iloc[0])
 
 
 # --- through views.py ------------------------------------------------------
