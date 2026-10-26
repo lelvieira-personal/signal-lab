@@ -83,3 +83,8 @@ M2WDCOMP,real_asset_equity,Real Assets,Global,no,,,,,,,
 SPGNRUT,real_asset_equity,Real Assets,Global,no,,,,,,,
 BCOMTR,commodity,Commodities,Commodities,no,,,,,,,
 BCOMGCTR,commodity,Gold,Commodities,no,,,,,,,
+I29064JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
+I29065JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
+I29066JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
+I29067JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
+I29068JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM

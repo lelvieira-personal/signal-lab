@@ -101,3 +101,8 @@ MXUS0TC,MSCI USA/COMM SVC STRD USD RT,9. US Sectors (MSCI USA),1995-01-02,backbo
 MXUS0UT,MSCI USA Utilities Index,9. US Sectors (MSCI USA),1995-01-02,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
 MXUSMC,MSCI USA MID CAP INDEX,6. Equity Regions - US,1994-06-01,backbone,False,True,mid,US Equities,,bbg_index_coverage.csv
 SPXT,S&P 500 Total Return Index,6. Equity Regions - US,1989-09-11,backbone,False,True,low,US Equities,,bbg_index_coverage.csv
+I29064JP,japan_govt_1_3y,3. International Government Bonds,2013-01-31,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
+I29065JP,japan_govt_3_5y,3. International Government Bonds,2013-01-31,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
+I29066JP,japan_govt_5_10y,3. International Government Bonds,2013-01-31,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
+I29067JP,japan_govt_10_20y,3. International Government Bonds,2013-01-31,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
+I29068JP,japan_govt_20y_plus,3. International Government Bonds,2013-01-31,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
