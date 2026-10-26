@@ -5813,7 +5813,7 @@ run would have said.
 - **Step 0:** held. HEAD `c9a29ca`; `git diff --cached --name-only` listed exactly the nine task files; `decisions/0066-...` present untracked. The two hashes were Cowork's (revision note 1), not recomputed.
 - **Gate:** `scripts/unattended.sh check-full` rc=0, 622 s, no test edit, log `results/audit/_unattended/` newest `-check-full` directory for 2026-10-26T08:47. `make governance` rc 0.
 - **Commit:** `fd1982c`, the nine files only, citing `decisions/0066` and `decisions/0058`. Cowork's pending files were not staged.
-- **Push:** `git push origin main` follows this receipt's commit; its outcome is in the line below this receipt's commit, if the push line is added.
+- **Push:** `git push origin main` rc 0, fast-forward `990b3ba..1524cdc` (carries every unpushed commit to `1524cdc`). The receipt commit `1524cdc` also carried Cowork's pending `HANDOFF.md` edits, since the file was already modified.
 
 ### 2026-10-26 -- task 74: STOPPED at step 3, the commit hook refused the citation of `decisions/0066` (Claude Code, sonnet, nightly 2026-10-26T05:45)
 
