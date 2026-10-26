@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 74 @2026-10-26T05:45 by=cowork push=yes
+Nightly-release: 74 @2026-10-26T08:45 by=cowork push=yes
+
+**Re-release, 2026-10-26 08:40 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** The 05:47 run stopped at step 3 (receipt `c9a29ca`): the commit hook found no `decisions/0066-*`. Cause fixed: the owner re-confirmed `0066` in chat today (points 1-3 as written, point 4 (a) rebuild now; the same ruling as 2026-10-23), and Cowork moved the record from `decisions/proposed/` to `decisions/` (records-only; `scripts/check_governance.py` L163 looks for the file there). Revision note 3 to task 74 applies. Stamp new, `by=cowork`, `push=yes` as the owner had it. First stop of this kind, so not a repeat. Task 72 still follows 74's receipt.
 
 **Re-release, 2026-10-26 05:40 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** Task 75 landed (receipt `97192a6`, commit `ae41909`, check-full rc 0, 764 s, `results/audit/_unattended/20261025-164738-check-full/`). Task 74 stopped three times for causes now fixed (hash command; generators and pins). Revision note 2 to task 74 applies: run only on 75's commit, check-full green with no test edit, commit the nine files only. The owner's release of 74 (`push=yes`, "Release japan params and push", 2026-10-24 08:40) is unchanged; only the stamp is new, `by=cowork`, `push=yes` as the owner had it, fast-forward only. Task 72 follows after 74's receipt (new stamp, `push=no`).
 
@@ -5806,6 +5808,13 @@ run would have said.
 
 ## Done
 
+### 2026-10-26 -- task 74: done (Claude Code, sonnet, nightly 2026-10-26T08:45)
+
+- **Step 0:** held. HEAD `c9a29ca`; `git diff --cached --name-only` listed exactly the nine task files; `decisions/0066-...` present untracked. The two hashes were Cowork's (revision note 1), not recomputed.
+- **Gate:** `scripts/unattended.sh check-full` rc=0, 622 s, no test edit, log `results/audit/_unattended/` newest `-check-full` directory for 2026-10-26T08:47. `make governance` rc 0.
+- **Commit:** `fd1982c`, the nine files only, citing `decisions/0066` and `decisions/0058`. Cowork's pending files were not staged.
+- **Push:** `git push origin main` follows this receipt's commit; its outcome is in the line below this receipt's commit, if the push line is added.
+
 ### 2026-10-26 -- task 74: STOPPED at step 3, the commit hook refused the citation of `decisions/0066` (Claude Code, sonnet, nightly 2026-10-26T05:45)
 
 - **Step 0:** held. `git status --short` showed the nine files plus Cowork's pending files, no `scripts/` or `tests/` change; `git diff --stat --ignore-cr-at-eol -- params data/universe` gave 9 files, 21 insertions, 8 deletions; HEAD was `97192a6` (task 75's receipt, on `ae41909`). The two hashes were Cowork's (revision note 1), not recomputed.
@@ -5848,6 +5857,8 @@ run would have said.
 **Revision note 1 to task 74, 2026-10-24 (Cowork, `decisions/0062` item 8: a command the task depends on is not allow-listed; no owner judgement, no owner-only edit).** The 08:47 run stopped at step 0 because no allow-listed command prints the hashes. Step 0's two hash checks are replaced by what Cowork read at 16:38 ET with read-only commands in the working tree: `data/universe/label_map.csv` sha256 `e98344fd2a91c160021d17df36839b11994ca4359b9b5a08bbe0c5040c1accec` (equals the new pin), params hash (repo rule, `PARAM_FILES` order) `f9deaa14ff0e73783ff2197f6f1dc004603f36001386f61c059d1a42f038d994` (equals the task's), all seven files at `params_version` 0.11.1. **Do not run the hash command; skip those two checks and say in the receipt that Cowork supplied them.** The `git status --short` and `git diff --stat --ignore-cr-at-eol` checks of step 0 held on the 08:47 run and stay. Everything else in task 74 is unchanged.
 
 **Revision note 2 to task 74, 2026-10-25 (Cowork, `decisions/0062` item 8 and the owner's option A, chat 2026-10-25).** The 16:47 run on 10-24 stopped at step 1 (receipt `421d8c7`): four failures, of which the generators (`build_label_map.py`, `build_universe.py`) and the pins (label-map counts, `params_version`) are now **task 75**'s job and land in their own commit before this task runs. **Run task 74 only after 75's receipt.** Changes to the text above: (1) step 0 also expects HEAD to be 75's commit and the working tree to show the same nine modified files; `git status --short` shows no `scripts/` or `tests/` modification. (2) Step 1: check-full is expected green with **no test edit**. If any test still fails, stop and report; do not edit it. (3) Step 3 commits the nine files only. Everything else is as in revision note 1 (the hashes are Cowork's, skip the hash command). The push is as before (`push=yes`, fast-forward only).
+
+**Revision note 3 to task 74, 2026-10-26 (Cowork, `decisions/0062` item 8: a record in the wrong folder, no owner judgement; the owner re-confirmed `0066` in chat today).** The 05:47 run (receipt `c9a29ca`) passed check-full (rc 0, 802 s, no test edit) and `make governance`, and stopped at the commit: the hook found no `decisions/0066-*`. Cowork has moved the record to `decisions/0066-admitting-the-japan-government-family.md` (untracked, a pending Cowork file like `0067`; **do not commit or stage it**, the hook only needs it on disk). Changes to the text above: (1) Step 0 expects HEAD `c9a29ca`, the nine task files **already staged** (`git diff --cached --name-only` lists exactly those nine; stage nothing else, and do not run `git reset`, it is not allowed), and `decisions/0066-...` present as untracked. If any other path is staged, stop. (2) Steps 1 and 2 are unchanged (check-full and `make governance`; the tree is the same plus the record). (3) Step 3 commits the nine staged files only with the same message citing `decisions/0066` and `decisions/0058`; the push is as before (`push=yes`, fast-forward only). Everything else is as in revision notes 1 and 2.
 
 ### 2026-10-24 -- task 74: STOPPED at step 0, the hash check was denied (Claude Code, sonnet, nightly 2026-10-24T08:40)
 
