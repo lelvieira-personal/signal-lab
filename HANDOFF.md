@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 74 @2026-10-26T08:45 by=cowork push=yes
+Nightly-release: 72 @2026-10-26T16:45 by=cowork push=no
+
+**Re-release, 2026-10-26 16:40 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** Task 74 landed (commit `fd1982c`, receipt `1524cdc`, check-full rc 0, 622 s; pushed `990b3ba..1524cdc`; Cowork read `status.txt`, `result.json`, `git log` and the check-full `status.txt`). Task 72 follows 74's receipt as announced. Its 05:50 stop on 2026-10-24 (receipt `92fe365`) is fixed by revision note 1 to task 72 (the one test replaced). New stamp, `by=cowork`, `push=no` as task 72 was released. First re-release of 72. HEAD at release `e083ff6`; the working tree holds only Cowork's pending records (`CLAUDE.md`, `AGENTS.md`, `decisions/0059`, `0066`, `0067`).
 
 **Re-release, 2026-10-26 08:40 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** The 05:47 run stopped at step 3 (receipt `c9a29ca`): the commit hook found no `decisions/0066-*`. Cause fixed: the owner re-confirmed `0066` in chat today (points 1-3 as written, point 4 (a) rebuild now; the same ruling as 2026-10-23), and Cowork moved the record from `decisions/proposed/` to `decisions/` (records-only; `scripts/check_governance.py` L163 looks for the file there). Revision note 3 to task 74 applies. Stamp new, `by=cowork`, `push=yes` as the owner had it. First stop of this kind, so not a repeat. Task 72 still follows 74's receipt.
 
@@ -5807,6 +5809,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-26 -- task 72: done (Claude Code, sonnet, nightly 2026-10-26T16:45)
+
+- **Step 0:** held (`git status --short` showed Cowork's six pending paths only; HEAD `e083ff6`, task 71's receipt in `## Done`).
+- **Edits:** `src/signal_lab/portfolio/alpha.py`: `group_return`, `relative_factor`, `relative_sigma`, `cross_sectional_views`, and `alpha_from_views` now builds `cash` and `region` (`region_cells` keyword; a scalar region view raises `ValueError`). `factor_sigma` still refuses `cash`/`region`, message now "use relative_sigma; built in HANDOFF task 72". `scale` of `cross_sectional_views` is the float `ic_prior / sqrt(h)` the caller computes; a NaN group is out of the mean and gets 0.0; a one-group row gives 0.0; burn-in groups (`z = 0`) stay in the mean.
+- **One existing test replaced, as revision note 1 rules:** `test_alpha_refuses_the_axes_of_task_72` (it pinned the `NotImplementedError` that step 3 removes). `test_factor_sigma_refuses_the_axes_of_task_72` stays and passes. No other existing test edited.
+- **Gate:** `ruff format` and `ruff check` clean. `scripts/unattended.sh check-scoped` rc=0, 525 s, tier SCOPED, log `results/audit/_unattended/20261026-170835-check-scoped/`, 970 passed, slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_scripts`. Two earlier runs the same afternoon (`-164828-`, `-165815-`, rc=2) failed only on bugs in my own new tests (a signbit assertion that covered a legitimately negative alpha; a swap test that reordered columns instead of values), fixed in the tests; no existing test or golden moved.
+- **Commit:** `42f7d8b`, the two files only. **No push** (`push=no`). OWNER-QUEUE untouched.
+- **`decisions/0059` F, at the alpha/view level:** F2 (zero view gives exactly zero alpha, cash and region too) and F4 (out-of-scope or no-region instrument is exactly 0.0) covered; F3 (sign of the cell; swapping two groups swaps their views, at the view level) covered. F1, F5, F6, F7 wait for the solver (73).
 
 ### 2026-10-26 -- task 74: done (Claude Code, sonnet, nightly 2026-10-26T08:45)
 
