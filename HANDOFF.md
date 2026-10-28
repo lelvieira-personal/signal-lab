@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 76 @2026-10-28T12:15 by=owner push=no
+Nightly-release: 78,76 @2026-10-28T18:55 by=owner push=no
+
+**As of 2026-10-28 18:55 ET: task 78 WRITTEN by Cowork and RELEASED at the owner's instruction, then task 76 RE-RELEASED to resume at step 6, `push=no`, Sonnet.** The owner ruled option A on task 76's stop ("Go with A") and asked for the fix and its release ("Write the task-78 fix for ruling A ... and release it", chat). Task 78 relaxes the exposure map's check (`src/` and `tests/` only); task 76's re-release is Cowork's own (`decisions/0062` item 8; revision note 1 to task 76 says what changes) and runs only if 78 lands, since the worker stops at the first failure. First re-release of 76. HEAD at release `b24394d`. **Task 77** (owner-only params patch naming `huber6-v5`, `push=yes`) follows 76's receipt, as the owner authorised at 11:16 CT. Only this line, this note, task 78's text and revision note 1 to task 76 changed.
 
 **As of 2026-10-28 12:10 ET: task 76 WRITTEN by Cowork and RELEASED by the owner, `push=no`, Sonnet** ("Write the 066 decision task and release", chat). It is `decisions/0066`'s "What follows the rulings" item 3: the loader for `bbg_japan_govt.xlsx` and store `huber6-v5`. Task 72 landed (`42f7d8b`, receipt `f23abb8`), so nothing else is waiting on the line. **Not written:** task 77, the owner-only params patch that names `huber6-v5` (it needs 76's directory hash, as task 60 needed 56's). **Owner, 2026-10-28 11:16 CT:** the five are accepted as tradable-only (`0066`, ruling of 2026-10-28), and Cowork may release task 77 itself, `push=yes`, once 76's receipt lands. Only this line, this note and task 76's text changed.
 
@@ -3781,6 +3783,75 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 78. The exposure map accepts label-map rows that the store lists as not estimated; they get no row and no axes (owner's ruling A, 2026-10-28; `decisions/0055`, `0066`, OWNER-QUEUE L534)
+
+Added 2026-10-28 by Cowork. **Written by Cowork and RELEASED at the owner's instruction** ("Go with A", then "Write the
+task-78 fix for ruling A ... and release it", chat, 2026-10-28), `push=no`, Sonnet. Lane 2: `src/` and `tests/` only. **Nothing
+under `params/`, `vetoes/` or `SUBSTRATE.md`.** Runs before the resumption of task 76 (revision note 1 to task 76, below it).
+
+**Why.** Task 76 stopped at step 6 (receipt in `## Done`, 2026-10-28): `ExposureMap.__init__`
+(`src/signal_lab/characteristics/exposures.py` L145-152) requires the instruments with a `loadings` row (`held`) to equal the label
+map's (`labelled`). Task 74 put the five tradable-only Japan rows (`I29064JP` to `I29068JP`) in the label map; being tradable-only
+they have no `loadings` row in any store, so every real-store `resolve_exposures` is refused. **The owner ruled option A:** the
+five stay unholdable in the development window and get no axes, as the 2026-10-11 ruling (OWNER-QUEUE L534) did for the eight
+earlier tradable-only instruments. Options B (axis inheritance from parents) and C (removing the five from the label map) were not
+chosen. `decisions/0055` already says an instrument with no row on a date is not in the matrix on that date (L74), and
+`requires_row` already makes the engine refuse a weight on it; this task changes only the construction check.
+
+**What is known** (Cowork, 2026-10-28, from the files): `huber6-v5`'s `manifest.yaml` lists 13 ids under `not_estimated`, the
+five Japan ids and v4's eight; `huber6-v4`'s lists only the eight. The eight are not in the label map; the five are. The synthetic
+store in `tests/test_exposures.py` writes no `not_estimated` key. `store.write_store` carries any manifest key into
+`manifest.yaml`.
+
+**0. Check.** `git status --short` shows exactly: ` M CLAUDE.md`, ` M HANDOFF.md`, ` M data/universe/raw_manifest.csv`,
+` M decisions/0059-the-phase-2-solver.md`, ` M scripts/build_characteristics.py`, ` M src/signal_lab/loaders/bloomberg.py`,
+`?? AGENTS.md`, `?? data/characteristics/huber6-v5/`, `?? decisions/0067-the-chain-moves.md`,
+`?? results/characteristics/huber6-v5/`, `?? src/signal_lab/loaders/japan_govt.py`, `?? tests/test_japan_govt.py` (task 76's
+uncommitted work and Cowork's pending records). HEAD is `b24394d` (task 76's STOPPED receipt). Anything else: stop and report.
+**Do not touch, stage or commit task 76's files.**
+
+**1. The check, `ExposureMap.__init__`.** Read `not_estimated = set(loaded.manifest.get("not_estimated") or [])`. Replace
+`if held != labelled` with two refusals, both `LabelMapMissing`, in one message naming each non-empty set:
+- `held - labelled` non-empty: "in the store only [...]", as now.
+- `labelled - held - not_estimated` non-empty: "in the label map only [...]", as now, listing only those ids.
+Keep both phrases and `(decisions/0054)` verbatim, so the existing test's `match=` strings still hold; add `decisions/0055` and
+"not in the store's not_estimated" to the second. The extras (`(labelled - held) & not_estimated`) are kept on `self` as a sorted
+tuple, `self.unheld` (read-only, for the receipt and tests), and get **no row** in `_wide`, no axis and no usage row. `_labels` may
+keep their rows (`reindex(w.index)` already drops them); confirm with a test, do not add code for it. Update the comment above the
+check and the module docstring's "No row, no holding" paragraph ("the eight tradable-only instruments" becomes the store's
+`not_estimated` instruments, citing OWNER-QUEUE L534 and this task). No other behaviour changes.
+
+**2. Tests, `tests/test_exposures.py`.** `_write` gains an optional `manifest_extra: dict | None = None` merged into the manifest
+(the only change to a helper; every existing call is unchanged). New tests, synthetic, no vendor value:
+- a label map with `EXTRA` and a store whose manifest has `not_estimated: ["EXTRA"]` builds; `emap.unheld == ("EXTRA",)`;
+  `EXTRA` is in no `emap.at(week)` index and no `emap(week)` index for any week; `usage()` has no `EXTRA` row;
+- the same label map with `not_estimated: ["OTHER"]` still raises, matching `in the label map only \['EXTRA'\]`;
+- held-but-unlabelled with `not_estimated: ["HY"]` still raises `in the store only \['HY'\]` (`not_estimated` excuses nothing
+  on that side);
+- a `not_estimated` id in neither the store's rows nor the label map changes nothing (the map builds, `unheld == ()`).
+**No existing test is edited or weakened**; `test_a_store_instrument_without_a_label_row_and_a_label_row_without_one_both_raise`
+must pass untouched. If `tests/test_select_slow.py` needs anything, stop (it should not: no new test file).
+
+**3. Gate.** `uv run --python 3.12 --group dev ruff format` and `ruff check` on the two files, clean.
+`scripts/unattended.sh check-scoped` rc 0 (the tree also holds task 76's uncommitted `src/` changes, so expect the tier to come
+out full; that is fine). No golden moves.
+
+**4. Commit** exactly `src/signal_lab/characteristics/exposures.py` and `tests/test_exposures.py` (`git add` those two paths,
+`git commit` with those two paths). Message: `characteristics: the exposure map accepts label-map rows the store lists as not
+estimated; they get no row (HANDOFF task 78, decisions/0055)`. **No push.**
+
+**5. Receipt**, committed alone (`HANDOFF.md`), directly under `## Done`: commit hash, check rc, tier, runtime, log directory,
+slow files left out, the new tests' names, and confirmation that no existing test was edited. Then go on to task 76 (revision
+note 1), which is next on the release line.
+
+**Not in this task.** `make exposures-check` with no argument still reads `huber6-v4` (params unchanged), whose `not_estimated`
+lacks the five, so it **still refuses**, correctly: that store never saw them. It is repaired by task 77 pinning `huber6-v5`, not
+here. Do not run it as a test of this task and do not treat its failure as a stop.
+
+**Stop conditions:** step 0 differs; an existing test needs an edit; the check fails; any command denied (do not work around it).
+
+Expected: 20 to 40 minutes, most of it check-scoped; $1 to $3 on Sonnet (a guess, from task 72).
+
 ### 76. Japan government family, step 2: the loader reads `bbg_japan_govt.xlsx` in dollars, and store `huber6-v5` is built (`decisions/0066` item 3 and point 4 (a); `0063`, `0053`, `0056`)
 
 Added 2026-10-28 by Cowork. **Written by Cowork, RELEASED by the owner** ("Write the 066 decision task and release", chat,
@@ -3898,6 +3969,21 @@ hash fails; a test beyond step 4's allowance needs an edit; any command denied (
 
 Expected: well under five hours, so not `long`; about 1.5 to 3 hours, most of it the build and check-full; $6 to $12 on Sonnet (a
 guess, from tasks 56 and 75).
+
+**Revision note 1 to task 76, 2026-10-28 (Cowork; `decisions/0062` item 8, re-releasing a stopped task once its cause is
+fixed).** The 12:15 run stopped at step 6 (receipt `b24394d`) on the exposure map's `held != labelled` check. The owner ruled
+option A; task 78 makes the fix. **Run this only after task 78's receipt is in `## Done` as done; if 78 stopped, do nothing.**
+Changes to the text above:
+- **Step 0 instead:** HEAD is task 78's receipt; `git status --short` shows the paths task 78's step 0 listed and no others
+  (78 commits only its own two files; ` M HANDOFF.md` may be absent, since 78's receipt commit carries that file). Steps 1 to 5 are **done and uncommitted**: check that
+  `src/signal_lab/loaders/japan_govt.py`, `tests/test_japan_govt.py` and the `bloomberg.py`, `build_characteristics.py` and
+  `raw_manifest.csv` edits are present; **do not redo them.** Do not redo the build either: `data/characteristics/huber6-v5/`
+  exists and its `manifest.yaml` `directory_hash` must be `0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31`;
+  if not, stop. `decisions/0066` is already committed (`1bb3f7f`).
+- **Step 6:** run only `make exposures-check ARGS="--store-id huber6-v5"`, rc 0.
+- **Step 9, the five's axes:** under ruling A they have no row. Report instead, from `exposures-check` or a read of
+  `ExposureMap.unheld`, that the five are absent from every week's map, and the instrument-weeks and duration counts against v4's.
+- Steps 7, 8 and 9 otherwise as written (check-full, the commit list, the receipt). **No push.** Then stop; Cowork releases task 77.
 
 ### 75. The two generators learn the five Japan rows, and the pins follow (prior to task 74; `decisions/0066`, `decisions/0062` item 8)
 
@@ -5929,6 +6015,14 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-28 -- task 78: done (Claude Code, sonnet, nightly 2026-10-28T18:55)
+
+- **Step 0:** held (the twelve listed paths, HEAD `b24394d`).
+- **Commit:** `a866e14`, `src/signal_lab/characteristics/exposures.py` and `tests/test_exposures.py` only. No push.
+- **Gate:** `ruff format` and `ruff check` clean. `scripts/unattended.sh check-scoped` rc=0, 710 s, tier FULL (task 76's uncommitted `src/` changes are in the tree), slow files left out: none, log `results/audit/_unattended/20261028-180244-check-scoped/`. No golden moved.
+- **New tests (all synthetic):** `test_a_label_row_the_store_lists_as_not_estimated_builds_and_gets_no_row`, `test_a_label_row_not_excused_by_the_stores_not_estimated_still_raises`, `test_not_estimated_excuses_nothing_on_the_stores_side`, `test_a_not_estimated_id_in_neither_the_store_nor_the_label_map_changes_nothing`. `_write` gained `manifest_extra`. No existing test was edited; `test_a_store_instrument_without_a_label_row_and_a_label_row_without_one_both_raise` passes untouched.
+- `ExposureMap.unheld` (sorted tuple) added; no `_labels` code change.
 
 ### 2026-10-28 -- task 76: STOPPED at step 6, `make exposures-check` fails: the exposure map refuses a label map that holds tradable-only rows (Claude Code, sonnet, nightly 2026-10-28T12:15)
 
