@@ -83,6 +83,64 @@ def tradable_only_ids(panel, universe_rows, flags) -> list[str]:
     ]
 
 
+def _same(a: pd.Series, b: pd.Series) -> bool:
+    """Equal at tolerance zero, a missing value on both sides counting as equal."""
+    return bool(((a == b) | (a.isna() & b.isna())).all())
+
+
+def compare_with_superseded(
+    old_frames: dict, new_frames: dict, old_manifest: dict, new_manifest: dict, expected_new: list
+) -> dict:
+    """
+    HANDOFF task 76 (decisions/0066): a store that only adds instruments, against the one it
+    supersedes. Every `loadings` row (loading and se) and `measured` row of an instrument in both
+    stores is equal at tolerance zero with no unmatched row; the only new instruments are
+    `expected_new`, and they are in `instruments` and `measured` and in no `loadings` row; the
+    factors hash and the weekly returns hash equal the old manifest's. `failures` lists what broke.
+    """
+    failures: list[str] = []
+    old_inst = set(old_frames["instruments"]["instrument"])
+    new_inst = set(new_frames["instruments"]["instrument"])
+    added = sorted(new_inst - old_inst)
+    if added != sorted(expected_new):
+        failures.append(f"new instruments {added} are not the expected {sorted(expected_new)}")
+    if old_inst - new_inst:
+        failures.append(f"instruments only in the old store: {sorted(old_inst - new_inst)}")
+    out: dict = {"new_instruments": added}
+
+    shared = old_inst & new_inst
+    for name, key, cols in (
+        ("loadings", ["instrument", "date", "factor"], ["loading", "se"]),
+        ("measured", ["instrument", "date"], list(new_frames["measured"].columns[2:-1])),
+    ):
+        old_f, new_f = old_frames[name], new_frames[name]
+        old_s = old_f[old_f["instrument"].isin(shared)]
+        new_s = new_f[new_f["instrument"].isin(shared)]
+        both = old_s.merge(new_s, on=key, suffixes=("_old", "_new"))
+        unmatched = int(len(old_s) + len(new_s) - 2 * len(both))
+        maxdiff = {}
+        for c in cols:
+            d = (both[f"{c}_old"] - both[f"{c}_new"]).abs()
+            maxdiff[c] = float(d.max()) if d.notna().any() else 0.0
+            if not _same(both[f"{c}_old"], both[f"{c}_new"]):
+                failures.append(f"{name}: {c} differs on a shared cell")
+        out[name] = {"cells_compared": int(len(both)), "unmatched": unmatched, "max_abs": maxdiff}
+        if unmatched:
+            failures.append(f"{name}: {unmatched} unmatched rows on shared instruments")
+        if name == "loadings" and new_f["instrument"].isin(added).any():
+            failures.append("loadings: a new instrument has a loading row")
+        if name == "measured":
+            missing = sorted(set(added) - set(new_f["instrument"]))
+            if missing:
+                failures.append(f"measured: no row for {missing}")
+    for h in ("factors_hash", "weekly_returns_hash"):
+        out[h] = {"old": old_manifest.get(h), "new": new_manifest.get(h)}
+        if old_manifest.get(h) != new_manifest.get(h):
+            failures.append(f"{h} differs from the old store's")
+    out["failures"] = failures
+    return out
+
+
 def reproduce_the_test(R, F, classes, ids, weeks, reference_dir: Path) -> dict:
     """
     The gates against the run of record (decisions/0052 changed the universe since it).
@@ -234,6 +292,18 @@ def main(argv=None) -> int:
         help="an earlier store: recorded in the manifest and compared cell by cell",
     )
     parser.add_argument(
+        "--handoff-task",
+        type=int,
+        default=None,
+        help="the HANDOFF task written in the manifest; the default is the task of the path",
+    )
+    parser.add_argument(
+        "--also-decision",
+        action="append",
+        default=[],
+        help="a decision added to the manifest's `also` list; repeatable",
+    )
+    parser.add_argument(
         "--report-only",
         action="store_true",
         help="rewrite report.md from the existing store, after re-hashing it; builds nothing",
@@ -326,12 +396,15 @@ def main(argv=None) -> int:
     manifest = {
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "decision": "decisions/0049",
-        "also": (
-            ["decisions/0052", "decisions/0053", "decisions/0056", "decisions/0058"]
-            if v4
-            else ["decisions/0052", "decisions/0053"]
-        ),
-        "handoff_task": V4_TASK if v4 else TASK,
+        "also": [
+            *(
+                ["decisions/0052", "decisions/0053", "decisions/0056", "decisions/0058"]
+                if v4
+                else ["decisions/0052", "decisions/0053"]
+            ),
+            *args.also_decision,
+        ],
+        "handoff_task": args.handoff_task or (V4_TASK if v4 else TASK),
         "supersedes": args.supersedes,
         "estimator": {
             "name": build.ESTIMATOR,
@@ -374,6 +447,23 @@ def main(argv=None) -> int:
                 "factor_correlations": factor_correlations(ff.frame),
             }
         )
+    if args.supersedes and v4:
+        # HANDOFF task 76: on this path the superseded store is compared before anything is
+        # written. The new instruments are the universe rows of the Japan file.
+        from signal_lab.loaders import japan_govt
+
+        old = store.load_store(args.supersedes, args.root)
+        expected_new = japan_govt.tickers_in_universe(universe_rows)
+        cmp = compare_with_superseded(old.frames, frames, old.manifest, manifest, expected_new)
+        manifest["supersedes_comparison"] = {k: v for k, v in cmp.items() if k != "failures"}
+        print(f"against {args.supersedes}: {json.dumps(manifest['supersedes_comparison'])}")
+        if cmp["failures"]:
+            print(
+                f"STOP: the store does not only add instruments to {args.supersedes}: "
+                f"{cmp['failures']}",
+                file=sys.stderr,
+            )
+            return 4
     if args.supersedes and not v4:
         old = store.load_store(args.supersedes, args.root)
         key = ["instrument", "date", "factor"]

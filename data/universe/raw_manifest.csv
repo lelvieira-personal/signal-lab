@@ -16,3 +16,5 @@ fred/fred_baa10y.csv,,wide_single_date,BAA10Y,n/a,fred_credit_spread,1,2
 bbg_impvol_values_only.xlsx,IV_Weekly_v,series_blocks,various,n/a,implied_vol,4,5
 bbg_impvol_values_only.xlsx,IV_Daily_v,series_blocks,various,n/a,implied_vol_daily,4,5
 bbg_impvol_values_only.xlsx,Probe_Summary_v,table,n/a,n/a,implied_vol_probe,1,2
+bbg_japan_govt.xlsx,levels,wide_single_date,PX_LAST,JPY,returns_japan_govt,1,2
+bbg_japan_govt.xlsx,analytics,long_date_ticker,various,n/a,analytics_japan_govt,1,2

@@ -40,6 +40,7 @@ import pandas as pd
 
 from signal_lab.loaders import exusd_analytics as exusd
 from signal_lab.loaders import fx
+from signal_lab.loaders import japan_govt as japan
 from signal_lab.loaders.base import (
     AnalyticsPanel,
     ReturnPanel,
@@ -520,6 +521,17 @@ class BloombergLoader:
         )
         combined = combined.join(exusd, how="outer")
 
+        universe = read_universe(self.universe_dir)
+        exusd_starts = self._exusd_starts()
+
+        # The Japan government family (decisions/0066): yen levels, joined before the markers
+        # are mapped and converted with the rest. A manifest without its rows loads as before.
+        japan_levels, japan_starts, japan_report = self._read_japan_levels(universe, markers)
+        if japan_levels is not None:
+            combined = combined.join(japan_levels, how="outer")
+            exusd_starts = {**exusd_starts, **japan_starts}
+            exusd_currency = {**exusd_currency, **dict(japan_levels.attrs["quote_currency"])}
+
         # 1. markers to NaN, never to zero. Then business days only.
         combined = to_missing(combined, markers)
         combined = filter_business_days(combined)
@@ -527,8 +539,6 @@ class BloombergLoader:
         index_map = read_index_map(
             self._path(self._entry("index_map")), self._entry("index_map")["sheet"]
         )
-        universe = read_universe(self.universe_dir)
-        exusd_starts = self._exusd_starts()
         meta = build_series_meta(
             list(combined.columns), index_map, universe, params, exusd_starts, exusd_currency
         )
@@ -627,7 +637,47 @@ class BloombergLoader:
             "region_source": "Section (conservative placeholder; see build_series_meta)",
             "fx": fx_report,
         }
+        if japan_report is not None:
+            japan_report["tickers"] = {
+                t: {
+                    "daily_start": str(japan_starts[t].date()),
+                    "tier": meta[t].tier,
+                    "level_rows_before_holdout": int(panel.levels[t].notna().sum()),
+                    "dates_dropped_for_want_of_a_jpy_rate": fx_report["converted"][t][
+                        "n_dates_dropped"
+                    ],
+                }
+                for t in sorted(japan_starts)
+            }
+            self.report["japan_govt"] = japan_report
         return panel
+
+    def _read_japan_levels(
+        self, universe: dict[str, dict[str, str]], markers: list[str]
+    ) -> tuple[pd.DataFrame | None, dict[str, pd.Timestamp], dict[str, Any] | None]:
+        """
+        The Japan levels, their true daily starts and the start of the report. With no
+        `returns_japan_govt` row in the manifest (a test fixture's) there is nothing to read.
+        """
+        if not any(r.get("role") == japan.ROLE_LEVELS for r in self.manifest()):
+            return None, {}, None
+        entry = self._entry(japan.ROLE_LEVELS)
+        path = self._path(entry)
+        sha = japan.check_file(path)
+        tickers = japan.tickers_in_universe(universe)
+        levels, quote = japan.levels_from_rows(_sheet_rows(path, entry["sheet"]), markers, tickers)
+        cut = holdout_start(self.params)
+        starts = japan.true_daily_starts(levels, cut)
+        after = int((levels.index >= cut).sum())
+        levels = levels.copy()
+        levels.attrs["quote_currency"] = quote
+        report = {
+            "sha256_prefix": sha[:16],
+            "level_rows": int(len(levels)),
+            "level_rows_on_or_after_holdout": after,
+            "level_tickers": sorted(tickers),
+        }
+        return levels, starts, report
 
     # -- every return in dollars (decisions/0053) -------------------------------
 
@@ -835,6 +885,7 @@ class BloombergLoader:
                 meta[ticker] = replace(meta[ticker], true_daily_start=start)
 
         exusd_report = self._merge_exusd_analytics(by_field, meta, markers, params)
+        japan_report = self._merge_japan_analytics(by_field, meta, markers, params)
 
         cut = holdout_start(params)
         frames = {
@@ -854,6 +905,9 @@ class BloombergLoader:
         }
         if exusd_report is not None:
             self.report["analytics"]["exusd"] = exusd_report
+        if japan_report is not None:
+            self.report["analytics"]["japan_govt"] = japan_report
+            self.report.setdefault("japan_govt", {})["analytics"] = japan_report
         return AnalyticsPanel(fields=frames, meta=meta, snapshot_id=snapshot_id, source=self.source)
 
     def _merge_exusd_analytics(
@@ -895,6 +949,48 @@ class BloombergLoader:
             elif start < meta[ticker].true_daily_start:
                 meta[ticker] = replace(meta[ticker], true_daily_start=start)
         return exusd.describe(added, long, sha)
+
+    def _merge_japan_analytics(
+        self,
+        by_field: dict[str, dict[str, pd.Series]],
+        meta: dict[str, SeriesMeta],
+        markers: list[str],
+        params: Params,
+    ) -> dict[str, Any] | None:
+        """
+        The Japan analytics file (decisions/0066), merged into `by_field` and `meta` like the
+        ex-USD file. A manifest without its row loads as before; with the row, the file is
+        required, and a (ticker, field) already present from another file is refused.
+        """
+        if not any(r.get("role") == japan.ROLE_ANALYTICS for r in self.manifest()):
+            return None
+        entry = self._entry(japan.ROLE_ANALYTICS)
+        path = self._path(entry)
+        sha = japan.check_file(path)
+        tickers = japan.tickers_in_universe(read_universe(self.universe_dir))
+        long = japan.analytics_from_rows(_sheet_rows(path, entry["sheet"]), markers, tickers)
+        added, starts = japan.split_by_field(long, params)
+        for field, cols in added.items():
+            for ticker in cols:
+                if ticker in by_field.get(field, {}):
+                    raise InvariantViolation(
+                        f"{ticker}|{field} is in both analytics files; refusing to pick one"
+                    )
+        for field, cols in added.items():
+            for ticker, series in cols.items():
+                by_field.setdefault(field, {})[ticker] = series
+        for (ticker, _field), start in starts.items():
+            if ticker not in meta:
+                meta[ticker] = SeriesMeta(
+                    series_id=ticker,
+                    true_daily_start=start,
+                    tier=_tier_from_start(start, params),  # type: ignore[arg-type]
+                    section="17. Analytics",
+                    region="17. Analytics",
+                )
+            elif start < meta[ticker].true_daily_start:
+                meta[ticker] = replace(meta[ticker], true_daily_start=start)
+        return {"sha256_prefix": sha[:16], **japan.describe_analytics(added, starts, long)}
 
     @staticmethod
     def _treasury_tickers(index_map: pd.DataFrame) -> set[str]:
