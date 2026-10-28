@@ -134,11 +134,12 @@ def _frames(fitted_late=False):
     }
 
 
-def _write(tmp_path, name=STORE_ID, **kw):
+def _write(tmp_path, name=STORE_ID, manifest_extra: dict | None = None, **kw):
     manifest = {
         "factors": list(FACTOR_NAMES),
         "first_date": str(WEEKS[0].date()),
         "last_date": str(WEEKS[-1].date()),
+        **(manifest_extra or {}),
     }
     store.write_store(name, _frames(**kw), manifest, tmp_path)
     return store.load_store(name, tmp_path).manifest["directory_hash"]
@@ -457,6 +458,43 @@ def test_a_store_instrument_without_a_label_row_and_a_label_row_without_one_both
     path = write_label_map(tmp_path / "more.csv", more)
     with pytest.raises(LabelMapMissing, match=r"in the label map only \['EXTRA'\]"):
         ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path, label_map=path)
+
+
+EXTRA_ROW = {"EXTRA": "EXTRA,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM"}
+
+
+def test_a_label_row_the_store_lists_as_not_estimated_builds_and_gets_no_row(tmp_path):
+    """OWNER-QUEUE L534, HANDOFF task 78: unheld instruments get no row, no axis, no usage."""
+    digest = _write(tmp_path, manifest_extra={"not_estimated": ["EXTRA"]})
+    path = write_label_map(tmp_path / "more.csv", {**LABEL_ROWS, **EXTRA_ROW})
+    emap = ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path, label_map=path)
+    assert emap.unheld == ("EXTRA",)
+    for week in WEEKS:
+        assert "EXTRA" not in emap.at(week).index
+        assert "EXTRA" not in emap(week).index
+    assert "EXTRA" not in set(emap.usage()["instrument"])
+
+
+def test_a_label_row_not_excused_by_the_stores_not_estimated_still_raises(tmp_path):
+    digest = _write(tmp_path, manifest_extra={"not_estimated": ["OTHER"]})
+    path = write_label_map(tmp_path / "more.csv", {**LABEL_ROWS, **EXTRA_ROW})
+    with pytest.raises(LabelMapMissing, match=r"in the label map only \['EXTRA'\]"):
+        ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path, label_map=path)
+
+
+def test_not_estimated_excuses_nothing_on_the_stores_side(tmp_path):
+    digest = _write(tmp_path, manifest_extra={"not_estimated": ["HY"]})
+    fewer = {k: v for k, v in LABEL_ROWS.items() if k != "HY"}
+    path = write_label_map(tmp_path / "fewer.csv", fewer)
+    with pytest.raises(LabelMapMissing, match=r"in the store only \['HY'\]"):
+        ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path, label_map=path)
+
+
+def test_a_not_estimated_id_in_neither_the_store_nor_the_label_map_changes_nothing(tmp_path):
+    digest = _write(tmp_path, manifest_extra={"not_estimated": ["GHOST"]})
+    emap = ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path)
+    assert emap.unheld == ()
+    assert set(emap.at(WEEKS[0]).index) == set(CLASSES)
 
 
 def test_a_missing_label_map_file_raises(tmp_path):

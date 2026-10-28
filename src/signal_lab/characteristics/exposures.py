@@ -23,8 +23,9 @@ a view can name, where the other axes are series, because a region view is one v
 Sector and style raise `LabelMapMissing` (decisions/0054 item 8).
 
 No row, no holding (decisions/0055): `requires_row` tells the engine to refuse a weight on an
-instrument that has no row on a rebalance date. The eight tradable-only instruments never have
-one.
+instrument that has no row on a rebalance date. The store's `not_estimated` instruments, the
+tradable-only ones, never have one; a label-map row for one of them is accepted and held as
+`unheld` (OWNER-QUEUE L534, HANDOFF task 78).
 
 Every `at(date)` also records, per instrument, which week's loadings were used on which date and
 the date those loadings were fitted through (the store's `last_data_date`). `usage()` returns that
@@ -140,16 +141,23 @@ class ExposureMap:
         wide = load.join(se).join(fit, how="left").join(meas, how="left")
         wide["reporting_class"] = [klass.get(i) for i in wide.index.get_level_values("instrument")]
         labels = load_label_map(label_map)
-        # The store also lists the tradable-only instruments, with no row (decisions/0055); the
-        # label map has a row for exactly the instruments that have one.
+        # The store also lists the tradable-only instruments, with no row (decisions/0055). The
+        # label map has a row for every instrument that has one, and may also carry rows for
+        # instruments the store lists as `not_estimated` (OWNER-QUEUE L534, HANDOFF task 78): those
+        # are unheld, get no row and no axes. A label-map row that is neither held nor listed as
+        # not estimated is refused, and `not_estimated` excuses nothing on the store's side.
+        not_estimated = set(loaded.manifest.get("not_estimated") or [])
         held = set(wide.index.get_level_values("instrument"))
         labelled = set(labels.index)
-        if held != labelled:
+        missing_row = labelled - held - not_estimated
+        if held != labelled and (held - labelled or missing_row):
             raise LabelMapMissing(
                 "the store and the label map name different instruments: "
                 f"in the store only {sorted(held - labelled)}, "
-                f"in the label map only {sorted(labelled - held)} (decisions/0054)"
+                f"in the label map only {sorted(missing_row)} (decisions/0054, decisions/0055; "
+                "not in the store's not_estimated)"
             )
+        self.unheld: tuple[str, ...] = tuple(sorted((labelled - held) & not_estimated))
         self._labels = labels
         self._wide = wide.sort_index()
         self.weeks = pd.DatetimeIndex(sorted(self._wide.index.get_level_values("date").unique()))
