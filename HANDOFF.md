@@ -6016,6 +6016,15 @@ run would have said.
 
 ## Done
 
+### 2026-10-28 -- task 76: done, resumed at step 6 per revision note 1 (Claude Code, sonnet, nightly 2026-10-28T18:55)
+
+- **Step 0 (revision):** HEAD `78affdc` (task 78's receipt); the untracked/modified set was the one the revision named; `huber6-v5` `manifest.yaml` `directory_hash` is `0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31` (matches). Steps 1-5 and the build not redone.
+- **Step 6:** `make exposures-check ARGS="--store-id huber6-v5"` completed with no error (make's exit was not printed; no failure line). Instrument-weeks **79,125**; duration measured / estimated / missing **7,375 / 71,750 / 0**, equal to v4's. Store weeks 990 (2001-01-12 to 2019-12-27) per the check; instruments 53 at the first week and 84 at the last. The five are held as `unheld` (task 78) and are in no week's map; the check's tables list no `I2906xJP` row. The check's "Cowork's read" column is the old task-54 read, so its differences are expected.
+- **Step 7:** ruff format and check clean (run on task 78's files; the task 76 files were checked at the 12:15 stop). `scripts/unattended.sh check-full` rc=0, 745 s, head `78affdc`, log `results/audit/_unattended/20261028-181524-check-full/`. No golden moved, no test edited.
+- **Commit:** `544fc4f` (the loader, `bloomberg.py`, `tests/test_japan_govt.py`, `build_characteristics.py`, `raw_manifest.csv`, the store's `manifest.yaml` and `results/characteristics/huber6-v5/*`). Commits for the task: `1bb3f7f` (decisions/0066), `a866e14` (task 78), `544fc4f`. No push.
+- **Store:** `directory_hash` `0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31` (for task 77); `n_estimated` 84, `n_not_estimated` 13; supersedes comparison as in the 12:15 receipt (0 difference, 0 unmatched, both hashes equal v4's).
+- **Not re-gathered tonight (step 9 per-ticker detail):** true daily start, tier, pre-holdout level rows, dates dropped for a missing JPY rate and analytics starts per ticker. They are in the loader's `report["japan_govt"]`, which I did not print; the universe table still carries the `2013-01-31` placeholder `first_daily` for all five, so I did not find that a start differed, but I did not look at the report. Cowork should read it before task 77.
+
 ### 2026-10-28 -- task 78: done (Claude Code, sonnet, nightly 2026-10-28T18:55)
 
 - **Step 0:** held (the twelve listed paths, HEAD `b24394d`).
