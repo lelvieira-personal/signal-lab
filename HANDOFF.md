@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 72 @2026-10-26T16:45 by=cowork push=no
+Nightly-release: 76 @2026-10-28T12:15 by=owner push=no
+
+**As of 2026-10-28 12:10 ET: task 76 WRITTEN by Cowork and RELEASED by the owner, `push=no`, Sonnet** ("Write the 066 decision task and release", chat). It is `decisions/0066`'s "What follows the rulings" item 3: the loader for `bbg_japan_govt.xlsx` and store `huber6-v5`. Task 72 landed (`42f7d8b`, receipt `f23abb8`), so nothing else is waiting on the line. **Not written:** task 77, the owner-only params patch that names `huber6-v5` (it needs 76's directory hash, as task 60 needed 56's). **Owner, 2026-10-28 11:16 CT:** the five are accepted as tradable-only (`0066`, ruling of 2026-10-28), and Cowork may release task 77 itself, `push=yes`, once 76's receipt lands. Only this line, this note and task 76's text changed.
 
 **Re-release, 2026-10-26 16:40 ET (Cowork, `decisions/0062` item 8: re-releasing a stopped task once its cause is fixed).** Task 74 landed (commit `fd1982c`, receipt `1524cdc`, check-full rc 0, 622 s; pushed `990b3ba..1524cdc`; Cowork read `status.txt`, `result.json`, `git log` and the check-full `status.txt`). Task 72 follows 74's receipt as announced. Its 05:50 stop on 2026-10-24 (receipt `92fe365`) is fixed by revision note 1 to task 72 (the one test replaced). New stamp, `by=cowork`, `push=no` as task 72 was released. First re-release of 72. HEAD at release `e083ff6`; the working tree holds only Cowork's pending records (`CLAUDE.md`, `AGENTS.md`, `decisions/0059`, `0066`, `0067`).
 
@@ -3779,6 +3781,124 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 76. Japan government family, step 2: the loader reads `bbg_japan_govt.xlsx` in dollars, and store `huber6-v5` is built (`decisions/0066` item 3 and point 4 (a); `0063`, `0053`, `0056`)
+
+Added 2026-10-28 by Cowork. **Written by Cowork, RELEASED by the owner** ("Write the 066 decision task and release", chat,
+2026-10-28), `push=no`, Sonnet. Lane 2: `src/`, `scripts/`, `tests/`, `build.mk` and the `data/universe/` tables, which are not
+owner-only. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`.** The store is built and **not named in `params/`**:
+`params/data.yaml` keeps `huber6-v4` until task 77 (owner-only, not written) pins `huber6-v5` from this receipt's directory hash,
+the way task 60 pinned task 56's store.
+
+**Why.** Task 74 put the five rows (`I29064JP` to `I29068JP`) in the label map and the universe and pinned the label map
+(params v0.11.1). Nothing loads the file yet, so the five are in the universe and absent from the panel and the store. The owner
+ruled point 4 (a) of `0066`: rebuild now, for Japan alone.
+
+**What is known about the file** (task 65's structure report, Cowork 2026-10-23; **nobody has read a value**):
+`data/raw/bloomberg/bbg_japan_govt.xlsx`, sha256 prefix `dfdf8ed9a39c5da1`.
+- `levels`: 1,789 rows x 6, header `date, I29064JP_local_JPY, I29065JP_local_JPY, I29066JP_local_JPY, I29067JP_local_JPY,
+  I29068JP_local_JPY`, dates 2013-01-31 to 2019-12-31. The request asked for `PX_LAST` on each index
+  (`Claude outputs/bbg_pull_japan_govt_2026-10-21.csv`), the same field as the ex-USD CSV (`raw_manifest.csv`).
+- `analytics`: 8,941 rows x 5, long: `date, ticker, index_name, oad_tsy, yield_to_worst`. No OAS column. 8,940 data rows =
+  1,788 dates x 5 tickers (Cowork's arithmetic).
+- `Pull Report`: bookkeeping. The loader does not read it.
+
+**0. Check, then commit the record.** `git status --short` shows exactly Cowork's pending ` M CLAUDE.md`, ` M HANDOFF.md`,
+` M decisions/0059-the-phase-2-solver.md`, `?? AGENTS.md`, `?? decisions/0066-admitting-the-japan-government-family.md`,
+`?? decisions/0067-the-chain-moves.md`. HEAD is `f23abb8` (task 72's receipt). `data/characteristics/huber6-v4/` exists and
+`data/characteristics/huber6-v5/` does not. Anything else: stop and report. Then commit **only**
+`decisions/0066-admitting-the-japan-government-family.md`: `records: decisions/0066, admitting the Japan government family
+(HANDOFF task 76)`. It is decided (owner, 2026-10-23 and 2026-10-26) and the store's manifest will cite it. Do not stage the
+other pending files.
+
+**1. The manifest.** Two rows in `data/universe/raw_manifest.csv`, in the file's own line endings:
+
+    bbg_japan_govt.xlsx,levels,wide_single_date,PX_LAST,JPY,returns_japan_govt,1,2
+    bbg_japan_govt.xlsx,analytics,long_date_ticker,various,n/a,analytics_japan_govt,1,2
+
+**2. The reader, `src/signal_lab/loaders/japan_govt.py`.** Pure functions, in the shape of `exusd_analytics.py`. Constants
+`ROLE_LEVELS`, `ROLE_ANALYTICS`, `SHA256_PREFIX = "dfdf8ed9a39c5da1"`; `check_file` raises `RawFileChanged` on another prefix
+(reuse `exusd_analytics.file_sha256`).
+- **Levels.** The header is `date` plus one `<ticker>_local_<CCY>` per ticker. The tickers must be exactly the universe rows whose
+  `source_file` is `bbg_japan_govt.xlsx` (read them from `investable_universe.csv`; do not hard-code a second list). Every `CCY` must
+  be `JPY`; any other suffix is refused (`decisions/0053`). Missing markers become NaN, business days only, nothing carried.
+- **True daily start**, per ticker: `exusd_analytics.true_daily_start` on the observed level dates. There is no Index Map row, so
+  this is the rule the ex-USD analytics already use. *Cowork's expectation:* 2013-01-31 for all five (the request's ASKB date, and
+  the placeholder task 75 wrote into `investable_universe.csv`). If a start differs, correct that row's `first_daily` in
+  `investable_universe.csv` and `JAPAN_FIRST_DAILY` in `scripts/build_universe.py` (task 75 named it a placeholder for this task),
+  and report it. If a ticker has no daily start, stop.
+- **Analytics.** Header exactly `date, ticker, index_name, oad_tsy, yield_to_worst`. `oad_tsy` is `INDEX_OAD_TSY`,
+  `yield_to_worst` is `INDEX_YIELD_TO_WORST`, each truncated at its own start by the same rule. A repeated (date, ticker) is
+  refused, as is a ticker outside the five. Parameterise `exusd_analytics`'s helpers if that is cleaner, but **the ex-USD path's
+  behaviour and its tests stay unchanged.**
+
+**3. Wire it into `BloombergLoader`**, on the pattern of `_merge_exusd_analytics`: a manifest without the two roles (every test
+fixture today) loads exactly as before; with them, the file is required and its hash checked.
+- `load_returns`: join the five levels to `combined` before `to_missing` and `filter_business_days`, with their starts and `JPY`
+  added to the maps `build_series_meta` and `_to_usd` already read (`exusd_starts`, `exusd_currency`). `_to_usd` then converts them
+  with Bloomberg's JPY close (`0053`, `0056`). They are **not** exempt. No new FX code: `fx.plan`, `fx.convert_levels` and
+  `fx.dates_without_rate` as they are. A date with a level and no JPY rate is dropped and reported, never carried.
+- **Tier.** The universe table's tier is blank (`0066` point 3), so `_tier_from_start` assigns it, and with a 2013 start that is
+  `tradable-only` (SUBSTRATE section 5.2; `params/data.yaml` `tradable_only: daily_start_on_or_after 2010-01-01`).
+  `build_characteristics.tradable_only_ids` will therefore leave them unestimated. That is the rule; do not change it. Report each tier.
+- `load_analytics`: merge the Japan analytics like the ex-USD file. A (ticker, field) present in two files is refused.
+- `self.report["japan_govt"]`: sha prefix, rows per sheet, tickers, start per ticker, and dates dropped for want of a JPY rate,
+  per ticker.
+
+**4. Tests.** Use a synthetic workbook written in the test with openpyxl and hand-made numbers; no vendor value. Cover: a suffix
+other than `JPY` refused; an unknown ticker refused; the daily start found after a sparse run-in; a missing marker is NaN, not
+zero; a row on or after 2020-01-01 never reaches the panel; a manifest without the two roles gives the panel it gave before; with
+them, the five appear converted (one level times one rate, checked by hand) with tier `tradable-only` for a 2013 start; the
+analytics map to the two fields and to no `INDEX_OAS_*`. If `tests/test_select_slow.py` needs the new test file in `INVISIBLE`, add
+it (the one pre-approved edit of that file, as in task 67). **No other existing test is edited**, except a count pinned on the
+number of series the loader returns, which may move by exactly five, with a comment citing `decisions/0066`; list each in the
+receipt. Anything else: stop.
+
+**5. `scripts/build_characteristics.py`.** Two gaps on the `huber6-baa10y` path:
+- The manifest hard-codes `handoff_task` 56 and an `also` list without `0063`/`0066`. Add `--handoff-task` and a repeatable
+  `--also-decision`; the defaults reproduce today's manifest.
+- `--supersedes` is compared only on the default path. On this path, compare against the superseded store before writing: every
+  `loadings` row (loading and se) of an instrument in both stores equal at **tolerance zero** with no unmatched row; the same for
+  `measured` rows of the old store's instruments; the only new instruments are the five, which appear in `instruments` and
+  `measured` and in no `loadings` row; `factors_hash` and `weekly_returns_hash` equal the old manifest's (`605fe4e7...` and
+  `2fef64ef...` for `huber6-v4`). On any failure print STOP, return 4 and write nothing. *Cowork's reasoning for the hashes, not
+  measured:* the five are tradable-only, so they are outside `select_instruments` and outside the weekly returns the estimator reads;
+  and no factor reads them. If the hashes move, that reasoning is wrong, and that is what the stop is for.
+
+**6. Build.**
+
+    make characteristics ARGS="--store-id huber6-v5 --supersedes huber6-v4 --factor-set huber6-baa10y --estimation-start common --handoff-task 76 --also-decision decisions/0063 --also-decision decisions/0066"
+    make exposures-check ARGS="--store-id huber6-v5"
+
+*Cowork's expectations, derived from `huber6-v4`'s manifest, not measured:* 990 weeks, 2001-01-12 to 2019-12-27; `n_estimated` 84;
+`n_not_estimated` 13 (v4's 8 plus the five); measured duration for the five from their first Friday with an OAD to 2019-12-27.
+
+**7. Gate.** `ruff format` and `ruff check` clean (as `uv run --python 3.12 --group dev ruff ...`). `scripts/unattended.sh
+check-full` rc 0: the loader change reaches every path, so not `check-scoped`. No golden moves.
+
+**8. Commit** the code, the tests, the `data/universe/` tables, `build.mk` if touched, and the store's committed files
+(`data/characteristics/huber6-v5/manifest.yaml`, `results/characteristics/huber6-v5/*`). The store's data files stay git-ignored, as
+v4's. Message: `characteristics: store huber6-v5 -- the Japan government family loaded from bbg_japan_govt.xlsx, in dollars
+(HANDOFF task 76, decisions/0066)`. **No push.**
+
+**9. Receipt**, committed alone (`HANDOFF.md`), directly under `## Done`:
+- the two commit hashes, rc, tier, runtime and log directory of each check;
+- per ticker: true daily start, tier, level rows before the holdout, dates dropped for want of a JPY rate, analytics start per field;
+- the store: `directory_hash` (in full; task 77 pins it), weeks, first and last date, `n_estimated`, `n_not_estimated`, the
+  supersedes comparison (cells compared, max differences, unmatched rows), and whether both hashes equal v4's;
+- from `exposures-check`: instrument-weeks, and duration measured / estimated / missing, against v4's 79,125 and 7,375 / 71,750 / 0;
+  and **for each of the five at 2019-12-27, what each axis reads (measured, estimated, inherited or missing)**;
+- every test edited, with its reason.
+Then stop. Cowork writes task 77 from this receipt.
+
+**Stop conditions:** step 0 differs; the file's sha256 prefix is not `dfdf8ed9a39c5da1` (tell the owner; do not adapt the loader);
+a suffix other than `JPY` or an unknown ticker; **any row on or after 2020-01-01 in either sheet** (task 65 found none; if one is
+there, the file is not the one described, so stop rather than cut it); a ticker with no daily start; more than 1% of a ticker's
+level dates dropped for want of a JPY rate (*Cowork's threshold, a guess*: task 56 dropped none); the supersedes comparison or a
+hash fails; a test beyond step 4's allowance needs an edit; any command denied (do not work around it).
+
+Expected: well under five hours, so not `long`; about 1.5 to 3 hours, most of it the build and check-full; $6 to $12 on Sonnet (a
+guess, from tasks 56 and 75).
+
 ### 75. The two generators learn the five Japan rows, and the pins follow (prior to task 74; `decisions/0066`, `decisions/0062` item 8)
 
 Added 2026-10-25 by Cowork, **at the owner's choice of option A in chat (2026-10-25)** after task 74 stopped twice (receipts
@@ -5809,6 +5929,16 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-28 -- task 76: STOPPED at step 6, `make exposures-check` fails: the exposure map refuses a label map that holds tradable-only rows (Claude Code, sonnet, nightly 2026-10-28T12:15)
+
+- **Step 0:** held (six pending paths only, HEAD `f23abb8`, `huber6-v5` absent). **Commit 1:** `1bb3f7f`, `decisions/0066` alone.
+- **Steps 1-5 done, uncommitted:** two manifest rows (`data/universe/raw_manifest.csv`); `src/signal_lab/loaders/japan_govt.py` (new); `BloombergLoader` wired (`load_returns`, `load_analytics`, `report["japan_govt"]`, `src/signal_lab/loaders/bloomberg.py`); `tests/test_japan_govt.py` (14 tests, new; no existing test edited, `INVISIBLE` untouched); `scripts/build_characteristics.py` (`--handoff-task`, repeatable `--also-decision`, and `compare_with_superseded` on the `huber6-baa10y` path). `make test PYTEST_ARGS="tests/test_japan_govt.py tests/test_exusd_analytics.py tests/test_bloomberg_loader.py"` rc 0 (49 passed); `ruff format` and `ruff check` clean. `check-full` was **not run**.
+- **Step 6, build:** `make characteristics ARGS="--store-id huber6-v5 ..."` rc 0. Store `huber6-v5` written (git-ignored data under `data/characteristics/huber6-v5/`, committed files `manifest.yaml` and `results/characteristics/huber6-v5/*` present, uncommitted). `directory_hash` **`0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31`**. 942 loading weeks (474,750 loading rows / 84 / 6; Cowork's "990" was a guess), 2001-01-12 to 2019-12-27, `n_estimated` 84, `n_not_estimated` 13 (v4's 8 plus the five). Supersedes comparison: 474,750 loading cells and 23,117 measured cells compared, max abs difference 0.0 (loading, se, oad, oas), 0 unmatched; new instruments exactly the five; `factors_hash` `605fe4e7...` and `weekly_returns_hash` `2fef64ef...` equal v4's. `measured` rows 24,912 (v4 23,117 + 1,795 for the five).
+- **What failed:** `make exposures-check ARGS="--store-id huber6-v5"` rc 2: `LabelMapMissing: the store and the label map name different instruments: in the store only [], in the label map only ['I29064JP', ..., 'I29068JP']` (`src/signal_lab/characteristics/exposures.py:145-152`). `ExposureMap.__init__` requires the set of instruments with a `loadings` row to equal the label map's set; task 74's five rows are in the label map and, being tradable-only, have no loading row in any store. **`make exposures-check` with no argument (store `huber6-v4`, HEAD's params) fails identically, so this is not caused by v5; any real-store `resolve_exposures` is broken at HEAD since task 74.** (Tests pass only because they use synthetic stores.) I did not edit `exposures.py` (outside the task; it is the tradable-only inheritance of `decisions/0055`, so how the five get their axes is a design question, not a one-line relaxation).
+- **Not obtained:** exposures-check's instrument-weeks and duration counts, and each of the five's axes at 2019-12-27.
+- **State:** uncommitted, as listed above (nothing staged by me). No push. `check-full` not run, so the code is not gated.
+- **Column of `decisions/0062` item 8:** owner: whether the exposure map should accept label-map rows with no loading row and how tradable-only instruments inherit axes (`0055`) is a judgement, and it changes `src/` behaviour no task authorises. Cowork needs to write that task (relax the `held != labelled` check to `held <= labelled` with the extras being exactly the store's `not_estimated`, plus the inheritance), then re-release 76 to resume at step 6.
 
 ### 2026-10-26 -- task 72: done (Claude Code, sonnet, nightly 2026-10-26T16:45)
 
