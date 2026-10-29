@@ -264,3 +264,11 @@ Why it changed:
 
 Nothing is built yet: the params patch of "What it would take to build" item
 1 carries 52, not 156.
+
+## Addendum, 2026-10-23: the cross-sectional views demean the standardised scores
+
+**Owner ruling, 2026-10-23** (chat, in answer to the question Cowork raised while writing HANDOFF task 70): "demean the standardized scores". Recorded by Cowork.
+
+- **The rule.** For a cross-sectional test, `z` is built first, per group, by `standardise` (`portfolio/views.py`, task 70): the expanding mean and standard deviation of that group's own knowledge-dated scores, winsorised at the clip. Then, at each date, the groups' `z` are demeaned across the groups: `zc_g(t) = z_g(t) - mean_g z_g(t)`. The view is `v_g(t) = ic_prior * sigma_g(t) * zc_g(t) / sqrt(h)`. The directional form uses `z` undemeaned.
+- **What the demeaning gives, stated so it is not rediscovered.** `zc` sums to zero across groups at every date. The *views* sum to zero only when `sigma` is the same for every group, which holds for the duration, real_nominal, credit and cash axes (one `sigma_k` per axis). On the region axis `sigma_g` is per group (section A), so the views `v_g` do not sum exactly to zero; the *standardised* scores do. This is the reading the owner chose; the alternative (demeaning the views themselves, which would force a zero sum) was not chosen.
+- **Which groups are demeaned over.** The groups that are present at the date: a group still in its burn-in has `z = 0` (task 70) and stays in the mean.  *Cowork's reading, not ruled; one line to change if the owner prefers to drop burn-in groups from the mean.*

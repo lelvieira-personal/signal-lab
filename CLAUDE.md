@@ -59,6 +59,15 @@ and a push for a task that says to push. It never edits `scripts/nightly/`,
 `scripts/exec_server/`, `.claude/` or this file. Its commits cite a HANDOFF task
 or a decision.
 
+Cowork keeps the Signal Lab board current. In any session where it records an owner
+ruling, releases or re-releases a task, or writes a receipt line, it refreshes the
+board before the session ends (the pinned artifact's database document `lab/board`:
+`get`, change values only, `set` with `if_version`). A ruling on a file in
+`decisions/proposed/` is recorded as a paragraph that starts with `**Owner ruling,
+<date>` (bold, at the start of the line) and a changed Status line; the page reads
+that line to drop the decision from the owner's list, so keep it when you commit the
+file. Detail: the Project doc `claude/board-upkeep-rule.md`.
+
 When started by `scripts/nightly/run.sh`, work only the ids on HANDOFF's
 `Nightly-release:` line (`decisions/0062`); nobody is there to answer, so stop
 and write the receipt rather than ask.

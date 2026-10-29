@@ -6081,6 +6081,7 @@ run would have said.
 - **Step 3:** not obtained. `report["japan_govt"]` is not stored anywhere I could read without rebuilding the store or running the loader on vendor data, so I did not print it. Whether any start differs from the `2013-01-31` placeholder is therefore unknown; Cowork should read it.
 - **Gate:** second `scripts/unattended.sh check-full` rc 0, 704 s, head `cb47947` plus the working-tree edits, log `results/audit/_unattended/20261029-085921-check-full/`. `make governance` OK.
 - **Commit:** `25c125f` (seven params files, `tests/test_params.py`, `exposures_check.md`); none of Cowork's pending files.
+- **Push:** `git push origin main` fast-forward `1524cdc..1804490` (carried the unpushed commits, this task's commit `25c125f` and this receipt `1804490`).
 
 ### 2026-10-28 -- task 76: done, resumed at step 6 per revision note 1 (Claude Code, sonnet, nightly 2026-10-28T18:55)
 
