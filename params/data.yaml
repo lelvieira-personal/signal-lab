@@ -1,6 +1,6 @@
 # Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
 # sections 3, 5 and 16. Owner-only.
-params_version: "0.11.1"
+params_version: "0.11.2"
 
 windows:
   dev_start: "2001-01-05"
@@ -82,8 +82,11 @@ characteristics:
   # v0.11.1 (decisions/0066, owner 2026-10-23): the label map gains the five Japan
   # government rows (I29064JP to I29068JP); only its pin changes. The store stays
   # huber6-v4 until the Japan loader task builds its successor.
-  store_id: huber6-v4
-  directory_hash: "b6181bcde28b7e95e69839ff29f2a0a0f19e7552f970b3a24804fcebb7569206"
+  # v0.11.2 (decisions/0066, owner 2026-10-28): the store is huber6-v5 -- huber6-v4 plus the
+  # five Japan government rows as not estimated (tradable-only), built by HANDOFF task 76;
+  # the label map is unchanged.
+  store_id: huber6-v5
+  directory_hash: "0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31"
   label_map:
     path: data/universe/label_map.csv
     sha256: "e98344fd2a91c160021d17df36839b11994ca4359b9b5a08bbe0c5040c1accec"

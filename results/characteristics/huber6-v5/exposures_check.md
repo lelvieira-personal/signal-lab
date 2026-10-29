@@ -1,6 +1,5 @@
 # Exposure map check, store `huber6-v5` (HANDOFF task 54)
 
-Run with `--store-id huber6-v5`; `params/` names `huber6-v4`. The 'Cowork's read' column is the task-54 read of that store, so differences are expected.
 
 Every store week walked through `resolve_exposures`, then the Tuesday after each one. Counts, dates, means and medians only.
 
