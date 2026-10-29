@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 78,76 @2026-10-28T18:55 by=owner push=no
+Nightly-release: 77 @2026-10-29T06:15 by=owner push=yes
+
+**As of 2026-10-29 (06:05 ET): task 77 WRITTEN by Cowork and RELEASED by the owner, `push=yes`, Sonnet** ("release the task", chat). Tasks 78 and 76 landed (`a866e14`, `544fc4f`; receipts `78affdc`, `cb47947`). Task 77 pins `huber6-v5` in `params/` (v0.11.2); **Cowork applied the owner-only `params/` edit to the working tree at the owner's instruction** (new params hash `6ee67cf0...3b40`); it carries every unpushed commit (9) in its push. Step 3 reads the loader's per-ticker report, informational only. Only this line, this note, task 77's text and the seven `params/*.yaml` changed. HEAD at release `cb47947`.
 
 **As of 2026-10-28 18:55 ET: task 78 WRITTEN by Cowork and RELEASED at the owner's instruction, then task 76 RE-RELEASED to resume at step 6, `push=no`, Sonnet.** The owner ruled option A on task 76's stop ("Go with A") and asked for the fix and its release ("Write the task-78 fix for ruling A ... and release it", chat). Task 78 relaxes the exposure map's check (`src/` and `tests/` only); task 76's re-release is Cowork's own (`decisions/0062` item 8; revision note 1 to task 76 says what changes) and runs only if 78 lands, since the worker stops at the first failure. First re-release of 76. HEAD at release `b24394d`. **Task 77** (owner-only params patch naming `huber6-v5`, `push=yes`) follows 76's receipt, as the owner authorised at 11:16 CT. Only this line, this note, task 78's text and revision note 1 to task 76 changed.
 
@@ -3783,6 +3785,61 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 77. Japan government family, step 3: params v0.11.2 names store `huber6-v5`; the tests follow; then push (`decisions/0066`, owner's authorisation of 2026-10-28; same shape as tasks 60 and 74)
+
+Added 2026-10-29 by Cowork. **Written by Cowork and RELEASED by the owner** ("release the task", chat, 2026-10-29), `push=yes`, Sonnet.
+The owner authorised this on 2026-10-28 11:16 CT, once task 76's receipt landed (it did: `cb47947`). **Cowork applied the
+owner-only edit to the working tree at the owner's instruction** (Claude Code never edits `params/` itself). What Cowork applied:
+- `params/*.yaml` (all seven, CRLF kept, every line CR LF): `params_version` 0.11.1 -> 0.11.2. In `params/data.yaml`,
+  `data.characteristics.store_id` `huber6-v4` -> `huber6-v5` and `directory_hash`
+  `b6181bcd...9206` -> `0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31` (task 76's receipt, and the store's
+  `manifest.yaml`), plus a four-line comment. The label-map pin is unchanged.
+- **New params hash `6ee67cf0abf7318205fbe97a3587c5b2752fe8b480a92988d582a73d235c3b40`** (the repo's rule: name, NUL, bytes, NUL,
+  in `PARAM_FILES` order, working-tree bytes).
+Nothing under `SUBSTRATE.md` or `vetoes/` changes. No solver, no audit, no store is built, no vendor data is read, nothing on or
+after 2020-01-01.
+
+**0. Check what Cowork applied (one command per call, allow-listed forms).** `git status --short` shows exactly the seven
+`params/*.yaml` modified, plus Cowork's pending ` M CLAUDE.md`, ` M decisions/0059-...`, ` M HANDOFF.md`, `?? AGENTS.md`,
+`?? decisions/0067-...`. `git diff --ignore-cr-at-eol --stat -- params` gives 7 files, 12 insertions, 9 deletions. The params
+hash (repo function, or the stdlib one-liner of task 60's revision note 1) is the one above. The store's `manifest.yaml`
+`directory_hash` equals `0bf78d6a...ed31`. Any difference: stop and report.
+
+**1. Run `scripts/unattended.sh check-full`.** **The only edits this task authorises** (`decisions/0062` item 8, a test fix that
+changes no expectation's meaning): `tests/test_params.py`, `params_version == "0.11.1"` -> `"0.11.2"` (comment: decisions/0066,
+HANDOFF task 77), and the store-id pin `huber6-v4` -> `huber6-v5` in `test_params_name_huber6_v4_and_pin_the_label_map` (rename it
+`..._huber6_v5_...`); and any other test whose failure is exactly "params now names v5 / hash `6ee67cf0...`". List each in the
+receipt as changed, not weakened. **Stop and report, without committing,** on any other failure: a golden or figure that moves, a
+test that reads the store and disagrees, anything you cannot tie to the pin.
+
+**2. `make exposures-check`** with no `ARGS` now reads `huber6-v5` and rewrites `results/characteristics/huber6-v5/exposures_check.{md,json}`
+if they differ. Expected, equal to task 76's step 6: 79,125 instrument-weeks; duration measured/estimated/missing 7,375 / 71,750 / 0;
+53 and 84 instruments at the first and last week; the five `I29064JP`..`I29068JP` held as `unheld`, in no week's map. A difference: stop.
+If the check rewrote tracked files, include them in the commit.
+
+**3. Informational, not a gate: the Japan loader's per-ticker report** (task 76 did not print it). If the report
+(`report["japan_govt"]`) can be printed by an allow-listed read-only command without rebuilding the store, print per ticker only:
+true daily start date, tier, number of pre-holdout level rows, number of dates dropped for a missing JPY rate. **No vendor values.**
+Say whether any start differs from the `2013-01-31` placeholder in `data/universe/investable_universe.csv`. If it cannot be obtained
+without a rebuild or a denied command, write "not obtained" and go on. Do not edit the universe table; Cowork does that.
+
+**4. Gate, commit, push.**
+- `scripts/unattended.sh check-full` rc 0 and `make governance` passes with the commit citing `decisions/0066` and `decisions/0058`.
+- Commit (the seven params files, the test edits, any rewritten `results/characteristics/huber6-v5/exposures_check.*`; nothing of
+  Cowork's pending files): `params: v0.11.2 -- store huber6-v5, the Japan government family (HANDOFF task 77, decisions/0066)`.
+- The receipt in `## Done`, directly under the heading: step 0's hashes, each test edited and why, step 2's figures, step 3's
+  report or "not obtained", the log directory, tier, runtime. Commit it alone, then `git push origin main` (fast-forward only;
+  this carries every unpushed commit, 9 at last read plus this task's) and write the push line in the receipt. Then stop. If the
+  push is refused, do not force; report.
+
+**Stop conditions:** step 0 differs; any failure not tied to the pin; a golden moves; a command denied (do not work around it); the
+push is not a fast-forward.
+
+**Next (not in this task):** Cowork corrects `first_daily` in the universe table if step 3 shows a different start (a records
+change, then its own task if a generator pin follows); L39 closes.
+
+Expected: under $4 on Sonnet (a guess), about an hour, most of it `check-full`.
+
 ### 78. The exposure map accepts label-map rows that the store lists as not estimated; they get no row and no axes (owner's ruling A, 2026-10-28; `decisions/0055`, `0066`, OWNER-QUEUE L534)
 
 Added 2026-10-28 by Cowork. **Written by Cowork and RELEASED at the owner's instruction** ("Go with A", then "Write the
@@ -6015,6 +6072,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-10-29 -- task 77: done (Claude Code, sonnet, nightly 2026-10-29T06:15)
+
+- **Step 0:** held. `git status --short` showed the seven `params/*.yaml` plus Cowork's pending files only; `git diff --ignore-cr-at-eol --stat -- params` 7 files, 12 insertions, 9 deletions; params hash (stdlib one-liner) `6ee67cf0abf7318205fbe97a3587c5b2752fe8b480a92988d582a73d235c3b40`; store `manifest.yaml` `directory_hash` `0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31`.
+- **Step 1:** first `check-full` rc 2 (667 s): exactly two failures, both tied to the pin. Edited in `tests/test_params.py`, changed, not weakened: `params_version` `"0.11.1"` -> `"0.11.2"` (comment decisions/0066, task 77) in `test_the_views_block_is_the_one_decisions_0059_names`; store-id pin `huber6-v4` -> `huber6-v5` with the test renamed `test_params_name_huber6_v5_and_pin_the_label_map`. No golden moved.
+- **Step 2:** `make exposures-check` (no ARGS) read `huber6-v5`: 79,125 instrument-weeks; duration measured / estimated / missing 7,375 / 71,750 / 0; 53 / 84 instruments at first / last week; no `I2906xJP` row in the tables. It rewrote `results/characteristics/huber6-v5/exposures_check.md`: only the header note "Run with `--store-id huber6-v5`; `params/` names `huber6-v4`" was dropped; committed. (I did not separately grep the `unheld` listing.)
+- **Step 3:** not obtained. `report["japan_govt"]` is not stored anywhere I could read without rebuilding the store or running the loader on vendor data, so I did not print it. Whether any start differs from the `2013-01-31` placeholder is therefore unknown; Cowork should read it.
+- **Gate:** second `scripts/unattended.sh check-full` rc 0, 704 s, head `cb47947` plus the working-tree edits, log `results/audit/_unattended/20261029-085921-check-full/`. `make governance` OK.
+- **Commit:** `25c125f` (seven params files, `tests/test_params.py`, `exposures_check.md`); none of Cowork's pending files.
 
 ### 2026-10-28 -- task 76: done, resumed at step 6 per revision note 1 (Claude Code, sonnet, nightly 2026-10-28T18:55)
 
