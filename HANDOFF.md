@@ -6128,6 +6128,24 @@ run would have said.
 
 ## Done
 
+### 2026-10-30 -- task 79: done, interactive (Claude Code, sonnet; `push=no`)
+
+- **Step 0:** `HANDOFF.md` was modified (only Cowork's 55 lines: the 10:45 note and task 79's text), so the "nothing tracked modified" check differed. The owner chose, in chat, to commit it first: `93f1a8b`. `results/audit/_nightly/RUNNING` absent. Key names in `bloomberg.py` 640-651 match the four fields the task lists (the task says "five keys"; the code has four per ticker, five tickers).
+- **Steps 1-3:** `scripts/check_japan_report.py` (`build_table` / `render` / `main`), `make japan-report` (+ `.PHONY`), `tests/test_japan_report.py` (one test; imports `_fixture`, `_loader`, `pin` from `tests/test_japan_govt.py`, which is not edited). `differs` is True on the fixture against the universe table and False once the universe date is set to the loader's start.
+- **Gate:** first `check-scoped` rc 2 (32 s, `ruff format --check` on my new script; fixed with `ruff format`). The next attempt was refused on `signal-lab.lock` (rc 75, nothing running, `RUNNING` absent); the same command retried: rc 0, 172 s, tier SCOPED, `24 passed, 1029 deselected`, log `results/audit/_unattended/20261030-120450-check-scoped/`. Slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_scripts`.
+- **`make japan-report` rc 0** (the table is the script's own output; I read nothing under `data/raw/`):
+
+  | Ticker | Daily start | Tier | Level rows before holdout | Dates dropped (no JPY rate) | First daily in universe | Differs |
+  |---|---|---|---|---|---|---|
+  | `I29064JP` | 2013-02-15 | tradable-only | 1787 | 0 | 2013-01-31 | True |
+  | `I29065JP` | 2013-02-15 | tradable-only | 1787 | 0 | 2013-01-31 | True |
+  | `I29066JP` | 2013-02-15 | tradable-only | 1787 | 0 | 2013-01-31 | True |
+  | `I29067JP` | 2013-02-15 | tradable-only | 1787 | 0 | 2013-01-31 | True |
+  | `I29068JP` | 2013-02-15 | tradable-only | 1787 | 0 | 2013-01-31 | True |
+
+- **Finding for Cowork:** all five starts differ from the universe table's `2013-01-31` placeholder (the loader finds `2013-02-15`). Nothing corrected here, per the task.
+- **Commit:** `4e70a20` (script, test, `build.mk`, `results/japan/loader_report.md` and `.json`; `results/japan/` is not git-ignored). Not pushed.
+
 ### 2026-10-29 -- task 77: done (Claude Code, sonnet, nightly 2026-10-29T06:15)
 
 - **Step 0:** held. `git status --short` showed the seven `params/*.yaml` plus Cowork's pending files only; `git diff --ignore-cr-at-eol --stat -- params` 7 files, 12 insertions, 9 deletions; params hash (stdlib one-liner) `6ee67cf0abf7318205fbe97a3587c5b2752fe8b480a92988d582a73d235c3b40`; store `manifest.yaml` `directory_hash` `0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31`.
