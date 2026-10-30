@@ -1,0 +1,42 @@
+{
+  "I29064JP": {
+    "daily_start": "2013-02-15",
+    "dates_dropped_for_want_of_a_jpy_rate": 0,
+    "differs": true,
+    "first_daily_in_universe": "2013-01-31",
+    "level_rows_before_holdout": 1787,
+    "tier": "tradable-only"
+  },
+  "I29065JP": {
+    "daily_start": "2013-02-15",
+    "dates_dropped_for_want_of_a_jpy_rate": 0,
+    "differs": true,
+    "first_daily_in_universe": "2013-01-31",
+    "level_rows_before_holdout": 1787,
+    "tier": "tradable-only"
+  },
+  "I29066JP": {
+    "daily_start": "2013-02-15",
+    "dates_dropped_for_want_of_a_jpy_rate": 0,
+    "differs": true,
+    "first_daily_in_universe": "2013-01-31",
+    "level_rows_before_holdout": 1787,
+    "tier": "tradable-only"
+  },
+  "I29067JP": {
+    "daily_start": "2013-02-15",
+    "dates_dropped_for_want_of_a_jpy_rate": 0,
+    "differs": true,
+    "first_daily_in_universe": "2013-01-31",
+    "level_rows_before_holdout": 1787,
+    "tier": "tradable-only"
+  },
+  "I29068JP": {
+    "daily_start": "2013-02-15",
+    "dates_dropped_for_want_of_a_jpy_rate": 0,
+    "differs": true,
+    "first_daily_in_universe": "2013-01-31",
+    "level_rows_before_holdout": 1787,
+    "tier": "tradable-only"
+  }
+}
