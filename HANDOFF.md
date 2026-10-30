@@ -69,6 +69,8 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 Nightly-release: 77 @2026-10-29T06:15 by=owner push=yes
 
+**As of 2026-10-30 (10:45 ET): task 79 written, NOT released, interactive only.** The owner asked for the Japan loader's per-ticker report (task 77 step 3, never obtained) to be run interactively. Task 79 adds `make japan-report`, prints it and compares each start with the universe table's `2013-01-31`; `push=no`, lane 2, no owner-only path. The release line is unchanged (`77`, already run), so nothing starts on its own. Only this note and task 79's text changed.
+
 **As of 2026-10-29 (06:05 ET): task 77 WRITTEN by Cowork and RELEASED by the owner, `push=yes`, Sonnet** ("release the task", chat). Tasks 78 and 76 landed (`a866e14`, `544fc4f`; receipts `78affdc`, `cb47947`). Task 77 pins `huber6-v5` in `params/` (v0.11.2); **Cowork applied the owner-only `params/` edit to the working tree at the owner's instruction** (new params hash `6ee67cf0...3b40`); it carries every unpushed commit (9) in its push. Step 3 reads the loader's per-ticker report, informational only. Only this line, this note, task 77's text and the seven `params/*.yaml` changed. HEAD at release `cb47947`.
 
 **As of 2026-10-28 18:55 ET: task 78 WRITTEN by Cowork and RELEASED at the owner's instruction, then task 76 RE-RELEASED to resume at step 6, `push=no`, Sonnet.** The owner ruled option A on task 76's stop ("Go with A") and asked for the fix and its release ("Write the task-78 fix for ruling A ... and release it", chat). Task 78 relaxes the exposure map's check (`src/` and `tests/` only); task 76's re-release is Cowork's own (`decisions/0062` item 8; revision note 1 to task 76 says what changes) and runs only if 78 lands, since the worker stops at the first failure. First re-release of 76. HEAD at release `b24394d`. **Task 77** (owner-only params patch naming `huber6-v5`, `push=yes`) follows 76's receipt, as the owner authorised at 11:16 CT. Only this line, this note, task 78's text and revision note 1 to task 76 changed.
@@ -3784,6 +3786,59 @@ report rc and the first line of output. This is the one unknown the push tool ha
 **Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.**
 
 Expected: 25 to 35 minutes, interactive.
+
+### 79. Print the Japan loader's per-ticker report: `make japan-report` (task 77 step 3, not obtained; closes OWNER-QUEUE L39's last open point)
+
+Added 2026-10-30 by Cowork. **Written, NOT released. Interactive only** (Claude Code in WSL, started by the owner, who is present):
+`push=no`, lane 2 (`decisions/0064`: it adds a script and a test under `scripts/` and `tests/`, and it runs the loader on vendor data
+so the owner reads the output). It is not for the nightly worker. No owner-only path, no params change, no store is rebuilt.
+Why: task 76 built store `huber6-v5` but did not print `report["japan_govt"]`, and task 77's step 3 could not get it without a
+rebuild. `BloombergLoader.load_returns()` fills that report in memory every time, and `scripts/check_fx_conversion.py` (`make fx-check`)
+is the precedent for a small script that loads the panel and prints one report section. Nothing prints this one yet.
+
+**0. Check.** `git status --short` shows nothing tracked modified (Cowork's `?? AGENTS.md` and `?? decisions/0067-...` may be present).
+`results/audit/_nightly/RUNNING` does not exist. Read `scripts/check_fx_conversion.py` and
+`src/signal_lab/loaders/bloomberg.py` lines 640-665 (`report["japan_govt"]["tickers"]`, five keys per ticker). Stop if the key names differ.
+
+**1. `scripts/check_japan_report.py`**, modelled on `check_fx_conversion.py` (`_bootstrap.require_one_thread()` first; imports inside
+`main()`). It builds `BloombergLoader(get_params())`, calls `load_returns()`, and reads `loader.report["japan_govt"]`. For each of the
+five tickers `I29064JP` to `I29068JP` it records only:
+- `daily_start` (the true daily start the loader found), `tier`, `level_rows_before_holdout`,
+  `dates_dropped_for_want_of_a_jpy_rate`;
+- `first_daily_in_universe`: the `first_daily` for that ticker in `data/universe/investable_universe.csv` (read with the repo's own
+  reader, not by hand), and `differs`: a bool for `daily_start != first_daily_in_universe`.
+No level, no return and no rate is printed or written. Nothing on or after `HOLDOUT_START` is read (the loader already enforces it; add
+no bypass). Writes `results/japan/loader_report.md` and `.json` (create `results/japan/`; the report is aggregates and dates only) and
+prints the same table. Exit 1 if a ticker is missing from the report. Exit 0 whether or not any start differs: **a difference is a
+finding, not a failure.**
+
+**2. `make japan-report`** in `build.mk`, next to `fx-check`: `$(PY) --group dev python scripts/check_japan_report.py`, one line of help,
+and add `japan-report` to the `.PHONY` list. Do not edit `scripts/nightly/`.
+
+**3. One test**, `tests/test_japan_report.py`, on the synthetic workbook that `tests/test_japan_govt.py` already builds (reuse its
+fixture; no new vendor-shaped data, nothing reads `data/raw/`). It asserts that the script's table has the five tickers, the four fields
+and the two comparison fields, and that `differs` is True when the fixture's first date is moved off the universe table's value and
+False when equal. If the fixture cannot be reused without editing `tests/test_japan_govt.py`, stop and report instead of editing it.
+
+**4. Gate, then run on the real file.**
+- `scripts/unattended.sh check-scoped` rc 0 (this touches `scripts/`, `tests/`, `build.mk`). Say which tier ran.
+- Then `make japan-report`. It reads `data/raw/bloomberg/bbg_japan_govt.xlsx` through the loader, so **do not open, cat or head the
+  file or anything under `data/raw/` yourself**; the script's own table is the only output. Paste the table in the receipt and
+  nothing else from the run.
+- Commit the script, the test, `build.mk` and `results/japan/loader_report.*` (if `results/` is git-ignored, say so and commit the
+  first three only), cited to `decisions/0066`. Message: `scripts: japan-report prints the loader's per-ticker report (HANDOFF task 79, decisions/0066)`.
+- Receipt under `## Done`, committed alone. **No push.**
+
+**Stop conditions:** step 0 differs; the report has no `tickers` key or lacks a ticker; `check-scoped` fails on anything you cannot tie
+to this task; a command is denied (do not work around it); the loader refuses the file.
+
+**Not in this task:** correcting `first_daily` in `data/universe/investable_universe.csv` or `scripts/build_universe.py`. If any
+`differs` is True, Cowork writes that records change (and its generator pin, as its own task) from the receipt; if all are False, L39
+closes with no edit. **The owner's call, flagged here:** `daily_start` is a date derived from vendor data. `CLAUDE.md` says "shapes and
+counts, never values"; task 77 step 3 already asked for these four fields per ticker and the owner's board card asks for the
+comparison, so this task prints dates and counts only. If you read a date as a value, drop `daily_start` and keep `differs`.
+
+Expected: about 20 to 30 minutes, mostly `check-scoped`, under $2 on Sonnet (a guess).
 
 ### 77. Japan government family, step 3: params v0.11.2 names store `huber6-v5`; the tests follow; then push (`decisions/0066`, owner's authorisation of 2026-10-28; same shape as tasks 60 and 74)
 
