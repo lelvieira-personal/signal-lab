@@ -67,7 +67,7 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 81 @2026-11-03T18:45 by=owner push=yes
+Nightly-release: none
 
 **As of 2026-11-03 (18:30 ET): task 80 WRITTEN AND DONE by Cowork through `signal-lab-exec` (`decisions/0065`), `push=yes` at the owner's authorisation ("i agree with all suggestions and authorize the push", chat, 18:03 ET); task 81 WRITTEN by Cowork and RELEASED by the owner's same message, `push=yes`, Sonnet.** The owner ruled OWNER-QUEUE L40 (`decisions/0060` addendum) and asked for the Japan start fix (L39), the stray records and a draft admission record for the Euro/UK bands (`decisions/proposed/0068`). Task 80 carries the records, the `first_daily` fix and the push of everything since `1804490`. Task 81 commits SUBSTRATE v0.13, which **Cowork applied to the working tree at the owner's instruction** (owner-only; Cowork's exec server cannot commit `SUBSTRATE.md`), and pushes. **Correction:** the reviews of 10-31 to 11-03 called task 79 "written, NOT released"; it ran interactively on 2026-10-30 (`4e70a20`, receipt `30243c6`). Only this line, this note and the text of tasks 80 and 81 changed here.
 
@@ -6162,6 +6162,12 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-03 -- task 81: done, interactive (Claude Code, run by the owner); receipt and push by Cowork
+
+- The owner ran task 81 in Claude Code at about 18:37 ET, before the 18:47 poll: commit `7652450` (`SUBSTRATE.md` alone, v0.13, cited to `decisions/0060`). That session wrote no receipt and did not push.
+- **Release line set to `none`** by Cowork (clerical, `decisions/0062` item 8): the work is done, and a poll would have started 81 again and stopped at step 0.
+- **Push:** `git push origin main` through `signal-lab-exec` after this receipt's check; result on the next line.
 
 ### 2026-11-03 -- task 80: done (Cowork, through `signal-lab-exec`; `push=yes`)
 
