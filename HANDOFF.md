@@ -3820,6 +3820,8 @@ Added 2026-11-03 by Cowork and done by Cowork in the same session (`decisions/00
 - Not committed: `AGENTS.md` (untracked; not a path the exec server may commit, and not Cowork's: a copy of `CLAUDE.md` for Codex). Left for the owner.
 - Gate: `scripts/unattended.sh check-scoped` rc 0. Push: fast-forward of every commit since `1804490`.
 
+**Revision note 1 to task 80 (Cowork, 2026-11-03 18:30 ET).** The push line above did not name the command, so the exec server refused it. The push is `git push origin main`, fast-forward only, after this note's commit; nothing else in the task changes.
+
 ### 79. Print the Japan loader's per-ticker report: `make japan-report` (task 77 step 3, not obtained; closes OWNER-QUEUE L39's last open point)
 
 Added 2026-10-30 by Cowork. **Written, NOT released. Interactive only** (Claude Code in WSL, started by the owner, who is present):
