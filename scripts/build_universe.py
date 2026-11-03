@@ -166,8 +166,8 @@ COST_HIGH_CLASSES = {
 }
 
 
-# decisions/0066: the five Japan government instruments. first_daily is a placeholder, as in the
-# committed table; the Japan loader task corrects each from the Pull Report sheet.
+# decisions/0066: the five Japan government instruments. first_daily is the true daily start the
+# loader found for all five (HANDOFF task 79, 2026-10-30), replacing the 2013-01-31 placeholder.
 JAPAN_GOVT = (
     ("I29064JP", "japan_govt_1_3y"),
     ("I29065JP", "japan_govt_3_5y"),
@@ -175,7 +175,7 @@ JAPAN_GOVT = (
     ("I29067JP", "japan_govt_10_20y"),
     ("I29068JP", "japan_govt_20y_plus"),
 )
-JAPAN_FIRST_DAILY = "2013-01-31"
+JAPAN_FIRST_DAILY = "2013-02-15"
 
 
 def reporting_class(ticker: str, section: str) -> str:
