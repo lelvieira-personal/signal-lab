@@ -6161,6 +6161,13 @@ run would have said.
 
 ## Done
 
+### 2026-11-03 -- task 80: done (Cowork, through `signal-lab-exec`; `push=yes`)
+
+- **Gate:** `scripts/unattended.sh check-scoped` rc 0, 559 s, **tier FULL** (an owner-only file modified in the tree, `SUBSTRATE.md`, for task 81), nothing left out; log `results/audit/_unattended/20261103-180809-*/`; load 0.07 at start, 1.36 at end.
+- **Commits:** `a52cba7` (`scripts/build_universe.py`, `data/universe/investable_universe.csv`: the five Japan `first_daily` 2013-01-31 -> 2013-02-15); `0fe15b3` (records: `decisions/0060` addendum, `decisions/0067` tracked, `decisions/proposed/0068`, OWNER-QUEUE L40 and L39 closed and L41 opened, tasks 80 and 81). This receipt is its own commit.
+- **Not committed:** `SUBSTRATE.md` (task 81), `AGENTS.md` (untracked, the owner's).
+- **Push:** after this receipt; its result is on the line written with task 81's release.
+
 ### 2026-10-30 -- task 79: done, interactive (Claude Code, sonnet; `push=no`)
 
 - **Step 0:** `HANDOFF.md` was modified (only Cowork's 55 lines: the 10:45 note and task 79's text), so the "nothing tracked modified" check differed. The owner chose, in chat, to commit it first: `93f1a8b`. `results/audit/_nightly/RUNNING` absent. Key names in `bloomberg.py` 640-651 match the four fields the task lists (the task says "five keys"; the code has four per ticker, five tickers).
