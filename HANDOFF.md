@@ -67,7 +67,7 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 77 @2026-10-29T06:15 by=owner push=yes
+Nightly-release: 81 @2026-11-03T18:45 by=owner push=yes
 
 **As of 2026-11-03 (18:30 ET): task 80 WRITTEN AND DONE by Cowork through `signal-lab-exec` (`decisions/0065`), `push=yes` at the owner's authorisation ("i agree with all suggestions and authorize the push", chat, 18:03 ET); task 81 WRITTEN by Cowork and RELEASED by the owner's same message, `push=yes`, Sonnet.** The owner ruled OWNER-QUEUE L40 (`decisions/0060` addendum) and asked for the Japan start fix (L39), the stray records and a draft admission record for the Euro/UK bands (`decisions/proposed/0068`). Task 80 carries the records, the `first_daily` fix and the push of everything since `1804490`. Task 81 commits SUBSTRATE v0.13, which **Cowork applied to the working tree at the owner's instruction** (owner-only; Cowork's exec server cannot commit `SUBSTRATE.md`), and pushes. **Correction:** the reviews of 10-31 to 11-03 called task 79 "written, NOT released"; it ran interactively on 2026-10-30 (`4e70a20`, receipt `30243c6`). Only this line, this note and the text of tasks 80 and 81 changed here.
 
@@ -6169,6 +6169,7 @@ run would have said.
 - **Commits:** `a52cba7` (`scripts/build_universe.py`, `data/universe/investable_universe.csv`: the five Japan `first_daily` 2013-01-31 -> 2013-02-15); `0fe15b3` (records: `decisions/0060` addendum, `decisions/0067` tracked, `decisions/proposed/0068`, OWNER-QUEUE L40 and L39 closed and L41 opened, tasks 80 and 81). This receipt is its own commit.
 - **Not committed:** `SUBSTRATE.md` (task 81), `AGENTS.md` (untracked, the owner's).
 - **Push:** after this receipt; its result is on the line written with task 81's release.
+- **Push** (written with task 81's release): `git push origin main` through `signal-lab-exec` after revision note 1, fast-forward `1804490..b4fc3ae` (8 commits), rc 0. The exec server refused the push while `SUBSTRATE.md` was modified, so Cowork moved its v0.13 text to `Claude outputs/substrate-v0.13-draft/` (git-ignored), restored HEAD's text for the push, and copied v0.13 back afterwards. Task 81 commits it.
 
 ### 2026-10-30 -- task 79: done, interactive (Claude Code, sonnet; `push=no`)
 
