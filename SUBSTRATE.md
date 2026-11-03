@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.12, 2026-10-16. Owner: Leo. This document is the constitution of
+Status: v0.13, 2026-11-03. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -53,6 +53,13 @@ v0.12 amended §5.4, transcribing `decisions/0058` (one spread comes from FRED:
 2026-10-12 ("5.4 wording approved") and transcribed with the params change of
 its item 6 (params v0.11.0). Applied by Cowork at the owner's instruction on
 2026-10-16. The v0.11 text is in git history.
+
+v0.13 amended §6 and §7, transcribing `decisions/0060` (a grouping may be a
+label refined by a second; where an axis has no grouping, the cross-section is
+formed across instruments), decided by the owner on 2026-10-14/15, its
+SUBSTRATE wording approved on 2026-11-03 with the instrument-level rule ruled
+general. Applied by Cowork at the owner's instruction. The v0.12 text is in git
+history.
 
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
@@ -395,6 +402,9 @@ Rules:
 - Every signal is scored two ways: **cross-sectional** (relative tilts
   within an axis; expressible long-only) and **directional** (timing an
   axis; requires cash and is expected to be weaker). Both are reported.
+  Where an axis has no grouping, the cross-section is formed across the
+  instruments that carry the axis, each instrument a group of one, and the
+  scores are demeaned across them (`decisions/0060`).
 - Views are formed in **exposure space** (duration, credit, region,
   sector, style, real/nominal, cash) and mapped to ETF weights by turning
   each view into expected returns on the instruments that carry its axis and
@@ -416,8 +426,9 @@ Rules:
   select it on the outcome.
 - A view may carry a **scope**, a set of values of an instrument label (a
   bond's curve, rating or market; an instrument's region) that restricts the
-  instruments it reaches, or a **grouping** by one such label, giving one view
-  per value. Its expected return on an instrument is the view times the
+  instruments it reaches, or a **grouping** by one such label, or by a label
+  refined by a second (`decisions/0060`), giving one view per value. Its
+  expected return on an instrument is the view times the
   instrument's exposure on the axis, and zero on an instrument outside the
   scope or without the label. Labels are the owner's map (`decisions/0054`,
   `0057`), not estimates. A scope is registered with its hypothesis; the same
@@ -446,7 +457,7 @@ horizon_weeks: 4-13
 expected_expression: cross_sectional | directional | both
 scope:                       # optional; label -> allowed values (decisions/0057)
   curve: [EUR]
-group_by: market             # optional; one view per label value; not with scope on the same label
+group_by: market             # optional; one label, or a label refined by a second ([rating, hy_bucket]); not with scope on the same label (decisions/0057, 0060)
 proposed_by: agent | owner
 ```
 
