@@ -1,6 +1,6 @@
 # 0060 — Four hypotheses get their cross-section: by rating and HY bucket, or by curve; a missing instrument is a data request, not a redesign
 
-**Status:** decided 2026-10-14 and 2026-10-15 by the owner (OWNER-QUEUE L38).
+**Status:** decided 2026-10-14 and 2026-10-15 by the owner (OWNER-QUEUE L38); SUBSTRATE wording and the open readings ruled 2026-11-03 (addendum, OWNER-QUEUE L40).
 Drafted by Cowork. Follows `decisions/0051`, `0054`, `0057` and `0059`.
 **Amends `0051`** (instrument-level signals, item 3) and **`0057`** (a
 `group_by` over a label refined by a second, item 1). No change to `params/`
@@ -118,3 +118,14 @@ group_by: market             # optional; one label, or a label refined by a seco
 **§6,** after the sentence on cross-sectional expression: "Where an axis has
 no grouping, the cross-section is formed across the instruments that carry
 the axis, each its own group (`decisions/0060`)."
+
+## Addendum, 2026-11-03: the SUBSTRATE wording and the readings left open (OWNER-QUEUE L40)
+
+**Owner ruling, 2026-11-03** (chat, 18:03 ET: "i agree with all suggestions and authorize the push", answering Cowork's recommendations on L40; recorded by Cowork, not answered by it):
+
+1. **The SUBSTRATE wording is approved and applied** (v0.13), with one change to the §6 sentence: "each its own group" becomes "each instrument a group of one, and the scores are demeaned across them", so it cannot be read as demeaning within a group of one. Cowork also brought the §6 sentence on grouping ("a grouping by one such label") into line with ruling 1 ("or by a label refined by a second"); that line was not in the proposed wording and is shown to the owner as Cowork's.
+2. **Ruling 3 is general.** The instrument-level cross-section applies to any hypothesis whose axis has no grouping, not only to these four. `0057` rule 4 (a scope reaches at least two instruments with a row on 90% of dates) still applies.
+3. **Cowork's proposal under ruling 1 is ruled as written:** a group the hypothesis supplies no score for gets no view, and its instruments carry none from that hypothesis.
+4. **Cowork's reading under ruling 1 is ruled as written:** `LF98TRUU` (`hy_bucket` `all`) forms no group in H-2026-0007's cross-section.
+
+**Still open, not ruled** (OWNER-QUEUE L41): whether "not with scope on the same label" applies to the refining label of a two-label `group_by`.

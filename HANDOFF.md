@@ -69,6 +69,8 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 Nightly-release: 77 @2026-10-29T06:15 by=owner push=yes
 
+**As of 2026-11-03 (18:30 ET): task 80 WRITTEN AND DONE by Cowork through `signal-lab-exec` (`decisions/0065`), `push=yes` at the owner's authorisation ("i agree with all suggestions and authorize the push", chat, 18:03 ET); task 81 WRITTEN by Cowork and RELEASED by the owner's same message, `push=yes`, Sonnet.** The owner ruled OWNER-QUEUE L40 (`decisions/0060` addendum) and asked for the Japan start fix (L39), the stray records and a draft admission record for the Euro/UK bands (`decisions/proposed/0068`). Task 80 carries the records, the `first_daily` fix and the push of everything since `1804490`. Task 81 commits SUBSTRATE v0.13, which **Cowork applied to the working tree at the owner's instruction** (owner-only; Cowork's exec server cannot commit `SUBSTRATE.md`), and pushes. **Correction:** the reviews of 10-31 to 11-03 called task 79 "written, NOT released"; it ran interactively on 2026-10-30 (`4e70a20`, receipt `30243c6`). Only this line, this note and the text of tasks 80 and 81 changed here.
+
 **As of 2026-10-30 (10:45 ET): task 79 written, NOT released, interactive only.** The owner asked for the Japan loader's per-ticker report (task 77 step 3, never obtained) to be run interactively. Task 79 adds `make japan-report`, prints it and compares each start with the universe table's `2013-01-31`; `push=no`, lane 2, no owner-only path. The release line is unchanged (`77`, already run), so nothing starts on its own. Only this note and task 79's text changed.
 
 **As of 2026-10-29 (06:05 ET): task 77 WRITTEN by Cowork and RELEASED by the owner, `push=yes`, Sonnet** ("release the task", chat). Tasks 78 and 76 landed (`a866e14`, `544fc4f`; receipts `78affdc`, `cb47947`). Task 77 pins `huber6-v5` in `params/` (v0.11.2); **Cowork applied the owner-only `params/` edit to the working tree at the owner's instruction** (new params hash `6ee67cf0...3b40`); it carries every unpushed commit (9) in its push. Step 3 reads the loader's per-ticker report, informational only. Only this line, this note, task 77's text and the seven `params/*.yaml` changed. HEAD at release `cb47947`.
@@ -3786,6 +3788,37 @@ report rc and the first line of output. This is the one unknown the push tool ha
 **Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.**
 
 Expected: 25 to 35 minutes, interactive.
+
+### 81. SUBSTRATE v0.13: commit the `decisions/0060` wording (§6, §7), then push (owner's ruling of 2026-11-03; same shape as task 60)
+
+Added 2026-11-03 by Cowork. **Written by Cowork and RELEASED by the owner** ("i agree with all suggestions and authorize the push", chat, 2026-11-03 18:03 ET), `push=yes`, Sonnet. **Cowork applied the owner-only edit to the working tree at the owner's instruction**; Claude Code never edits `SUBSTRATE.md` itself, it commits what is there. What Cowork applied (`git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md`: 1 file, 15 insertions, 4 deletions; CRLF kept, every line CR LF):
+- the Status line: v0.12, 2026-10-16 -> v0.13, 2026-11-03, and a v0.13 paragraph above the v0.4 one;
+- §6, at the end of the bullet "Every signal is scored two ways": "Where an axis has no grouping, the cross-section is formed across the instruments that carry the axis, each instrument a group of one, and the scores are demeaned across them (`decisions/0060`)."
+- §6, the scope bullet: "a **grouping** by one such label, or by a label refined by a second (`decisions/0060`), giving one view per value";
+- §7, the template's `group_by` comment: `# optional; one label, or a label refined by a second ([rating, hy_bucket]); not with scope on the same label (decisions/0057, 0060)`.
+
+**0. Check.** `results/audit/_nightly/RUNNING` absent. `git status --short` shows exactly ` M SUBSTRATE.md` (tracked), and nothing else tracked modified (untracked files may be present; leave them). `git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md` is 1 file, 15 insertions, 4 deletions. Stop if any differs. Nothing under `params/` or `vetoes/` is modified.
+
+**1. Gate.** `scripts/unattended.sh check` rc 0 (`make check`, the fast tier: the change is a doc) and `make governance` rc 0 after the commit below (it must find the citation).
+
+**2. Commit** `SUBSTRATE.md` alone. Message: `substrate: v0.13 -- decisions/0060 wording in sections 6 and 7 (HANDOFF task 81, decisions/0060)`. Then `make governance` rc 0.
+
+**3. Receipt** under `## Done`, committed alone, then **`git push origin main`**, fast-forward only. `git rev-list --count @{u}..HEAD` before and after (expected before: 2 or 3, after: 0). If the push is rejected or would not be a fast-forward, stop and report.
+
+**Stop conditions:** step 0 differs; a check fails; the commit hook refuses the citation; a command is denied (do not work around it); the push is not a fast-forward.
+
+**Not in this task:** the validator (`harness/hypotheses.py`) and the rest of the chain's task 73, which Cowork writes under `decisions/0067` after this receipt; OWNER-QUEUE L41.
+
+Expected: about 5 minutes, under $1 on Sonnet (a guess).
+
+### 80. Records of 2026-11-03, the Japan `first_daily` fix, and the push (Cowork, through `signal-lab-exec`)
+
+Added 2026-11-03 by Cowork and done by Cowork in the same session (`decisions/0065`), `push=yes` at the owner's authorisation ("i agree with all suggestions and authorize the push", chat, 18:03 ET). Lane 2: it touches `scripts/` and `data/universe/`. No owner-only path; `params/` is unchanged (the store does not read `first_daily` for the Japan five: `_read_japan_levels` derives their starts from the levels, `bloomberg.py` 655-680, so `huber6-v5` and its pins do not move).
+- `scripts/build_universe.py`: `JAPAN_FIRST_DAILY` `2013-01-31` -> `2013-02-15`, the start the loader found for all five (task 79); the comment above it updated.
+- `data/universe/investable_universe.csv`: the five `I2906xJP` rows, `first_daily` `2013-01-31` -> `2013-02-15` (`tests/test_scripts.py::test_the_committed_universe_is_what_build_universe_produces` keeps the two equal).
+- Records: `decisions/0060` addendum (the L40 ruling), `decisions/0067` (untracked since 2026-10-23), `decisions/proposed/0068` (draft, not ruled), `OWNER-QUEUE.md` (L40 and L39 closed, L41 added), this note and tasks 80 and 81.
+- Not committed: `AGENTS.md` (untracked; not a path the exec server may commit, and not Cowork's: a copy of `CLAUDE.md` for Codex). Left for the owner.
+- Gate: `scripts/unattended.sh check-scoped` rc 0. Push: fast-forward of every commit since `1804490`.
 
 ### 79. Print the Japan loader's per-ticker report: `make japan-report` (task 77 step 3, not obtained; closes OWNER-QUEUE L39's last open point)
 

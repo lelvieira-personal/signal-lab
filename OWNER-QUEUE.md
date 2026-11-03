@@ -19,53 +19,11 @@ should stay quiet until its trigger fires.
 
 ## Live — actionable now
 
-### L39. The Japan curve exists only from 2013
-Added 2026-10-15 by Cowork, out of `decisions/0060`.
+### L41. Does "not with scope on the same label" bind the refining label of a two-label `group_by`?
+Added 2026-11-03 by Cowork, out of the L40 ruling (`decisions/0060` addendum). Not blocking today: no registered hypothesis carries both a `scope` and a two-label `group_by`.
+SUBSTRATE §7 says `group_by` is "not with scope on the same label" (`decisions/0057`). With `group_by: [rating, hy_bucket]`, a scope `hy_bucket: [Ba, B, Caa]` still leaves three groups, so the cross-section is real; a scope `rating: [HY]` leaves the same three. Cowork is guessing at the rule's purpose (that a scope on the grouping label leaves one group, which is no cross-section).
+**What the owner would be deciding:** (a) the rule binds either label; (b) it binds the first label only, and a scope on the refining label is allowed if it leaves at least two groups; (c) replace the rule with that test for any label: a scope and a grouping may share a label if at least two groups remain. Cowork's recommendation: (c), because it states the reason rather than a proxy for it; the validator checks it where `0057` rule 4 is checked.
 
-H-2026-0003 ranks four markets by their real policy rate, JPY among them, and
-`decisions/0060` groups it by curve. The only Bloomberg Japan Government
-family ASKB could confirm (`I29064JP` to `I29068JP`, 1-3y to 20y+) starts on
-2013-01-31; the all-maturities `I29063JP` did not resolve. The lab's one long
-JPY series is `I02913JP`, the Japan Aggregate, which is not government-only.
-
-**What the owner would be deciding:**
-- (a) add the 2013 family: the JPY group enters in 2013, and 0003's JPY leg is
-  tested mostly on 2013-2019, near the zero bound;
-- (b) leave Japan out of the curve groups until a longer series is found;
-- (c) use `I02913JP` as the JPY curve's one instrument.
-
-**Retired in part by:** the owner's Terminal check of `I29063JP`, `BNJPGVJP`
-and `LJPNGVJP` (`DES`, and a BDH of `PX_LAST` from 1990). If a legacy series
-has daily history before 2001, (a) changes.
-
-
-**Update 2026-10-21 (Cowork, restating; nothing answered).** The owner ran
-ASKB on the Japan tickers and passed the result on. Findings, as the owner
-reported them (Cowork has not re-run them):
-- `I29063JP` still does not resolve. `I29064JP` to `I29068JP` start
-  2013-01-31, as before.
-- A longer history exists, but as **yields, not total-return indices**:
-  `JGBS5` from 1974-09-24, `JGBS10` from 1986-07-05, `GJGB10` from
-  1987-10-22, `GJGB5` from 1988-04-04, `GJGB2` from 1990-09-03, `GJGB30` from
-  1999-09-02; S&P current 10Y and 5Y Japan sovereign from 1998 and 2000.
-- `YCGT0018` and `YCGT0268` (curve objects) returned no start date.
-- `BNJPGVJP` and `LJPNGVJP` were **not** in that query; the check named above
-  is still open for those two.
-
-Cowork's reading (an inference from `decisions/0060`, which says the curve
-instruments are bonds the lab *holds*; not checked further): a yield series
-can feed a signal but is not a holdable return, so it does not by itself
-retire (a), (b) or (c). It would make a fourth option possible, **(d)** build
-a JPY curve return from the JGB yields (a modelling choice with its own
-assumptions, not a pull), which Cowork does not recommend without a record of
-how the return is constructed. Still the owner's call.
-
-**Owner's ruling 2026-10-21: option (a)** (the owner's message, "L39: option A";
-recorded by Cowork, not answered by it). Add the 2013 family, `I29064JP` to
-`I29068JP`. The JPY group enters in 2013, and `H-2026-0003`'s JPY leg is
-tested mostly on 2013-2019, near the zero bound (the option's own stated
-cost). `I29063JP` is not part of it: it does not resolve. **Not done yet:** the
-pull, its decision record and its task. The item stays open until they land.
 ---
 
 ## Blocked — waiting on a measurement
@@ -254,6 +212,62 @@ directory that gets cloned and archived. Hygiene, owner's call.
 ---
 
 ## Closed
+
+### L40. SUBSTRATE sections 6 and 7 still lack the `decisions/0060` wording, and it blocks the solver chain's task 73 — CLOSED 2026-11-03 (ruled: (a), with Cowork's three changes; `decisions/0060` addendum)
+**Ruled 2026-11-03 (owner):** "i agree with all suggestions and authorize the push". Option (a): the wording is approved with "each instrument a group of one, and the scores are demeaned across them"; ruling 3 is general; a group with no score gets no view; `LF98TRUU` forms no group in H-2026-0007's cross-section (`decisions/0060` addendum, 2026-11-03). Cowork applied SUBSTRATE v0.13 to the working tree; HANDOFF task 81 commits it. The open point on scope and a two-label `group_by` is L41.
+
+Added 2026-11-02 by Cowork (restating; nothing answered). `decisions/0060` (ruled 2026-10-14/15) says "SUBSTRATE section 6 and 7 need new wording (owner-only)" and proposes it under its heading "SUBSTRATE -- proposed wording, not applied" (`decisions/0060-four-hypotheses-get-their-cross-section.md` line 110 on). It was never applied: `SUBSTRATE.md` line 449 still reads `group_by: market  # optional; one view per label value; not with scope on the same label` (no refinement by a second label, no instrument-level fallback sentence in section 6). The L38 entry above is closed, so no live item carried it.
+The validator work (`scope` and `group_by` in `harness/hypotheses.py`, `decisions/0057` rule 4) is part of the chain's task 73 and must not run ahead of SUBSTRATE (`decisions/0067` item 3: owner-only path). **What the owner would be deciding:** (a) approve and apply the two wordings as proposed, then Cowork writes the validator task; (b) change the wording first; (c) let Cowork split task 73 so the pieces that do not touch the validator go first (the phase-2 rule class, the `parameter_usage` rows, the reports of `0059` E) and the validator piece waits for (a) or (b). Cowork's recommendation: (a), then Cowork writes the split under `0067`.
+
+### L39. The Japan curve exists only from 2013 — CLOSED 2026-11-03 (ruled (a) 2026-10-21; built by tasks 74-77, `huber6-v5`; starts corrected by task 80)
+Added 2026-10-15 by Cowork, out of `decisions/0060`.
+
+H-2026-0003 ranks four markets by their real policy rate, JPY among them, and
+`decisions/0060` groups it by curve. The only Bloomberg Japan Government
+family ASKB could confirm (`I29064JP` to `I29068JP`, 1-3y to 20y+) starts on
+2013-01-31; the all-maturities `I29063JP` did not resolve. The lab's one long
+JPY series is `I02913JP`, the Japan Aggregate, which is not government-only.
+
+**What the owner would be deciding:**
+- (a) add the 2013 family: the JPY group enters in 2013, and 0003's JPY leg is
+  tested mostly on 2013-2019, near the zero bound;
+- (b) leave Japan out of the curve groups until a longer series is found;
+- (c) use `I02913JP` as the JPY curve's one instrument.
+
+**Retired in part by:** the owner's Terminal check of `I29063JP`, `BNJPGVJP`
+and `LJPNGVJP` (`DES`, and a BDH of `PX_LAST` from 1990). If a legacy series
+has daily history before 2001, (a) changes.
+
+
+**Update 2026-10-21 (Cowork, restating; nothing answered).** The owner ran
+ASKB on the Japan tickers and passed the result on. Findings, as the owner
+reported them (Cowork has not re-run them):
+- `I29063JP` still does not resolve. `I29064JP` to `I29068JP` start
+  2013-01-31, as before.
+- A longer history exists, but as **yields, not total-return indices**:
+  `JGBS5` from 1974-09-24, `JGBS10` from 1986-07-05, `GJGB10` from
+  1987-10-22, `GJGB5` from 1988-04-04, `GJGB2` from 1990-09-03, `GJGB30` from
+  1999-09-02; S&P current 10Y and 5Y Japan sovereign from 1998 and 2000.
+- `YCGT0018` and `YCGT0268` (curve objects) returned no start date.
+- `BNJPGVJP` and `LJPNGVJP` were **not** in that query; the check named above
+  is still open for those two.
+
+Cowork's reading (an inference from `decisions/0060`, which says the curve
+instruments are bonds the lab *holds*; not checked further): a yield series
+can feed a signal but is not a holdable return, so it does not by itself
+retire (a), (b) or (c). It would make a fourth option possible, **(d)** build
+a JPY curve return from the JGB yields (a modelling choice with its own
+assumptions, not a pull), which Cowork does not recommend without a record of
+how the return is constructed. Still the owner's call.
+
+**Owner's ruling 2026-10-21: option (a)** (the owner's message, "L39: option A";
+recorded by Cowork, not answered by it). Add the 2013 family, `I29064JP` to
+`I29068JP`. The JPY group enters in 2013, and `H-2026-0003`'s JPY leg is
+tested mostly on 2013-2019, near the zero bound (the option's own stated
+cost). `I29063JP` is not part of it: it does not resolve. **Not done yet:** the
+pull, its decision record and its task. The item stays open until they land.
+
+**Closed 2026-11-03 (Cowork, at the owner's "go" in chat).** The pull, its records (`decisions/0063`, `0066`) and its tasks (74 to 77) landed; task 79 (2026-10-30, `4e70a20`) printed the loader's report: all five start daily on 2013-02-15, not the 2013-01-31 placeholder. Task 80 corrects `first_daily` in `data/universe/investable_universe.csv` and `scripts/build_universe.py`. Nothing else open.
 
 ### L37. The phase-2 solver: five open points in `decisions/proposed/0059` — CLOSED 2026-10-14 (ruled: "agree with proposal"; `decisions/0059`)
 **Ruled 2026-10-14 (owner):** "L37: agree with proposal". The five open points are ruled as Cowork proposed, and the record moved to `decisions/0059`. Its params patch follows the `huber6-v4` one; the build is not queued.
