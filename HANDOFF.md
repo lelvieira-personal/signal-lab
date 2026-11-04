@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 73 @2026-11-04T06:00 by=cowork push=no
+Nightly-release: 73 @2026-11-04T16:45 by=cowork push=no
+
+**As of 2026-11-04 (16:40 ET): task 73 RE-RELEASED again by Cowork (`@2026-11-04T16:45`, `push=no`, Sonnet)** after its second stop (step 0 count: `No module named 'signal_lab'`, no `PYTHONPATH` in the wrapper); see revision note 2 to task 73. Nothing else changed.
 
 **As of 2026-11-04 (05:40 ET): task 73 RE-RELEASED by Cowork (`@2026-11-04T06:00`, `push=no`, Sonnet)** after its first stop (step 0 count denied, env-prefixed command); see revision note 1 to task 73. Nothing else changed.
 
@@ -3904,6 +3906,8 @@ Expected: under $3 on Sonnet (a guess from tasks 70 to 72), under an hour with t
 - **Import order** (from the stopped run's reading): `characteristics/exposures.py` imports `TARGET_AXES` from `harness.hypotheses`, so the validator imports `load_label_map` inside the function, not at module level, or it creates a circular import.
 Re-released `Nightly-release: 73 @2026-11-04T06:00`, `by=cowork`, `push=no`, Sonnet.
 
+**Revision note 2 to task 73 (Cowork, 2026-11-04 16:40 ET, `decisions/0062` item 8: re-release after a mechanical stop; second stop of this task, but a different cause from the first, so not the same failure twice).** The 05:47 run used note 1's form exactly; it was allowed and ran, then failed rc 1 with `No module named 'signal_lab'`. Cause, read from `scripts/nightly/run.sh` lines 35-36 and `pyproject.toml` line 41: the wrapper exports the thread variables and `UV_PROJECT_ENVIRONMENT` but **not** `PYTHONPATH`; the package lives in `src/` and only pytest's `pythonpath = ["src", "."]` puts it on the path, so a bare `python -c` cannot import it. My note 1 wrongly said no `PYTHONPATH` was needed. Change, nothing else moves: **step 0's count and step 7's "after" count use this form** (still one line, still the allowed prefix `uv run --python 3.12 --group dev`, no env prefix; the path is set inside Python): `uv run --python 3.12 --group dev python -c "import sys; sys.path[:0]=['src','.']; from signal_lab.harness.hypotheses import HypothesisRegistry; from signal_lab.params import get_params; g,b=HypothesisRegistry(params=get_params()).load_tolerant('pending'); print(len(g),len(b),[p.name for p,_ in b])"`. Everything else in note 1 stands (tree tolerance, import order). If this form fails too, stop: a third stop is Cowork's report to Leo, not another re-release. Re-released `Nightly-release: 73 @2026-11-04T16:45`, `by=cowork`, `push=no`, Sonnet.
+
 ### 81. SUBSTRATE v0.13: commit the `decisions/0060` wording (§6, §7), then push (owner's ruling of 2026-11-03; same shape as task 60)
 
 Added 2026-11-03 by Cowork. **Written by Cowork and RELEASED by the owner** ("i agree with all suggestions and authorize the push", chat, 2026-11-03 18:03 ET), `push=yes`, Sonnet. **Cowork applied the owner-only edit to the working tree at the owner's instruction**; Claude Code never edits `SUBSTRATE.md` itself, it commits what is there. What Cowork applied (`git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md`: 1 file, 15 insertions, 4 deletions; CRLF kept, every line CR LF):
@@ -6277,6 +6281,16 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-04 -- task 73: done, rc 0, commit `b6c1eaf`, no push (Claude Code, sonnet, nightly 2026-11-04T16:45)
+
+- **Step 0 held:** `RUNNING` is the wrapper's own; `git status --short` showed ` M HANDOFF.md` and `?? AGENTS.md` only. Registry count with revision note 2's form: **16 valid, 0 rejected** before, and **16 valid, 0 rejected** after the commit.
+- **Built:** `Hypothesis.scope` and `.group_by` (and in `as_dict()`), filled by `validate_hypothesis` (new `label_map_path` keyword; the label map is read, with `load_label_map` imported inside the function, only when a hypothesis carries either key); the four `group_by` lines (`H-2026-0002`, `0003`, `0010`: `curve`; `0007`: `[rating, hy_bucket]`); `groups_for`, `alpha_from_group_views`, `scope_reach`, `check_reach` and the constants `REACH_MIN_INSTRUMENTS = 2`, `REACH_MIN_DATE_SHARE = 0.9` (citing `0057` rule 4) in `portfolio/alpha.py`. `0019` and `0020` validate unchanged.
+- **Ruling applied as written:** a two-label group whose refining label is `all` forms no group; today that is only `LF98TRUU` (`hy_bucket` `all`). A two-label `group_by` sharing a label with the scope is refused naming OWNER-QUEUE L41; no option of L41 implemented.
+- **Gate:** `ruff format` (4 files unchanged) and `ruff check` clean; `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 218 s, log `results/audit/_unattended/20261104-164907-check-scoped/`; 1019 passed, 56 deselected in the main run (24 passed in the second); slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`. No existing test or golden moved.
+- **Choices to check:** a missing label map makes a scope/group_by hypothesis `HypothesisRejected` (task text said "raises"); `group_by` naming the same label twice is refused (not in the text); `scope_reach` counts a 90% share inclusively. The new tests extend `tests/test_alpha.py` and `tests/test_hypotheses.py`; `test_hypotheses.py` pins the live registry at 16/0.
+- **`decisions/0059` F:** the validator's scope/group_by checks, the group keys and the group alpha are now covered by tests; the reach check is supplied as a function, but the call where the matrix is read (`0057` rule 4) and the phase-2 rules wait for task 82.
+- **Release line:** left as Cowork set it.
 
 ### 2026-11-04 -- task 73: STOPPED at step 0, the one-line baseline count failed with rc 1, `No module named 'signal_lab'` (Claude Code, sonnet, nightly 2026-11-04T06:00)
 
