@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: none
+Nightly-release: 73 @2026-11-03T20:30 by=cowork push=no
+
+**As of 2026-11-03 (20:30 ET): task 73 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's "Go ahead", chat, 20:16 ET). Task 81 landed (`7652450`, receipt `a1ad310`, pushed). Task 73 is the validator, the groups and rule 4's reach; the phase-2 rule class and `build_weight_rule` (82) and `parameter_usage` and the reports (83) are not written. Only this line, this note and task 73's text changed.
 
 **As of 2026-11-03 (18:30 ET): task 80 WRITTEN AND DONE by Cowork through `signal-lab-exec` (`decisions/0065`), `push=yes` at the owner's authorisation ("i agree with all suggestions and authorize the push", chat, 18:03 ET); task 81 WRITTEN by Cowork and RELEASED by the owner's same message, `push=yes`, Sonnet.** The owner ruled OWNER-QUEUE L40 (`decisions/0060` addendum) and asked for the Japan start fix (L39), the stray records and a draft admission record for the Euro/UK bands (`decisions/proposed/0068`). Task 80 carries the records, the `first_daily` fix and the push of everything since `1804490`. Task 81 commits SUBSTRATE v0.13, which **Cowork applied to the working tree at the owner's instruction** (owner-only; Cowork's exec server cannot commit `SUBSTRATE.md`), and pushes. **Correction:** the reviews of 10-31 to 11-03 called task 79 "written, NOT released"; it ran interactively on 2026-10-30 (`4e70a20`, receipt `30243c6`). Only this line, this note and the text of tasks 80 and 81 changed here.
 
@@ -3788,6 +3790,110 @@ report rc and the first line of output. This is the one unknown the push tool ha
 **Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.**
 
 Expected: 25 to 35 minutes, interactive.
+
+### 73. Solver step 5: `scope` and `group_by` in the hypothesis validator, the groups a cross-section is formed over, and `0057` rule 4's reach (`decisions/0057`, `0060` and its 2026-11-03 addendum, SUBSTRATE v0.13 §6 and §7)
+
+Added 2026-11-03 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
+`decisions/0064`: no owner-only path, no push, no data read, no verdict changes). The fifth solver build task, and the first
+piece of the old task 73, split as OWNER-QUEUE L40 option (c) described: **69** to **72** landed (`7c3ef6d`, `6c01d39`,
+`371d29f`, `42f7d8b`); SUBSTRATE v0.13 landed (`7652450`, task 81), which is what held this one. **Not in this task, and not
+written:** the phase-2 rule class and `build_weight_rule` (task 82), the `parameter_usage` rows and the reports of `0059` E
+(task 83). Cowork writes each after the previous receipt.
+
+**What it is.** Edit `src/signal_lab/harness/hypotheses.py`, `src/signal_lab/portfolio/alpha.py`, `tests/test_hypotheses.py`,
+`tests/test_alpha.py` (extend; no existing test is edited or deleted), and add one line to each of four files in
+`hypotheses/pending/`. Pure functions. No hypothesis runs, no audit, no solver call, no vendor data read, nothing on or after
+2020-01-01. The only file read from disk is `data/universe/label_map.csv`, through `characteristics.exposures.load_label_map`.
+
+**Rules to apply (decided records only).**
+- **`scope`** (`0057`, SUBSTRATE §7): optional; a mapping label -> a non-empty list of values. A key is one of
+  `exposures.LABEL_COLUMNS`; `sector` or `style` (`UNBUILT_LABEL_AXES`) is refused with the message the alpha map uses. Every
+  value must occur in that column of the label map (a typo is a rejection, not an empty scope).
+- **`group_by`** (`0057` item 1 as amended by `0060` item 1, SUBSTRATE §7): optional; one label, or a list of exactly two
+  labels (a label refined by a second, e.g. `[rating, hy_bucket]`); keys as for `scope`; a list of one is read as the label;
+  three or more is refused.
+- **Not with scope on the same label** (`0057`): a one-label `group_by` whose label is also a `scope` key is refused. **A
+  two-label `group_by` that shares either label with the `scope` is refused with a message naming OWNER-QUEUE L41** ("not
+  ruled; see OWNER-QUEUE L41"). This is a refusal pending a ruling, not a choice among L41's options; do not implement any of
+  them. A `scope` on a third label is allowed.
+- **The groups** (`0060` items 1 and 3 and the addendum; SUBSTRATE §6): for an instrument frame (`ExposureMap.at`'s frame, or a
+  hand-built one with the label columns and the `axis_*` columns):
+  - one label: the group is the label's value; a blank label forms no group;
+  - two labels: the group is the first label's value, refined by the second where the second is not blank (key
+    `"<first>/<second>"`, e.g. `HY/Ba`; `IG` stays `IG`). **An instrument whose refining label is `all` forms no group**
+    (the addendum's ruling on `LF98TRUU`, `hy_bucket` `all`; it is the only such row today; say so in the receipt);
+  - no `group_by`, on an axis other than `region`: **each instrument carrying the axis (a non-missing `axis_*` cell) is a
+    group of one**, keyed by its ticker (the instrument-level rule, general by the addendum);
+  - an instrument outside the scope forms no group.
+- **A group with no score gets no view** (addendum item 3). `cross_sectional_views` already gives a `NaN` group the view 0.0
+  and leaves it out of the mean (task 72); pin it with a test, do not change it.
+- **Rule 4's reach** (`0057` rule 4): a `scope` must reach at least two instruments with a row on 90% of dates, or the
+  hypothesis declares `expected_expression: directional`. The two constants come from the record; put them in `alpha.py` as
+  named module constants citing `0057` rule 4 (they are not in `params/`, and adding them there is owner-only: do not).
+  "Checked where the matrix is read" (`0057`): this task supplies the function; task 82 calls it.
+
+**Step 0.** `results/audit/_nightly/RUNNING` absent. `git status --short` shows only `?? AGENTS.md` (the owner's file; leave
+it). The top of `## Done` is task 81's receipt (`a1ad310`). Anything else dirty, or no receipt: stop.
+
+**Step 1. The validator** (`harness/hypotheses.py`). `Hypothesis` gains `scope: dict[str, list[str]] | None = None` and
+`group_by: tuple[str, ...] | None = None` (one or two labels), filled by `validate_hypothesis` under the rules above, and both
+appear in `as_dict()`. A rejection raises `HypothesisRejected` with the file name, the key and the record cited. The label map
+is read once per call through `load_label_map` (default path; a `label_map_path` keyword for tests); if the file is missing,
+the validator raises only when a hypothesis carries `scope` or `group_by`. Nothing else in the validator changes.
+
+**Step 2. The four hypothesis files** (`0060`, "What it would take to build": "in the same task that teaches the validator the
+key"; no result exists for any of them, `0057` rule 1). Add exactly one line after `expected_expression:` in each:
+`H-2026-0002`, `H-2026-0003`, `H-2026-0010`: `group_by: curve`; `H-2026-0007`: `group_by: [rating, hy_bucket]`. No other edit
+to any hypothesis file. `H-2026-0019` (`scope: {curve: [USD]}`) and `H-2026-0020` (`scope: {rating: [HY]}`) are unchanged and
+must validate as they are.
+
+**Step 3. The groups and the group alpha** (`portfolio/alpha.py`, pure).
+- `groups_for(frame, axis, group_by=None, scope=None) -> Series`: instrument -> group key (string), only for instruments that
+  form a group, under the rules above. `axis == "region"` raises `ValueError` (the region axis has its own groups,
+  `region_cells`, task 72).
+- `alpha_from_group_views(frame, axis, views, groups, scope=None) -> Series`: `alpha_i = X_i * v_{g(i)} * m_i`, `X_i` the
+  `axis_*` cell, `views` a Series indexed by group key for the date, `m_i` the scope mask. No group, no view or a missing cell
+  gives exactly 0.0; reuse `scope_mask` and the existing refusal of unbuilt axes.
+- `scope_reach(presence, mask) -> int`: `presence` a dates-by-instruments boolean frame (a row in the matrix at the date),
+  `mask` the scope mask; the number of in-scope instruments present on at least 90% of the dates.
+  `check_reach(expected_expression, presence, mask)` raises `ValueError` citing `0057` rule 4 when the reach is below 2 and the
+  expression is not `directional`.
+
+**Step 4. Tests** (extend the two test files; synthetic frames and a small label map written to `tmp_path`; fast):
+- validator: a valid one-label and a valid two-label `group_by`; a list of three refused; an unknown label and an unknown
+  value refused; `sector` refused; one-label `group_by` equal to a `scope` key refused; a two-label `group_by` sharing either
+  label with the `scope` refused and the message names L41; a two-label `group_by` with a scope on a third label accepted;
+  `scope` and `group_by` round-trip through `as_dict()`.
+- the live registry: `HypothesisRegistry(params=get_params()).load_tolerant("pending")` gives the same count valid and
+  rejected as before this task (step 0 records it), with 0002, 0003, 0007, 0010 carrying their `group_by` and 0019, 0020
+  their `scope`.
+- `groups_for`: a two-label frame with `HY`/`Ba`, `HY`/`B`, `HY`/`Caa`, `HY`/`all` and `IG`/blank gives `HY/Ba`, `HY/B`,
+  `HY/Caa`, `IG` and no group for `all`; a one-label frame; the instrument-level fallback keys by ticker and skips an
+  instrument with a missing cell; an out-of-scope instrument forms no group; `region` raises.
+- `alpha_from_group_views`: zero views give exactly zero alpha; an instrument gets its own group's view times its cell;
+  swapping two groups' views swaps those instruments' alphas; no group or no view gives 0.0.
+- addendum item 3: `cross_sectional_views` with a group whose `z` is all `NaN` gives it 0.0 and leaves the other groups'
+  views equal to the same frame without that column.
+- `scope_reach` / `check_reach`: two instruments at 90% pass; one at 89% and one at 100% give reach 1 and raise for
+  `cross_sectional` and `both`, not for `directional`.
+
+**Step 5. The gate.** `ruff format` and `ruff check` via `uv run --python 3.12 --group dev ruff ...` (a bare `ruff` is
+denied) on the four Python files. Then `scripts/unattended.sh check-scoped`, rc 0; no existing test or golden may move.
+Report rc, tier, runtime, log directory, slow files left out, pass count.
+
+**Step 6. Commit** (the four Python files and the four hypothesis files only): `harness, portfolio: scope and group_by in the
+validator, the groups of a cross-section, rule 4's reach (HANDOFF task 73, decisions/0057, decisions/0060)`.
+
+**Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.** Leave OWNER-QUEUE alone. The receipt gives the registry's
+valid/rejected counts before and after, and says which hard checks of `decisions/0059` F are now covered and which wait for
+task 82.
+
+**Stop and report, without committing,** if any existing test or golden moves (a test that pins the hypothesis files' bytes or
+the pending count is a golden: stop, do not edit it); if step 0 does not hold; if a hypothesis that validated before is
+rejected after; if a spec point needs a choice the records above do not make (name it, do not choose); or if a command is
+denied (do not work around it).
+
+Expected: under $3 on Sonnet (a guess from tasks 70 to 72), under an hour with the check. Opus is not needed.
 
 ### 81. SUBSTRATE v0.13: commit the `decisions/0060` wording (§6, §7), then push (owner's ruling of 2026-11-03; same shape as task 60)
 

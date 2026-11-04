@@ -24,6 +24,11 @@ Added 2026-11-03 by Cowork, out of the L40 ruling (`decisions/0060` addendum). N
 SUBSTRATE §7 says `group_by` is "not with scope on the same label" (`decisions/0057`). With `group_by: [rating, hy_bucket]`, a scope `hy_bucket: [Ba, B, Caa]` still leaves three groups, so the cross-section is real; a scope `rating: [HY]` leaves the same three. Cowork is guessing at the rule's purpose (that a scope on the grouping label leaves one group, which is no cross-section).
 **What the owner would be deciding:** (a) the rule binds either label; (b) it binds the first label only, and a scope on the refining label is allowed if it leaves at least two groups; (c) replace the rule with that test for any label: a scope and a grouping may share a label if at least two groups remain. Cowork's recommendation: (c), because it states the reason rather than a proxy for it; the validator checks it where `0057` rule 4 is checked.
 
+### L42. H-2026-0002's curve groups: does a linker sit with its nominal?
+Added 2026-11-03 by Cowork, writing HANDOFF task 73. Not blocking: 0002 is `blocked:data` for EUR (`decisions/proposed/0068`), and task 73 groups by the label value as it stands.
+`decisions/0060` ruling 2 carries *Cowork's reading* for H-2026-0002, never ruled: its groups are the curve's currency, so `USD` and `USD_real` form one group (and the euro linkers sit with `EUR`). The label map keeps `USD_real` apart (`0057`), so `group_by: curve` taken literally puts `LBUTTRUU` in a group of its own. For a real/nominal signal that ranks markets by inflation surprise, Cowork's reading is the one that makes economic sense: the score is per market, and the linker and its nominal are the two legs of the same market's trade.
+**What the owner would be deciding:** (a) the reading as written: the build maps `USD_real` to `USD` (and `EUR_real` to `EUR`) for 0002's grouping; (b) the literal label: `USD_real` is its own group. Cowork's recommendation: (a), applied in task 82 or later, and only for hypotheses on the `real_nominal` axis.
+
 ---
 
 ## Blocked — waiting on a measurement
