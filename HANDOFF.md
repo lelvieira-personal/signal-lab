@@ -6269,6 +6269,14 @@ run would have said.
 
 ## Done
 
+### 2026-11-03 -- task 73: STOPPED at step 0, the baseline registry count was denied (Claude Code, sonnet, nightly 2026-11-03T20:30)
+
+- **Step 0 held:** `results/audit/_nightly/RUNNING` is the wrapper's own for this run; `git status --short` showed only `?? AGENTS.md`; the top of `## Done` was task 81's receipt. Time was 20:32 ET, before the 01:32 limit.
+- **What failed:** to record the registry's valid/rejected counts before any edit, I ran `HypothesisRegistry(params=get_params()).load_tolerant("pending")` through `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=src:. UV_PROJECT_ENVIRONMENT=$HOME/.venvs/signal-lab uv run --python 3.12 --group dev python -c ...`. It was denied by the permission mode (the env-prefix form matches no allow rule, as the stops of 2026-10-23 and 2026-10-24 found). No rc. The task text names no command for this count.
+- **What I tried:** nothing further, per the task's stop rule. I read `harness/hypotheses.py`, `portfolio/alpha.py` and `characteristics/exposures.py` only. Note for the revision: `exposures.py` imports `TARGET_AXES` from `harness.hypotheses`, so the validator must import `load_label_map` inside the function, not at module level.
+- **Left uncommitted:** nothing edited. `AGENTS.md` (the owner's) untracked as before.
+- **Reading of `decisions/0062` item 8:** Cowork alone: a task text that names no allow-listed way to take its own step-0 measurement. A revision note could give the count as a one-command form, or have step 0 take it from a test (a new fast test in `tests/test_hypotheses.py` that prints the counts), and re-release.
+
 ### 2026-11-03 -- task 81: done, interactive (Claude Code, run by the owner); receipt and push by Cowork
 
 - The owner ran task 81 in Claude Code at about 18:37 ET, before the 18:47 poll: commit `7652450` (`SUBSTRATE.md` alone, v0.13, cited to `decisions/0060`). That session wrote no receipt and did not push.
