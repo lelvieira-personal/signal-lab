@@ -24,6 +24,7 @@ rationale: >
   precisely when the portfolio most needs it to work.
 horizon_weeks: 4-13
 expected_expression: both
+group_by: curve
 proposed_by: owner
 provenance: adaptation
 reference: null

@@ -185,6 +185,109 @@ def _region_alpha(frame, view, scope, region_cells) -> pd.Series:
     return alpha.replace({np.nan: 0.0}).rename("region")
 
 
+def groups_for(
+    frame: pd.DataFrame,
+    axis: str,
+    group_by: tuple[str, ...] | list[str] | str | None = None,
+    scope: dict[str, list[str]] | None = None,
+) -> pd.Series:
+    """
+    instrument -> group key (a string), for the instruments that form a group
+    (decisions/0060 items 1 and 3 and the addendum of 2026-11-03; SUBSTRATE section 6).
+
+    One label: the group is the label's value; a blank label forms no group. Two labels: the
+    first label's value refined by the second where the second is not blank (`HY/Ba`; `IG`
+    stays `IG`); an instrument whose refining label is `all` forms no group (the addendum's
+    ruling on `LF98TRUU`). No `group_by`: each instrument carrying the axis (a non-missing
+    `axis_*` cell) is a group of one, keyed by its ticker. An instrument outside the scope
+    forms no group. The region axis has its own groups (`region_cells`) and raises.
+    """
+    if axis == "region":
+        raise ValueError("the region axis has its own groups: region_cells (HANDOFF task 72)")
+    if axis not in _AXIS_OF:
+        raise ValueError(f"unknown axis {axis!r}; valid names are {tuple(_AXIS_OF)}")
+    if isinstance(group_by, str):
+        group_by = (group_by,)
+    labels = tuple(group_by) if group_by else ()
+    if len(labels) > 2:
+        raise ValueError("group_by is one label or a label refined by a second (decisions/0060)")
+    for key in labels:
+        if key in UNBUILT_LABEL_AXES:
+            raise LabelMapMissing(f"the {key} axis has no label map yet (decisions/0054 item 8)")
+        if key not in LABEL_COLUMNS or key not in frame.columns:
+            raise ValueError(f"{key!r} is not a label column of the frame; labels: {LABEL_COLUMNS}")
+    inside = scope_mask(frame, scope) > 0.0
+
+    if not labels:
+        keys = pd.Series([str(i) for i in frame.index], index=frame.index, dtype=object)
+        forms = frame[_AXIS_OF[axis]].astype(float).notna()
+    else:
+        first = frame[labels[0]].astype(str)
+        forms = first != ""
+        keys = first.copy()
+        if len(labels) == 2:
+            second = frame[labels[1]].astype(str)
+            forms = forms & (second != "all")
+            keys = keys.where(second == "", first + "/" + second)
+    forms = forms & inside
+    return keys[forms].rename("group")
+
+
+def alpha_from_group_views(
+    frame: pd.DataFrame,
+    axis: str,
+    views: pd.Series,
+    groups: pd.Series,
+    scope: dict[str, list[str]] | None = None,
+) -> pd.Series:
+    """
+    `alpha_i = X_i * v_{g(i)} * m_i` (decisions/0060): `X_i` the cell on the axis, `views` a
+    Series indexed by group key for the date, `groups` the instrument -> group key of
+    `groups_for`, `m_i` the scope mask. An instrument with no group, no view or a missing cell
+    has exactly 0.0.
+    """
+    if axis != "cash":
+        _refuse_unbuilt(axis)
+    column = _AXIS_OF[axis]
+    cell = frame[column].astype(float)
+    mask = scope_mask(frame, scope)
+    key = groups.reindex(frame.index)
+    view = key.map(views.astype(float)).astype(float)
+    alpha = (cell * view * mask).where(cell.notna() & view.notna() & (mask > 0.0), 0.0) + 0.0
+    return alpha.replace({np.nan: 0.0}).rename(axis)
+
+
+# decisions/0057 rule 4: a scope must reach at least two instruments with a row on 90% of
+# dates, or the hypothesis declares `expected_expression: directional`. Not in params/.
+REACH_MIN_INSTRUMENTS = 2
+REACH_MIN_DATE_SHARE = 0.9
+
+
+def scope_reach(presence: pd.DataFrame, mask: pd.Series) -> int:
+    """
+    The number of in-scope instruments (`mask > 0`) with a row in the matrix on at least
+    `REACH_MIN_DATE_SHARE` of the dates. `presence` is a dates-by-instruments boolean frame.
+    """
+    share = presence.astype(bool).mean(axis=0)
+    inside = mask.reindex(share.index).fillna(0.0) > 0.0
+    return int(((share >= REACH_MIN_DATE_SHARE - 1e-12) & inside).sum())
+
+
+def check_reach(expected_expression: str, presence: pd.DataFrame, mask: pd.Series) -> int:
+    """
+    Raise `ValueError` (decisions/0057 rule 4) when the scope reaches fewer than
+    `REACH_MIN_INSTRUMENTS` instruments and the hypothesis is not `directional`. Returns the reach.
+    """
+    reach = scope_reach(presence, mask)
+    if reach < REACH_MIN_INSTRUMENTS and expected_expression != "directional":
+        raise ValueError(
+            f"the scope reaches {reach} instrument(s) with a row on {REACH_MIN_DATE_SHARE:.0%} "
+            f"of dates; decisions/0057 rule 4 needs {REACH_MIN_INSTRUMENTS} or the hypothesis "
+            f"declares expected_expression: directional (it declares {expected_expression!r})"
+        )
+    return reach
+
+
 def cross_sectional_views(
     z: pd.DataFrame, sigma: pd.DataFrame | pd.Series, scale: float
 ) -> pd.DataFrame:

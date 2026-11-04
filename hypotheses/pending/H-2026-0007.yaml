@@ -32,6 +32,7 @@ rationale: >
   information ratio.
 horizon_weeks: 4-13
 expected_expression: cross_sectional
+group_by: [rating, hy_bucket]
 proposed_by: agent
 provenance: adaptation
 reference: null

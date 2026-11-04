@@ -12,13 +12,17 @@ import pytest
 
 from signal_lab.characteristics.exposures import LabelMapMissing
 from signal_lab.portfolio.alpha import (
+    alpha_from_group_views,
     alpha_from_views,
+    check_reach,
     cross_sectional_views,
     factor_sigma,
     group_return,
+    groups_for,
     relative_factor,
     relative_sigma,
     scope_mask,
+    scope_reach,
 )
 from signal_lab.portfolio.views import standardise, view_scale
 
@@ -374,3 +378,129 @@ def test_scores_to_alpha_through_views_equals_the_product_by_hand(params):
     want = {"UST": 7.0 * view, "EURBOND": -2.0 * view, "BLANK": 0.0}
     for name, value in want.items():
         assert alpha[name] == pytest.approx(value, rel=1e-12, abs=1e-18)
+
+
+# --- task 73: groups, group alpha, rule 4's reach (decisions/0057, 0060) -----
+
+
+def _credit_frame():
+    return pd.DataFrame(
+        {
+            "axis_credit": [4.0, 3.0, 2.0, 1.0, 5.0, np.nan],
+            "rating": ["HY", "HY", "HY", "HY", "IG", "IG"],
+            "hy_bucket": ["Ba", "B", "Caa", "all", "", ""],
+            "curve": ["USD", "USD", "USD", "USD", "USD", "EUR"],
+        },
+        index=["BA", "B", "CAA", "ALL", "IG", "IGNA"],
+    )
+
+
+def test_groups_for_two_labels_refines_by_the_second():
+    g = groups_for(_credit_frame(), "credit", group_by=("rating", "hy_bucket"))
+    assert g.to_dict() == {
+        "BA": "HY/Ba",
+        "B": "HY/B",
+        "CAA": "HY/Caa",
+        "IG": "IG",
+        "IGNA": "IG",
+    }
+    assert "ALL" not in g.index
+
+
+def test_groups_for_one_label_and_a_blank_label():
+    frame = _credit_frame()
+    frame.loc["IGNA", "curve"] = ""
+    g = groups_for(frame, "credit", group_by="curve")
+    assert set(g.index) == {"BA", "B", "CAA", "ALL", "IG"}
+    assert set(g) == {"USD"}
+
+
+def test_groups_for_instrument_level_fallback_keys_by_ticker_and_skips_missing_cells():
+    g = groups_for(_credit_frame(), "credit")
+    assert g.to_dict() == {t: t for t in ["BA", "B", "CAA", "ALL", "IG"]}
+
+
+def test_groups_for_out_of_scope_forms_no_group_and_region_raises():
+    g = groups_for(_credit_frame(), "credit", group_by="rating", scope={"curve": ["USD"]})
+    assert "IGNA" not in g.index and len(g) == 5
+    with pytest.raises(ValueError, match="region"):
+        groups_for(_credit_frame(), "region")
+
+
+def test_group_alpha_zero_views_give_exactly_zero():
+    frame = _credit_frame()
+    groups = groups_for(frame, "credit", group_by=("rating", "hy_bucket"))
+    views = pd.Series(0.0, index=sorted(set(groups)))
+    alpha = alpha_from_group_views(frame, "credit", views, groups)
+    assert (alpha == 0.0).all()
+
+
+def test_group_alpha_is_the_groups_view_times_the_cell_and_swaps_with_the_views():
+    frame = _credit_frame()
+    groups = groups_for(frame, "credit", group_by=("rating", "hy_bucket"))
+    views = pd.Series({"HY/Ba": 0.02, "HY/B": -0.01, "HY/Caa": 0.005, "IG": 0.03})
+    alpha = alpha_from_group_views(frame, "credit", views, groups)
+    assert alpha["BA"] == pytest.approx(4.0 * 0.02)
+    assert alpha["IG"] == pytest.approx(5.0 * 0.03)
+    swapped = views.copy()
+    swapped["HY/Ba"], swapped["HY/B"] = views["HY/B"], views["HY/Ba"]
+    alpha2 = alpha_from_group_views(frame, "credit", swapped, groups)
+    assert alpha2["BA"] == pytest.approx(4.0 * -0.01)
+    assert alpha2["B"] == pytest.approx(3.0 * 0.02)
+    assert alpha2["CAA"] == alpha["CAA"]
+
+
+def test_group_alpha_no_group_no_view_or_missing_cell_is_exactly_zero():
+    frame = _credit_frame()
+    groups = groups_for(frame, "credit", group_by=("rating", "hy_bucket"))
+    views = pd.Series({"HY/Ba": 0.02, "IG": 0.03})
+    alpha = alpha_from_group_views(frame, "credit", views, groups)
+    assert alpha["ALL"] == 0.0  # no group
+    assert alpha["B"] == 0.0 and alpha["CAA"] == 0.0  # no view
+    assert alpha["IGNA"] == 0.0  # missing cell
+    assert not np.signbit(alpha.to_numpy()).any()
+
+
+def test_group_alpha_respects_the_scope_mask():
+    frame = _credit_frame()
+    groups = groups_for(frame, "credit", group_by="rating")
+    views = pd.Series({"HY": 0.01, "IG": 0.02})
+    alpha = alpha_from_group_views(frame, "credit", views, groups, scope={"rating": ["HY"]})
+    assert alpha["IG"] == 0.0 and alpha["BA"] == pytest.approx(4.0 * 0.01)
+
+
+def test_a_group_with_a_nan_score_gets_no_view_and_leaves_the_others_unchanged():
+    idx = pd.date_range("2010-01-01", periods=3, freq="W-FRI")
+    z = pd.DataFrame({"a": [1.0, -1.0, 0.5], "b": [0.0, 1.0, -0.5], "c": np.nan}, index=idx)
+    sigma = pd.Series(0.02, index=idx)
+    v = cross_sectional_views(z, sigma, 0.1)
+    assert (v["c"] == 0.0).all()
+    want = cross_sectional_views(z[["a", "b"]], sigma, 0.1)
+    pd.testing.assert_frame_equal(v[["a", "b"]], want)
+
+
+def _presence(shares, n=100):
+    cols = {}
+    for name, k in shares.items():
+        col = np.zeros(n, dtype=bool)
+        col[:k] = True
+        cols[name] = col
+    return pd.DataFrame(cols)
+
+
+def test_scope_reach_counts_instruments_present_on_90_percent_of_dates():
+    presence = _presence({"a": 90, "b": 90, "c": 50})
+    mask = pd.Series({"a": 1.0, "b": 1.0, "c": 1.0})
+    assert scope_reach(presence, mask) == 2
+    assert check_reach("cross_sectional", presence, mask) == 2
+    assert scope_reach(presence, pd.Series({"a": 1.0, "b": 0.0, "c": 1.0})) == 1
+
+
+@pytest.mark.parametrize("expression", ["cross_sectional", "both"])
+def test_check_reach_raises_below_two_unless_directional(expression):
+    presence = _presence({"a": 89, "b": 100})
+    mask = pd.Series({"a": 1.0, "b": 1.0})
+    assert scope_reach(presence, mask) == 1
+    with pytest.raises(ValueError, match="0057 rule 4"):
+        check_reach(expression, presence, mask)
+    assert check_reach("directional", presence, mask) == 1

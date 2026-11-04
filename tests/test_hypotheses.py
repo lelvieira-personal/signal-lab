@@ -382,3 +382,98 @@ def test_a_hypothesis_leaves_the_lab_as_candidate_or_not_detected(params, store,
     assert (root / "done" / "H-2026-9001.yaml").read_bytes() == before
     detail = store.transitions("H-2026-9001")["detail"].iloc[-1]
     assert "verdict: not_detected" in detail and "power_at_nearest_ic: null" in detail
+
+
+# --- scope and group_by (HANDOFF task 73, decisions/0057, decisions/0060) -----------
+
+LABEL_MAP_CSV = (
+    "ticker,asset_group,reporting_class,region,region_view,curve_currency,rating_class,"
+    "market_label,curve,rating,hy_bucket,market\n"
+    "A,bond,x,US,no,USD,x,DM,USD,HY,Ba,DM\n"
+    "B,bond,x,US,no,USD,x,DM,USD,IG,,DM\n"
+    "C,bond,x,Developed Europe,no,EUR,x,DM,EUR,Government,,DM\n"
+)
+
+
+@pytest.fixture
+def label_map(tmp_path):
+    path = tmp_path / "label_map.csv"
+    path.write_text(LABEL_MAP_CSV, encoding="utf-8")
+    return path
+
+
+def _v(params, label_map, **over):
+    return validate_hypothesis(good_doc(**over), params, label_map_path=label_map)
+
+
+def test_one_label_and_two_label_group_by_validate(params, label_map):
+    assert _v(params, label_map, group_by="curve").group_by == ("curve",)
+    assert _v(params, label_map, group_by=["curve"]).group_by == ("curve",)
+    assert _v(params, label_map, group_by=["rating", "hy_bucket"]).group_by == (
+        "rating",
+        "hy_bucket",
+    )
+
+
+def test_a_hypothesis_without_either_key_needs_no_label_map(params, tmp_path):
+    h = validate_hypothesis(good_doc(), params, label_map_path=tmp_path / "missing.csv")
+    assert h.scope is None and h.group_by is None
+    with pytest.raises(HypothesisRejected, match="label map"):
+        validate_hypothesis(
+            good_doc(group_by="curve"), params, label_map_path=tmp_path / "missing.csv"
+        )
+
+
+def test_group_by_of_three_is_refused(params, label_map):
+    with pytest.raises(HypothesisRejected, match="group_by"):
+        _v(params, label_map, group_by=["curve", "rating", "hy_bucket"])
+
+
+def test_unknown_label_and_unknown_value_are_refused(params, label_map):
+    with pytest.raises(HypothesisRejected, match="not a label"):
+        _v(params, label_map, group_by="colour")
+    with pytest.raises(HypothesisRejected, match="not a label"):
+        _v(params, label_map, scope={"colour": ["red"]})
+    with pytest.raises(HypothesisRejected, match="occur nowhere"):
+        _v(params, label_map, scope={"curve": ["USDD"]})
+
+
+def test_sector_and_style_are_refused(params, label_map):
+    with pytest.raises(HypothesisRejected, match="no label map yet"):
+        _v(params, label_map, group_by="sector")
+    with pytest.raises(HypothesisRejected, match="no label map yet"):
+        _v(params, label_map, scope={"style": ["value"]})
+
+
+def test_group_by_on_a_scope_label_is_refused(params, label_map):
+    with pytest.raises(HypothesisRejected, match="also a scope key"):
+        _v(params, label_map, group_by="curve", scope={"curve": ["USD"]})
+
+
+def test_two_label_group_by_sharing_a_label_with_scope_names_l41(params, label_map):
+    for scope in ({"rating": ["HY"]}, {"hy_bucket": ["Ba"]}):
+        with pytest.raises(HypothesisRejected, match="OWNER-QUEUE L41"):
+            _v(params, label_map, group_by=["rating", "hy_bucket"], scope=scope)
+
+
+def test_two_label_group_by_with_scope_on_a_third_label_is_accepted(params, label_map):
+    h = _v(params, label_map, group_by=["rating", "hy_bucket"], scope={"curve": ["USD"]})
+    assert h.scope == {"curve": ["USD"]}
+
+
+def test_scope_and_group_by_round_trip_through_as_dict(params, label_map):
+    h = _v(params, label_map, group_by=["rating", "hy_bucket"], scope={"curve": ["USD"]})
+    d = h.as_dict()
+    assert d["scope"] == {"curve": ["USD"]} and d["group_by"] == ["rating", "hy_bucket"]
+    assert "scope" not in _v(params, label_map).as_dict()
+
+
+def test_the_live_registry_carries_the_registered_scopes_and_groupings(params):
+    good, bad = HypothesisRegistry(params=params).load_tolerant("pending")
+    assert (len(good), len(bad)) == (16, 0)
+    by_id = {h.id: h for h in good}
+    for hid in ("H-2026-0002", "H-2026-0003", "H-2026-0010"):
+        assert by_id[hid].group_by == ("curve",)
+    assert by_id["H-2026-0007"].group_by == ("rating", "hy_bucket")
+    assert by_id["H-2026-0019"].scope == {"curve": ["USD"]}
+    assert by_id["H-2026-0020"].scope == {"rating": ["HY"]}

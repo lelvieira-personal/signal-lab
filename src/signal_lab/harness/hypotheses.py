@@ -152,6 +152,8 @@ class Hypothesis:
     kind: str = "signal"
     reference: str | None = None
     proxy_for: dict[str, str] | None = None
+    scope: dict[str, list[str]] | None = None
+    group_by: tuple[str, ...] | None = None
     notes: str = ""
     path: Path | None = None
     raw: dict[str, Any] = field(default_factory=dict)
@@ -202,6 +204,10 @@ class Hypothesis:
             out["reference"] = self.reference
         if self.proxy_for:
             out["proxy_for"] = self.proxy_for
+        if self.scope:
+            out["scope"] = {k: list(v) for k, v in self.scope.items()}
+        if self.group_by:
+            out["group_by"] = list(self.group_by)
         return out
 
 
@@ -363,12 +369,113 @@ def unresolved_names(
     return bad
 
 
+def _validate_scope_group(
+    doc: dict[str, Any], where: str, label_map_path: Path | str | None
+) -> tuple[dict[str, list[str]] | None, tuple[str, ...] | None]:
+    """
+    The optional `scope` and `group_by` keys (decisions/0057, decisions/0060, SUBSTRATE
+    sections 6 and 7). Every key is a label column of the owner's label map and every scope
+    value occurs in that column. `exposures` imports `TARGET_AXES` from this module, so it is
+    imported here, inside the function.
+    """
+    raw_scope = doc.get("scope")
+    raw_group = doc.get("group_by")
+    if raw_scope is None and raw_group is None:
+        return None, None
+
+    from signal_lab.characteristics.exposures import (
+        LABEL_COLUMNS,
+        UNBUILT_LABEL_AXES,
+        LabelMapMissing,
+        load_label_map,
+    )
+
+    def check_key(field_name: str, key: Any) -> str:
+        if not isinstance(key, str):
+            raise HypothesisRejected(f"{where}: {field_name} key {key!r} must be a label name")
+        if key in UNBUILT_LABEL_AXES:
+            raise HypothesisRejected(
+                f"{where}: {field_name} key {key!r}: the {key} axis has no label map yet "
+                f"(decisions/0054 item 8)"
+            )
+        if key not in LABEL_COLUMNS:
+            raise HypothesisRejected(
+                f"{where}: {field_name} key {key!r} is not a label of the label map; "
+                f"labels: {list(LABEL_COLUMNS)} (decisions/0057)"
+            )
+        return key
+
+    scope: dict[str, list[str]] | None = None
+    if raw_scope is not None:
+        if not isinstance(raw_scope, dict) or not raw_scope:
+            raise HypothesisRejected(
+                f"{where}: scope must be a non-empty mapping of label -> list of values "
+                f"(decisions/0057)"
+            )
+        scope = {}
+        for key, values in raw_scope.items():
+            check_key("scope", key)
+            if (
+                not isinstance(values, list)
+                or not values
+                or not all(isinstance(v, str) for v in values)
+            ):
+                raise HypothesisRejected(
+                    f"{where}: scope[{key!r}] must be a non-empty list of values (decisions/0057)"
+                )
+            scope[key] = list(values)
+
+    group_by: tuple[str, ...] | None = None
+    if raw_group is not None:
+        labels = [raw_group] if isinstance(raw_group, str) else raw_group
+        if not isinstance(labels, list) or not 1 <= len(labels) <= 2:
+            raise HypothesisRejected(
+                f"{where}: group_by must be one label, or a list of one or two labels, a label "
+                f"refined by a second (decisions/0060 item 1); got {raw_group!r}"
+            )
+        group_by = tuple(check_key("group_by", k) for k in labels)
+        if len(set(group_by)) != len(group_by):
+            raise HypothesisRejected(
+                f"{where}: group_by names {group_by[0]!r} twice (decisions/0060 item 1)"
+            )
+
+    if scope and group_by:
+        shared = [k for k in group_by if k in scope]
+        if shared and len(group_by) == 1:
+            raise HypothesisRejected(
+                f"{where}: group_by {shared[0]!r} is also a scope key; a grouping and a scope "
+                f"are not combined on one label (decisions/0057)"
+            )
+        if shared:
+            raise HypothesisRejected(
+                f"{where}: a two-label group_by shares {shared} with the scope; not ruled; "
+                f"see OWNER-QUEUE L41"
+            )
+
+    try:
+        label_map = load_label_map(label_map_path)
+    except LabelMapMissing as exc:
+        raise HypothesisRejected(
+            f"{where}: scope/group_by need the label map and it is missing: {exc}"
+        ) from exc
+    for key, values in (scope or {}).items():
+        present = set(label_map[key].astype(str)) - {""}
+        unknown = [v for v in values if v not in present]
+        if unknown:
+            raise HypothesisRejected(
+                f"{where}: scope[{key!r}] values {unknown} occur nowhere in the label map "
+                f"(decisions/0057); values: {sorted(present)}"
+            )
+    return scope, group_by
+
+
 def validate_hypothesis(
     doc: dict[str, Any],
     params: Params | None = None,
     path: Path | None = None,
     resolve_names: bool = False,
     universe_dir: Path | str | None = None,
+    label_map_path: Path | str | None = None,
 ) -> Hypothesis:
     params = params or get_params()
     where = path.name if path else doc.get("id", "<unnamed>")
@@ -471,6 +578,8 @@ def validate_hypothesis(
             f"{where}: proxy_for must be a mapping of proxy series id -> the series it stands in for"
         )
 
+    scope, group_by = _validate_scope_group(doc, where, label_map_path)
+
     return Hypothesis(
         id=hid,
         kind=kind,
@@ -486,6 +595,8 @@ def validate_hypothesis(
         data_required=list(data_required),
         reference=str(reference) if reference else None,
         proxy_for=dict(proxy_for) if proxy_for else None,
+        scope=scope,
+        group_by=group_by,
         notes=str(doc.get("notes", "")),
         path=path,
         raw=doc,

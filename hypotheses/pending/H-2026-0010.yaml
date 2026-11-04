@@ -25,6 +25,7 @@ rationale: >
   of a diversified tilt, which the risk decomposition is meant to expose.
 horizon_weeks: 4-13
 expected_expression: cross_sectional
+group_by: curve
 proposed_by: agent
 provenance: adaptation
 reference: null

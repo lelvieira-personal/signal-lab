@@ -26,6 +26,7 @@ rationale: >
   the harness must report cycles rather than observations.
 horizon_weeks: 8-26
 expected_expression: both
+group_by: curve
 proposed_by: agent
 provenance: adaptation
 reference: null
