@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 73 @2026-11-03T20:30 by=cowork push=no
+Nightly-release: 73 @2026-11-04T06:00 by=cowork push=no
+
+**As of 2026-11-04 (05:40 ET): task 73 RE-RELEASED by Cowork (`@2026-11-04T06:00`, `push=no`, Sonnet)** after its first stop (step 0 count denied, env-prefixed command); see revision note 1 to task 73. Nothing else changed.
 
 **As of 2026-11-03 (20:30 ET): task 73 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's "Go ahead", chat, 20:16 ET). Task 81 landed (`7652450`, receipt `a1ad310`, pushed). Task 73 is the validator, the groups and rule 4's reach; the phase-2 rule class and `build_weight_rule` (82) and `parameter_usage` and the reports (83) are not written. Only this line, this note and task 73's text changed.
 
@@ -3895,6 +3897,13 @@ denied (do not work around it).
 
 Expected: under $3 on Sonnet (a guess from tasks 70 to 72), under an hour with the check. Opus is not needed.
 
+**Revision note 1 to task 73 (Cowork, 2026-11-04 05:40 ET, `decisions/0062` item 8: re-release after a mechanical stop; first stop of this task).** The 2026-11-03 20:30 run stopped at step 0: the registry count was taken with an env-prefixed command (`OMP_NUM_THREADS=1 ... uv run ... python -c`), which matches no allow rule. The nightly wrapper already exports `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS` and `UV_PROJECT_ENVIRONMENT` (`scripts/nightly/run.sh` lines 35-36), so no prefix is needed. Changes, nothing else in the task moves:
+- **Step 0, the baseline count.** Take it with exactly this form, one line, no env prefix, no `PYTHONPATH` (it matches the allowed prefix `uv run --python 3.12 --group dev`): `uv run --python 3.12 --group dev python -c "from signal_lab.harness.hypotheses import HypothesisRegistry; from signal_lab.params import get_params; g,b=HypothesisRegistry(params=get_params()).load_tolerant('pending'); print(len(g),len(b),[p.name for p,_ in b])"`. Record the counts for the receipt (an October receipt, task 59, recorded 16 valid, 0 rejected; the count may have grown since, record what you see). If this form is also denied, stop and report; do not try another.
+- **Step 0, the tree.** `git status --short` may also show ` M HANDOFF.md` (this note and the release line, Cowork's, uncommitted); anything else dirty still stops. Do not commit HANDOFF.md until step 7; step 7's receipt commit takes it.
+- **Step 7 baseline "after":** take the same one-line form again after the commit.
+- **Import order** (from the stopped run's reading): `characteristics/exposures.py` imports `TARGET_AXES` from `harness.hypotheses`, so the validator imports `load_label_map` inside the function, not at module level, or it creates a circular import.
+Re-released `Nightly-release: 73 @2026-11-04T06:00`, `by=cowork`, `push=no`, Sonnet.
+
 ### 81. SUBSTRATE v0.13: commit the `decisions/0060` wording (§6, §7), then push (owner's ruling of 2026-11-03; same shape as task 60)
 
 Added 2026-11-03 by Cowork. **Written by Cowork and RELEASED by the owner** ("i agree with all suggestions and authorize the push", chat, 2026-11-03 18:03 ET), `push=yes`, Sonnet. **Cowork applied the owner-only edit to the working tree at the owner's instruction**; Claude Code never edits `SUBSTRATE.md` itself, it commits what is there. What Cowork applied (`git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md`: 1 file, 15 insertions, 4 deletions; CRLF kept, every line CR LF):
@@ -6268,6 +6277,14 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-04 -- task 73: STOPPED at step 0, the one-line baseline count failed with rc 1, `No module named 'signal_lab'` (Claude Code, sonnet, nightly 2026-11-04T06:00)
+
+- **Step 0 held except the count:** time 05:47 ET, before the 10:47 limit; `results/audit/_nightly/RUNNING` is the wrapper's own; `git status --short` showed ` M HANDOFF.md` and `?? AGENTS.md` only; the top of `## Done` was the earlier STOPPED receipt for this task (the one revision note 1 answers).
+- **What failed:** `uv run --python 3.12 --group dev python -c "from signal_lab.harness.hypotheses import HypothesisRegistry; ..."` (exactly revision note 1's form, no prefix). It was not denied; it ran and exited rc 1 with `ModuleNotFoundError: No module named 'signal_lab'`. So the package is not importable from that form in this run: either `UV_PROJECT_ENVIRONMENT`/`PYTHONPATH` is not what the form assumes, or the project is not installed in the environment `uv` picked. I did not check which.
+- **What I tried:** nothing further, per the stop rule (revision note 1: if this form fails, stop; do not try another). I read `harness/hypotheses.py` only. Nothing under `src/`, `tests/` or `hypotheses/` was edited. No test or check ran.
+- **Left uncommitted:** nothing of mine. ` M HANDOFF.md` (Cowork's release line and revision note) is committed with this receipt.
+- **Reading of `decisions/0062` item 8:** Cowork alone: mechanical stop on a command's form (re-release after Cowork fixes the count command, e.g. a `make` target or a form that sets the path). Cowork should check whether `uv run` in the wrapper's environment finds the project (the `PYTHONPATH=src:.` tip from task 59 suggests it may need the path).
 
 ### 2026-11-03 -- task 73: STOPPED at step 0, the baseline registry count was denied (Claude Code, sonnet, nightly 2026-11-03T20:30)
 
