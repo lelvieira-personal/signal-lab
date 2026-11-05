@@ -67,9 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 73 @2026-11-04T16:45 by=cowork push=no
+Nightly-release: 82 @2026-11-05T12:10 by=cowork push=no
 
-**As of 2026-11-05 (12:15 ET): task 82 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the morning review's chain stop ("go on option (a)", chat, 11:57 ET), recorded as the 2026-11-05 addendum to `decisions/0059`, which Cowork committed before this release. Task 73 landed (`b6c1eaf`, receipt `7df680f`). Task 82 is the phase-2 rule, signal-agnostic, fed a scores frame; `build_weight_rule` stays unwired (M7). `parameter_usage` and the reports (83) are not written. Only this line, this note and task 82's text changed.
+**As of 2026-11-05 (12:08 ET): task 82 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the morning review's chain stop ("go on option (a)", chat, 11:57 ET), recorded as the 2026-11-05 addendum to `decisions/0059`, which Cowork committed with task 82's text before this release (`3a9bb88`). Task 73 landed (`b6c1eaf`, receipt `7df680f`). Task 82 is the phase-2 rule, signal-agnostic, fed a scores frame; `build_weight_rule` stays unwired (M7). `parameter_usage` and the reports (83) are not written. Only this line, this note and task 82's text changed.
 
 **As of 2026-11-04 (16:40 ET): task 73 RE-RELEASED again by Cowork (`@2026-11-04T16:45`, `push=no`, Sonnet)** after its second stop (step 0 count: `No module named 'signal_lab'`, no `PYTHONPATH` in the wrapper); see revision note 2 to task 73. Nothing else changed.
 
@@ -6387,6 +6387,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-05 -- task 82: done, rc 0, commit `1f909a0`, no push (Claude Code, sonnet, nightly 2026-11-05T12:10)
+
+- **Step 0 held:** `RUNNING` is the wrapper's own; `git status --short` showed ` M HANDOFF.md` and `?? AGENTS.md` only; top of `## Done` was task 73's done receipt; `3a9bb88` is the last commit of `decisions/0059`.
+- **Built:** `src/signal_lab/portfolio/phase2.py` (`Phase2Rule(RebalanceStep)`, `self.views`, `self.z`, `self.h`, `self.reach`, `alpha_at(date)`) and `tests/test_phase2_rule.py` (20 tests). `harness/experiment.py`, `RebalanceStep` and every existing test are untouched. `portfolio` still does not import `audit`.
+- **Gate:** `ruff format` and `ruff check` clean on both files; `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 213 s, log `results/audit/_unattended/20261105-121953-check-scoped/`; 1031 passed, 64 deselected in the main run (24 passed in the second); slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_scripts`. No existing test or golden moved. cvxpy was installed, so F1 ran.
+- **`decisions/0059` F covered now:** F1 (cvxpy against the reference solver at `test_long_only.py`'s 5e-3 on weights, directional and cross-sectional, a first book and a later rebalance), F2, F3, F4, F6. **Waiting for task 83:** F5, F7.
+- **Choices the text does not settle (check them):** (1) the reference solver is named `"scipy"` in the code (`test_long_only.py` uses that name), not `"reference"`. (2) `horizon` is the `(lo, hi)` tuple of `horizon_weeks`. (3) A `group_by` with the region axis is refused (`ValueError`), as `groups_for` refuses the region axis anyway. (4) Unknown expression or axis is a `ValueError`; a date missing from the scores is a `ValueError` ("no score"). (5) The holdout check of a Series `sigma` is made on its index (`enforce_holdout` reads a Series' values as dates). (6) Reach (rule 4) is checked in the constructor, with `exposures.at(presence.index[0])`, and stored as `self.reach`; the text said "Cowork's reading", flagged as asked. (7) The F3 and F4 tests use a deliberately large `sigma` (0.5) so the tilt is visible; the stub exposure frame and its labels are hand-built in the test file. (8) F1 is marked `slow`; the other tests are not.
+- **Release line:** left as Cowork set it. No push; no OWNER-QUEUE edit.
 
 ### 2026-11-04 -- task 73: done, rc 0, commit `b6c1eaf`, no push (Claude Code, sonnet, nightly 2026-11-04T16:45)
 
