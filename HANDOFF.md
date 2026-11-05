@@ -69,6 +69,8 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 Nightly-release: 73 @2026-11-04T16:45 by=cowork push=no
 
+**As of 2026-11-05 (12:15 ET): task 82 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the morning review's chain stop ("go on option (a)", chat, 11:57 ET), recorded as the 2026-11-05 addendum to `decisions/0059`, which Cowork committed before this release. Task 73 landed (`b6c1eaf`, receipt `7df680f`). Task 82 is the phase-2 rule, signal-agnostic, fed a scores frame; `build_weight_rule` stays unwired (M7). `parameter_usage` and the reports (83) are not written. Only this line, this note and task 82's text changed.
+
 **As of 2026-11-04 (16:40 ET): task 73 RE-RELEASED again by Cowork (`@2026-11-04T16:45`, `push=no`, Sonnet)** after its second stop (step 0 count: `No module named 'signal_lab'`, no `PYTHONPATH` in the wrapper); see revision note 2 to task 73. Nothing else changed.
 
 **As of 2026-11-04 (05:40 ET): task 73 RE-RELEASED by Cowork (`@2026-11-04T06:00`, `push=no`, Sonnet)** after its first stop (step 0 count denied, env-prefixed command); see revision note 1 to task 73. Nothing else changed.
@@ -3794,6 +3796,110 @@ report rc and the first line of output. This is the one unknown the push tool ha
 **Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.**
 
 Expected: 25 to 35 minutes, interactive.
+
+### 82. Solver step 6: the phase-2 rule, `portfolio/phase2.py`, signal-agnostic, fed a scores frame; the hard checks of `0059` F that need no real signal (`decisions/0059` C and F and its 2026-11-05 addendum, option (a))
+
+Added 2026-11-05 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
+`decisions/0064`: no owner-only path, no push, no data read, no verdict changes). The sixth solver build task. It was held by
+the 2026-11-05 morning review's chain stop (the specification was not in a decided record); the owner ruled option (a) in chat
+the same day, recorded as the 2026-11-05 addendum to `decisions/0059`. Task 73 landed (`b6c1eaf`, receipt `7df680f`).
+**Not in this task, and not written:** the `parameter_usage` rows (`0059` D), the reports of `0059` E, and checks F5 and F7
+(task 83); wiring `build_weight_rule` and building the universe and cost model outside the audit (with the first signal
+module, M7).
+
+**What it is.** Add `src/signal_lab/portfolio/phase2.py` and `tests/test_phase2_rule.py`. Nothing else under `src/` or
+`tests/` changes: in particular `harness/experiment.py` and `tests/test_experiment.py` are not edited (`build_weight_rule`
+keeps raising `SignalModuleMissing`, then `OptimiserMissing`; addendum item 3). No hypothesis runs, no audit, no vendor data
+read, no store read, no label-map read, nothing on or after 2020-01-01. Synthetic scores and hand-built exposure frames only.
+
+**Rules to apply (decided records only).**
+- **Fed, not built** (addendum item 1): the rule takes a raw-scores frame, dates by groups, as an argument. It never imports
+  `signals/`, `audit/` or `loaders/` (other than `loaders.holdout`), and never reads a file.
+- **`z`** is `views.standardise_from_params(scores, params)` (`0059` B; burn-in 52 by the 2026-10-16 addendum; clip from
+  params), computed once over the frame; it is expanding, so the value at `t` uses scores up to `t` only.
+- **Views.** `h = views.horizon_h_from_params(lo, hi, params)` from the hypothesis's horizon range. Directional:
+  `views.view_scale_from_params(z, sigma, h, params)`, `z` undemeaned. Cross-sectional:
+  `alpha.cross_sectional_views(z, sigma, ic_prior / sqrt(h))` (the 2026-10-23 addendum: demean the standardised scores).
+  `expected_expression: both` is two tests (`0059` item 2): the rule takes `directional` or `cross_sectional` only and
+  refuses `both` with a `ValueError` saying the caller builds one rule per test.
+- **`sigma`** is an argument: a Series over the scores' dates (one `sigma_k` per axis: duration, real_nominal, credit, cash),
+  or a frame like the scores (the region axis, per group). The caller computes it with `alpha.factor_sigma` or
+  `alpha.relative_sigma`. *Cowork's reading of "calls the existing pieces" (addendum item 1): it keeps the rule pure. If the
+  worker finds a reason it cannot be an argument, stop and say so.*
+- **Alpha at `t`** (`0059` A, `0060`), from `frame = exposures.at(t)` (any object with `.at(date)` returning
+  `ExposureMap.at`'s frame and, for the region axis, `.axis("region", date)`):
+  - region axis: `alpha.alpha_from_views(frame, "region", views_at_t, scope, region_cells=exposures.axis("region", t))`;
+  - directional with no `group_by` on another axis: one view (the scores frame has exactly one column; more is a
+    `ValueError`): `alpha.alpha_from_views(frame, axis, view_at_t, scope)`;
+  - otherwise: `groups = alpha.groups_for(frame, axis, group_by, scope)`, then
+    `alpha.alpha_from_group_views(frame, axis, views_at_t, groups, scope)`. With no `group_by`, cross-sectional groups are
+    instruments keyed by ticker (`0060` addendum), so the scores' columns are tickers.
+  - The alpha is reindexed to the holdable ids at `t` exactly as `audit.ladder._OptimiserRule.__call__` does (`cov.ids`,
+    then `fillna(0.0)`): an instrument with no exposure row gets 0.0. Its holdability is not changed here (`0059` C;
+    `NoExposureRow` already refuses a weight on one downstream).
+- **Rebalance** (addendum item 2): `Phase2Rule` subclasses `portfolio.rebalance.RebalanceStep` the way `_OptimiserRule`
+  does: universe, cost model, params, solver and the rebalance settings are constructor arguments; `__call__(date, panel,
+  drifted=None)` builds the alpha above and returns `self.step(date, alpha, drifted)`. `RebalanceStep` is not edited.
+- **Rule 4's reach** (`0057` rule 4, "checked where the matrix is read"; task 73 supplied `check_reach`): when `scope` is set,
+  the constructor takes `presence` (dates by instruments, boolean) and calls `alpha.check_reach(expression, presence,
+  mask)`, the mask from `alpha.scope_mask` on the `exposures.at` frame of `presence`'s first date; `scope` set and `presence`
+  missing is a `ValueError`. *Cowork's reading: the record says where, not how. Flag it in the receipt.*
+- **Holdout** (CLAUDE.md hard rule): the constructor refuses a scores frame, a `sigma` or a `presence` with any date on or
+  after HOLDOUT_START, through `loaders.holdout`'s existing check (read it; use its function, do not re-implement the date),
+  and `__call__` refuses such a date. No bypass.
+- **Not ruled, so not applied:** OWNER-QUEUE L41 (task 73's refusal stays) and L42 (`USD_real` grouping): the rule uses
+  `groups_for` as it is.
+
+**Step 0.** `results/audit/_nightly/RUNNING` absent or the wrapper's own. `git status --short` shows only `?? AGENTS.md` (the
+owner's file; leave it) and possibly ` M HANDOFF.md` (Cowork's; step 7's commit takes it). The top of `## Done` is task 73's
+done receipt (`7df680f`). `git log -1 -- decisions/0059-the-phase-2-solver.md` is Cowork's commit of the 2026-11-05 addendum.
+Anything else dirty, no such receipt, or no committed addendum: stop.
+
+**Step 1. Read before writing:** `portfolio/rebalance.py` (whole), `audit/ladder.py` `_OptimiserRule` and `build_universe`,
+`portfolio/views.py`, `portfolio/alpha.py`, `loaders/holdout.py`, `tests/test_rebalance_step.py` (its `small_universe`
+fixture is the model for the tests' universe), `tests/test_long_only.py` (the solver-agreement tolerance it uses).
+
+**Step 2. The rule** (`portfolio/phase2.py`). `class Phase2Rule(RebalanceStep)` under the rules above. Constructor:
+`(universe, costs, params, solver, *, scores, sigma, exposures, axis, expression, horizon, group_by=None, scope=None,
+presence=None, **rebalance_settings)`, `rebalance_settings` being `RebalanceStep`'s keyword arguments, passed through. Keep
+the views frame as `self.views` for inspection. The docstring cites `0059` C and the 2026-11-05 addendum. `portfolio` must
+still not import `audit` (`test_the_portfolio_package_does_not_import_the_audit` stays green).
+
+**Step 3. Tests** (`tests/test_phase2_rule.py`; the universe as `test_rebalance_step.py`'s `small_universe` builds it, a
+stub `exposures` with hand-built frames over the universe's holdable ids; mark `slow` what the suite's convention would; one
+test per check, named for it):
+- **F1:** on the same rule problems, `solver="cvxpy"` and `solver="reference"` give weights equal at `test_long_only.py`'s
+  tolerance, on at least one directional and one cross-sectional date.
+- **F2:** all-zero scores give exactly the book `RebalanceStep.step(date, zero alpha)` gives (the minimum-TE book).
+- **F3:** on a fixed date after the burn-in, a positive directional duration score raises the book's active duration
+  (`sum (w - b) * axis_duration`) against zero scores; a cross-sectional +1/-1 on two regions raises the first region's
+  instruments' weight and lowers the second's.
+- **F4:** a region view reaches only `region_view` instruments; a scoped view reaches only matching instruments; an
+  instrument without the label gets zero alpha (checked on the alpha the rule hands to `step`).
+- **F6:** a scores frame, `sigma` or `presence` with a date on or after 2020-01-01 is refused at construction; `__call__` on
+  such a date is refused.
+- Also: `both` refused; a directional no-`group_by` rule with two score columns refused; a scoped cross-sectional rule whose
+  reach is 1 raises citing `0057` rule 4, and the same rule as `directional` does not; the burn-in gives zero alpha; a scope
+  without `presence` refused.
+
+**Step 4. The gate.** `ruff format` and `ruff check` via `uv run --python 3.12 --group dev ruff ...` (a bare `ruff` is
+denied) on the two Python files. Then `scripts/unattended.sh check-scoped`, rc 0; no existing test or golden may move. Report
+rc, tier, runtime, log directory, slow files left out, pass count.
+
+**Step 5. Commit** (the two Python files only): `portfolio: the phase-2 rule, fed a scores frame (HANDOFF task 82,
+decisions/0059 C, F and its 2026-11-05 addendum)`.
+
+**Step 6.** Nothing: no push, no OWNER-QUEUE edit.
+
+**Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.** It says which checks of `decisions/0059` F are now covered
+(expected: F1 to F4 and F6) and which wait for task 83 (F5, F7), and lists every choice the worker made that the text above
+does not settle.
+
+**Stop and report, without committing,** if any existing test or golden moves; if step 0 does not hold; if `RebalanceStep`,
+`experiment.py` or any existing test would need an edit; if a spec point needs a choice the records above do not make (name
+it, do not choose); or if a command is denied (do not work around it).
+
+Expected: under $3 on Sonnet (a guess from tasks 70 to 73), under an hour with the check. Opus is not needed.
 
 ### 73. Solver step 5: `scope` and `group_by` in the hypothesis validator, the groups a cross-section is formed over, and `0057` rule 4's reach (`decisions/0057`, `0060` and its 2026-11-03 addendum, SUBSTRATE v0.13 §6 and §7)
 
