@@ -21,6 +21,14 @@ pure): a Series over the scores' dates, or a frame like the scores, computed by 
 Holdout: a scores frame, a `sigma` or a `presence` with a date on or after HOLDOUT_START is
 refused at construction, and `__call__` refuses such a date. The check is
 `loaders.holdout.enforce_holdout`; there is no bypass.
+
+Lookahead rows and the books (decisions/0059 D and E and the 2026-11-07 addendum, HANDOFF task
+83): at every `__call__` the rule records what it consumed, returned by `parameter_usage()` in
+`characteristics.exposures.USAGE_COLUMNS` for the caller to concatenate with the exposure map's
+own `loadings` rows: `covariance`, `sigma_<axis>` and `zscore_<hypothesis_id>`. The rows show the
+rule read nothing past `t` from its own inputs; they cannot check how the caller built `sigma`.
+It also keeps, by date, the books the reports of `portfolio.reports` need (`self.books`); nothing
+is written to disk, and `reports(factor_cov)` returns the frames.
 """
 
 from __future__ import annotations
@@ -30,7 +38,7 @@ from typing import Any
 
 import pandas as pd
 
-from signal_lab.characteristics.exposures import _AXIS_OF
+from signal_lab.characteristics.exposures import _AXIS_OF, USAGE_COLUMNS
 from signal_lab.loaders.holdout import enforce_holdout
 from signal_lab.params import Params
 from signal_lab.portfolio import alpha as alpha_mod
@@ -73,6 +81,7 @@ class Phase2Rule(RebalanceStep):
         group_by: tuple[str, ...] | list[str] | str | None = None,
         scope: dict[str, list[str]] | None = None,
         presence: pd.DataFrame | None = None,
+        hypothesis_id: str | None = None,
         **rebalance_settings: Any,
     ):
         if expression == "both":
@@ -103,6 +112,9 @@ class Phase2Rule(RebalanceStep):
             enforce_holdout(presence.index, params, "phase-2 presence")
 
         self.exposures = exposures
+        self.hypothesis_id = hypothesis_id
+        self.scores = scores
+        self.sigma = sigma
         self.axis = axis
         self.expression = expression
         self.group_by = group_by
@@ -124,6 +136,13 @@ class Phase2Rule(RebalanceStep):
             self.reach = alpha_mod.check_reach(expression, presence, mask)
 
         super().__init__(universe, costs, params, solver, **rebalance_settings)
+        self._usage: list[dict[str, Any]] = []
+        self.books: dict[pd.Timestamp, dict[str, Any]] = {}
+        # True when the universe exposes its weekly panel, so the covariance's `fitted_through`
+        # is the last period it read; False when the date itself stands in for it.
+        self.covariance_fitted_from_panel = isinstance(
+            getattr(self.u, "weekly", None), pd.DataFrame
+        )
 
     def alpha_at(self, date: pd.Timestamp) -> pd.Series:
         """The alpha over the exposure frame's instruments at `date` (not yet on the holdable ids)."""
@@ -151,4 +170,69 @@ class Phase2Rule(RebalanceStep):
         cov = self.u.covariance(date, self.vol_halflife, self.vol_overlay)
         hold = [h for h in self.u.holdable if h in cov.ids]
         alpha = self.alpha_at(date).reindex(hold).fillna(0.0)
-        return self.step(date, alpha, drifted)
+        weights = self.step(date, alpha, drifted)
+        self._record(date, cov, weights)
+        return weights
+
+    # -- what the rule consumed, and the books the reports read ---------------------------
+
+    def _covariance_fitted_through(self, date: pd.Timestamp) -> pd.Timestamp:
+        weekly = getattr(self.u, "weekly", None)
+        if isinstance(weekly, pd.DataFrame):
+            seen = weekly.index[weekly.index <= date]
+            if len(seen):
+                return pd.Timestamp(seen[-1])
+        return date
+
+    def _record(self, date: pd.Timestamp, cov: Any, weights: pd.Series) -> None:
+        def row(parameter: str, instrument: str, through: pd.Timestamp) -> None:
+            self._usage.append(
+                {
+                    "instrument": instrument,
+                    "parameter": parameter,
+                    "store_week": pd.NaT,
+                    "fitted_through": pd.Timestamp(through),
+                    "used_on_date": date,
+                }
+            )
+
+        row("covariance", "", self._covariance_fitted_through(date))
+        sigma_parameter = f"sigma_{self.axis}"
+        # the views at `date` were built from the sigma row at `date`
+        if isinstance(self.sigma, pd.DataFrame):
+            for column in self.sigma.columns:
+                row(sigma_parameter, str(column), date)
+        else:
+            row(sigma_parameter, "", date)
+        score_dates = self.scores.index[self.scores.index <= date]
+        zscore_parameter = (
+            "zscore" if self.hypothesis_id is None else f"zscore_{self.hypothesis_id}"
+        )
+        for column in self.scores.columns:
+            row(zscore_parameter, str(column), score_dates[-1])
+
+        self.books[date] = {
+            "weights": weights,
+            "cov": cov,
+            "leg_weights": self.u.leg_weights,
+            "frame": self.exposures.at(date),
+            "views": self.views.loc[date],
+        }
+
+    def parameter_usage(self) -> pd.DataFrame:
+        """What every `__call__` consumed, in `ExposureMap.usage()`'s columns, without duplicates."""
+        if not self._usage:
+            return pd.DataFrame(columns=list(USAGE_COLUMNS))
+        out = pd.DataFrame(self._usage).drop_duplicates()
+        return out[list(USAGE_COLUMNS)].reset_index(drop=True)
+
+    def reports(self, factor_cov: Any) -> dict[str, Any]:
+        """
+        The reports of decisions/0059 E over the dates the rule solved: `active_exposure` (dates
+        by the factors, axes and region columns), `tracking_variance` (dates by factors plus
+        `residual`) and `transfer`. `factor_cov` is a factors-by-factors frame or a callable
+        from date to one. Nothing is written anywhere.
+        """
+        from signal_lab.portfolio import reports as reports_mod
+
+        return reports_mod.run_reports(self, factor_cov)
