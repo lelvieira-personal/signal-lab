@@ -285,3 +285,14 @@ Section C says the phase-2 rule differs from the audit's only in where its alpha
 4. **The hard checks of section F that need no real signal are tests on synthetic scores** in the build task: F1 to F4 and F6. F5 (`lookahead` on the new parameter kinds) and F7 (the tables of E) need the `parameter_usage` rows and the reports, which are the next chain task (83).
 
 Rejected: (b) waiting to write the rule with the first signal module, so it is first exercised on real input; (c) another shape. Reason given with the recommendation: (a) keeps M5 moving and leaves M7 to plug in.
+
+## Addendum, 2026-11-07: sections D and E are built as functions, before any storage or wiring
+
+**Owner ruling, 2026-11-07** (chat, 13:58 ET: "Go option a on pending decision number 1"), answering the chain stop of the 2026-11-05 afternoon review (Project doc `claude/nightly-review-2026-11-05-afternoon.md`, "Options"), which said D and E sit under "The draft — NOT ruled" and left open who writes the `parameter_usage` rows and where the reports of E live. Recorded by Cowork. Sections D and E are adopted as written, with these points:
+
+1. **Who writes the rows.** `Phase2Rule` records, at every `__call__`, one row per kind it consumed, and returns them from a `parameter_usage()` method in `ExposureMap.usage()`'s columns (`instrument`, `parameter`, `store_week`, `fitted_through`, `used_on_date`): `covariance`, `sigma_<axis>` and `zscore_<hypothesis>` (D). The caller concatenates them with the exposure map's own `loadings` rows. No veto change (D).
+2. **Where the reports live.** Plain functions in `portfolio/` returning frames, fed the books the rule solved; no file, no run-summary section, no results-store column. Their destination in a real run is decided with the first signal module (M7), as the universe and cost model were (2026-11-05 addendum item 2).
+3. **The transfer measure (E, third bullet).** Directional: the correlation across rebalance dates of the book's active exposure on the target axis with the view. Cross-sectional: at each date, the correlation across groups of each group's active exposure with its view, then the mean over dates. *Cowork's definition, written into the task; one function to change if the owner prefers another.*
+4. **F5 and F7 are tests** on synthetic input: F5 runs `veto_lookahead` on an honest rule's rows and on one late row of each new kind; F7 checks that the two tables of E come back with one row per rebalance the rule solved.
+
+Rejected: (b) ruling D and E line by line first; (c) another shape. Built by HANDOFF task 83.

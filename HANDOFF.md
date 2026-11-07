@@ -67,7 +67,9 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 82 @2026-11-05T12:10 by=cowork push=no
+Nightly-release: 83 @2026-11-07T14:30 by=cowork push=no
+
+**As of 2026-11-07 (14:20 ET): task 83 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the 2026-11-05 afternoon review's chain stop ("Go option a on pending decision number 1", chat, 13:58 ET), recorded as the 2026-11-07 addendum to `decisions/0059` (uncommitted in the working tree; task 83's receipt commit takes it with `HANDOFF.md`). Task 82 landed (`1f909a0`, receipt `d072634`). Task 83 is the `parameter_usage` rows of `0059` D, the reports of E as functions, and checks F5 and F7; `build_weight_rule` stays unwired (M7). Only this line, this note, task 83's text and the `0059` addendum changed.
 
 **As of 2026-11-05 (12:08 ET): task 82 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the morning review's chain stop ("go on option (a)", chat, 11:57 ET), recorded as the 2026-11-05 addendum to `decisions/0059`, which Cowork committed with task 82's text before this release (`3a9bb88`). Task 73 landed (`b6c1eaf`, receipt `7df680f`). Task 82 is the phase-2 rule, signal-agnostic, fed a scores frame; `build_weight_rule` stays unwired (M7). `parameter_usage` and the reports (83) are not written. Only this line, this note and task 82's text changed.
 
@@ -3797,6 +3799,103 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 83. Solver step 7: the rule's `parameter_usage` rows, the reports of `0059` E as functions, checks F5 and F7 (`decisions/0059` D, E, F and its 2026-11-07 addendum, option (a))
+
+Added 2026-11-07 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
+`decisions/0064`: no owner-only path, no push, no data read, no verdict changes). The seventh solver build task and the last
+one of M5 before the pilot. Task 82 landed (`1f909a0`, receipt `d072634`). **Not in this task:** wiring `build_weight_rule`,
+writing the rows or the reports to any file or results store, building a factor covariance from data (M7).
+
+**What it is.** Edit `src/signal_lab/portfolio/phase2.py`; add `src/signal_lab/portfolio/reports.py` and
+`tests/test_phase2_reports.py`. Nothing else under `src/` or `tests/` changes: `RebalanceStep`, `vetoes/`,
+`harness/experiment.py`, `characteristics/exposures.py` and every existing test file (including `tests/test_phase2_rule.py`)
+are not edited. Synthetic scores, hand-built exposure frames and hand-built factor covariances only; nothing on or after
+2020-01-01, no vendor data, no store.
+
+**Rules to apply (decided records only).**
+- **The rows (`0059` D; 2026-11-07 addendum item 1).** `Phase2Rule` gains a keyword `hypothesis_id: str | None = None`
+  (default keeps every existing call valid) and a method `parameter_usage() -> pd.DataFrame` in exactly
+  `characteristics.exposures.USAGE_COLUMNS` (import the constant; do not retype it). At each `__call__` it records, for that
+  date:
+  - `covariance`: one row, `instrument` `""`, `store_week` NaT, `used_on_date` the date. `fitted_through`: the last return
+    period the universe's `covariance(date, ...)` read. Read `audit/universe.py` (and `portfolio/covariance.trailing_covariance`,
+    which takes history on or before `as_of`): if the universe object exposes its weekly panel, use its last index on or
+    before the date; if it does not, use the date itself and say so in the receipt. Do not edit the universe.
+  - `sigma_<axis>`: one row per sigma column used (a Series sigma: one row, `instrument` `""`; a frame: one row per column,
+    `instrument` the column), `fitted_through` the date of the sigma row the views at that date were built from.
+  - `zscore_<hypothesis_id>` (`zscore` when `hypothesis_id` is None): one row per score column, `fitted_through` the last
+    score date on or before the date (the expanding `z` at `t` uses scores up to `t`).
+  Duplicates dropped, as `ExposureMap.usage()` does. *Cowork's reading of D, stated so it is not over-read: these rows show
+  the rule read nothing past `t` from its own inputs; they cannot check how the caller built `sigma`. Flag it in the receipt.*
+- **The books the reports need.** At each `__call__` the rule also keeps, by date: the weights `step` returned, the
+  covariance object `step` used (`matrix` and `legs`), the universe's `leg_weights`, the exposure frame `exposures.at(date)`
+  and the view row. Keep them on the instance (a dict); write nothing to disk.
+- **The reports (`0059` E; addendum items 2 and 3)**, plain functions in `portfolio/reports.py`, each returning a pandas
+  object, none reading a file:
+  - `benchmark_holdings(cov, leg_weights) -> Series` over the holdables: the sum over legs of the leg's weight times
+    `cov.legs[leg]["weights"]` (`embed_benchmark_legs`' tracking portfolio; `0059` E first bullet).
+  - `active_exposure(weights, bench, frame, factors) -> Series`: `sum_i (w_i - b_i) * X_i` over the six factor columns,
+    the four `AXIS_COLUMNS` and the `REGION_COLUMNS` of `characteristics.exposures` (import them); an instrument with no row
+    in `frame` contributes nothing, and the receipt says how many such instruments carried weight.
+  - `tracking_variance_shares(weights, cov, leg_weights, active_factors, factor_cov) -> Series`: total active variance
+    `a' Sigma a` from `cov.matrix` (`a` = the weights on the holdables, minus `leg_weights` on the legs); each factor's Euler
+    share `x_k (F x)_k / total`; and `residual` = 1 minus their sum. Refuse a zero total with a `ValueError`.
+  - `transfer(active_axis, views, expression) -> float`: directional, the Pearson correlation across dates of the active
+    target-axis exposure with the view; cross-sectional, at each date the correlation across groups of each group's active
+    exposure (the axis exposure summed over the group's instruments) with its view, then the mean over dates. Fewer than
+    three points: `nan`.
+  - `Phase2Rule.reports(factor_cov)` (`factor_cov` a factors-by-factors frame, or a callable from date to one) returns a
+    dict with `active_exposure` (dates by the columns above), `tracking_variance` (dates by factors plus `residual`) and
+    `transfer`. `portfolio` must still not import `audit`.
+- **Not ruled, so not applied:** OWNER-QUEUE L41 and L42 (as in task 82); `decisions/proposed/0068`.
+
+**Step 0.** `results/audit/_nightly/RUNNING` absent or the wrapper's own. `git status --short` shows only `?? AGENTS.md` (the
+owner's; leave it), ` M HANDOFF.md` and ` M decisions/0059-the-phase-2-solver.md` (Cowork's; step 7's commit takes both). The
+top of `## Done` is task 82's receipt (`d072634`). `decisions/0059-the-phase-2-solver.md` contains the heading
+`## Addendum, 2026-11-07`. Anything else dirty, or either missing: stop.
+
+**Step 1. Read before writing:** `portfolio/phase2.py`, `portfolio/rebalance.py`, `portfolio/covariance.py`
+(`ShrunkCovariance`, `embed_benchmark_legs`, `trailing_covariance`), `audit/universe.py` (what `covariance` reads),
+`characteristics/exposures.py` (`USAGE_COLUMNS`, `usage()`, the column constants), `vetoes/rules.py` `veto_lookahead`,
+`harness/run_context.py` (how a `RunContext` is built for a veto test), `tests/test_phase2_rule.py` (its fixtures are the
+model), and the existing lookahead veto tests.
+
+**Step 2. The rows and the kept books** in `phase2.py`, under the rules above. The docstring cites `0059` D and E and the
+2026-11-07 addendum.
+
+**Step 3. The reports** in `portfolio/reports.py`, under the rules above; the module docstring cites `0059` E and the
+2026-11-07 addendum and says the destination in a real run is M7's.
+
+**Step 4. Tests** (`tests/test_phase2_reports.py`; fixtures as `test_phase2_rule.py` builds them; one test per check, named
+for it; mark `slow` what the suite's convention would):
+- **F5:** a rule run over several rebalance dates, its `parameter_usage()` concatenated with a loadings frame in the same
+  columns, put in a `RunContext` with an empty `observation_usage` (columns `knowledge_date`, `used_on_date`):
+  `veto_lookahead` passes. Then, once per kind (`covariance`, `sigma_<axis>`, `zscore_<id>`), one row's `fitted_through`
+  moved a week past its `used_on_date`: the veto fails. Also: the three kinds are all present; the row names use
+  `hypothesis_id`.
+- **F7:** after N rebalances, `reports(factor_cov)` gives `active_exposure` and `tracking_variance` with exactly the N
+  solved dates; each `tracking_variance` row sums to 1 (factors plus residual) at 1e-9.
+- Also: `benchmark_holdings` of a one-leg universe equals that leg's tracking weights; a book equal to
+  `benchmark_holdings` has zero active exposure on every column; a hand-computed two-factor, three-instrument case gives
+  the Euler shares exactly; `transfer` is 1 for an active exposure proportional to the view and `nan` below three points;
+  `parameter_usage()` before any call is an empty frame in `USAGE_COLUMNS`.
+
+**Step 5. The gate.** `ruff format` and `ruff check` via `uv run --python 3.12 --group dev ruff ...` (a bare `ruff` is
+denied) on the three Python files. Then `scripts/unattended.sh check-scoped`, rc 0; no existing test or golden may move.
+Report rc, tier, runtime, log directory, slow files left out, pass count.
+
+**Step 6. Commit** (the three Python files only): `portfolio: parameter_usage rows and the reports of 0059 E (HANDOFF task
+83, decisions/0059 D, E, F and its 2026-11-07 addendum)`.
+
+**Step 7. Receipt**, committed with `decisions/0059-the-phase-2-solver.md` (`HANDOFF.md` and that file only). **No push.**
+It says which checks of `decisions/0059` F are now covered (expected: all seven, F5 and F7 here), what `fitted_through` the
+covariance rows use and why, how many weighted instruments had no exposure row in the tests, and every choice the worker
+made that the text above does not settle.
+
+**Stop and report, without committing,** if any existing test or golden moves; if step 0 does not hold; if `RebalanceStep`,
+the universe, `exposures.py`, `vetoes/` or any existing test would need an edit; if a spec point needs a choice the records
+above do not make (name it, do not choose); or if a command is denied (do not work around it).
+
 ### 82. Solver step 6: the phase-2 rule, `portfolio/phase2.py`, signal-agnostic, fed a scores frame; the hard checks of `0059` F that need no real signal (`decisions/0059` C and F and its 2026-11-05 addendum, option (a))
 
 Added 2026-11-05 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
@@ -6387,6 +6486,18 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-07 -- task 83: done, rc 0, commit `0492aec`, no push (Claude Code, sonnet, nightly 2026-11-07T14:30)
+
+- **Step 0 held:** `RUNNING` is the wrapper's own; `git status --short` showed ` M HANDOFF.md`, ` M decisions/0059-the-phase-2-solver.md` and `?? AGENTS.md` only; top of `## Done` was task 82's receipt; `decisions/0059` has `## Addendum, 2026-11-07`.
+- **Built:** `Phase2Rule` gains `hypothesis_id`, `parameter_usage()`, `books` (by date: `weights`, `cov`, `leg_weights`, `frame`, `views`) and `reports(factor_cov)`; new `portfolio/reports.py` (`benchmark_holdings`, `active_exposure`, `tracking_variance_shares`, `transfer`, plus helpers `unrowed_with_weight`, `run_reports`); `tests/test_phase2_reports.py` (16 tests). `RebalanceStep`, the universe, `exposures.py`, `vetoes/`, `harness/experiment.py` and every existing test are untouched. `portfolio` still does not import `audit`.
+- **Gate:** `ruff format` and `ruff check` clean on the three files; `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 216 s, log `results/audit/_unattended/20261107-140523-check-scoped/`; 1047 passed, 64 deselected in the main run (24 passed in the second); slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_scripts`. No existing test or golden moved.
+- **`decisions/0059` F covered now:** all seven. F1 to F4 and F6 by task 82; **F5** (honest rule rows plus loadings rows pass `veto_lookahead`; one row a week late of each kind, `covariance`, `sigma_duration`, `zscore_<id>`, fails it) and **F7** (N=4 rebalances give exactly the 4 solved dates in `active_exposure` and `tracking_variance`; each variance row sums to 1 at 1e-9) here.
+- **`fitted_through` of the covariance rows:** the last index of `universe.weekly` on or before the date (the audit universe exposes its weekly panel; `trailing_covariance` reads history on or before `as_of`); the date itself if the universe has no `weekly` (flag `covariance_fitted_from_panel`). **Cowork's reading of D flagged:** these rows show the rule read nothing past `t` from its own inputs; they cannot check how the caller built `sigma`.
+- **Weighted instruments with no exposure row in the tests:** 0 with the report stub (every holdable has a row). A test also drops the last two rows and checks `unrowed_with_weight` equals the count of those two carrying active weight (the number is computed in the test, not printed).
+- **Deviation from the text (check it):** the text says F5 uses an *empty* `observation_usage`; `veto_lookahead` fails closed on an empty one (`ctx.require` treats it as absent), so the test hands it one honest observation row (known before it was used), as `tests/test_exposures.py` does. The veto is untouched; only the parameter rows are under test.
+- **Choices the text does not settle (check them):** (1) `sigma_<axis>` rows use `fitted_through` = the date itself (the views at `t` use the sigma row at `t`). (2) `zscore` rows: `instrument` is the score column, `fitted_through` the last score date on or before the date. (3) `parameter_usage` rows carry `store_week` NaT. (4) `active_exposure` takes the factor names from `factor_cov`'s columns; a missing cell counts as 0. (5) Directional transfer uses the unmasked total active exposure on the axis column (no scope mask); cross-sectional uses each group's sum (groups from `groups_for`, region cells from `exposures.axis("region", t)`). (6) **A directional rule with several views (`group_by` or region axis) gets `transfer = nan`:** the record defines directional transfer for one view only; no definition was chosen. (7) Cross-sectional transfer skips dates with fewer than three groups or a constant series; no such date left gives `nan`. (8) `tracking_variance_shares` refuses a total that is not strictly positive. (9) The test file imports the fixtures of `test_phase2_rule` by name (as `test_japan_report` does) under a file-level `# ruff: noqa: F811`. (10) `reports.py` also exports `unrowed_with_weight`, the counter the receipt asked about.
+- **Release line:** left as Cowork set it. No push; no OWNER-QUEUE edit.
 
 ### 2026-11-05 -- task 82: done, rc 0, commit `1f909a0`, no push (Claude Code, sonnet, nightly 2026-11-05T12:10)
 
