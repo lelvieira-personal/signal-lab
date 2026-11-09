@@ -69,6 +69,8 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 Nightly-release: 83 @2026-11-07T14:30 by=cowork push=no
 
+**As of 2026-11-09 (08:45 ET): task 85 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's "agree", chat, 08:33 ET, on task 83's receipt choices (5) and (6)). Recorded as the 2026-11-09 addendum to `decisions/0059`, committed with task 85's text before this release. Task 85 masks the transfer measure to the view's own instruments and averages several directional views. The 0068 loader and measured-duration tasks are not written yet.
+
 **As of 2026-11-09 (08:10 ET): task 84 WRITTEN AND DONE by Cowork through `signal-lab-exec` (`decisions/0065`), `push=yes` at the owner's instruction ("release the push", chat, 07:59 ET).** Records: the owner's 2026-11-09 ruling on `decisions/proposed/0068` A (`mid`) and B (option (i)). The release line is unchanged (83's stamp has run; the nightly worker does not take 84).
 
 **As of 2026-11-07 (14:20 ET): task 83 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the 2026-11-05 afternoon review's chain stop ("Go option a on pending decision number 1", chat, 13:58 ET), recorded as the 2026-11-07 addendum to `decisions/0059` (uncommitted in the working tree; task 83's receipt commit takes it with `HANDOFF.md`). Task 82 landed (`1f909a0`, receipt `d072634`). Task 83 is the `parameter_usage` rows of `0059` D, the reports of E as functions, and checks F5 and F7; `build_weight_rule` stays unwired (M7). Only this line, this note, task 83's text and the `0059` addendum changed.
@@ -3801,6 +3803,63 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 85. Solver step 8: the transfer measure reads the view's own instruments; several directional views are averaged (`decisions/0059` 2026-11-09 addendum)
+
+Added 2026-11-09 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
+`decisions/0064`: no owner-only path, no push, no data read, no verdict changes; the owner asked for it in chat, 08:33 ET).
+Task 83 landed (`0492aec`, receipt `add55ca`, pushed with task 84). A small follow-up to task 83's receipt choices (5) and (6).
+
+**What it is.** Edit `src/signal_lab/portfolio/reports.py` (and `phase2.py` only if `run_reports` needs the rule's scope from
+it, which it already exposes as `rule.scope`); extend `tests/test_phase2_reports.py`. Nothing else under `src/` or `tests/`
+changes: `alpha.py`, `exposures.py`, `RebalanceStep`, `vetoes/` and every other test file are not edited. Synthetic input only.
+
+**Rules to apply (`decisions/0059`, 2026-11-09 addendum).**
+- **Item 1, the scope.** In `_target_active`: directional with no `group_by`, multiply the axis cells by
+  `alpha.scope_mask(frame, rule.scope)` (reindexed to the active weights, missing as 0) before summing; with `group_by`, the
+  group sums from `groups_for(frame, axis, group_by, scope)` (as the cross-sectional branch already does); region axis, the
+  region cells times the scope mask. The `active_exposure` table is not changed (whole book).
+- **Item 2, several directional views.** Replace the `nan` branch in `run_reports`: for a directional rule whose views have
+  more than one column, compute per view the directional `transfer` of that view's active exposure (a Series by date, from
+  the per-group or per-region `_target_active`) with that view's column; `out["transfer"]` is the mean of the non-`nan`
+  ones (`nan` if none). Add `out["transfer_by_view"]`: a Series indexed by the view columns, for every directional run (one
+  element with one view). A cross-sectional run does not get the key (its `transfer` is already a mean over dates).
+- Update the module docstring's `transfer` bullet to cite the 2026-11-09 addendum.
+
+**Step 0.** `results/audit/_nightly/RUNNING` absent or the wrapper's own. `git status --short` shows only `?? AGENTS.md` (the
+owner's; leave it) and ` M HANDOFF.md` (Cowork's release line; step 5's commit takes it). The top of `## Done` is task 84's
+receipt. `decisions/0059-the-phase-2-solver.md` contains the heading `## Addendum, 2026-11-09`. Anything else: stop.
+
+**Step 1. Read before writing:** `portfolio/reports.py`, `portfolio/phase2.py` (`views`, `group_by`, `scope`, `alpha_at`),
+`portfolio/alpha.py` (`scope_mask`, `groups_for`, `_region_alpha`), `tests/test_phase2_reports.py` and its fixtures.
+
+**Step 2. The change** in `reports.py`, under the rules above.
+
+**Step 3. Tests** in `tests/test_phase2_reports.py` (one per check, named for it):
+- a directional one-view rule with a scope: an out-of-scope instrument's active weight changes nothing in the transfer
+  inputs (hand-built: move weight onto it and the per-date active axis exposure stays the same), while `active_exposure`
+  does change;
+- a directional `group_by` rule over three groups: `transfer_by_view` has the three group keys; built so one group's active
+  exposure is proportional to its view, one is minus its view and one is constant, the per-view values are 1, -1 and `nan`
+  and `transfer` is 0 (the mean of 1 and -1);
+- a directional region-axis rule: `transfer_by_view` is indexed by the view regions and an out-of-scope instrument counts in
+  no region;
+- a one-view directional run gives `transfer_by_view` of length one equal to `transfer`; a cross-sectional run has no
+  `transfer_by_view` key.
+Existing tests: if one fails only because of item 1 or item 2 (a value that was `nan` and is now a number, or a value that
+moved because the scope now masks), stop and report it with the test name; do not edit it.
+
+**Step 4. The gate.** `ruff format` and `ruff check` via `uv run --python 3.12 --group dev ruff ...` on the edited Python
+files. Then `scripts/unattended.sh check-scoped`, rc 0. Report rc, tier, runtime, log directory, slow files left out, pass
+count.
+
+**Step 5. Commit** the Python files: `portfolio: the transfer measure reads the view's own instruments, several directional
+views averaged (HANDOFF task 85, decisions/0059 and its 2026-11-09 addendum)`. Then the **receipt**, committed with
+`HANDOFF.md` alone. **No push.** The receipt lists every choice the text above does not settle.
+
+**Stop and report, without committing,** if step 0 does not hold; if an existing test or golden moves; if a file outside the
+two named would need an edit; if a spec point needs a choice the records do not make (name it, do not choose); or if a
+command is denied (do not work around it).
+
 ### 84. Records of 2026-11-09 and the push (Cowork, through `signal-lab-exec`)
 
 Added 2026-11-09 by Cowork and done by Cowork in the same session (`decisions/0065`), `push=yes` at the owner's instruction ("release the push", chat, 07:59 ET). Lane 1 records plus a push; no `src/`, `scripts/`, `tests/` or owner-only path.
@@ -6496,6 +6555,12 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-09 -- task 84: done (Cowork, through `signal-lab-exec`; `push=yes`)
+
+- **Gate:** `scripts/unattended.sh check` rc 0 before the commit (240 s, job `20261109-080106-288895-unattended-check`) and after it (280 s, job `20261109-080651-723156-unattended-check`).
+- **Commit:** `5e5ac4a` (`decisions/proposed/0068` ruling of 2026-11-09 on A and B; task 84 and its note). `AGENTS.md` left untracked.
+- **Push:** `git push origin main`, fast-forward `a1ad310..5e5ac4a` (11 commits), rc 0. This receipt is uncommitted; the next records commit takes it.
 
 ### 2026-11-07 -- task 83: done, rc 0, commit `0492aec`, no push (Claude Code, sonnet, nightly 2026-11-07T14:30)
 

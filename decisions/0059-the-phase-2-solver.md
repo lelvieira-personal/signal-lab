@@ -296,3 +296,13 @@ Rejected: (b) waiting to write the rule with the first signal module, so it is f
 4. **F5 and F7 are tests** on synthetic input: F5 runs `veto_lookahead` on an honest rule's rows and on one late row of each new kind; F7 checks that the two tables of E come back with one row per rebalance the rule solved.
 
 Rejected: (b) ruling D and E line by line first; (c) another shape. Built by HANDOFF task 83.
+
+## Addendum, 2026-11-09: the transfer measure reads the view's own instruments; several directional views are averaged
+
+**Owner ruling, 2026-11-09** (chat, 07:59 ET on task 83's receipt choice (5): "only scope, agree"; 08:33 ET on Cowork's suggestion for choice (6): "agree"). Recorded by Cowork. It amends item 3 of the 2026-11-07 addendum; nothing else in D, E or F moves.
+
+1. **The active exposure in the transfer measure is taken over the instruments the view can reach**, not the whole book (task 83 choice (5)). Directional with one view: `sum_i (w_i - b_i) m_i x_i`, `m_i` the scope mask (`portfolio.alpha.scope_mask`), the same mask the alpha uses. With `group_by`: each group's sum over its members as `groups_for` gives them (already inside the scope). Region axis: the region cells multiplied by the scope mask, so an out-of-scope instrument counts in no region (Cowork's reading of "only scope" for the region axis, flagged: `_region_alpha` applies that mask, so the measure reads what the view could move). The `active_exposure` table of E is unchanged: it stays the whole book.
+2. **A directional rule with several views** (`group_by`, or the region axis) gets, for each view, the Pearson correlation across rebalance dates of that view's active exposure (item 1) with that view; `transfer` is the equal-weight mean over the views that have at least `MIN_POINTS` (3) usable dates, `nan` if none. The per-view correlations are reported too. With one view this is the 2026-11-07 definition, scope-masked.
+3. **Rejected:** (b) one correlation pooled over every (date, view) pair, because the views' structurally different average exposures (each curve's typical active duration) move it without saying whether the book followed the views; demeaning each view first makes it a weighted form of item 2 and harder to read. (c) Weighting the views by their share of tracking variance, because that weights by how the solver spent risk, the thing the measure diagnoses. *Cowork's caveat, accepted:* each per-view correlation is noisy at h = 13 with few rebalances; that holds for one view too, and is why the per-view numbers are kept.
+
+Built by HANDOFF task 85.
