@@ -67,7 +67,7 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 ## Queue
 
-Nightly-release: 83 @2026-11-07T14:30 by=cowork push=no
+Nightly-release: 85 @2026-11-09T08:50 by=cowork push=no
 
 **As of 2026-11-09 (08:45 ET): task 85 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's "agree", chat, 08:33 ET, on task 83's receipt choices (5) and (6)). Recorded as the 2026-11-09 addendum to `decisions/0059`, committed with task 85's text before this release. Task 85 masks the transfer measure to the view's own instruments and averages several directional views. The 0068 loader and measured-duration tasks are not written yet.
 
@@ -6555,6 +6555,15 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-09 -- task 85: done, rc 0, commit `af5291e`, no push (Claude Code, sonnet, nightly 2026-11-09T08:50)
+
+- **Step 0 held:** `RUNNING` present (the wrapper's own); `git status --short` showed ` M HANDOFF.md` and `?? AGENTS.md` only; top of `## Done` was task 84's receipt; `decisions/0059` has `## Addendum, 2026-11-09`.
+- **Built:** `portfolio/reports.py`: `_target_active` multiplies by `alpha.scope_mask(frame, rule.scope)` (directional no `group_by`; region cells times the mask; `group_by` sums come from `groups_for`, as before). `run_reports` computes, for every directional run, a `transfer` per view column, `out["transfer_by_view"]` (Series by view column) and `out["transfer"]` as the mean of the non-`nan` ones (`nan` if none). A cross-sectional run gets no `transfer_by_view` key. The `nan` branch is gone. Docstring cites the 2026-11-09 addendum. `phase2.py`, `alpha.py`, `exposures.py`, `RebalanceStep`, `vetoes/` and every existing test are untouched; `active_exposure` unchanged (whole book).
+- **Tests:** four new in `tests/test_phase2_reports.py` (scope ignores out-of-scope weight while `active_exposure` moves; `group_by` per-view values 1, -1, `nan`, transfer 0; region rule indexed by view regions with the out-of-scope instrument in no region; one view gives length one equal to `transfer`, cross-section has no key). Hand-built books, no data.
+- **Gate:** `ruff format` and `ruff check` clean; `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 167 s, log `results/audit/_unattended/20261109-084838-check-scoped/`; 1051 passed in the main run (24 in the second); slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_scripts`. No existing test or golden moved.
+- **Choices the text does not settle (check them):** (1) The region scope mask is applied for both expressions (the text lists it under the region axis without limiting it to directional); the existing cross-sectional region test has no scope, so nothing moved. (2) A directional `group_by` rule with one group gets one `transfer_by_view` element. (3) A view column absent from the active table gives `nan` for that view. (4) The scope mask is computed for every axis, including a rule with no scope (all ones). (5) The new tests use hand-built fake rules (`SimpleNamespace`) calling `run_reports` and `_target_active` directly, not a solved `Phase2Rule`, so each target is exact. (6) The test shell: my first call to append and format in one compound command was denied; I appended with Edit and ran `ruff` as separate calls.
+- **Release line:** left as Cowork set it. No push; no OWNER-QUEUE edit.
 
 ### 2026-11-09 -- task 84: done (Cowork, through `signal-lab-exec`; `push=yes`)
 
