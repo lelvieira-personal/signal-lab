@@ -69,6 +69,8 @@ until then the 12:30 and 23:00 slots are the only starts.
 
 Nightly-release: 83 @2026-11-07T14:30 by=cowork push=no
 
+**As of 2026-11-09 (08:10 ET): task 84 WRITTEN AND DONE by Cowork through `signal-lab-exec` (`decisions/0065`), `push=yes` at the owner's instruction ("release the push", chat, 07:59 ET).** Records: the owner's 2026-11-09 ruling on `decisions/proposed/0068` A (`mid`) and B (option (i)). The release line is unchanged (83's stamp has run; the nightly worker does not take 84).
+
 **As of 2026-11-07 (14:20 ET): task 83 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the 2026-11-05 afternoon review's chain stop ("Go option a on pending decision number 1", chat, 13:58 ET), recorded as the 2026-11-07 addendum to `decisions/0059` (uncommitted in the working tree; task 83's receipt commit takes it with `HANDOFF.md`). Task 82 landed (`1f909a0`, receipt `d072634`). Task 83 is the `parameter_usage` rows of `0059` D, the reports of E as functions, and checks F5 and F7; `build_weight_rule` stays unwired (M7). Only this line, this note, task 83's text and the `0059` addendum changed.
 
 **As of 2026-11-05 (12:08 ET): task 82 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet.** The owner ruled option (a) on the morning review's chain stop ("go on option (a)", chat, 11:57 ET), recorded as the 2026-11-05 addendum to `decisions/0059`, which Cowork committed with task 82's text before this release (`3a9bb88`). Task 73 landed (`b6c1eaf`, receipt `7df680f`). Task 82 is the phase-2 rule, signal-agnostic, fed a scores frame; `build_weight_rule` stays unwired (M7). `parameter_usage` and the reports (83) are not written. Only this line, this note and task 82's text changed.
@@ -3798,6 +3800,14 @@ report rc and the first line of output. This is the one unknown the push tool ha
 **Step 7. Receipt**, committed alone (`HANDOFF.md`). **No push.**
 
 Expected: 25 to 35 minutes, interactive.
+
+### 84. Records of 2026-11-09 and the push (Cowork, through `signal-lab-exec`)
+
+Added 2026-11-09 by Cowork and done by Cowork in the same session (`decisions/0065`), `push=yes` at the owner's instruction ("release the push", chat, 07:59 ET). Lane 1 records plus a push; no `src/`, `scripts/`, `tests/` or owner-only path.
+- Records: `decisions/proposed/0068` (Status line and the 2026-11-09 owner ruling on A and B), this task and its note under `## Queue`.
+- Not committed: `AGENTS.md` (untracked, the owner's).
+- Gate: `scripts/unattended.sh check` rc 0 before the commit, and again after it (the push needs a check newer than HEAD).
+- Push: `git push origin main`, fast-forward only, of every commit since `a1ad310` (the 10 already ahead plus this task's commit). If it is rejected or is not a fast-forward, stop and report.
 
 ### 83. Solver step 7: the rule's `parameter_usage` rows, the reports of `0059` E as functions, checks F5 and F7 (`decisions/0059` D, E, F and its 2026-11-07 addendum, option (a))
 

@@ -1,6 +1,6 @@
 # 0068 — Admitting the Euro Treasury and UK Gilt bands and the euro linkers: labels, the aggregates, cost, tier and the rebuild
 
-**Status:** PROPOSED by Cowork, 2026-11-03, at the owner's "i agree with all suggestions" in chat (the suggestion was to draft this record). Not ruled. No change to `params/`, `vetoes/` or `SUBSTRATE.md` is made by this record; the owner-only patch that follows it is described at the end and written only after the rulings. Follows `0053`, `0054`, `0056`, `0057`, `0060`, `0066`; same shape as `0066`.
+**Status:** RULED 2026-11-09 (points 1 to 5 on 2026-11-07, the two reopened points A and B on 2026-11-09; see the owner rulings at the end). PROPOSED by Cowork, 2026-11-03, at the owner's "i agree with all suggestions" in chat (the suggestion was to draft this record). No change to `params/`, `vetoes/` or `SUBSTRATE.md` is made by this record; the owner-only patch that follows it is described at the end and written only after the rulings. Follows `0053`, `0054`, `0056`, `0057`, `0060`, `0066`; same shape as `0066`.
 
 Everything marked **guess** is Cowork's, not a measurement. Cowork has not opened the file (structure only, HANDOFF task 58).
 
@@ -48,3 +48,20 @@ Everything marked **guess** is Cowork's, not a measurement. Cowork has not opene
 2. Point 2: the aggregates (a), (b) or (c); and keep `I12823GB`?
 3. Points 3 and 4: accept `mid` and the derived tier?
 4. Point 5: accept that the linkers wait on the field count if it is zero?
+
+**Owner ruling, 2026-11-07** (chat, 14:03 ET: "Accept with these", on Cowork's suggested answers given in chat at 14:00 ET). Recorded by Cowork.
+
+1. **Point 1, labels:** accepted as written (`EUR_real` for the two linkers). This does not rule OWNER-QUEUE L42; the build's `USD_real`/`EUR_real` mapping for H-2026-0002 stays L42's question.
+2. **Point 2, the aggregates:** option **(b)**. `LEATTREU` and `LSG1TRGU` are reference series: in the store, `investable` False, never held. **`I12823GB`** (Gilt 1-10y): it becomes a reference series too if the loader report shows that the Gilt bands covering 1-10y have a true daily start no later than `I12823GB`'s; otherwise it stays investable, unchanged. Reason (Cowork's, accepted): an aggregate is close to a fixed combination of its own bands, so holding both gives the solver a near-duplicate to trade against its parts. *Cowork's note, from `investable_universe.csv`, not a measurement:* `I12823GB`'s `first_daily` is 2006-01-03 and the Gilt bands' ASKB start is 1999-01-29 (`0060`), so the condition will probably demote it.
+3. **Point 3, cost:** `mid` for the twelve nominal rows. **The linkers' bucket is reopened** (below).
+4. **Point 4, tier:** blank, derived by the loader from each true daily start.
+5. **Point 5, linker duration:** accepted as proposed (the linkers' ruling waits on the field count if it is zero), with an addition: the loader report states, per new row, whether the duration axis reads the measured OAD or the estimated loading.
+
+**Reopened by Cowork, 2026-11-07, before any task was written (both are Cowork's errors in the suggestions, found on reading the code and the universe table):**
+- **A. The linkers' cost bucket.** Cowork suggested "the same bucket as `LBUTTRUU`" without checking it. `LBUTTRUU` is `low` (the US TIPS row), so the suggestion would make the euro linkers cheaper to trade than the euro nominal bands (`mid`). Cowork now recommends **`mid`** for the linkers, as for every ex-USD government bond today. Needs the owner's word.
+- **B. Which duration the bands get on the duration axis.** `characteristics/exposures.py` (`MEASURED_DURATION_CLASSES`) takes the measured OAD only for Treasuries, Long Treasuries, IG Corporates and TIPS; every `Ex-USD Bonds` row, today's `LET1TREU` and `I12823GB` included, gets minus its loading on the US 10y real-yield factor. Point 1's statement that the bands "separate on the duration axis through their measured `oad_tsy`" is therefore wrong as the code stands (Cowork's reading of the code, not checked on a run). It matters for H-2026-0003 and H-2026-0010, which form a cross-section by curve: with the estimated cell, a euro band's duration is its beta to US real yields, not its own duration. Options: (i) a lane-2 task adds `Ex-USD Bonds` rows that have an OAD to the measured set, which changes the duration cell of every ex-USD bond already in the store (a change of meaning for those rows, reported by `exposures-check`); (ii) keep the estimated cell and accept that the curve cross-sections rank betas to US real yields. Cowork recommends (i). Needs the owner's word; the loader task can be written before it, the params patch cannot.
+
+**Owner ruling, 2026-11-09** (chat, 07:59 ET: "A) mid is fine, agree; B) (i) it is, agree"). Recorded by Cowork.
+
+- **A. The linkers' cost bucket:** `mid`, as every ex-USD government bond. All fourteen new rows are `mid`.
+- **B. Duration on the duration axis:** option **(i)**. A lane-2 task adds the `Ex-USD Bonds` rows that have an OAD to the measured set (`characteristics/exposures.py`, `MEASURED_DURATION_CLASSES` or its equivalent), so the bands, `LET1TREU` and `I12823GB` read their measured `oad_tsy`. This changes the duration cell of every ex-USD bond already in the store: a change of meaning for those rows, reported by `exposures-check` in that task's receipt. The loader task may be written before or with it; the owner-only params patch (`huber6-v6`, the label-map hash) waits for both.
