@@ -331,3 +331,144 @@ def test_transfer_is_one_for_an_exposure_proportional_to_the_view_and_nan_below_
     assert np.isnan(reports.transfer(groups[["a", "b"]], groups[["a", "b"]], "cross_sectional"))
     with pytest.raises(ValueError):
         reports.transfer(view, view, "both")
+
+
+# --- HANDOFF task 85: the transfer measure reads the view's own instruments ----------
+# (decisions/0059, 2026-11-09 addendum). Hand-built books: the benchmark holdings are zero, so the
+# active weight is the book's weight and each target is set by hand.
+
+N_DATES = 6
+WEEKS = pd.date_range("2018-01-05", periods=N_DATES, freq="W-FRI")
+VIEW_PATH = [0.1, -0.2, 0.3, 0.05, -0.1, 0.2]
+X_DURATION = {"A": 2.0, "B": 3.0, "C": 5.0}
+
+
+def hand_frame(regions, curves):
+    from signal_lab.characteristics.exposures import _AXIS_OF
+
+    ids = list(X_DURATION)
+    frame = pd.DataFrame(0.0, index=ids, columns=reports.report_columns(FACTORS))
+    for column in _AXIS_OF.values():
+        if column not in frame.columns:
+            frame[column] = 0.0
+    frame[_AXIS_OF["duration"]] = [X_DURATION[i] for i in ids]
+    for label in (
+        "market",
+        "rating",
+        "hy_bucket",
+        "curve_currency",
+        "rating_class",
+        "market_label",
+    ):
+        frame[label] = ""
+    frame["region"] = regions
+    frame["curve"] = curves
+    return frame
+
+
+def hand_rule(frame, weights_by_date, views, *, axis="duration", expression="directional",
+              group_by=None, scope=None, cells=None):  # fmt: skip
+    ids = list(frame.index)
+    matrix = pd.DataFrame(np.eye(len(ids) + 1), index=[*ids, "L"], columns=[*ids, "L"])
+    cov = SimpleNamespace(matrix=matrix, legs={"L": {"weights": pd.Series(0.0, index=ids)}})
+    books = {
+        date: {
+            "weights": pd.Series(weights_by_date[k], index=ids, dtype=float),
+            "cov": cov,
+            "leg_weights": pd.Series({"L": 1.0}),
+            "frame": frame,
+            "views": views.loc[date],
+        }
+        for k, date in enumerate(views.index)
+    }
+    exposures = SimpleNamespace(axis=lambda name, date: cells.copy())
+    return SimpleNamespace(
+        books=books, axis=axis, expression=expression, group_by=group_by, scope=scope,
+        exposures=exposures,
+    )  # fmt: skip
+
+
+def test_a_directional_view_with_a_scope_ignores_an_out_of_scope_instruments_weight():
+    frame = hand_frame(["US", "US", "Japan"], ["EUR", "EUR", "UST"])
+    rule = SimpleNamespace(
+        axis="duration", expression="directional", group_by=None, scope={"curve": ["EUR"]}
+    )
+    date = WEEKS[0]
+    before = pd.Series({"A": 0.2, "B": 0.1, "C": 0.0})
+    after = pd.Series({"A": 0.2, "B": 0.1, "C": 0.4})  # weight moved onto the out-of-scope C
+    assert reports._target_active(rule, date, before, frame) == pytest.approx(0.2 * 2.0 + 0.1 * 3.0)
+    assert reports._target_active(rule, date, after, frame) == reports._target_active(
+        rule, date, before, frame
+    )
+    zero = pd.Series(0.0, index=before.index)
+    whole_before = reports.active_exposure(before, zero, frame, FACTORS)
+    whole_after = reports.active_exposure(after, zero, frame, FACTORS)
+    assert not np.allclose(whole_before.to_numpy(), whole_after.to_numpy())  # the table: whole book
+
+
+def test_a_directional_group_by_rule_reports_one_transfer_per_group_and_averages_them():
+    frame = hand_frame(["US", "Japan", "Developed Europe"], ["", "", ""])
+    views = pd.DataFrame(
+        {
+            "US": VIEW_PATH,
+            "Japan": VIEW_PATH[::-1],
+            "Developed Europe": [0.3, 0.1, -0.2, 0.2, 0.0, -0.1],
+        },
+        index=WEEKS,
+    )
+    targets = pd.DataFrame(
+        {"US": 2.0 * views["US"], "Japan": -views["Japan"], "Developed Europe": 0.5}
+    )
+    weights = [
+        [targets.loc[d, "US"] / 2.0, targets.loc[d, "Japan"] / 3.0, 0.5 / 5.0] for d in WEEKS
+    ]
+    rule = hand_rule(frame, weights, views, group_by="region")
+    out = reports.run_reports(rule, FACTOR_COV)
+    by_view = out["transfer_by_view"]
+    assert list(by_view.index) == ["US", "Japan", "Developed Europe"]
+    assert by_view["US"] == pytest.approx(1.0)
+    assert by_view["Japan"] == pytest.approx(-1.0)
+    assert np.isnan(by_view["Developed Europe"])
+    assert out["transfer"] == pytest.approx(0.0)
+
+
+def test_a_directional_region_rule_is_indexed_by_region_and_counts_out_of_scope_in_none():
+    frame = hand_frame(["US", "US", "Japan"], ["EUR", "EUR", "UST"])
+    cells = pd.DataFrame(0.0, index=frame.index, columns=["US", "Japan"])
+    cells.loc[["A", "B"], "US"] = 1.0
+    cells.loc["C", "Japan"] = 1.0
+    views = pd.DataFrame({"US": VIEW_PATH, "Japan": VIEW_PATH[::-1]}, index=WEEKS)
+    weights = [[v, v, 0.3 + 0.1 * k] for k, v in enumerate(VIEW_PATH)]  # C: out of scope, moving
+    rule = hand_rule(frame, weights, views, axis="region", scope={"curve": ["EUR"]}, cells=cells)
+    diff = pd.Series(weights[2], index=frame.index)
+    one_date = reports._target_active(rule, WEEKS[2], diff, frame)
+    assert one_date["Japan"] == 0.0  # C is in no region once the scope has excluded it
+    assert one_date["US"] == pytest.approx(2.0 * VIEW_PATH[2])
+    out = reports.run_reports(rule, FACTOR_COV)
+    assert list(out["transfer_by_view"].index) == ["US", "Japan"]
+    assert out["transfer_by_view"]["US"] == pytest.approx(1.0)
+    assert np.isnan(out["transfer_by_view"]["Japan"])
+    assert out["transfer"] == pytest.approx(1.0)
+
+
+def test_a_one_view_directional_run_has_one_transfer_by_view_and_a_cross_section_has_none():
+    frame = hand_frame(["US", "Japan", "Developed Europe"], ["", "", ""])
+    one = pd.DataFrame({"d": VIEW_PATH}, index=WEEKS)
+    weights = [[0.5 * v / 2.0, 0.1, 0.0] for v in VIEW_PATH]
+    directional = reports.run_reports(hand_rule(frame, weights, one), FACTOR_COV)
+    assert len(directional["transfer_by_view"]) == 1
+    assert directional["transfer_by_view"].iloc[0] == pytest.approx(directional["transfer"])
+    assert directional["transfer"] == pytest.approx(1.0)
+
+    groups = pd.DataFrame(
+        {
+            "US": VIEW_PATH,
+            "Japan": [0.0, 0.1, -0.1, 0.2, 0.05, -0.2],
+            "Developed Europe": [0.2, -0.1, 0.0, 0.1, -0.3, 0.1],
+        },
+        index=WEEKS,
+    )
+    cross = hand_rule(
+        frame, [[0.1, 0.2, 0.3]] * N_DATES, groups, expression="cross_sectional", group_by="region"
+    )
+    assert "transfer_by_view" not in reports.run_reports(cross, FACTOR_COV)

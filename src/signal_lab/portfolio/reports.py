@@ -12,7 +12,10 @@ writes a file. Where the reports go in a real run is decided with the first sign
   residual.
 * `transfer`: the realised active exposure on the target axis against the view. Directional: the
   correlation across dates. Cross-sectional: at each date the correlation across groups, then the
-  mean over dates. This is Cowork's definition (addendum item 3), one function to change.
+  mean over dates. This is Cowork's definition (addendum item 3), one function to change. The
+  exposure is read over the instruments the view can reach (the scope), and a directional rule with
+  several views (`group_by`, the region axis) gets one correlation per view, `transfer_by_view`,
+  and the mean of those defined as `transfer` (decisions/0059, 2026-11-09 addendum).
 
 `portfolio` does not import `audit`.
 """
@@ -167,27 +170,43 @@ def run_reports(rule: Any, factor_cov: Any) -> dict[str, Any]:
     }
     views = pd.DataFrame(view_rows).T
     if rule.expression == "directional":
-        if views.shape[1] != 1:
-            # several views under a directional expression: no transfer is defined for it
-            out["transfer"] = float("nan")
+        # one transfer per view (2026-11-09 addendum item 2), the exposure read over the view's own
+        # instruments; the rule's transfer is the mean of those that are defined
+        if isinstance(next(iter(axis_rows.values())), pd.Series):
+            active = pd.DataFrame(axis_rows).T
         else:
-            out["transfer"] = transfer(
-                pd.Series(axis_rows, dtype=float), views.iloc[:, 0], "directional"
-            )
+            active = pd.DataFrame({views.columns[0]: pd.Series(axis_rows, dtype=float)})
+        per_view = pd.Series(
+            {
+                column: transfer(active[column], views[column], "directional")
+                if column in active.columns
+                else float("nan")
+                for column in views.columns
+            },
+            dtype=float,
+        )
+        out["transfer_by_view"] = per_view
+        defined = per_view.dropna()
+        out["transfer"] = float(defined.mean()) if len(defined) else float("nan")
     else:
         out["transfer"] = transfer(pd.DataFrame(axis_rows).T, views, "cross_sectional")
     return out
 
 
 def _target_active(rule: Any, date: pd.Timestamp, diff: pd.Series, frame: pd.DataFrame) -> Any:
-    """The active exposure on the target axis: a float (directional) or a Series by group."""
+    """
+    The active exposure on the target axis, over the instruments the view can reach (the scope;
+    2026-11-09 addendum item 1): a float (directional, one view) or a Series by group or region.
+    """
+    mask = alpha_mod.scope_mask(frame, rule.scope).reindex(diff.index).fillna(0.0)
     if rule.axis == "region":
         cells = rule.exposures.axis("region", date).reindex(diff.index).fillna(0.0)
+        cells = cells.mul(mask, axis=0)
         return pd.Series(diff.to_numpy() @ cells.to_numpy(), index=cells.columns)
     column = _AXIS_OF[rule.axis]
     x = frame[column].reindex(diff.index).astype(float).fillna(0.0)
-    if rule.expression == "directional":
-        return float((diff * x).sum())
+    if rule.expression == "directional" and not rule.group_by:
+        return float((diff * x * mask).sum())
     groups = alpha_mod.groups_for(frame, rule.axis, rule.group_by, rule.scope)
     contribution = (diff * x).reindex(groups.index).fillna(0.0)
     return contribution.groupby(groups).sum()
