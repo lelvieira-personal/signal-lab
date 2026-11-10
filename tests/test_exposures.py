@@ -557,3 +557,37 @@ def test_an_explicit_label_map_is_never_compared_with_the_pin(tmp_path):
     path = write_label_map(tmp_path / "explicit.csv")
     m = ExposureMap.from_params(PinnedParams(digest, path, "0" * 64), tmp_path, label_map=path)
     assert set(m.at(WEEKS[0]).index) == set(LABEL_ROWS)
+
+
+# --- Ex-USD Bonds read a measured duration (HANDOFF task 88, decisions/0068 ruling B) -------
+
+
+def test_an_ex_usd_bond_reads_its_oad_and_one_without_reads_minus_its_loading(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setitem(CLASSES, "XU", "Ex-USD Bonds")
+    monkeypatch.setitem(CLASSES, "XN", "Ex-USD Bonds")
+    real_frames = _frames
+
+    def frames_with_oad(**kw):
+        out = real_frames(**kw)
+        extra = pd.DataFrame(
+            [{"instrument": "XU", "date": WEEKS[0], "oad": 4.5, "oas": np.nan, "kind": "measured"}]
+        )
+        out["measured"] = pd.concat([out["measured"], extra], ignore_index=True)
+        return out
+
+    monkeypatch.setitem(globals(), "_frames", frames_with_oad)
+    digest = _write(tmp_path)
+    ex_usd = "bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM"
+    rows = {**LABEL_ROWS, "XU": f"XU,{ex_usd}", "XN": f"XN,{ex_usd}"}
+    path = write_label_map(tmp_path / "xu.csv", rows)
+    emap = ExposureMap.from_params(FakeParams(directory_hash=digest), tmp_path, label_map=path)
+    frame = emap.at(WEEKS[0])
+    assert frame.loc["XU", "axis_duration"] == 4.5
+    assert frame.loc["XU", "axis_duration_provenance"] == "measured"
+    assert np.isnan(frame.loc["XN", "oad"])
+    assert frame.loc["XN", "axis_duration"] == pytest.approx(-frame.loc["XN", "real_yield"])
+    assert frame.loc["XN", "axis_duration_provenance"] == "estimated"
+    # the usage log carries both instruments' loadings rows
+    assert {"XU", "XN"} <= set(emap.usage()["instrument"])

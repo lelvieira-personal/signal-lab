@@ -9,9 +9,9 @@ six factors and the four axes of each instrument that has a row that week, with 
 
 Axes (decisions/0050 and its addendum of 2026-10-10):
 
-    duration       oad that week for Treasuries, Long Treasuries, IG Corporates and TIPS when it
-                   is not missing (provenance `measured`); minus the real-yield loading otherwise
-                   (`estimated`)
+    duration       oad that week for Treasuries, Long Treasuries, IG Corporates, TIPS and Ex-USD
+                   Bonds (decisions/0068, ruling B, 2026-11-09) when it is not missing (provenance
+                   `measured`); minus the real-yield loading otherwise (`estimated`)
     real_nominal   minus the inflation loading
     credit         minus the credit loading
     cash           1 for the Cash reporting class, 0 otherwise
@@ -44,7 +44,15 @@ from signal_lab.harness.experiment import ExposureMatrixMissing
 from signal_lab.harness.hypotheses import TARGET_AXES
 from signal_lab.params import Params, get_params
 
-MEASURED_DURATION_CLASSES = ("Treasuries", "Long Treasuries", "IG Corporates", "TIPS")
+# decisions/0068 ruling B (2026-11-09): Ex-USD Bonds join the measured set; a row without an OAD
+# stays estimated (the `oad.notna()` test in `_week_frame`).
+MEASURED_DURATION_CLASSES = (
+    "Treasuries",
+    "Long Treasuries",
+    "IG Corporates",
+    "TIPS",
+    "Ex-USD Bonds",
+)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 LABEL_MAP_PATH = REPO_ROOT / "data" / "universe" / "label_map.csv"
 UNBUILT_LABEL_AXES = ("sector", "style")
