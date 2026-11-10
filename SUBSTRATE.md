@@ -1,6 +1,6 @@
 # SUBSTRATE — Signal Lab
 
-Status: v0.13, 2026-11-03. Owner: Leo. This document is the constitution of
+Status: v0.14, 2026-11-10. Owner: Leo. This document is the constitution of
 the lab. Agents read it at the start of every task. Agents never *originate* a
 change to it. Every change begins as an owner decision recorded in
 `decisions/`; an agent may then transcribe the approved wording, cite the
@@ -61,6 +61,13 @@ SUBSTRATE wording approved on 2026-11-03 with the instrument-level rule ruled
 general. Applied by Cowork at the owner's instruction. The v0.12 text is in git
 history.
 
+v0.14 amended §2, transcribing `decisions/0069` (until the search opens, an
+agent may rule a build question that record does not reserve to the owner,
+reviewed by a second agent; the exposure store's id and the label map's pin
+may be transcribed after the full check), decided by the owner on 2026-11-10.
+Applied by Cowork at the owner's instruction. The v0.13 text is in git
+history.
+
 v0.4 applied eleven amendments recorded in `decisions/0100` and approved by the
 owner on 2026-09-10; the act itself is `decisions/0020`. The v0.3 text is in git
 history.
@@ -92,12 +99,20 @@ Agents MAY:
 - Read the development window and everything in `data/` except the holdout.
 - Write to the results store via the harness API.
 - Kill their own runs when a budget or veto fires.
+- Until the search opens (§16), rule a build question that `decisions/0069`
+  item 2 does not reserve to the owner, by a record under `decisions/` that
+  states its basis, reviewed by a second agent (`decisions/0069` items 3
+  and 4).
+- Transcribe the exposure store's id, the label map's pin and the
+  `params_version` that goes with them, citing the record that decided the
+  build, after the full check passes (`decisions/0069` item 6).
 
 Agents MAY NOT:
 - Read, load, or compute anything on dates after `HOLDOUT_START`.
   The loader refuses these dates; do not work around it.
-- **Originate** a change to `SUBSTRATE.md`, `params/*.yaml`, or anything under
-  `vetoes/`. An agent may apply a change to these files only when the owner has
+- **Originate** a change to `SUBSTRATE.md`, to anything under `vetoes/`, or to
+  `params/*.yaml` beyond the pins of `decisions/0069` item 6. An agent may
+  apply a change to these files only when the owner has
   already decided it and the decision is recorded in `decisions/`, and must cite
   that decision in the commit. Transcribing a decision is permitted; making one
   is not.
