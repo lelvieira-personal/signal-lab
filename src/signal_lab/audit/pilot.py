@@ -55,6 +55,7 @@ from signal_lab.characteristics.exposures import VIEW_REGIONS, ExposureMatrixMis
 from signal_lab.harness.engine import constant_exposures, run_walk_forward
 from signal_lab.harness.run_context import RunContext
 from signal_lab.loaders.base import ReturnPanel
+from signal_lab.loaders.holdout import enforce_holdout
 from signal_lab.params import Params
 from signal_lab.portfolio import alpha as alpha_mod
 from signal_lab.portfolio.covariance import ledoit_wolf, volatility_scalar
@@ -64,6 +65,7 @@ PILOT_GRID = "phase2-pilot"
 PILOT_SMOKE_GRID = "phase2-pilot-smoke"
 PILOT_GRIDS = (PILOT_GRID, PILOT_SMOKE_GRID)
 PILOT_DIAG_GRID = "phase2-pilot-diag"  # HANDOFF task 91
+PILOT_HORIZON_GRID = "phase2-pilot-horizon"  # HANDOFF task 92
 DIAG_SEED = 0
 DIAG_IC = 0.35
 DIAG_MULTIPLIERS = (1.0, 2.0, 4.0, 8.0)
@@ -121,6 +123,14 @@ class PilotCell:
     # cost model and the decisions/0040 shadow term both off. Neither is a G cell.
     zero_scores: bool = False
     frictionless: bool = False
+    # HANDOFF task 92's arms (evidence for decisions/proposed/0070), all off by default:
+    # (A) the half-spread the *solve* sees divided by `horizon` (the engine still charges the
+    # full half-spread); (B) the shadow coefficient the solve sees divided by `horizon` too;
+    # (C) the first book is the no-view book, so the first trade toward the view is a costed
+    # rebalance like any other.
+    amortise: bool = False
+    amortise_shadow: bool = False
+    start_noview: bool = False
 
     def __post_init__(self) -> None:
         if self.expression not in AXIS_OF_EXPRESSION:
@@ -139,7 +149,24 @@ class PilotCell:
             key = f"{key}_noview"
         if self.frictionless:
             key = f"{key}_frictionless"
+        if self.amortise:
+            key = f"{key}_amort"
+        if self.amortise_shadow:
+            key = f"{key}_amortshadow"
+        if self.start_noview:
+            key = f"{key}_fromnoview"
         return f"{key}_baseline" if self.baseline else key
+
+    @property
+    def arm(self) -> str:
+        """HANDOFF task 92's arm label: `default`, `A`, `B` or `C`."""
+        if self.amortise and self.amortise_shadow:
+            return "B"
+        if self.amortise:
+            return "A"
+        if self.start_noview:
+            return "C"
+        return "default"
 
 
 def pilot_cells(grid: str = PILOT_GRID) -> list[PilotCell]:
@@ -179,6 +206,106 @@ def diag_cells() -> list[PilotCell]:
         for ic in (DIAG_IC, 0.0):
             cells.append(PilotCell(expression, ic, DIAG_SEED, frictionless=True))
     return cells
+
+
+def horizon_cells() -> list[PilotCell]:
+    """
+    HANDOFF task 92's arms as data, one seed, h = 13, `IC_prior` at the params value, both
+    expressions. First the two task 91 x1 rows at the defaults (IC 0.35, live: the reference
+    that the switches off reproduce task 91, and the "first book today" numbers of (C)); then
+    (A) IC 0 and 0.35, each with its baseline twin; (B) IC 0.35 live; (C) IC 0 and 0.35 live
+    (16 runs).
+    """
+    cells: list[PilotCell] = []
+    for expression in AXIS_OF_EXPRESSION:
+        cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED))
+    for expression in AXIS_OF_EXPRESSION:
+        for ic in (0.0, DIAG_IC):
+            for baseline in (False, True):
+                cells.append(PilotCell(expression, ic, DIAG_SEED, baseline=baseline, amortise=True))
+        cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED, amortise=True, amortise_shadow=True))
+        for ic in (0.0, DIAG_IC):
+            cells.append(PilotCell(expression, ic, DIAG_SEED, start_noview=True))
+    return cells
+
+
+class AmortisedCosts:
+    """
+    HANDOFF task 92 (A): the cost model the *solve* sees, its half-spread divided by
+    `divisor` (the view's horizon). Everything else is the wrapped model's. The engine is
+    handed the wrapped model itself, so the net return charges every trade its full cost.
+    """
+
+    def __init__(self, costs: Any, divisor: float):
+        if not divisor > 0:
+            raise ValueError(f"divisor must be positive, got {divisor}")
+        self._costs = costs
+        self.divisor = float(divisor)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._costs, name)
+
+    def half_spread(self, instrument: str) -> float:
+        return float(self._costs.half_spread(instrument)) / self.divisor
+
+    def half_spread_vector(self, instruments) -> pd.Series:
+        return self._costs.half_spread_vector(instruments) / self.divisor
+
+
+class FromNoViewRule(Phase2Rule):
+    """
+    HANDOFF task 92 (C): the phase-2 rule whose first book is the no-view book (task 91 (a):
+    every alpha 0, so the rebalance step returns the minimum-TE book, built from nothing as
+    every first book is). Every later call is `Phase2Rule`'s, so the first trade toward the
+    view is solved against the half-spread and the shadow term from the drifted no-view book,
+    and the engine charges it, like any other rebalance.
+    """
+
+    def __call__(self, date: pd.Timestamp, _panel: Any = None, drifted: pd.Series | None = None):
+        if drifted is not None or self.books:
+            return super().__call__(date, _panel, drifted)
+        date = pd.Timestamp(date)
+        enforce_holdout([date], self.params, "phase-2 rule date")
+        cov = self.u.covariance(date, self.vol_halflife, self.vol_overlay)
+        hold = [h for h in self.u.holdable if h in cov.ids]
+        weights = self.step(date, pd.Series(0.0, index=hold), None)
+        self._record(date, cov, weights)
+        return weights
+
+
+def first_book_report(rule: Phase2Rule, path: Any) -> dict[str, float]:
+    """
+    HANDOFF task 92 (C): how the first book enters the run. The first book is built from an
+    empty book with no cost and no shadow (`RebalanceStep.step`, `first`) and the engine
+    records no turnover row for it (`run_walk_forward` holds it from the first date), so its
+    traded notional is reported here beside the recorded turnover after it; and the
+    correlation of the first book's active weights with the last book's.
+    """
+    dates = sorted(rule.books)
+    first, last = rule.books[dates[0]], rule.books[dates[-1]]
+
+    def active(book: dict[str, Any]) -> pd.Series:
+        w = book["weights"].astype(float)
+        legs = book["leg_weights"].astype(float)
+        ids = sorted(set(w.index) | set(legs.index))
+        return w.reindex(ids).fillna(0.0) - legs.reindex(ids).fillna(0.0)
+
+    a_first, a_last = active(first), active(last)
+    ids = sorted(set(a_first.index) | set(a_last.index))
+    x = a_first.reindex(ids).fillna(0.0).to_numpy()
+    y = a_last.reindex(ids).fillna(0.0).to_numpy()
+    corr = float(np.corrcoef(x, y)[0, 1]) if x.std() > 0 and y.std() > 0 else float("nan")
+    ppy = int(round(rule.ppy))
+    turnover = path.turnover.astype(float)
+    return {
+        "first_book_traded_notional": float(first["weights"].astype(float).abs().sum()),
+        "first_recorded_rebalance_turnover": float(turnover.iloc[0]),
+        "turnover_first_year": float(turnover.iloc[:ppy].sum()),
+        "turnover_after_first_year_annual": float(turnover.iloc[ppy:].mean() * ppy)
+        if len(turnover) > ppy
+        else float("nan"),
+        "first_last_active_weight_corr": corr,
+    }
 
 
 def with_ic_prior(params: Params, value: float) -> Params:
@@ -431,10 +558,15 @@ def run_pilot_cell(
         # this diagnostic model is set after it, and `half_spread` reads the attribute
         costs.spread_multiplier = 0.0
         shadow_coeff = 0.0
+    # HANDOFF task 92: what the solve sees; the engine below is always handed `costs` itself
+    solve_costs: Any = AmortisedCosts(costs, cell.horizon) if cell.amortise else costs
+    if cell.amortise_shadow:
+        shadow_coeff = shadow_coeff / cell.horizon
+    rule_class = FromNoViewRule if cell.start_noview else Phase2Rule
     clear_usage(inputs.exposures)
-    rule = Phase2Rule(
+    rule = rule_class(
         RowedUniverse(universe, inputs.rowed),
-        costs,
+        solve_costs,
         run_params,
         solver,
         scores=scores,
@@ -496,6 +628,9 @@ def run_pilot_cell(
         "gross_ir": gross_ir(path, rule.ppy),
         "zero_scores": cell.zero_scores,
         "frictionless": cell.frictionless,
+        "amortise": cell.amortise,
+        "amortise_shadow": cell.amortise_shadow,
+        "start_noview": cell.start_noview,
         "transfer": float(reports["transfer"]),
         "equity_tracking_variance_share": float(tv["equity"].mean())
         if "equity" in tv.columns
@@ -537,6 +672,7 @@ def run_pilot_cell(
     if keep is not None:
         keep["reports"] = reports
         keep["costs"] = costs
+        keep["solve_costs"] = solve_costs
     return row, rule, path
 
 
@@ -633,6 +769,8 @@ def with_excess(table: pd.DataFrame) -> pd.DataFrame:
     """`net_ir_excess`: each row's net IR less its baseline twin's (same expression, IC, seed,
     prior multiplier); a baseline row's excess is NaN, as is a live row with no twin."""
     keys = ["expression", "ic", "seed", "ic_prior_multiplier"]
+    # HANDOFF task 92: a twin is the same arm's (a column absent from older tables is skipped)
+    keys += [c for c in ("amortise", "amortise_shadow", "start_noview") if c in table.columns]
     base = table[table["baseline"].astype(bool)].set_index(keys)["net_ir"]
     live = ~table["baseline"].astype(bool)
     index = pd.MultiIndex.from_frame(table[keys])

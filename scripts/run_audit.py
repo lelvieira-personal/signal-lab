@@ -879,7 +879,7 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
     estimation_start = str(manifest.get("estimation_start", "dev_start"))
     _, _, ff, _, _ = RM.load_inputs(params, factor_set, estimation_start)
     inputs = pilot.build_inputs(universe, exposures, ff.frame, params)
-    if args.grid == pilot.PILOT_DIAG_GRID:
+    if args.grid in (pilot.PILOT_DIAG_GRID, pilot.PILOT_HORIZON_GRID):
         meta = {
             "snapshot_id": universe.panel.snapshot_id,
             "panel_hash": universe.panel_hash(),
@@ -887,6 +887,8 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
             "estimation_start": estimation_start,
             "prep_seconds": round(time.time() - started, 1),
         }
+        if args.grid == pilot.PILOT_HORIZON_GRID:
+            return _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, veto_lookahead)
         return _run_pilot_diag(args, params, run_id, out_root, inputs, meta, veto_lookahead)
     cells = pilot.pilot_cells(args.grid)
     prep_seconds = time.time() - started
@@ -1189,6 +1191,142 @@ def _run_pilot_diag(args, params, run_id, out_root, inputs, meta, lookahead_veto
     return 0
 
 
+HORIZON_REPORT_COLUMNS = [
+    "key",
+    "arm",
+    "expression",
+    "ic",
+    "baseline",
+    "net_ir",
+    "gross_ir",
+    "baseline_net_ir",
+    "net_ir_excess",
+    "transfer",
+    "turnover_annual",
+    "te_ex_ante_mean",
+    "te_realised",
+    "cost_drag_bp_annual",
+    "bias_stat",
+    "inaccurate_share",
+    "infeasible_te_share",
+    "lookahead_passed",
+    "seconds",
+]
+FIRST_BOOK_COLUMNS = [
+    "key",
+    "arm",
+    "first_book_traded_notional",
+    "first_recorded_rebalance_turnover",
+    "turnover_first_year",
+    "turnover_after_first_year_annual",
+    "first_last_active_weight_corr",
+]
+
+
+def _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, lookahead_veto) -> int:
+    """
+    `--grid phase2-pilot-horizon` (HANDOFF task 92): the evidence for decisions/proposed/0070.
+    Sixteen runs through `run_pilot_cell` (`pilot.horizon_cells`): the two task 91 x1 rows at
+    the defaults, then the arms (A) amortised half-spread, (B) and the shadow term too, (C) the
+    first book is the no-view book. Derived numbers only; nothing is judged.
+    """
+    import json
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+
+    from signal_lab.audit import pilot
+
+    started = time.time()
+    cells = pilot.horizon_cells()
+    out = Path(out_root) / run_id
+    out.mkdir(parents=True, exist_ok=True)
+    rows, failure = [], None
+    for i, cell in enumerate(cells, start=1):
+        try:
+            row, rule, path = pilot.run_pilot_cell(
+                inputs, cell, params, lookahead_veto=lookahead_veto, solver=args.solver
+            )
+        except Exception as exc:  # report which run and stop
+            failure = f"{cell.key()}: {type(exc).__name__}: {exc}"
+            print(f"phase-2 horizon STOPPED at run {i}/{len(cells)}: {failure}", file=sys.stderr)
+            break
+        row["arm"] = cell.arm
+        row["te_realised"] = float(path.active_returns.std() * np.sqrt(rule.ppy))
+        row["cost_drag_bp_annual"] = float(path.total_cost_drag()) / 1e-4
+        row.update(pilot.first_book_report(rule, path))
+        rows.append(row)
+        if not args.quiet:
+            print(
+                f"  [{i:>2}/{len(cells)}] {cell.key():<48} net IR {row['net_ir']:+.3f}  "
+                f"turnover {row['turnover_annual']:.0%}  transfer {row['transfer']:+.2f}  "
+                f"TE {row['te_ex_ante_mean']:.2%}  {row['seconds']:.0f}s",
+                flush=True,
+            )
+    table = pd.DataFrame(rows)
+    if failure is not None:
+        table.to_csv(out / "cells.csv", index=False)
+        (out / "failure.txt").write_text(failure + "\n", encoding="utf-8")
+        return 3
+    table = pilot.with_excess(table)
+    table.to_csv(out / "cells.csv", index=False)
+    runs = table[HORIZON_REPORT_COLUMNS]
+    first = table[(table["arm"].isin(["default", "C"])) & ~table["baseline"].astype(bool)]
+    first = first[FIRST_BOOK_COLUMNS]
+
+    def recs(frame):
+        return json.loads(frame.to_json(orient="records", default_handler=str))
+
+    summary = {
+        "run_id": run_id,
+        "kind": "phase2-pilot-horizon",
+        "grid": pilot.PILOT_HORIZON_GRID,
+        "source": args.source,
+        **meta,
+        "params_version": params.params_version,
+        "params_hash": params.params_hash,
+        "store_id": params.get("data.characteristics.store_id"),
+        "thread_setting": THREADS,
+        "generated_at": pd_now(),
+        "n_runs": len(table),
+        "seconds": round(time.time() - started + meta["prep_seconds"], 1),
+        "seconds_per_run_mean": float(table["seconds"].mean()),
+        "lookahead_passed": int(table["lookahead_passed"].sum()),
+        "inputs": inputs.notes,
+        "runs": recs(runs),
+        "first_book": recs(first),
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    lines = [
+        f"# Phase-2 pilot: the trading cost's horizon {run_id} (HANDOFF task 92)",
+        "",
+        "Seed 0, h = 13, `IC_prior` at the params value, through `run_pilot_cell`. Arms: "
+        "`default` (task 91's x1 rows), `A` (half-spread / 13 in the solve, full in the engine), "
+        "`B` (A and the shadow coefficient / 13 in the solve), `C` (the first book is the "
+        "no-view book; costs as in the params). Derived numbers only. **Nothing judged:** "
+        "`IC_prior`, costs and the objective are the owner's (decisions/0069 item 2).",
+        "",
+        f"- snapshot `{meta['snapshot_id']}`, params `{params.params_version}`, store "
+        f"`{summary['store_id']}`; {len(table)} runs, {summary['seconds']:.0f} s; lookahead "
+        f"passed on {summary['lookahead_passed']}",
+        "",
+        "## Every run",
+        "",
+        _md_table(runs),
+        "",
+        "## The first book (default and C, live)",
+        "",
+        _md_table(first),
+        "",
+    ]
+    (out / "report.md").write_text("\n".join(lines), encoding="utf-8")
+    if not args.quiet:
+        print("\n".join(lines))
+        print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
+    return 0
+
+
 def _write_cell_artifacts(artifacts_root, run_id: str, cell, path, params=None) -> int:
     """
     Weights, alpha and the rebalance-date index for one cell, as parquet
@@ -1234,10 +1372,10 @@ def main(argv=None) -> int:
         power_cells,
         run_cell,
     )
-    from signal_lab.audit.pilot import PILOT_DIAG_GRID, PILOT_GRIDS
+    from signal_lab.audit.pilot import PILOT_DIAG_GRID, PILOT_GRIDS, PILOT_HORIZON_GRID
     from signal_lab.audit.report import run_id_now, write_outputs
 
-    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID)
+    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID, PILOT_HORIZON_GRID)
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
 

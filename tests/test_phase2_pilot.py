@@ -366,3 +366,168 @@ def test_the_arithmetic_table_is_derived_from_the_alpha_and_the_costs(diag_runs)
         table.loc[date, "shadow_marginal_bp"]
     )
     assert float(table.loc[date, "round_trip_bp"]) == pytest.approx(rt)
+
+
+# --- HANDOFF task 92: the trading cost's horizon (evidence for decisions/proposed/0070) -----
+
+
+def test_the_horizon_grid_is_task_92_as_data():
+    cells = pilot.horizon_cells()
+    assert len(cells) == 16
+    assert len({c.key() for c in cells}) == 16
+    assert {c.seed for c in cells} == {pilot.DIAG_SEED}
+    assert {c.horizon for c in cells} == {13}
+    assert {c.prior_multiplier for c in cells} == {1.0}
+    for expression in pilot.AXIS_OF_EXPRESSION:
+        mine = [c for c in cells if c.expression == expression]
+        default = [c for c in mine if c.arm == "default"]
+        assert [(c.ic, c.baseline) for c in default] == [(pilot.DIAG_IC, False)]
+        arm_a = sorted((c.ic, c.baseline) for c in mine if c.arm == "A")
+        assert arm_a == [(0.0, False), (0.0, True), (0.35, False), (0.35, True)]
+        assert [(c.ic, c.baseline) for c in mine if c.arm == "B"] == [(pilot.DIAG_IC, False)]
+        arm_c = sorted((c.ic, c.baseline) for c in mine if c.arm == "C")
+        assert arm_c == [(0.0, False), (0.35, False)]
+    # every switch is off by default
+    plain = pilot.PilotCell("directional", 0.35, 0)
+    assert not (plain.amortise or plain.amortise_shadow or plain.start_noview)
+    assert plain.arm == "default" and plain.key() == "duration-dir_ic0.35_h13_s0"
+
+
+class _FlatCosts:
+    """A stand-in cost model: 10bp everywhere, and one attribute the wrapper must pass on."""
+
+    spread_multiplier = 1.0
+
+    def half_spread(self, instrument):
+        return 10e-4
+
+    def half_spread_vector(self, instruments):
+        return pd.Series({i: 10e-4 for i in instruments}, dtype="float64")
+
+
+def test_the_amortised_cost_model_divides_only_the_half_spread():
+    base = _FlatCosts()
+    amortised = pilot.AmortisedCosts(base, 13)
+    np.testing.assert_allclose(amortised.half_spread_vector(["A", "B"]).to_numpy(), 10e-4 / 13)
+    assert amortised.half_spread("A") == pytest.approx(10e-4 / 13)
+    assert amortised.spread_multiplier == 1.0  # everything else is the wrapped model's
+    assert base.half_spread_vector(["A"]).iloc[0] == 10e-4  # the wrapped model is untouched
+    with pytest.raises(ValueError):
+        pilot.AmortisedCosts(base, 0)
+
+
+@pytest.fixture(scope="module")
+def horizon_runs(pilot_inputs):
+    inputs, params, _ = pilot_inputs
+    import signal_lab.audit.pilot as pilot_module
+
+    out = {}
+    arms = {
+        "default": pilot.PilotCell(
+            "cross_sectional", 0.35, 0, amortise=False, amortise_shadow=False, start_noview=False
+        ),
+        "A": pilot.PilotCell("cross_sectional", 0.35, 0, amortise=True),
+        "B": pilot.PilotCell("cross_sectional", 0.35, 0, amortise=True, amortise_shadow=True),
+        "C": pilot.PilotCell("cross_sectional", 0.35, 0, start_noview=True),
+    }
+    real = pilot_module.run_walk_forward
+    for name, cell in arms.items():
+        seen = {}
+
+        def capture(*args, _seen=seen, **kwargs):
+            _seen["cost_model"] = kwargs["cost_model"]
+            return real(*args, **kwargs)
+
+        pilot_module.run_walk_forward = capture
+        try:
+            keep = {}
+            row, rule, path = pilot.run_pilot_cell(
+                inputs, cell, params, lookahead_veto=veto_lookahead, solver="scipy", keep=keep
+            )
+        finally:
+            pilot_module.run_walk_forward = real
+        out[name] = (row, rule, path, keep, seen["cost_model"])
+    return out, params
+
+
+@pytest.mark.slow
+def test_the_solve_sees_the_amortised_cost_and_the_engine_the_full_one(horizon_runs):
+    runs, _ = horizon_runs
+    row, rule, _, keep, engine_costs = runs["A"]
+    hold = list(rule.u.holdable)
+    full = keep["costs"].half_spread_vector(hold)
+    assert float(full.max()) > 0.0
+    assert isinstance(rule.costs, pilot.AmortisedCosts)
+    np.testing.assert_allclose(rule.costs.half_spread_vector(hold).to_numpy(), full / 13)
+    assert engine_costs is keep["costs"]
+    assert not isinstance(engine_costs, pilot.AmortisedCosts)
+    assert row["amortise"] and not row["amortise_shadow"] and row["status"] == "ok"
+    # the shadow term is the params' in (A)
+    assert rule.shadow_coeff == runs["default"][1].shadow_coeff
+    # the default arm hands the same model to the solve and to the engine
+    d_rule, d_engine = runs["default"][1], runs["default"][4]
+    assert d_rule.costs is d_engine is runs["default"][3]["costs"]
+
+
+@pytest.mark.slow
+def test_the_shadow_arm_divides_the_coefficient_in_the_solve(horizon_runs):
+    runs, params = horizon_runs
+    row, rule, _, _, engine_costs = runs["B"]
+    coeff = float(params.get("constraints.turnover.penalty.coefficient", 0) or 0)
+    assert coeff > 0
+    assert rule.shadow_coeff == pytest.approx(coeff / 13)
+    assert isinstance(rule.costs, pilot.AmortisedCosts)
+    assert not isinstance(engine_costs, pilot.AmortisedCosts)
+    assert row["amortise_shadow"]
+
+
+@pytest.mark.slow
+def test_the_first_book_arm_starts_from_the_no_view_book(horizon_runs, diag_runs):
+    runs, _ = horizon_runs
+    _, rule_c, path_c, _, _ = runs["C"]
+    _, rule_nv, _, _ = diag_runs[0]["noview"]
+    first = min(rule_c.books)
+    assert first == min(rule_nv.books)
+    pd.testing.assert_series_equal(
+        rule_c.books[first]["weights"], rule_nv.books[first]["weights"], check_names=False
+    )
+    assert float(rule_c._alpha_rows[first].abs().max()) == 0.0
+    second = sorted(rule_c._alpha_rows)[1]
+    assert float(rule_c._alpha_rows[second].abs().max()) > 0.0  # the view from the next date
+    report = pilot.first_book_report(rule_c, path_c)
+    assert report["first_book_traded_notional"] == pytest.approx(
+        float(rule_nv.books[first]["weights"].abs().sum())
+    )
+    assert all(np.isfinite(v) for k, v in report.items() if k != "first_last_active_weight_corr")
+
+
+@pytest.mark.slow
+def test_the_defaults_reproduce_the_task_91_row(horizon_runs, diag_runs):
+    runs, _ = horizon_runs
+    row = runs["default"][0]
+    task91 = diag_runs[0]["x1"][0]
+    for field in ("net_ir", "gross_ir", "transfer", "turnover_annual", "te_ex_ante_mean"):
+        np.testing.assert_equal(row[field], task91[field], err_msg=field)  # exact, NaN == NaN
+    assert runs["default"][0]["key"] == task91["key"]
+    pd.testing.assert_frame_equal(runs["default"][2].weights, diag_runs[0]["x1"][2].weights)
+
+
+def test_a_baseline_twin_is_the_same_arms():
+    rows = [
+        {"expression": "d", "ic": 0.35, "seed": 0, "ic_prior_multiplier": 1.0, "baseline": b}
+        | {"amortise": a, "amortise_shadow": False, "start_noview": False, "net_ir": ir}
+        for a, b, ir in [
+            (False, False, 0.1),
+            (False, True, 0.0),
+            (True, False, 0.5),
+            (True, True, 0.2),
+        ]
+    ]
+    rows.append(
+        {"expression": "d", "ic": 0.35, "seed": 0, "ic_prior_multiplier": 1.0, "baseline": False}
+        | {"amortise": True, "amortise_shadow": True, "start_noview": False, "net_ir": 0.7}
+    )
+    table = pilot.with_excess(pd.DataFrame(rows))
+    assert table["net_ir_excess"].iloc[0] == pytest.approx(0.1)
+    assert table["net_ir_excess"].iloc[2] == pytest.approx(0.3)
+    assert np.isnan(table["net_ir_excess"].iloc[4])  # (B) has no twin
