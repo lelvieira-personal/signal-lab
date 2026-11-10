@@ -63,11 +63,29 @@ byte-hash pins); its results are never the definition of done. **The 15-minute
 `poll` slot** (`scripts/nightly/run.sh poll`) takes effect when task 66 lands it;
 until then the 12:30 and 23:00 slots are the only starts.
 
+**Delegation until the search opens (`decisions/0069`, ruled by the owner 2026-11-10).**
+It amends the three paragraphs above. A build question that `0069` item 2 does not
+reserve to the owner is ruled by the agent that meets it, at once, in a record under
+`decisions/` whose paragraph starts `**Delegated ruling, <date>, <agent>**` and states
+its basis; a ruling that touches a number-making path is read by a second agent (a
+fresh session, Opus or stronger) before it stands. Reserved to the owner: SUBSTRATE §1
+to §3, the holdout, the universe and the benchmark, cost and constraint levels, every
+veto and the gate, a hypothesis's signal or direction, new data pulls, the spend caps,
+the pilot's acceptance thresholds, opening the search. Cowork may write up to three
+tasks ahead and release them, from either review slot or a linked session; a task may
+be a whole milestone step; a chain task may say `git push origin main` and be released
+`push=yes by=cowork` after its check passed. "Choices the text does not settle" in a
+receipt are ruled by the review, not listed for the owner. The chain stops only on
+`0069` item 9. A Friday digest lists the week's delegated rulings; the owner strikes
+one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
+
 ---
 
 ## Queue
 
 Nightly-release: 85 @2026-11-09T08:50 by=cowork push=no
+
+**As of 2026-11-10 (08:40 ET): `decisions/0069` RULED by the owner (chat, 08:14 and 08:20 ET): agents decide the build until the search opens; the owner keeps the ruler and the purpose.** Task 86 (the records and the push) WRITTEN AND DONE by Cowork through `signal-lab-exec`, `push=yes by=cowork` (`0069` item 8). Task 87 (SUBSTRATE v0.14, the §2 wording of `0069`) is written, NOT released: `SUBSTRATE.md` is owner-only, so it waits for the owner's "release 87"; Cowork then copies `Claude outputs/substrate-v0.14-draft/SUBSTRATE.md` over `SUBSTRATE.md` and sets the release line. Until 87 lands, `0069` item 6 (the pins) is not in force; everything else in `0069` is. The release line is unchanged (85's stamp has run). Not written yet: the M6 pilot task (`0059` G) and the `0068` loader and measured-duration tasks; they are Cowork's to write under `0069` item 7.
 
 **As of 2026-11-09 (08:45 ET): task 85 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's "agree", chat, 08:33 ET, on task 83's receipt choices (5) and (6)). Recorded as the 2026-11-09 addendum to `decisions/0059`, committed with task 85's text before this release. Task 85 masks the transfer measure to the view's own instruments and averages several directional views. The 0068 loader and measured-duration tasks are not written yet.
 
@@ -3803,6 +3821,35 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 87. SUBSTRATE v0.14: commit the `decisions/0069` wording (§2), then push (same shape as task 81)
+
+Added 2026-11-10 by Cowork. **Written by Cowork, NOT released: it needs the owner's "release 87"** (`SUBSTRATE.md` is owner-only; the owner approved the wording in chat, 2026-11-10 08:20 ET, and reads the diff before the release). `push=yes`, Sonnet. **At the release Cowork applies the owner-only edit to the working tree** by copying `Claude outputs/substrate-v0.14-draft/SUBSTRATE.md` over `SUBSTRATE.md` (CRLF kept); Claude Code never edits `SUBSTRATE.md` itself, it commits what is there. What the edit is (`git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md`: 1 file, 18 insertions, 3 deletions):
+- the Status line: v0.13, 2026-11-03 -> v0.14, 2026-11-10, and a v0.14 paragraph above the v0.4 one;
+- §2, two bullets at the end of "Agents MAY": ruling a build question that `decisions/0069` item 2 does not reserve, and transcribing the store id, the label-map pin and the `params_version` that goes with them (`0069` items 3, 4 and 6);
+- §2, the "MAY NOT" bullet that begins **Originate**: "a change to `SUBSTRATE.md`, to anything under `vetoes/`, or to `params/*.yaml` beyond the pins of `decisions/0069` item 6".
+
+**0. Check.** `results/audit/_nightly/RUNNING` is the wrapper's own or absent. `git status --short` shows ` M SUBSTRATE.md` and at most ` M HANDOFF.md` among tracked files (untracked files may be present; leave them). `git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md` is 1 file, 18 insertions, 3 deletions. `decisions/0069-agents-decide-the-build.md` is tracked and has a line that starts `**Owner ruling, 2026-11-10`. Stop if any differs. Nothing under `params/` or `vetoes/` is modified.
+
+**1. Gate.** `scripts/unattended.sh check-full` rc 0 (an owner-only file is modified, so the whole suite runs).
+
+**2. Commit** `SUBSTRATE.md` alone. Message: `substrate: v0.14 -- decisions/0069 wording in section 2 (HANDOFF task 87, decisions/0069)`. Then `make governance` rc 0 (it must find the citation).
+
+**3. Receipt** under `## Done`, committed with `HANDOFF.md`, then **`git push origin main`**, fast-forward only. `git rev-list --count @{u}..HEAD` before and after (expected after: 0). If the push is rejected or would not be a fast-forward, stop and report.
+
+**Stop conditions:** step 0 differs; a check fails (if a test pins the SUBSTRATE version or the §2 text, report the test's name and stop: do not change it); the commit hook refuses the citation; a command is denied (do not work around it); the push is not a fast-forward.
+
+**Not in this task:** any change to `params/`, `scripts/exec_server/`, `scripts/nightly/` or `CLAUDE.md`; any pin.
+
+Expected: about 15 minutes, under $1 on Sonnet (a guess).
+
+### 86. Records of 2026-11-10 (`decisions/0069`) and the push (Cowork, through `signal-lab-exec`)
+
+Added 2026-11-10 by Cowork and done by Cowork in the same session (`decisions/0065`), `push=yes by=cowork` under `decisions/0069` item 8 (owner, chat, 08:14 ET: "yes" to agents pushing fast-forward after a passing check). Lane 1: records only. No owner-only path.
+- Records: `decisions/0069-agents-decide-the-build.md` (ruled; it was drafted in `decisions/proposed/` and moved untracked, so git sees one new file); `HANDOFF.md` (the delegation paragraph in the contract, the 2026-11-10 note, tasks 86 and 87, and the 2026-11-09 update lines under task 85's receipt that were uncommitted).
+- Gate: `scripts/unattended.sh check` rc 0 before the commit.
+- Push: `git push origin main`, fast-forward only.
+- Not in this task: `SUBSTRATE.md` (task 87); the review scheduled tasks and the Friday digest task (they live in the owner's Claude account, not the repo); `CLAUDE.md` (Cowork never edits it; the owner or an interactive Claude Code session adds the `0069` paragraph).
+
 ### 85. Solver step 8: the transfer measure reads the view's own instruments; several directional views are averaged (`decisions/0059` 2026-11-09 addendum)
 
 Added 2026-11-09 by Cowork. **Written and released by Cowork under decisions/0067** (`push=no`, `by=cowork`, Sonnet; lane 2,
@@ -6564,6 +6611,8 @@ run would have said.
 - **Gate:** `ruff format` and `ruff check` clean; `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 167 s, log `results/audit/_unattended/20261109-084838-check-scoped/`; 1051 passed in the main run (24 in the second); slow files left out: `test_audit`, `test_baseline`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_scripts`. No existing test or golden moved.
 - **Choices the text does not settle (check them):** (1) The region scope mask is applied for both expressions (the text lists it under the region axis without limiting it to directional); the existing cross-sectional region test has no scope, so nothing moved. (2) A directional `group_by` rule with one group gets one `transfer_by_view` element. (3) A view column absent from the active table gives `nan` for that view. (4) The scope mask is computed for every axis, including a rule with no scope (all ones). (5) The new tests use hand-built fake rules (`SimpleNamespace`) calling `run_reports` and `_target_active` directly, not a solved `Phase2Rule`, so each target is exact. (6) The test shell: my first call to append and format in one compound command was denied; I appended with Edit and ran `ruff` as separate calls.
 - **Release line:** left as Cowork set it. No push; no OWNER-QUEUE edit.
+- **Update (Cowork, 2026-11-09 17:00 ET, owner's chat):** the owner agreed to choices (1) to (4). The push of `b555c96`, `af5291e`, `96864ea` is wanted by the owner but not done: the exec server's `push` needs a task that says `git push origin main`, and task 85 is `push=no`. Waiting for the owner to push by hand or to have a push task written.
+- **Update 2 (Cowork, 2026-11-09, owner's chat):** the owner pushed by hand: `repo_state` shows 0 ahead of origin/main at `96864ea`. The owner also deleted the untracked `AGENTS.md`. The push is done; read the line above as superseded on that point.
 
 ### 2026-11-09 -- task 84: done (Cowork, through `signal-lab-exec`; `push=yes`)
 
