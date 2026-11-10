@@ -42,8 +42,28 @@ Planted signals on the development window, *h* = 13 weeks, the params' `IC_prior
 
 Task 92 runs option (b) in the call, without touching `params/`: planted IC 0 and 0.35, both expressions, each with its shuffled baseline, the half-spread divided by 13 in the solve and charged in full by the engine; the same with the shadow term divided too; and the first-book test (start from the no-view book). Its table is added here when it lands. You can rule before or after it.
 
+## The evidence, landed (HANDOFF task 92, `results/audit/A-20261110-185308/`, one seed)
+
+Net IR / `net_ir_excess` over its shuffled baseline / transfer / turnover a year / ex-ante TE. The engine charges the full half-spread in every row.
+
+| Arm | Duration IC 0 | Duration IC 0.35 | Region IC 0 | Region IC 0.35 |
+|---|---|---|---|---|
+| Today (task 91 x1) | +0.04 / -0.01 / 0.02 / 6% / 4% | +0.08 / n/a / 0.07 / 6% / 4.6% | +0.37 / 0.00 / 0.02 / 6% / 4% | +0.35 / n/a / 0.02 / 7% / 3.8% |
+| **(b): half-spread / 13 in the solve** | +0.23 / **-0.14** / 0.35 / 75% / 4.7% | +0.49 / **+0.32** / 0.33 / 74% / 4.5% | +0.55 / **+0.06** / 0.25 / 76% / 5.1% | +0.77 / **+0.39** / 0.22 / 76% / 4.9% |
+| (b) and the shadow / 13 | | +0.51 / n/a / 0.54 / 94% / 5.0% | | +0.89 / n/a / 0.37 / 114% / 5.0% |
+| Today's costs, first book not free | -0.25 / n/a / 0.14 / 0.6% / 1.1% | -0.23 / n/a / 0.16 / 0.6% / 1.1% | -0.08 / n/a / 0.00 / 0% / 1.0% | -0.08 / n/a / 0.03 / 0% / 1.0% |
+
+What it says:
+1. **Option (b) works.** With the half-spread amortised over the view's 13 weeks, the book tells planted IC 0.35 from IC 0 and from its shuffled baseline in both expressions (excess +0.32 and +0.39 against -0.14 and +0.06), at about 75% turnover, inside the 150% the mandate aims at. Amortising the shadow too adds little separation and pushes region turnover to 114%. Cowork's recommendation stands: (b), half-spread only.
+2. **The IC 0 books' positive IR came from a free first book.** Cowork's guess is confirmed. Today `RebalanceStep` builds the first book from cash with costs set to zero and the engine never charges it (`portfolio/rebalance.py` L215-221, `harness/engine.py` L267-270); the book then barely trades away from it (first-to-last active weights correlated 0.87-0.88). Started from the no-view book and charged, every book at today's costs sits at the no-view book's -0.08, IC 0.35 included. So today's objective with an honest start tells nothing apart at all.
+3. **The baselines are high under (b)** (+0.18 to +0.49 net IR at IC 0 and 0.35): a book that trades on noise picks up the sample's beta. That is what bar 2's excess exists to subtract, and it does.
+4. **The ruler audit uses the same per-week unit**, but plants alpha with the planted IC itself (seven times the pilot's at IC 0.35), which is why it traded and this did not.
+
+**A fourth question, raised by the evidence:** the free first book. Every phase-2 run, and the ruler audit, starts from a book bought for nothing. Cowork recommends that a run start from the minimum-TE (no-view) book, charged like any other trade, so a run measures the trading the signal causes and not a portfolio frozen on day one. That changes what every later verdict counts, so it is put to you with `0070` rather than ruled under `0069`. Not yet run together with (b): the task that builds your ruling runs both on the grid of `0059` G.
+
 ## Questions for the owner
 
 1. (a), (b), (c) or (d)?
 2. If (b): the half-spread only (recommended), or the shadow term too?
 3. If (b): each hypothesis's own *h* (recommended), or a floor and a cap on it?
+4. The first book: start every run from the no-view book and charge the trade out of it (recommended), or keep the free first book?
