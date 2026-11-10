@@ -24,17 +24,17 @@
     {
       "expected": 6763,
       "figure": "duration_measured",
-      "got": 7375
+      "got": 11730
     },
     {
       "expected": 65843,
       "figure": "duration_estimated",
-      "got": 71750
+      "got": 67395
     },
     {
       "expected": 1.4274,
       "figure": "mean_axis_duration",
-      "got": 1.4178450886164642
+      "got": 1.5780382362043324
     },
     {
       "expected": 1.2792,
@@ -140,8 +140,8 @@
       }
     }
   ],
-  "duration_estimated": 71750,
-  "duration_measured": 7375,
+  "duration_estimated": 67395,
+  "duration_measured": 11730,
   "duration_missing": 0,
   "first_week": "2001-01-12",
   "friday_fitted_through_equals_used_on_date": true,
@@ -151,7 +151,7 @@
   "instruments_last_week": 84,
   "last_week": "2019-12-27",
   "mean_axis_credit": 0.8907879539915978,
-  "mean_axis_duration": 1.4178450886164642,
+  "mean_axis_duration": 1.5780382362043324,
   "mean_axis_real_nominal": 1.2671008568223194,
   "measured_at_or_below_zero": 0,
   "median_axis_duration_by_class_at_last_week": {
@@ -163,7 +163,7 @@
     "EM Equities": 2.631619374272838,
     "EM Sovereign Bonds": 3.267245368112045,
     "European Equities": -1.2365701968589196,
-    "Ex-USD Bonds": 2.629050848910415,
+    "Ex-USD Bonds": 6.9226725,
     "Gold": 8.287439039552291,
     "HY Corporates": 1.1502621746327322,
     "IG Corporates": 5.2222355,
