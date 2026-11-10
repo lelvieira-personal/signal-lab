@@ -25,6 +25,7 @@
 #   make audit-power10                           span-limited score shuffles, IC 0.70 x seeds 0-9 x 20 perms, h13 (200 cells)
 #   make audit-power                             score-shuffle baselines, IC 0.35/0.70 x seeds 0/1 x 20 perms, h13 (80 cells)
 #   make audit-halflife                          volatility-overlay halflife sweep, h4/13/26 x IC 0.35/0.70 x seeds 0-9 x halflife None/13/26/52 (240 cells, task 35)
+#   make audit-phase2-pilot / -smoke             the phase-2 planted-signal pilot, 140 runs / 8 runs (HANDOFF task 90, decisions/0059 G)
 #   make jpmaqs-pull                             THE OWNER RUNS THIS: set -a; source .env; set +a; make jpmaqs-pull (HANDOFF task 44)
 #   make macro-snapshot                          freeze the newest raw JPMaQS pull as a macro snapshot
 #   make jpmaqs-coverage                         coverage report from the macro snapshot -- dates and counts only
@@ -55,7 +56,7 @@
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
 .DEFAULT_GOAL := check
-.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check japan-report fdr-study impvol-coverage registry-names
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife audit-phase2-pilot audit-phase2-pilot-smoke jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check japan-report fdr-study impvol-coverage registry-names
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -169,6 +170,12 @@ audit-friction: ## shadow-cost 10/20/40 bp, IC 0.35/0.70, seeds 0-9, live cells 
 
 audit-halflife: ## volatility-overlay halflife sweep, h4/13/26, IC 0.35/0.70, seeds 0-9, halflife None/13/26/52 -- 240 cells (HANDOFF task 35)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid halflife
+
+audit-phase2-pilot: ## phase-2 pilot: duration directional and region cross-sectional, IC 0-0.35, seeds 0-4, baselines, IC_prior x0.5/x2 at IC 0.10 -- 140 runs (HANDOFF tasks 90, 91; decisions/0059 G)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot
+
+audit-phase2-pilot-smoke: ## phase-2 pilot smoke: seed 0, IC 0 and 0.35, both expressions, with baselines -- 8 runs (HANDOFF task 90)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-smoke
 
 audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not minutes
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg

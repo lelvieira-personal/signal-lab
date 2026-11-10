@@ -782,6 +782,183 @@ def pd_now() -> str:
     return pd.Timestamp.now("UTC").isoformat(timespec="seconds")
 
 
+def _md_table(frame) -> str:
+    """A plain markdown table (no tabulate dependency); floats to three decimals."""
+
+    def cell(value) -> str:
+        if isinstance(value, float):
+            return f"{value:.3f}"
+        return str(value)
+
+    head = "| " + " | ".join(map(str, frame.columns)) + " |"
+    rule = "|" + "|".join("---" for _ in frame.columns) + "|"
+    body = ["| " + " | ".join(cell(v) for v in row) + " |" for row in frame.itertuples(index=False)]
+    return "\n".join([head, rule, *body])
+
+
+def _pilot_report(summary: dict, table, by_cell) -> str:
+    """report.md for a phase-2 pilot run: the table of decisions/0059 G, no pass or fail."""
+    lines = [
+        f"# Phase-2 pilot {summary['run_id']} ({summary['grid']})",
+        "",
+        "decisions/0059 G and its addendum of 2026-11-10; HANDOFF task 90. Planted at the axis "
+        "level, h = 13, on the development window. **No pass or fail:** the thresholds are the "
+        "owner's (decisions/0069 item 2).",
+        "",
+        f"- source `{summary['source']}`, snapshot `{summary['snapshot_id']}`, panel hash "
+        f"`{summary['panel_hash'][:16]}...`",
+        f"- params `{summary['params_version']}` (`{summary['params_hash'][:16]}...`), store "
+        f"`{summary['store_id']}`, factor set `{summary['factor_set']}` from "
+        f"`{summary['estimation_start']}`",
+        f"- {summary['n_runs']} runs, {summary['seconds']:.0f} s; per run mean "
+        f"{summary['seconds_per_run_mean']:.0f} s, max {summary['seconds_per_run_max']:.0f} s",
+        f"- lookahead veto passed on {summary['lookahead_passed']} of {summary['n_runs']} runs",
+        "",
+        "`excess_positive_share` is the share of seeds whose net IR beats its baseline twin "
+        "(the first half of bar 2; the stepdown is not run here). At IC 0 it reads as the "
+        "false-pass rate of that half.",
+        "",
+        "## By expression, planted IC and IC_prior multiplier (means over seeds)",
+        "",
+        _md_table(by_cell),
+        "",
+        "## Every run",
+        "",
+        _md_table(table[PILOT_REPORT_COLUMNS]),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+PILOT_REPORT_COLUMNS = [
+    "key",
+    "net_ir",
+    "baseline_net_ir",
+    "net_ir_excess",
+    "transfer",
+    "equity_tracking_variance_share",
+    "turnover_annual",
+    "bias_stat",
+    "inaccurate_share",
+    "infeasible_te_share",
+    "realised_ic_by_column",
+    "lookahead_passed",
+    "seconds",
+]
+
+
+def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
+    """
+    `--grid phase2-pilot` / `phase2-pilot-smoke` (HANDOFF task 90, decisions/0059 G and its
+    addendum of 2026-11-10). Bloomberg only: the pilot reads the pinned exposure store, and the
+    factors are rebuilt with the store's own factor set and estimation start.
+    """
+    import csv
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+    import run_measurement as RM
+
+    from signal_lab.audit import pilot
+    from signal_lab.audit.universe import get_universe
+    from signal_lab.characteristics.exposures import ExposureMap
+    from vetoes.rules import veto_lookahead
+
+    if args.source != "bloomberg":
+        print(
+            "the phase-2 pilot runs on --source bloomberg only (it reads the store)",
+            file=sys.stderr,
+        )
+        return 2
+    started = time.time()
+    universe = get_universe("bloomberg", params)
+    exposures = ExposureMap.from_params(params)
+    manifest = exposures.store.manifest
+    factor_set = str(manifest.get("factor_set", "huber6"))
+    estimation_start = str(manifest.get("estimation_start", "dev_start"))
+    _, _, ff, _, _ = RM.load_inputs(params, factor_set, estimation_start)
+    inputs = pilot.build_inputs(universe, exposures, ff.frame, params)
+    cells = pilot.pilot_cells(args.grid)
+    prep_seconds = time.time() - started
+    if not args.quiet:
+        print(
+            f"phase-2 pilot {run_id}: {args.grid}, {len(cells)} runs, {len(universe.holdable)} "
+            f"holdable series, store {params.get('data.characteristics.store_id')}, factors "
+            f"{factor_set} from {estimation_start}; inputs {inputs.notes}; prepared in "
+            f"{prep_seconds:.0f}s",
+            flush=True,
+        )
+
+    out = Path(out_root) / run_id
+    out.mkdir(parents=True, exist_ok=True)
+    rows = []
+    failure = None
+    with open(out / "cells.partial.csv", "w", newline="", encoding="utf-8") as fh:
+        writer = None
+        for i, cell in enumerate(cells, start=1):
+            try:
+                row, _, _ = pilot.run_pilot_cell(
+                    inputs, cell, params, lookahead_veto=veto_lookahead, solver=args.solver
+                )
+            except Exception as exc:  # report which run and stop (HANDOFF task 90 step 4)
+                failure = f"{cell.key()}: {type(exc).__name__}: {exc}"
+                print(f"phase-2 pilot STOPPED at run {i}/{len(cells)}: {failure}", file=sys.stderr)
+                break
+            rows.append(row)
+            if writer is None:
+                writer = csv.DictWriter(fh, fieldnames=list(row.keys()))
+                writer.writeheader()
+            writer.writerow(row)
+            fh.flush()
+            if not args.quiet:
+                print(
+                    f"  [{i:>3}/{len(cells)}] {cell.key():<40} net IR {row['net_ir']:+.3f}  "
+                    f"turnover {row['turnover_annual']:.0%}  transfer {row['transfer']:+.2f}  "
+                    f"lookahead {'ok' if row['lookahead_passed'] else 'FAIL'}  "
+                    f"{row['seconds']:.0f}s",
+                    flush=True,
+                )
+    if not rows:
+        return 3
+    table = pilot.with_excess(pd.DataFrame(rows))
+    by_cell = pilot.summarise(pd.DataFrame(rows))
+    table.to_csv(out / "cells.csv", index=False)
+    summary = {
+        "run_id": run_id,
+        "kind": "phase2-pilot",
+        "grid": args.grid,
+        "source": args.source,
+        "snapshot_id": universe.panel.snapshot_id,
+        "panel_hash": universe.panel_hash(),
+        "params_version": params.params_version,
+        "params_hash": params.params_hash,
+        "store_id": params.get("data.characteristics.store_id"),
+        "factor_set": factor_set,
+        "estimation_start": estimation_start,
+        "thread_setting": THREADS,
+        "generated_at": pd_now(),
+        "n_cells_planned": len(cells),
+        "n_runs": len(table),
+        "complete": failure is None,
+        "failure": failure,
+        "prep_seconds": round(prep_seconds, 1),
+        "seconds": round(time.time() - started, 1),
+        "seconds_per_run_mean": float(table["seconds"].mean()),
+        "seconds_per_run_max": float(table["seconds"].max()),
+        "lookahead_passed": int(table["lookahead_passed"].sum()),
+        "inputs": inputs.notes,
+        "by_cell": by_cell.to_dict(orient="records"),
+        "runs": table.to_dict(orient="records"),
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    (out / "report.md").write_text(_pilot_report(summary, table, by_cell), encoding="utf-8")
+    if not args.quiet:
+        print(by_cell.to_string(index=False))
+        print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
+    return 0 if failure is None else 3
+
+
 def _write_cell_artifacts(artifacts_root, run_id: str, cell, path, params=None) -> int:
     """
     Weights, alpha and the rebalance-date index for one cell, as parquet
@@ -827,6 +1004,7 @@ def main(argv=None) -> int:
         power_cells,
         run_cell,
     )
+    from signal_lab.audit.pilot import PILOT_GRIDS
     from signal_lab.audit.report import run_id_now, write_outputs
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
@@ -841,7 +1019,7 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--grid",
         default=None,
-        choices=list(AUDIT_GRIDS),
+        choices=[*AUDIT_GRIDS, *PILOT_GRIDS],
         help="run only the block-shuffled baseline cells of decisions/0036: "
         "baseline-pilot (h13) or baseline (every horizon); or knee, the live and "
         "baseline cells at the IC rungs between 0.20 and the oracle (h13); or power, "
@@ -865,6 +1043,8 @@ def main(argv=None) -> int:
     run_id = args.run_id or run_id_now()
     out_root = args.out or params.get("audit.output_dir", "results/audit")
     kwargs = {"start": args.start} if (args.source == "synthetic" and args.start) else {}
+    if args.grid in PILOT_GRIDS:
+        return _run_phase2_pilot(args, params, run_id, out_root)
 
     started = time.time()
     universe = get_universe(args.source, params, **kwargs)
