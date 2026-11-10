@@ -83,7 +83,11 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 ## Queue
 
-Nightly-release: 87 @2026-11-10T10:00 by=owner push=yes
+Nightly-release: 87,88 @2026-11-10T11:25 by=cowork push=yes
+
+**As of 2026-11-10 (11:25 ET): the release line corrected by Cowork.** The 10:30 line listed two ids with a space (`87 88`); `scripts/nightly/nightly_gate.py` takes them comma-separated with no space, so four polls (10:32 to 11:17) skipped with "the release line does not parse" and nothing ran for an hour. Cowork's error, clerical; same tasks, new stamp. **Several ids on a release line are written `87,88`.**
+
+**As of 2026-11-10 (10:25 ET): task 87 RE-RELEASED by Cowork with task 88 behind it, `push=yes by=cowork`, Sonnet** (`0062` item 8: a mechanical stop, its cause removed; revision note 1 to task 87 drops the denied `git rev-list` count). Task 90 is done and pushed (`5ea554c`, receipt `b2fb4c1`); its reviewer agreed with the delegated ruling, and Cowork's review accepted its ten build choices (update line under its receipt). Its smoke run shows the views barely moving the book, so **task 91 is written: diagnostics before the grid** (released on Opus after 88's receipt). Task 89 follows 87 and 88. Task 92 (the grid of `0059` G) is written from 91's receipt.
 
 **As of 2026-11-10 (10:00 ET): task 87 RELEASED by the owner ("release 87", chat, 08:46 ET), `push=yes`, Sonnet.** It was held until task 90's run ended (09:16 ET, rc 0, `b2fb4c1`, pushed, tree clean), because no tracked file is edited while `RUNNING` is fresh. Cowork then copied `Claude outputs/substrate-v0.14-draft/SUBSTRATE.md` over `SUBSTRATE.md` (CRLF kept; `git diff --ignore-cr-at-eol --stat`: 1 file, 18 insertions, 3 deletions) and set this line. Task 88 is released after 87's receipt (one model per line); task 89 after 88, since it needs 87 landed.
 
@@ -3825,6 +3829,35 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 91. M6, step 2: why the pilot's views barely move the book (diagnostics before the grid of `0059` G); then push
+
+Added 2026-11-10 by Cowork. **Written by Cowork under decisions/0067 and 0069.** Released after task 88's receipt, `push=yes by=cowork`, **model=opus**. Lane 2: `src/`, `scripts/`, `tests/`. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; every variation below is set in the call or on an in-memory copy of `Params`, as task 90 did for `IC_prior`.** Milestone grain: where the text does not settle a build choice that `0069` item 2 does not reserve, choose, state the basis in the receipt, and go on.
+
+**Why.** Task 90's smoke run (`results/audit/A-20261110-135659/`): in all eight runs turnover is about 6% a year and the transfer measure is +0.02 to +0.07; region cross-sectional net IR is +0.37 at planted IC 0 and +0.35 at IC 0.35, each equal to its baseline; ex-ante TE is 3.8 to 4.5% all the same. So the planted information is not reaching the book, and a zero-information book earns +0.37 in the region runs. Either the harness has a fault, or the views (`IC_prior` 0.05 over sqrt(13)) are too small to clear the costs and the shadow term, and what is being measured is the no-view book. The grid of G costs about three and a half hours (a guess: 140 runs at 87 s) and would not tell these apart. This task does, first.
+
+**0. Check.** No tracked file modified except ` M HANDOFF.md`. Task 88's receipt is in `## Done` (the pilot's duration cells are the ones after it). `make audit-phase2-pilot-smoke` exists.
+
+**1. Diagnostics**, one seed, *h* = 13, both expressions (duration directional, region cross-sectional), each run through the same `run_pilot_cell` path as the smoke grid, as a new grid `--grid phase2-pilot-diag` writing its own run directory under `results/audit/`:
+- **(a) The no-view book.** Scores identically zero (so the rule returns the minimum-TE book of `0059` F2 at every date). Report its net IR, ex-ante and realised TE, turnover, its active exposure on the six factors and by region, and each factor's share of tracking variance. This says what +0.37 is made of.
+- **(b) The size of the view.** Planted IC 0.35 with `IC_prior` at 1, 2, 4 and 8 times the params value. Report net IR, transfer, turnover, TE. Transfer and turnover should rise with the multiplier if the harness carries the view.
+- **(c) No friction.** Planted IC 0.35 and IC 0, `IC_prior` at 1 times, with the cost model and the `0040` shadow term both off (the audit's frictionless path, `include_frictionless` / `run_frictionless`, or the same thing in the pilot runner). Report gross IR, transfer, turnover. With no cost the view should move the book whatever its size.
+- **(d) The arithmetic.** For the IC 0.35 runs at 1 times: the median and the 90th percentile over dates of the largest absolute instrument alpha, annualised, beside the round-trip cost plus shadow charge for the same instruments, in basis points. Derived numbers only; no vendor value.
+- **(e) One date by hand.** On one mid-sample rebalance of the region IC 0.35 run: the scores, `z`, the views, the alpha by instrument, and the weights against the no-view book's weights on that date, checked against `alpha.cross_sectional_views` and `alpha_from_views` computed separately in a test. If they differ, that is the fault: fix it under this task, with a test, and say so first in the receipt.
+
+**2. Read the diagnostics, by this rule and no other.** If (c) shows transfer and turnover clearly above the smoke run's and (b) rises with the multiplier: the harness carries the view, and the smoke result is the size of the view against costs. Say so. If (c) is as flat as the smoke run, or (b) does not rise: a harness fault is likely; find it (start from (e), then the holdable set, the `sigma` units and the overlay) and fix it with a test; if it is not found in this run, stop with what was ruled out. **Do not propose or judge any threshold, and do not change `IC_prior`, a cost or a constraint: those are the owner's (`0069` item 2).** If the reading is "the view is too small at the params' `IC_prior`", the receipt says exactly that, with (b) and (d) as the evidence, and names it as a decision for the owner; Cowork prepares it.
+
+**3. Tests** for anything added (the zero-score path, the frictionless switch, the multiplier arm); no existing test or golden edited.
+
+**4. Gate, commit, receipt, push.** `ruff` clean; `scripts/unattended.sh check-scoped` rc 0; commit citing `HANDOFF task 91, decisions/0059`; receipt with `HANDOFF.md`; `git push origin main` (report the range it prints; do not run `git rev-list`).
+
+**Receipt:** the run directory; a table for each of (a) to (d); (e)'s outcome; the reading under step 2 in one paragraph; any fault found and fixed; build choices with their basis; the check; the push.
+
+**Stop conditions:** step 0 differs; a fault is suspected and not found; a fix would touch `0069` item 2; an existing test or golden moves; the check fails twice on the same cause; a command denied that the task names (say which); the push is rejected.
+
+**Not in this task:** the grid of G (task 92, written by Cowork from this receipt); any threshold; `params/`.
+
+Expected: about 16 runs at 90 s plus the build, 60 to 90 minutes and $5 to $10 on Opus (a guess, from task 90).
+
 ### 90. M6, step 1: the planted-signal pilot's harness (`decisions/0059` G and its 2026-11-10 addendum), reviewed, built, tested, smoke-run; then push
 
 Added 2026-11-10 by Cowork. **Written and released by Cowork under decisions/0067 and 0069.** `push=yes by=cowork`, **model=opus** (design-heavy, and this session is the second agent of `0069` item 4 for the addendum). Lane 2: `src/`, `scripts/`, `tests/`, `build.mk`. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`.** This task is a milestone step, written at the grain `0069` item 7 allows: it states the result and the gates, not each edit. **Where the text does not settle a build choice that `0069` item 2 does not reserve, choose, state the basis in the receipt (a decision, a paper, or the argument), and go on.** If a choice would touch the reserved list (a threshold, a cost or constraint level, the holdout, a veto, the universe's membership), stop.
@@ -3917,6 +3950,8 @@ Added 2026-11-10 by Cowork. **Written by Cowork, NOT released: it needs the owne
 **Not in this task:** any change to `params/`, `scripts/exec_server/`, `scripts/nightly/` or `CLAUDE.md`; any pin.
 
 Expected: about 15 minutes, under $1 on Sonnet (a guess).
+
+**Revision note 1 (Cowork, 2026-11-10 10:25 ET, `decisions/0062` item 8: re-release after a mechanical stop).** The first run stopped at step 3 because `git rev-list --count @{u}..HEAD` is denied by the worker's permission layer. The count is dispensable: the push itself reports a fast-forward or a rejection. **Step 3 now reads:** the receipt under `## Done`, committed with `HANDOFF.md`, then `git push origin main`; report the range the push prints; if it is rejected or not a fast-forward, stop and report. Do not run `git rev-list`. Step 0 is unchanged (the tree is as that run left it: ` M SUBSTRATE.md`, and ` M HANDOFF.md` from this note). Steps 1 and 2 run again from the start: HEAD moved to `7a43eb5` since the first `check-full`. Re-released `by=cowork push=yes` (the owner's release had the push).
 
 ### 86. Records of 2026-11-10 (`decisions/0069`) and the push (Cowork, through `signal-lab-exec`)
 
@@ -6679,6 +6714,13 @@ run would have said.
 
 ## Done
 
+### 2026-11-10 -- task 87: done, rc 0, commit `a66ddd5`, pushed (Claude Code, sonnet, nightly 2026-11-10T11:25)
+
+- **Step 0 held:** `RUNNING` is the wrapper's own; `git status --short` showed ` M HANDOFF.md` and ` M SUBSTRATE.md`; the diff was 1 file, 18 insertions, 3 deletions; `decisions/0069` has the `**Owner ruling, 2026-11-10` line.
+- **Gate:** `scripts/unattended.sh check-full` rc 0 (503 s, head `7a43eb5`).
+- **Commit:** `a66ddd5` (`SUBSTRATE.md` alone). `make governance` rc 0 ("OK, no uncited owner-only change").
+- **Push:** see the push line added below this receipt's commit in the session summary; `git rev-list` not run (revision note 1).
+
 ### 2026-11-10 -- task 87: STOPPED at step 3, nothing committed (Claude Code, sonnet, nightly 2026-11-10T10:00)
 
 - **Step 0 held:** `git status --short` showed ` M HANDOFF.md` and ` M SUBSTRATE.md`; `git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md` gave 1 file, 18 insertions, 3 deletions; `decisions/0069-agents-decide-the-build.md` is tracked and has the `**Owner ruling, 2026-11-10` line.
@@ -6699,6 +6741,7 @@ run would have said.
 - **Gate:** `ruff format` and `ruff check` clean on the four Python files. `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 265 s, `results/audit/_unattended/20261110-091037-check-scoped/`: 1075 passed in the main run, 24 in the second. Slow files left out: `test_audit`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_phase2_rule`, `test_scripts`. Load average 0.76 at the start, 1.37 at the end.
 - **Shell:** one `sed` edit was denied; I made the same edit with the Edit tool. No task-named command was denied.
 - **Commits:** `5ea554c` (code and tests), then this receipt with `decisions/0059` (the reviewer paragraph) and the release line Cowork left in `HANDOFF.md`. **Push:** `git push origin main` after the receipt commit, a fast-forward from `287a24b` (the local `origin/main`), which carries `8d5bcaf`, `5ea554c` and the receipt commit. If it is rejected, the session summary says so, and this line is wrong.
+- **Update (Cowork review, 2026-11-10 10:25 ET, `decisions/0069` items 4 and 5; a Fable session that did not build this):** the push is verified (`status.txt` of the 10:02 run: `origin/main=b2fb4c1`). Build choices (1) to (10) accepted. (1) is the lab's own baseline (SUBSTRATE §3: the same book on the same seed with the information destroyed by a block shuffle; `0036` §4b), which is what the addendum's point 1 named. (2), (4), (5), (7), (8) follow `0059` A and C and the holdout. (3), (9), (10) are reporting only. (6) reaches into `ExposureMap._usage`; it changes no number, and M7's wiring should give the map a public way to start a fresh usage log instead. The reviewer's three settled details stand. **Not accepted as a result, and not judged:** the smoke table. Turnover near 6% and transfer near zero in all eight runs, and region IC 0.35 no higher than IC 0, mean the pilot cannot yet tell a harness fault from views too small to clear costs. Task 91 answers that before the grid runs.
 
 ### 2026-11-10 -- task 86: done (Cowork, through `signal-lab-exec`; `push=yes by=cowork`, `decisions/0069` item 8)
 
