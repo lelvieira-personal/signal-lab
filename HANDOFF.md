@@ -85,6 +85,8 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 Nightly-release: 85 @2026-11-09T08:50 by=cowork push=no
 
+**As of 2026-11-10 (09:00 ET): tasks 88, 89 and 90 WRITTEN by Cowork under `decisions/0067` and `0069` item 7 (three ahead); task 90 RELEASED, `push=yes by=cowork model=opus`.** Task 90 is M6 step 1: the planted-signal pilot's harness, with the first delegated ruling (`decisions/0059`, addendum of 2026-11-10: what the pilot runs on), which task 90's fresh Opus session reviews before it builds (`0069` item 4). Task 88 (`0068` ruling B (i), Sonnet) is released next, by Cowork or the review, once 90's run has ended: one model per release line. Task 89 (the `0068` loader milestone and the `huber6-v6` pins) is NOT released: it waits for task 87. Task 91 (the full pilot grid) is written after 90's receipt. The pilot's thresholds stay the owner's.
+
 **As of 2026-11-10 (08:40 ET): `decisions/0069` RULED by the owner (chat, 08:14 and 08:20 ET): agents decide the build until the search opens; the owner keeps the ruler and the purpose.** Task 86 (the records and the push) WRITTEN AND DONE by Cowork through `signal-lab-exec`, `push=yes by=cowork` (`0069` item 8). Task 87 (SUBSTRATE v0.14, the §2 wording of `0069`) is written, NOT released: `SUBSTRATE.md` is owner-only, so it waits for the owner's "release 87"; Cowork then copies `Claude outputs/substrate-v0.14-draft/SUBSTRATE.md` over `SUBSTRATE.md` and sets the release line. Until 87 lands, `0069` item 6 (the pins) is not in force; everything else in `0069` is. The release line is unchanged (85's stamp has run). Not written yet: the M6 pilot task (`0059` G) and the `0068` loader and measured-duration tasks; they are Cowork's to write under `0069` item 7.
 
 **As of 2026-11-09 (08:45 ET): task 85 WRITTEN AND RELEASED by Cowork under `decisions/0067`, `push=no`, Sonnet** (the owner's "agree", chat, 08:33 ET, on task 83's receipt choices (5) and (6)). Recorded as the 2026-11-09 addendum to `decisions/0059`, committed with task 85's text before this release. Task 85 masks the transfer measure to the view's own instruments and averages several directional views. The 0068 loader and measured-duration tasks are not written yet.
@@ -3821,6 +3823,78 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 90. M6, step 1: the planted-signal pilot's harness (`decisions/0059` G and its 2026-11-10 addendum), reviewed, built, tested, smoke-run; then push
+
+Added 2026-11-10 by Cowork. **Written and released by Cowork under decisions/0067 and 0069.** `push=yes by=cowork`, **model=opus** (design-heavy, and this session is the second agent of `0069` item 4 for the addendum). Lane 2: `src/`, `scripts/`, `tests/`, `build.mk`. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`.** This task is a milestone step, written at the grain `0069` item 7 allows: it states the result and the gates, not each edit. **Where the text does not settle a build choice that `0069` item 2 does not reserve, choose, state the basis in the receipt (a decision, a paper, or the argument), and go on.** If a choice would touch the reserved list (a threshold, a cost or constraint level, the holdout, a veto, the universe's membership), stop.
+
+**0. Check.** `results/audit/_nightly/RUNNING` is the wrapper's own. `git status --short`: no tracked file modified except ` M HANDOFF.md`; untracked files may be present. HEAD's log has `decisions/0069` and the 2026-11-10 addendum to `decisions/0059` committed. Read `decisions/0069` (items 2 to 5), `decisions/0059` (A, B, C, G, every addendum), `src/signal_lab/portfolio/phase2.py`, `reports.py`, `alpha.py`, `views.py`, `audit/ladder.py` (`run_cell`, `_OptimiserRule`, `_plant`, `audit_cost_model`), `audit/signals.py` (`plant_signal`) and `audit/universe.py`.
+
+**1. Review the delegated ruling (`0069` item 4).** You did not make it. Check each of its six points against the code and the records it cites: is the basis true, does anything fall in `0069` item 2, does the audit's universe or cost path differ from what a registered run will use in a way that would change a dose-response. Write one paragraph under the addendum's "Reviewer" line in `decisions/0059`, starting `**Reviewer, 2026-11-10, Claude Code (Opus), HANDOFF task 90:**`, saying "agrees" or what you would change and why. A disagreement on a detail that you can settle inside the cited records: settle it, say so in that paragraph, build to the settled text. A disagreement on point 1 (what the pilot runs on) that you cannot settle: write it, commit the record with the receipt, and **stop** (STOPPED, `0069` item 9: unresolved reviewer disagreement).
+
+**2. Build.**
+- A module for axis-level planting (suggested: `src/signal_lab/audit/axis_signals.py`): the truth and the planted scores frame for (a) duration, directional, one column; (b) region, cross-sectional, one column per view region; per the addendum's points 2 to 4. It reuses `audit/signals.py`'s noise and standardising functions; it does not copy them. Its realised IC against the truth is measured and returned, as `realised_ic` does for the instrument-level plant.
+- A pilot cell runner (suggested: beside `run_cell`, or `audit/pilot.py`): builds the `Phase2Rule` for a cell (axis, expression, planted IC, seed, `IC_prior` multiplier) on the audit universe with the audit's cost model, runs it through the same engine `run_cell` uses, runs its block-shuffled baseline on the same seed (`decisions/0041`), and returns one row: net IR, `net_ir_excess`, the transfer measure (`reports.transfer` as amended 2026-11-09), the share of ex-ante tracking variance in the equity factor, turnover, `bias_stat`, the inaccurate and infeasible shares, the realised IC, runtime. The rule's `parameter_usage()` rows join the exposure map's and pass `veto_lookahead` on every run; a run that fails it is recorded as failed, not dropped.
+- The grid of G as data: 2 expressions x IC {0, 0.05, 0.10, 0.20, 0.35} x 5 seeds, each with its baseline, plus `IC_prior` at half and twice the params value on the IC 0.10 cells. `IC_prior` is varied **in the call, never in `params/`**.
+- `scripts/run_audit.py --grid phase2-pilot` (and `--grid phase2-pilot-smoke`: one seed, IC 0 and 0.35, both expressions), `make audit-phase2-pilot` and `make audit-phase2-pilot-smoke` in `build.mk`, writing a run directory under `results/audit/` with `summary.json` and `report.md` in the shape of the existing grids. The report has the table G lists and **no pass or fail**: the thresholds are the owner's.
+
+**3. Tests** (synthetic panel or hand-built frames; no vendor value in any test): the planted scores recover the planted IC within sampling error at IC 0, 0.10 and 0.35 over seeds; the noise is orthogonal to the truth per column; no score date is within 13 weeks of `HOLDOUT_START` and a frame that reaches past it is refused; an IC 0 cell and its baseline are built from different shuffles of the same seed; a pilot row has every reported field; the cross-sectional truth sums to zero across regions at each date. Mark anything slow as the suite does (`scripts/select_slow.py`'s rules). **No existing test or golden is edited.** If one moves, stop.
+
+**4. Smoke run.** `make audit-phase2-pilot-smoke` on the real development window (it reads the Bloomberg snapshot through the audit universe, as every audit does; report shapes and the table's numbers, never a vendor value). Record: wall time per run (for task 91's extrapolation), that every run finished, `veto_lookahead` passed, and the eight numbers' signs (net IR at IC 0.35 against IC 0, each expression). **Do not judge them.** If a run is infeasible or the engine refuses, report which and stop.
+
+**5. Gate.** `ruff format` and `ruff check` clean on the files touched; `scripts/unattended.sh check-scoped` rc 0.
+
+**6. Commit** the code and tests (message cites `HANDOFF task 90, decisions/0059`), then the receipt with `HANDOFF.md`, `decisions/0059` (your reviewer paragraph) and any other pending record, then **`git push origin main`**, fast-forward only; stop and report if it is rejected.
+
+**Receipt:** what was built and where; the reviewer's verdict in one line; every build choice you made with its basis; the smoke run's directory, runtimes and the table; the check's rc, tier, runtime and slow files left out; the push's range.
+
+**Stop conditions:** step 0 differs; the review stops (step 1); an existing test or golden moves; a choice would touch `0069` item 2; the smoke run cannot finish; the check fails twice on the same cause; a command is denied (do not work around it); the push is not a fast-forward.
+
+**Not in this task:** the full pilot grid (task 91, written by Cowork after this receipt: it times four runs, extrapolates, and runs the grid if it fits in five hours); any threshold; `build_weight_rule` and `harness/experiment.py` (M7); `signals/`; `params/`.
+
+Expected: 60 to 120 minutes and $6 to $12 on Opus (a guess; no task of this grain has run before).
+
+### 89. `decisions/0068`, the loader milestone: the fourteen euro and UK rows, the two reference aggregates, store `huber6-v6`, and the pins; then push
+
+Added 2026-11-10 by Cowork. **Written by Cowork under decisions/0067 and 0069; NOT released: it needs task 87 (SUBSTRATE v0.14) landed**, because its last step transcribes two pins in `params/` (`0069` item 6), which §2 forbids until v0.14. The review releases it (`model=opus`, `push=yes by=cowork`) when task 87's receipt is in `## Done`; if the owner prefers, he releases it earlier as an owner-only patch, as tasks 74 and 77 were. Milestone grain: tasks 74 to 77 and 79 (the Japan family, `decisions/0066`) are the template for every step, and `decisions/0068` with its two owner rulings is the specification. **Where the text does not settle a build choice that `0069` item 2 does not reserve, choose, state the basis in the receipt, and go on.**
+
+**0. Check.** `SUBSTRATE.md` at HEAD says v0.14. Task 88's receipt is in `## Done` (the measured duration for `Ex-USD Bonds`). `data/characteristics/huber6-v6/` does not exist. No tracked file modified except ` M HANDOFF.md`. Stop if any differs.
+
+**1. Labels and universe** (`0068` point 1, ruling of 2026-11-07): the two generators learn the fourteen rows (twelve nominal: `LEATTREU`, `LET3TREU`, `LET5TREU`, `LET7TREU`, `LET0TREU`, `LSG1TRGU`, `I08043GB` to `I08048GB`; two linkers: `BEIG1T`, `BEIG3T`, `curve` `EUR_real`), cost bucket `mid` for all fourteen (ruling A, 2026-11-09), tier blank and derived by the loader. `LEATTREU` and `LSG1TRGU` are reference series: in the store, `investable` False (ruling 2 (b)).
+
+**2. Loader** for `data/raw/bloomberg/bbg_exusd_bonds_extra.xlsx` (`levels` in local currency converted per `decisions/0053` and `0056`; the long `analytics`; the linker fields if they are numeric), shaped as `loaders/japan_govt.py`. A per-ticker report like task 79's, **counts and dates only, never a value**: true daily start, tier, rows before the holdout, dates lost to conversion, index name, how many dates each linker field is numeric, and per new row whether the duration axis reads the measured OAD or the estimated loading (ruling 5).
+
+**3. The two conditional rulings, applied from the report, not judged:** `I12823GB` becomes a reference series if the Gilt bands covering 1 to 10 years have a true daily start no later than its own, otherwise it stays investable (ruling 2); if the linkers' real-duration field is numeric on zero dates, the linkers carry no duration loading and the receipt says H-2026-0002's EUR leg cannot match (ruling 5: that goes to the owner, do not work around it).
+
+**4. Store `huber6-v6`** built as task 76 built `huber6-v5`; `make exposures-check` against it; the receipt gives the directory hash.
+
+**5. Gate and pins.** `scripts/unattended.sh check-full` rc 0 on the tree that carries everything. Then, and only then, the pins of `0069` item 6 in one commit of their own: `params/data.yaml`'s `characteristics.store_id` to `huber6-v6` with its hash, the `label_map` pin, and `params_version` in the seven files (next patch version), the tests that pin them following as in task 77. The commit cites `decisions/0068` and `decisions/0069`. **No other key in `params/` changes;** if one would have to, stop. `make governance` rc 0, `check-full` rc 0 again.
+
+**6. Receipt, then `git push origin main`**, fast-forward only.
+
+**Stop conditions:** step 0 differs; the file's structure is not what task 58 described; a conversion loses dates in a way `0056` does not cover; a non-pin key in `params/` would change; the commit hook refuses the pin's citation (report its message: that is the unverified point of `0069`); a golden moves for a reason other than the new rows or the new store (one that moves for those reasons is updated and listed in the receipt with the reason); the same check failure twice; a command denied; the push is not a fast-forward.
+
+**Not in this task:** changing any registered hypothesis (H-2026-0002, 0003 and 0010 leave `blocked:data` by their own validation, not by an edit); OWNER-QUEUE L42.
+
+Expected: 2 to 4 hours and near the Opus run cap (a guess, from tasks 74 to 77 together); if the run cap stops it, the receipt says where, and the review re-releases from that step.
+
+### 88. `decisions/0068` ruling B (i): `Ex-USD Bonds` rows that have an OAD read it on the duration axis; then push
+
+Added 2026-11-10 by Cowork. **Written by Cowork under decisions/0067 and 0069;** released after task 90 (`push=yes by=cowork`, Sonnet). Lane 2: `src/`, `tests/`. Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; the pinned store (`huber6-v5`) is not rebuilt. The owner ruled the change of meaning itself (2026-11-09: "B) (i) it is, agree"), so the goldens it moves are expected.
+
+**0. Check.** No tracked file modified except ` M HANDOFF.md`. `src/signal_lab/characteristics/exposures.py` has `MEASURED_DURATION_CLASSES = ("Treasuries", "Long Treasuries", "IG Corporates", "TIPS")`. Run `make exposures-check` and keep its output (counts and means) as the "before".
+
+**1. Change.** `Ex-USD Bonds` joins the measured set, so a row of that class with a non-missing OAD reads it and one without keeps minus its real-yield loading (the existing `& w["oad"].notna()` already does this; confirm it, do not add a second rule). Update the docstrings and comments that list the classes, citing `decisions/0068` (ruling B, 2026-11-09). If the store carries no OAD for some ex-USD rows, they stay estimated: report which, by ticker.
+
+**2. Tests.** New: an `Ex-USD Bonds` row with an OAD reads it; one without reads minus its loading; the usage rows say which. An existing test or golden that moves **because an ex-USD bond's duration cell changed** is updated, and listed in the receipt with one line each on why; one that moves for any other reason is a stop.
+
+**3. Report.** `make exposures-check` again: the "after". The receipt gives, per ex-USD bond in the store, whether it now reads measured or estimated, and the before and after mean of the duration cell by reporting class (derived numbers, as that target already prints; no vendor value).
+
+**4. Gate, commit, receipt, push.** `ruff` clean; `scripts/unattended.sh check-scoped` rc 0; commit (message cites `HANDOFF task 88, decisions/0068`); receipt with `HANDOFF.md`; **`git push origin main`**, fast-forward only.
+
+**Stop conditions:** step 0 differs; a test moves for another reason; the check fails twice on the same cause; a command denied; the push is not a fast-forward.
+
+Expected: 20 to 40 minutes, $1 to $3 on Sonnet (a guess).
+
 ### 87. SUBSTRATE v0.14: commit the `decisions/0069` wording (§2), then push (same shape as task 81)
 
 Added 2026-11-10 by Cowork. **Written by Cowork, NOT released: it needs the owner's "release 87"** (`SUBSTRATE.md` is owner-only; the owner approved the wording in chat, 2026-11-10 08:20 ET, and reads the diff before the release). `push=yes`, Sonnet. **At the release Cowork applies the owner-only edit to the working tree** by copying `Claude outputs/substrate-v0.14-draft/SUBSTRATE.md` over `SUBSTRATE.md` (CRLF kept); Claude Code never edits `SUBSTRATE.md` itself, it commits what is there. What the edit is (`git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md`: 1 file, 18 insertions, 3 deletions):
@@ -6602,6 +6676,14 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-10 -- task 86: done (Cowork, through `signal-lab-exec`; `push=yes by=cowork`, `decisions/0069` item 8)
+
+- **Gate:** `scripts/unattended.sh check` rc 0 before the commit (204 s, job `20261110-082333-306676-unattended-check`).
+- **Commit:** `287a24b` (`decisions/0069-agents-decide-the-build.md`, ruled; `HANDOFF.md`: the delegation paragraph, the 2026-11-10 note, tasks 86 and 87, the 2026-11-09 update lines under task 85's receipt).
+- **Push:** `git push origin main`, fast-forward `96864ea..287a24b`, rc 0. This receipt is uncommitted; the next records commit takes it.
+- **Outside the repo (owner's Claude account), same session:** both review scheduled tasks (05:30 and 16:30 ET) now carry the `0069` rules, including the chain step in both slots; the 05:30 one, which was paused ("device absent", the laptop was off from 18:17 on 11-09 to 08:05 on 11-10 by `gate.log`), is enabled again; a new scheduled task "Signal Lab — Friday digest" (Fridays 13:17 ET). The two reviews still run on Sonnet: their model cannot be changed from a chat, so the second-agent review of `0069` item 4 depends on the review spawning an Opus subagent, or on the owner switching the tasks' model.
+- **Not done:** task 87 (SUBSTRATE v0.14) waits for the owner's "release 87"; `CLAUDE.md` has no `0069` paragraph (not Cowork's file); whether the exec server and the commit hook let a pin commit through is still not verified; the M6 pilot task and the `0068` tasks are not written.
 
 ### 2026-11-09 -- task 85: done, rc 0, commit `af5291e`, no push (Claude Code, sonnet, nightly 2026-11-09T08:50)
 
