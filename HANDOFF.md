@@ -83,7 +83,9 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 ## Queue
 
-Nightly-release: 90 @2026-11-10T08:45 by=cowork push=yes model=opus
+Nightly-release: 87 @2026-11-10T10:00 by=owner push=yes
+
+**As of 2026-11-10 (10:00 ET): task 87 RELEASED by the owner ("release 87", chat, 08:46 ET), `push=yes`, Sonnet.** It was held until task 90's run ended (09:16 ET, rc 0, `b2fb4c1`, pushed, tree clean), because no tracked file is edited while `RUNNING` is fresh. Cowork then copied `Claude outputs/substrate-v0.14-draft/SUBSTRATE.md` over `SUBSTRATE.md` (CRLF kept; `git diff --ignore-cr-at-eol --stat`: 1 file, 18 insertions, 3 deletions) and set this line. Task 88 is released after 87's receipt (one model per line); task 89 after 88, since it needs 87 landed.
 
 **As of 2026-11-10 (09:00 ET): tasks 88, 89 and 90 WRITTEN by Cowork under `decisions/0067` and `0069` item 7 (three ahead); task 90 RELEASED, `push=yes by=cowork model=opus`.** Task 90 is M6 step 1: the planted-signal pilot's harness, with the first delegated ruling (`decisions/0059`, addendum of 2026-11-10: what the pilot runs on), which task 90's fresh Opus session reviews before it builds (`0069` item 4). Task 88 (`0068` ruling B (i), Sonnet) is released next, by Cowork or the review, once 90's run has ended: one model per release line. Task 89 (the `0068` loader milestone and the `huber6-v6` pins) is NOT released: it waits for task 87. Task 91 (the full pilot grid) is written after 90's receipt. The pilot's thresholds stay the owner's.
 
@@ -6676,6 +6678,14 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-10 -- task 87: STOPPED at step 3, nothing committed (Claude Code, sonnet, nightly 2026-11-10T10:00)
+
+- **Step 0 held:** `git status --short` showed ` M HANDOFF.md` and ` M SUBSTRATE.md`; `git diff --ignore-cr-at-eol --stat -- SUBSTRATE.md` gave 1 file, 18 insertions, 3 deletions; `decisions/0069-agents-decide-the-build.md` is tracked and has the `**Owner ruling, 2026-11-10` line.
+- **Step 1 passed:** `scripts/unattended.sh check-full` rc 0 (541 s, head `b2fb4c1`, 10:02 to 10:11).
+- **What failed:** step 3's `git rev-list --count @{u}..HEAD` (the "before" count) was denied by the permission layer (don't-ask mode). rc: not run. It is a command the task names, denied on its own, so per the nightly rules I stopped and did not work around it.
+- **Left uncommitted:** `SUBSTRATE.md` (the v0.14 wording, as Cowork applied it) and this `HANDOFF.md`'s release-line edits. Step 2's commit, `make governance`, the push and the "after" count were not run. No push.
+- **Reading of `decisions/0062` item 8:** owner: a permission denial on a task-named command (Cowork alone cannot widen the allow list; `.claude/` is not Cowork's to edit). Cowork may re-release if it judges the count dispensable (the push itself reports fast-forward or rejection).
 
 ### 2026-11-10 -- task 90: done, rc 0, commit `5ea554c`, pushed (Claude Code, opus, nightly 2026-11-10T08:45)
 
