@@ -83,7 +83,9 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 ## Queue
 
-Nightly-release: 92 @2026-11-10T13:40 by=cowork push=yes model=opus
+Nightly-release: 89 @2026-11-10T14:55 by=cowork push=yes model=opus
+
+**As of 2026-11-10 (14:55 ET): task 92 done and pushed (`72909f3`); task 89 RELEASED by Cowork under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`.** Task 89 is the `0068` loader milestone (the fourteen euro and UK rows, store `huber6-v6`, the two pins of `0069` item 6); its conditions hold (task 87: SUBSTRATE v0.14; task 88's receipt). Expected 2 to 4 hours, near the Opus run cap (a guess). The M6 grid stays STOPPED on `decisions/proposed/0070`, which now carries task 92's evidence and a fourth question (the free first book).
 
 **As of 2026-11-10 (13:40 ET): task 91 done and pushed (`b1b8cb1`); the chain's M6 grid is STOPPED on an owner decision (`0069` item 9: the next step is on the reserved list), `decisions/proposed/0070`.** Task 91 found no harness fault: the view reaches the book when there is no friction. At the params' settings a planted IC of 0.35 does not move the book, because a per-week alpha is set against the whole cost of a trade (Cowork's review, under task 91's receipt). The remedy is the owner's: `0070` gives four options, Cowork recommending the half-spread amortised over the view's horizon. **Task 92 WRITTEN AND RELEASED by Cowork under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`:** the evidence for `0070`, run in the call, deciding nothing. Task 89 (the `0068` loader milestone, Opus) does not depend on `0070`: release it once 92's run has ended. The grid of `0059` G is written after the ruling.
 
@@ -6744,6 +6746,15 @@ run would have said.
 
 ## Done
 
+### 2026-11-10 -- task 89: STOPPED at step 0, nothing built, nothing committed but this receipt (Claude Code, opus, nightly 2026-11-10T14:55)
+
+- **What failed:** step 0's "No tracked file modified except ` M HANDOFF.md`. Stop if any differs." `git status --short` (rc 0) shows ` M HANDOFF.md` **and** ` M decisions/proposed/0070-the-horizon-of-the-trading-cost-in-the-objective.md` (`git diff --ignore-cr-at-eol --stat`: 20 insertions in 0070; 5 lines changed in `HANDOFF.md`). The 0070 edit looks like the Cowork review's addition of task 92's table and the fourth question (task 92's receipt, update line), left uncommitted. I did not open it, commit it or revert it.
+- **The other step 0 checks held:** `SUBSTRATE.md` at HEAD is v0.14; task 88's receipt is in `## Done`; `data/characteristics/huber6-v6/` does not exist.
+- **What I tried:** nothing beyond the checks. The task says to stop when step 0 differs, so I did not choose to treat the extra file as harmless.
+- **Left uncommitted:** `decisions/proposed/0070-...` (Cowork's edit, as found). `HANDOFF.md` goes in with this receipt, together with Cowork's 14:55 release line and note.
+- **`decisions/0062` item 8 (my reading):** Cowork alone, under "Re-releasing a stopped task once its cause is fixed". Commit the 0070 records (lane 1) or add a revision note to task 89 that allows the file in step 0, then re-release with a new stamp. Task 89 has not started, so it can be re-released from step 0.
+- **Push:** none (a stop).
+
 ### 2026-11-10 -- task 92: done, rc 0, commit `7a2b799`, pushed (Claude Code, opus, nightly 2026-11-10T13:40)
 
 - **Step 0 held:** only ` M HANDOFF.md` and the untracked `decisions/proposed/0070`; `make audit-phase2-pilot-diag` exists; task 91's receipt is in `## Done`.
@@ -6761,6 +6772,7 @@ run would have said.
 - **Gate:** `make lint` clean. `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 282 s, head `b1b8cb1` (the code was uncommitted at the check and is the commit). Slow files left out: `test_audit`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_phase2_rule`, `test_scripts`. Load average 0.97 at the start, 1.42 at the end.
 - **Shell:** one inspection command (`tail | od`) was denied; I read the file with the dedicated tools instead. No task-named command was denied. `decisions/proposed/0070` is committed with this receipt unchanged: adding the table to it is Cowork's.
 - **Push:** `git push origin main` after this receipt's commit (range in the session summary).
+- **Update (Cowork review, 2026-11-10 14:55 ET, `decisions/0069` items 4 and 5; an Opus session in the review chat, not the builder):** verified from `status.txt` of the 13:47 run (rc 0, 2145 s, $3.34; `origin/main=72909f3 ahead=0`). Build choices (1) to (7) accepted: every arm is an off-by-default switch in the pilot runner, the defaults reproduce task 91's rows on all 47 columns, and nothing in `long_only.py`, `rebalance.py`, `phase2.py` or the engine changed. The reading is accepted as written. The table and what it implies are added to `decisions/proposed/0070`, with a fourth question for the owner (the free first book, which the (C) arm shows is where today's positive IC 0 IRs come from).
 
 ### 2026-11-10 -- task 91: done, rc 0, commits `429949a`, `738bac2`, pushed (Claude Code, opus, nightly 2026-11-10T12:25)
 
