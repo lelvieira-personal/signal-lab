@@ -6714,12 +6714,23 @@ run would have said.
 
 ## Done
 
+### 2026-11-10 -- task 88: done, rc 0, commit `98bf943`, pushed (Claude Code, sonnet, nightly 2026-11-10T11:25)
+
+- **Step 0 held:** tree clean after task 87's commits; `MEASURED_DURATION_CLASSES` had the four classes. "Before" (`make exposures-check`, `huber6-v5`): duration cells measured / estimated 7,375 / 71,750; mean `axis_duration` 1.4178; Ex-USD Bonds median at 2019-12-27 2.63.
+- **Change:** `Ex-USD Bonds` added to `MEASURED_DURATION_CLASSES` in `src/signal_lab/characteristics/exposures.py`; docstring and a comment cite `decisions/0068` ruling B. The existing `& w["oad"].notna()` already keeps a row without an OAD estimated; no second rule added.
+- **After:** measured / estimated 11,730 / 67,395 (4,355 ex-USD cells now read measured); mean `axis_duration` 1.5780; Ex-USD Bonds median 6.92 (was 2.63). Other classes' medians unchanged (Treasuries 4.48, TIPS 4.55, IG 5.22, Long Treasuries 18.32).
+- **Not obtained:** the per-ticker measured/estimated split for the ex-USD bonds. `make exposures-check` prints only the eight Treasury rows by ticker, and I did not write a new script for it. Class level above is what the target reports; Cowork may want a follow-up for the ticker view.
+- **Tests:** one new test in `tests/test_exposures.py` (an ex-USD row with an OAD reads it and is `measured`; one without reads minus its real-yield loading and is `estimated`; both in the usage log). No existing test or golden moved. The usage log carries a `loadings` row per instrument and does not itself record provenance, so the test checks it on the frame.
+- **Gate:** `ruff format` and `ruff check` clean; `scripts/unattended.sh check-scoped` rc 0, tier SCOPED, 248 s; slow files left out: `test_audit`, `test_engine`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`.
+- **Shell:** appending the test with a heredoc was denied; I used the Edit tool for the same change. No task-named command was denied.
+- **Push:** `git push origin main` after the receipt commit (result in the session summary).
+
 ### 2026-11-10 -- task 87: done, rc 0, commit `a66ddd5`, pushed (Claude Code, sonnet, nightly 2026-11-10T11:25)
 
 - **Step 0 held:** `RUNNING` is the wrapper's own; `git status --short` showed ` M HANDOFF.md` and ` M SUBSTRATE.md`; the diff was 1 file, 18 insertions, 3 deletions; `decisions/0069` has the `**Owner ruling, 2026-11-10` line.
 - **Gate:** `scripts/unattended.sh check-full` rc 0 (503 s, head `7a43eb5`).
 - **Commit:** `a66ddd5` (`SUBSTRATE.md` alone). `make governance` rc 0 ("OK, no uncited owner-only change").
-- **Push:** see the push line added below this receipt's commit in the session summary; `git rev-list` not run (revision note 1).
+- **Push:** `git push origin main`, fast-forward `b2fb4c1..482648e`, rc 0 (this receipt's commit is `482648e`). `git rev-list` not run (revision note 1).
 
 ### 2026-11-10 -- task 87: STOPPED at step 3, nothing committed (Claude Code, sonnet, nightly 2026-11-10T10:00)
 
