@@ -63,6 +63,10 @@ from signal_lab.portfolio.phase2 import Phase2Rule
 PILOT_GRID = "phase2-pilot"
 PILOT_SMOKE_GRID = "phase2-pilot-smoke"
 PILOT_GRIDS = (PILOT_GRID, PILOT_SMOKE_GRID)
+PILOT_DIAG_GRID = "phase2-pilot-diag"  # HANDOFF task 91
+DIAG_SEED = 0
+DIAG_IC = 0.35
+DIAG_MULTIPLIERS = (1.0, 2.0, 4.0, 8.0)
 PILOT_HORIZON = 13
 PILOT_ICS = (0.0, 0.05, 0.10, 0.20, 0.35)
 PILOT_SEEDS = (0, 1, 2, 3, 4)
@@ -113,6 +117,10 @@ class PilotCell:
     prior_multiplier: float = 1.0
     baseline: bool = False
     horizon: int = PILOT_HORIZON
+    # HANDOFF task 91's diagnostic arms: scores identically zero (the no-view book), and the
+    # cost model and the decisions/0040 shadow term both off. Neither is a G cell.
+    zero_scores: bool = False
+    frictionless: bool = False
 
     def __post_init__(self) -> None:
         if self.expression not in AXIS_OF_EXPRESSION:
@@ -127,6 +135,10 @@ class PilotCell:
         key = f"{self.axis}-{short}_ic{self.ic:.2f}_h{self.horizon}_s{self.seed}"
         if self.prior_multiplier != 1.0:
             key = f"{key}_prior{self.prior_multiplier:g}"
+        if self.zero_scores:
+            key = f"{key}_noview"
+        if self.frictionless:
+            key = f"{key}_frictionless"
         return f"{key}_baseline" if self.baseline else key
 
 
@@ -150,6 +162,22 @@ def pilot_cells(grid: str = PILOT_GRID) -> list[PilotCell]:
                 for seed in seeds:
                     for baseline in (False, True):
                         cells.append(PilotCell(expression, PRIOR_IC, seed, mult, baseline))
+    return cells
+
+
+def diag_cells() -> list[PilotCell]:
+    """
+    HANDOFF task 91's diagnostics as data, one seed, h = 13, both expressions: (a) the no-view
+    book; (b) planted IC 0.35 at `IC_prior` x1, x2, x4, x8; (c) planted IC 0.35 and 0 with the
+    costs and the shadow term off. No baselines: the task reads none (14 runs).
+    """
+    cells: list[PilotCell] = []
+    for expression in AXIS_OF_EXPRESSION:
+        cells.append(PilotCell(expression, 0.0, DIAG_SEED, zero_scores=True))
+        for mult in DIAG_MULTIPLIERS:
+            cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED, mult))
+        for ic in (DIAG_IC, 0.0):
+            cells.append(PilotCell(expression, ic, DIAG_SEED, frictionless=True))
     return cells
 
 
@@ -358,6 +386,7 @@ def run_pilot_cell(
     *,
     lookahead_veto: Callable[[RunContext, Params], Any],
     solver: str | None = None,
+    keep: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], Phase2Rule, Any]:
     """
     One pilot run: plant, build the `Phase2Rule`, run the engine, report. Returns the row, the
@@ -379,6 +408,10 @@ def run_pilot_cell(
         factor, cell.ic, cell.horizon, cell.seed, cell.expression, run_params, cell.baseline
     )
     scores = plant.score
+    if cell.zero_scores:
+        # the no-view book (HANDOFF task 91 (a)): z is 0 everywhere, so every view and every
+        # alpha is 0 and the rule returns the minimum-TE book of decisions/0059 F2
+        scores = scores * 0.0
     if cell.expression == "directional":
         sigma: pd.Series | pd.DataFrame = inputs.duration_sigma.reindex(scores.index)
     else:
@@ -388,7 +421,16 @@ def run_pilot_cell(
     default_per = None if default_per is None else float(default_per)
     audit_cell = AuditCell(cell.ic, cell.horizon, cell.seed, per_rebalance_cap=default_per)
     vol_halflife, vol_overlay = resolve_vol_overlay(audit_cell, run_params)
+    # HANDOFF task 91 (c): no friction is the half-spread at zero and the shadow
+    # coefficient at 0, in the solve and in the engine; the fee drag stays in the net return,
+    # which is why a frictionless row is read on `gross_ir`
     costs = audit_cost_model(universe, run_params)
+    shadow_coeff = float(run_params.get("constraints.turnover.penalty.coefficient", 0) or 0)
+    if cell.frictionless:
+        # `CostModel` refuses a multiplier of 0 at construction (a stored run is always at 1);
+        # this diagnostic model is set after it, and `half_spread` reads the attribute
+        costs.spread_multiplier = 0.0
+        shadow_coeff = 0.0
     clear_usage(inputs.exposures)
     rule = Phase2Rule(
         RowedUniverse(universe, inputs.rowed),
@@ -404,7 +446,7 @@ def run_pilot_cell(
         shadow_form=resolve_shadow_form(audit_cell, run_params),
         vol_halflife=vol_halflife,
         vol_overlay=vol_overlay,
-        shadow_coeff=float(run_params.get("constraints.turnover.penalty.coefficient", 0) or 0),
+        shadow_coeff=shadow_coeff,
         per_rebalance_cap=default_per,
         turnover_cap=None,
     )
@@ -451,6 +493,9 @@ def run_pilot_cell(
         "ic_prior": float(run_params.require("constraints.views.ic_prior")),
         "ic_prior_multiplier": cell.prior_multiplier,
         "net_ir": path.information_ratio(),
+        "gross_ir": gross_ir(path, rule.ppy),
+        "zero_scores": cell.zero_scores,
+        "frictionless": cell.frictionless,
         "transfer": float(reports["transfer"]),
         "equity_tracking_variance_share": float(tv["equity"].mean())
         if "equity" in tv.columns
@@ -489,7 +534,99 @@ def run_pilot_cell(
         )
     )
     row["seconds"] = time.time() - started
+    if keep is not None:
+        keep["reports"] = reports
+        keep["costs"] = costs
     return row, rule, path
+
+
+def alpha_arithmetic(rule: Phase2Rule, costs: Any, horizon: int = PILOT_HORIZON) -> pd.DataFrame:
+    """
+    HANDOFF task 91 (d), by solved date: the largest absolute instrument alpha (the rule's own
+    alpha rows, per week, over the holdable ids), annualised and over the horizon, in bp, beside
+    the round trip on that instrument: twice its half-spread plus twice the marginal shadow
+    rate the solve paid that week (`diagnostics.shadow_bps`). Derived numbers only.
+    """
+    diag = pd.DataFrame(rule.diagnostics).set_index("date")
+    rows = {}
+    for date, alpha in rule._alpha_rows.items():
+        a = alpha.astype(float).abs()
+        if a.empty or not np.isfinite(a.to_numpy()).any():
+            continue
+        top = str(a.idxmax())
+        half = float(costs.half_spread_vector([top]).iloc[0]) / 1e-4
+        shadow = float(diag.at[date, "shadow_bps"]) if date in diag.index else float("nan")
+        rows[date] = {
+            "instrument": top,
+            "max_abs_alpha_annual_bp": float(a.max()) * rule.ppy / 1e-4,
+            "max_abs_alpha_horizon_bp": float(a.max()) * horizon / 1e-4,
+            "half_spread_bp": half,
+            "shadow_marginal_bp": shadow,
+            "round_trip_bp": 2.0 * half + 2.0 * shadow,
+        }
+    return pd.DataFrame(rows).T
+
+
+def hand_check(rule: Phase2Rule, date: pd.Timestamp, params: Params) -> dict[str, Any]:
+    """
+    HANDOFF task 91 (e): one date of a cross-sectional region rule, rebuilt outside the rule
+    from its raw scores and `sigma` with `views.standardise_from_params`,
+    `alpha.cross_sectional_views` and `alpha.alpha_from_views`, beside what the rule used.
+    Returns the frames and the largest absolute difference of each.
+    """
+    from signal_lab.portfolio import views as views_mod
+
+    date = pd.Timestamp(date)
+    lo = hi = PILOT_HORIZON
+    h = views_mod.horizon_h_from_params(lo, hi, params)
+    z = views_mod.standardise_from_params(rule.scores, params)
+    scale = float(params.require("constraints.views.ic_prior")) / np.sqrt(h)
+    views = alpha_mod.cross_sectional_views(z, rule.sigma, scale)
+    frame = rule.exposures.at(date)
+    alpha = alpha_mod.alpha_from_views(
+        frame, "region", views.loc[date], None, region_cells=rule.exposures.axis("region", date)
+    )
+    used = rule._alpha_rows.get(date)
+    by_region = pd.DataFrame(
+        {
+            "score": rule.scores.loc[date],
+            "sigma": rule.sigma.loc[date],
+            "z_rule": rule.z.loc[date],
+            "z_hand": z.loc[date],
+            "view_rule": rule.views.loc[date],
+            "view_hand": views.loc[date],
+        }
+    )
+    hold = list(used.index) if used is not None else list(alpha.index)
+    by_instrument = pd.DataFrame(
+        {
+            "alpha_rule": used if used is not None else pd.Series(np.nan, index=hold),
+            "alpha_hand": alpha.reindex(hold).fillna(0.0),
+        }
+    )
+
+    def gap(a: pd.Series, b: pd.Series) -> float:
+        d = (a.astype(float) - b.astype(float)).abs()
+        return float(d.max()) if len(d) else float("nan")
+
+    return {
+        "date": date,
+        "by_region": by_region,
+        "by_instrument": by_instrument,
+        "max_gap_z": gap(by_region["z_rule"], by_region["z_hand"]),
+        "max_gap_view": gap(by_region["view_rule"], by_region["view_hand"]),
+        "max_gap_alpha": gap(by_instrument["alpha_rule"], by_instrument["alpha_hand"]),
+    }
+
+
+def gross_ir(path: Any, ppy: float = 52.0) -> float:
+    """The IR of the gross active return (`gross_returns - benchmark_returns`), annualised:
+    a diagnostic for the frictionless arm only, never ranked (SUBSTRATE section 3)."""
+    active = (path.gross_returns - path.benchmark_returns).dropna()
+    sd = float(active.std()) if len(active) > 1 else float("nan")
+    if not np.isfinite(sd) or sd < 1e-12:
+        return float("nan")
+    return float(active.mean() * ppy / (sd * np.sqrt(ppy)))
 
 
 def with_excess(table: pd.DataFrame) -> pd.DataFrame:

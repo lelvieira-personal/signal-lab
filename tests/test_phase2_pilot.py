@@ -250,3 +250,119 @@ def test_a_pilot_row_has_every_reported_field(pilot_inputs, expression):
     assert live["net_ir_excess"].iloc[0] == pytest.approx(rows[0]["net_ir"] - rows[1]["net_ir"])
     summary = pilot.summarise(pd.DataFrame(rows))
     assert len(summary) == 1 and summary["n"].iloc[0] == 1
+
+
+# --- HANDOFF task 91: the diagnostic arms --------------------------------------------------
+
+
+def test_the_diag_grid_is_task_91_as_data():
+    cells = pilot.diag_cells()
+    assert len(cells) == 14
+    assert len({c.key() for c in cells}) == 14
+    assert not any(c.baseline for c in cells)
+    assert {c.seed for c in cells} == {pilot.DIAG_SEED}
+    for expression in pilot.AXIS_OF_EXPRESSION:
+        mine = [c for c in cells if c.expression == expression]
+        assert [c.ic for c in mine if c.zero_scores] == [0.0]
+        sized = [c for c in mine if not c.zero_scores and not c.frictionless]
+        assert sorted(c.prior_multiplier for c in sized) == [1.0, 2.0, 4.0, 8.0]
+        assert {c.ic for c in sized} == {pilot.DIAG_IC}
+        assert sorted(c.ic for c in mine if c.frictionless) == [0.0, pilot.DIAG_IC]
+    assert pilot.PilotCell("directional", 0.0, 0, zero_scores=True).key().endswith("_noview")
+    assert (
+        pilot.PilotCell("directional", 0.35, 0, frictionless=True).key().endswith("_frictionless")
+    )
+
+
+@pytest.fixture(scope="module")
+def diag_runs(pilot_inputs):
+    inputs, params, _ = pilot_inputs
+    out = {}
+    arms = {
+        "x1": pilot.PilotCell("cross_sectional", 0.35, 0),
+        "x2": pilot.PilotCell("cross_sectional", 0.35, 0, 2.0),
+        "noview": pilot.PilotCell("cross_sectional", 0.0, 0, zero_scores=True),
+        "frictionless": pilot.PilotCell("cross_sectional", 0.35, 0, frictionless=True),
+    }
+    for name, cell in arms.items():
+        keep = {}
+        row, rule, path = pilot.run_pilot_cell(
+            inputs, cell, params, lookahead_veto=veto_lookahead, solver="scipy", keep=keep
+        )
+        out[name] = (row, rule, path, keep)
+    return out, params
+
+
+@pytest.mark.slow
+def test_the_no_view_book_has_no_view_and_no_alpha(diag_runs):
+    runs, _ = diag_runs
+    row, rule, _, _ = runs["noview"]
+    assert float(rule.scores.abs().to_numpy().max()) == 0.0
+    assert float(rule.z.abs().to_numpy().max()) == 0.0
+    assert float(rule.views.fillna(0.0).abs().to_numpy().max()) == 0.0
+    alpha = rule.alpha().fillna(0.0)
+    assert float(alpha.abs().to_numpy().max()) == 0.0
+    assert row["zero_scores"] and row["status"] == "ok"
+
+
+@pytest.mark.slow
+def test_the_multiplier_arm_scales_every_view(diag_runs):
+    runs, params = diag_runs
+    one, two = runs["x1"][1], runs["x2"][1]
+    assert runs["x2"][0]["ic_prior"] == pytest.approx(
+        2 * params.require("constraints.views.ic_prior")
+    )
+    # the same plant: the z-scores are identical and the views are exactly twice
+    pd.testing.assert_frame_equal(one.z, two.z)
+    pd.testing.assert_frame_equal(2.0 * one.views, two.views)
+    # the first solve's alpha does not depend on the book, so it is exactly twice
+    first = min(one._alpha_rows)
+    pd.testing.assert_series_equal(2.0 * one._alpha_rows[first], two._alpha_rows[first])
+
+
+@pytest.mark.slow
+def test_the_frictionless_switch_turns_off_the_spread_and_the_shadow(diag_runs):
+    runs, _ = diag_runs
+    row, rule, _, keep = runs["frictionless"]
+    hold = list(rule.u.holdable)
+    assert float(keep["costs"].half_spread_vector(hold).abs().max()) == 0.0
+    assert rule.shadow_coeff == 0.0
+    diag = pd.DataFrame(rule.diagnostics)
+    assert float(diag["shadow_bps"].abs().max()) == 0.0
+    assert row["frictionless"] and np.isfinite(row["gross_ir"])
+    # the live arm pays a spread; the frictionless one does not
+    assert float(runs["x1"][3]["costs"].half_spread_vector(hold).max()) > 0.0
+
+
+@pytest.mark.slow
+def test_one_date_by_hand_matches_the_rule(diag_runs):
+    runs, params = diag_runs
+    rule = runs["x1"][1]
+    dates = sorted(rule.books)
+    date = dates[len(dates) // 2]
+    check = pilot.hand_check(rule, date, params)
+    assert check["max_gap_z"] < 1e-12
+    assert check["max_gap_view"] < 1e-12
+    assert check["max_gap_alpha"] < 1e-12
+    # and without the library: v = ic_prior / sqrt(h) * sigma * (z - mean z)
+    z = rule.z.loc[date]
+    scale = params.require("constraints.views.ic_prior") / np.sqrt(13)
+    hand = scale * rule.sigma.loc[date] * (z - z[z.notna()].mean())
+    np.testing.assert_allclose(
+        rule.views.loc[date].fillna(0.0).to_numpy(), hand.fillna(0.0).to_numpy(), atol=1e-15
+    )
+
+
+@pytest.mark.slow
+def test_the_arithmetic_table_is_derived_from_the_alpha_and_the_costs(diag_runs):
+    runs, _ = diag_runs
+    _, rule, _, keep = runs["x1"]
+    table = pilot.alpha_arithmetic(rule, keep["costs"])
+    assert len(table) == len(rule._alpha_rows)
+    date = sorted(rule._alpha_rows)[3]
+    top = float(rule._alpha_rows[date].abs().max())
+    assert float(table.loc[date, "max_abs_alpha_annual_bp"]) == pytest.approx(top * 52 / 1e-4)
+    rt = 2 * float(table.loc[date, "half_spread_bp"]) + 2 * float(
+        table.loc[date, "shadow_marginal_bp"]
+    )
+    assert float(table.loc[date, "round_trip_bp"]) == pytest.approx(rt)

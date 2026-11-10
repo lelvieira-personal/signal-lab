@@ -879,6 +879,15 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
     estimation_start = str(manifest.get("estimation_start", "dev_start"))
     _, _, ff, _, _ = RM.load_inputs(params, factor_set, estimation_start)
     inputs = pilot.build_inputs(universe, exposures, ff.frame, params)
+    if args.grid == pilot.PILOT_DIAG_GRID:
+        meta = {
+            "snapshot_id": universe.panel.snapshot_id,
+            "panel_hash": universe.panel_hash(),
+            "factor_set": factor_set,
+            "estimation_start": estimation_start,
+            "prep_seconds": round(time.time() - started, 1),
+        }
+        return _run_pilot_diag(args, params, run_id, out_root, inputs, meta, veto_lookahead)
     cells = pilot.pilot_cells(args.grid)
     prep_seconds = time.time() - started
     if not args.quiet:
@@ -959,6 +968,227 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
     return 0 if failure is None else 3
 
 
+def _run_pilot_diag(args, params, run_id, out_root, inputs, meta, lookahead_veto) -> int:
+    """
+    `--grid phase2-pilot-diag` (HANDOFF task 91): why the pilot's views barely move the book.
+    Fourteen runs through `run_pilot_cell` (`pilot.diag_cells`), then the tables (a) to (d) and
+    the one-date hand check (e). Derived numbers only; nothing is judged.
+    """
+    import json
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+
+    from signal_lab.audit import pilot
+    from signal_lab.characteristics.exposures import REGION_COLUMNS
+    from signal_lab.measurement.factors import FACTOR_NAMES
+
+    started = time.time()
+    cells = pilot.diag_cells()
+    out = Path(out_root) / run_id
+    out.mkdir(parents=True, exist_ok=True)
+    rows, kept, failure = [], {}, None
+    for i, cell in enumerate(cells, start=1):
+        keep: dict = {}
+        try:
+            row, rule, path = pilot.run_pilot_cell(
+                inputs, cell, params, lookahead_veto=lookahead_veto, solver=args.solver, keep=keep
+            )
+        except Exception as exc:  # report which run and stop
+            failure = f"{cell.key()}: {type(exc).__name__}: {exc}"
+            print(f"phase-2 diag STOPPED at run {i}/{len(cells)}: {failure}", file=sys.stderr)
+            break
+        row["te_realised"] = float(path.active_returns.std() * np.sqrt(rule.ppy))
+        rows.append(row)
+        live_1x = not cell.frictionless and cell.ic == pilot.DIAG_IC
+        if cell.zero_scores:
+            kept[("noview", cell.expression)] = (rule, path, keep)
+        elif live_1x and cell.prior_multiplier == 1.0:
+            kept[("ic35", cell.expression)] = (rule, path, keep)
+        if not args.quiet:
+            print(
+                f"  [{i:>2}/{len(cells)}] {cell.key():<44} net IR {row['net_ir']:+.3f}  "
+                f"gross IR {row['gross_ir']:+.3f}  turnover {row['turnover_annual']:.0%}  "
+                f"transfer {row['transfer']:+.2f}  TE {row['te_ex_ante_mean']:.2%}  "
+                f"{row['seconds']:.0f}s",
+                flush=True,
+            )
+    table = pd.DataFrame(rows)
+    table.to_csv(out / "cells.csv", index=False)
+    if failure is not None:
+        (out / "failure.txt").write_text(failure + "\n", encoding="utf-8")
+        return 3
+
+    common = ["expression", "net_ir", "transfer", "turnover_annual", "te_ex_ante_mean"]
+    common += ["te_realised"]
+    noview = table[table["zero_scores"].astype(bool)]
+    sized = table[
+        ~table["zero_scores"].astype(bool)
+        & ~table["frictionless"].astype(bool)
+        & (table["ic"] == pilot.DIAG_IC)
+    ]
+    friction = table[table["frictionless"].astype(bool)]
+    table_a = noview[["expression", "net_ir", "te_ex_ante_mean", "te_realised", "te_p95"]]
+    table_a = table_a.assign(turnover_annual=noview["turnover_annual"])
+    table_b = sized[["ic_prior_multiplier", "ic_prior", *common]]
+    table_c = friction[["ic", "gross_ir", *common]]
+
+    exposure_cols = [*FACTOR_NAMES, *REGION_COLUMNS]
+    a_exposure, a_variance = {}, {}
+    for expression in pilot.AXIS_OF_EXPRESSION:
+        reports = kept[("noview", expression)][2]["reports"]
+        ae = reports["active_exposure"].astype(float)
+        first = [c for c in exposure_cols if c in ae.columns]
+        a_exposure[expression] = ae[first + [c for c in ae.columns if c not in first]].mean()
+        a_variance[expression] = reports["tracking_variance"].astype(float).mean()
+    a_exposure = pd.DataFrame(a_exposure).reset_index(names="column")
+    a_variance = pd.DataFrame(a_variance).reset_index(names="factor")
+
+    d_rows, d_detail = [], {}
+    for expression in pilot.AXIS_OF_EXPRESSION:
+        rule, _, keep = kept[("ic35", expression)]
+        arith = pilot.alpha_arithmetic(rule, keep["costs"]).astype(
+            {
+                c: float
+                for c in (
+                    "max_abs_alpha_annual_bp",
+                    "max_abs_alpha_horizon_bp",
+                    "half_spread_bp",
+                    "shadow_marginal_bp",
+                    "round_trip_bp",
+                )
+            }
+        )
+        d_detail[expression] = arith
+        d_rows.append(
+            {
+                "expression": expression,
+                "dates": len(arith),
+                "alpha_annual_bp_median": arith["max_abs_alpha_annual_bp"].median(),
+                "alpha_annual_bp_p90": arith["max_abs_alpha_annual_bp"].quantile(0.9),
+                "alpha_13w_bp_median": arith["max_abs_alpha_horizon_bp"].median(),
+                "alpha_13w_bp_p90": arith["max_abs_alpha_horizon_bp"].quantile(0.9),
+                "round_trip_bp_median": arith["round_trip_bp"].median(),
+                "round_trip_bp_p90": arith["round_trip_bp"].quantile(0.9),
+                "shadow_marginal_bp_median": arith["shadow_marginal_bp"].median(),
+                "share_13w_alpha_above_round_trip": float(
+                    (arith["max_abs_alpha_horizon_bp"] > arith["round_trip_bp"]).mean()
+                ),
+                "most_frequent_top_instrument": str(arith["instrument"].mode().iloc[0]),
+            }
+        )
+    table_d = pd.DataFrame(d_rows)
+
+    rule_xs = kept[("ic35", "cross_sectional")][0]
+    rule_nv = kept[("noview", "cross_sectional")][0]
+    dates = sorted(rule_xs.books)
+    mid = dates[len(dates) // 2]
+    hc = pilot.hand_check(rule_xs, mid, params)
+    w_view = rule_xs.books[mid]["weights"].astype(float)
+    w_none = rule_nv.books[mid]["weights"].astype(float)
+    e_inst = hc["by_instrument"].copy()
+    ids = sorted(set(e_inst.index) | set(w_view.index) | set(w_none.index))
+    e_inst = e_inst.reindex(ids)
+    e_inst["w_view"] = w_view.reindex(ids).fillna(0.0)
+    e_inst["w_noview"] = w_none.reindex(ids).fillna(0.0)
+    e_inst["w_diff"] = e_inst["w_view"] - e_inst["w_noview"]
+    e_inst = e_inst[
+        (e_inst["alpha_rule"].abs() > 0) | (e_inst[["w_view", "w_noview"]].abs() > 0).any(axis=1)
+    ]
+    e_summary = {
+        "date": str(pd.Timestamp(mid).date()),
+        "max_gap_z": hc["max_gap_z"],
+        "max_gap_view": hc["max_gap_view"],
+        "max_gap_alpha": hc["max_gap_alpha"],
+        "sum_abs_weight_diff_vs_noview": float(e_inst["w_diff"].abs().sum()),
+    }
+
+    def recs(frame):
+        return json.loads(frame.to_json(orient="records", default_handler=str))
+
+    summary = {
+        "run_id": run_id,
+        "kind": "phase2-pilot-diag",
+        "grid": pilot.PILOT_DIAG_GRID,
+        "source": args.source,
+        **meta,
+        "params_version": params.params_version,
+        "params_hash": params.params_hash,
+        "store_id": params.get("data.characteristics.store_id"),
+        "thread_setting": THREADS,
+        "generated_at": pd_now(),
+        "n_runs": len(table),
+        "seconds": round(time.time() - started + meta["prep_seconds"], 1),
+        "seconds_per_run_mean": float(table["seconds"].mean()),
+        "lookahead_passed": int(table["lookahead_passed"].sum()),
+        "inputs": inputs.notes,
+        "a_no_view": recs(table_a),
+        "a_active_exposure_mean": recs(a_exposure),
+        "a_tracking_variance_share_mean": recs(a_variance),
+        "b_view_size": recs(table_b),
+        "c_no_friction": recs(table_c),
+        "d_arithmetic": recs(table_d),
+        "e_hand_check": e_summary,
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    for expression, frame in d_detail.items():
+        frame.to_csv(out / f"d_arithmetic_{expression}.csv", index_label="date")
+    hc["by_region"].to_csv(out / "e_by_region.csv", index_label="region")
+    e_inst.to_csv(out / "e_by_instrument.csv", index_label="instrument")
+
+    lines = [
+        f"# Phase-2 pilot diagnostics {run_id} (HANDOFF task 91)",
+        "",
+        "Seed 0, h = 13, through `run_pilot_cell`. Derived numbers only. **Nothing judged:** "
+        "thresholds, `IC_prior`, costs and constraints are the owner's (decisions/0069 item 2).",
+        "",
+        f"- snapshot `{meta['snapshot_id']}`, params `{params.params_version}`, store "
+        f"`{summary['store_id']}`; {len(table)} runs, {summary['seconds']:.0f} s; lookahead "
+        f"passed on {summary['lookahead_passed']}",
+        "",
+        "## (a) The no-view book",
+        "",
+        _md_table(table_a),
+        "",
+        "Active exposure, mean over rebalances:",
+        "",
+        _md_table(a_exposure),
+        "",
+        "Share of ex-ante tracking variance, mean over rebalances:",
+        "",
+        _md_table(a_variance),
+        "",
+        "## (b) The size of the view (planted IC 0.35)",
+        "",
+        _md_table(table_b),
+        "",
+        "## (c) No friction (half-spread x0, shadow coefficient 0; read `gross_ir`)",
+        "",
+        _md_table(table_c),
+        "",
+        "## (d) The arithmetic (IC 0.35, IC_prior x1; bp)",
+        "",
+        _md_table(table_d),
+        "",
+        f"## (e) One date by hand: {e_summary['date']} (region, IC 0.35, x1)",
+        "",
+        f"Largest gaps, rule against hand: z {e_summary['max_gap_z']:.3g}, view "
+        f"{e_summary['max_gap_view']:.3g}, alpha {e_summary['max_gap_alpha']:.3g}; "
+        f"sum |w - w_noview| {e_summary['sum_abs_weight_diff_vs_noview']:.4f}.",
+        "",
+        _md_table(hc["by_region"].reset_index(names="region")),
+        "",
+        _md_table(e_inst.reset_index(names="instrument")),
+        "",
+    ]
+    (out / "report.md").write_text("\n".join(lines), encoding="utf-8")
+    if not args.quiet:
+        print("\n".join(lines))
+        print(f"\nwrote {out}/  ({summary['seconds']:.0f}s)")
+    return 0
+
+
 def _write_cell_artifacts(artifacts_root, run_id: str, cell, path, params=None) -> int:
     """
     Weights, alpha and the rebalance-date index for one cell, as parquet
@@ -1004,8 +1234,10 @@ def main(argv=None) -> int:
         power_cells,
         run_cell,
     )
-    from signal_lab.audit.pilot import PILOT_GRIDS
+    from signal_lab.audit.pilot import PILOT_DIAG_GRID, PILOT_GRIDS
     from signal_lab.audit.report import run_id_now, write_outputs
+
+    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID)
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
 
@@ -1019,7 +1251,7 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--grid",
         default=None,
-        choices=[*AUDIT_GRIDS, *PILOT_GRIDS],
+        choices=[*AUDIT_GRIDS, *pilot_grids],
         help="run only the block-shuffled baseline cells of decisions/0036: "
         "baseline-pilot (h13) or baseline (every horizon); or knee, the live and "
         "baseline cells at the IC rungs between 0.20 and the oracle (h13); or power, "
@@ -1043,7 +1275,7 @@ def main(argv=None) -> int:
     run_id = args.run_id or run_id_now()
     out_root = args.out or params.get("audit.output_dir", "results/audit")
     kwargs = {"start": args.start} if (args.source == "synthetic" and args.start) else {}
-    if args.grid in PILOT_GRIDS:
+    if args.grid in pilot_grids:
         return _run_phase2_pilot(args, params, run_id, out_root)
 
     started = time.time()

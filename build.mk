@@ -177,6 +177,9 @@ audit-phase2-pilot: ## phase-2 pilot: duration directional and region cross-sect
 audit-phase2-pilot-smoke: ## phase-2 pilot smoke: seed 0, IC 0 and 0.35, both expressions, with baselines -- 8 runs (HANDOFF task 90)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-smoke
 
+audit-phase2-pilot-diag: ## phase-2 pilot diagnostics: no-view book, IC_prior x1/2/4/8, no friction, the arithmetic, one date by hand -- 14 runs (HANDOFF task 91)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-diag
+
 audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not minutes
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg
 
