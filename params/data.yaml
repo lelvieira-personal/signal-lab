@@ -1,6 +1,6 @@
 # Data policy: windows, loader invariants, tiers, splices. SUBSTRATE.md
 # sections 3, 5 and 16. Owner-only.
-params_version: "0.11.2"
+params_version: "0.11.3"
 
 windows:
   dev_start: "2001-01-05"
@@ -85,11 +85,15 @@ characteristics:
   # v0.11.2 (decisions/0066, owner 2026-10-28): the store is huber6-v5 -- huber6-v4 plus the
   # five Japan government rows as not estimated (tradable-only), built by HANDOFF task 76;
   # the label map is unchanged.
-  store_id: huber6-v5
-  directory_hash: "0bf78d6a121d91e9e041e1145514c59201b92d163c4baf5cc22df5fbdcd6ed31"
+  # v0.11.3 (decisions/0068, owner 2026-11-07 and 2026-11-09; transcribed under decisions/0069 item 6):
+  # the store is huber6-v6 -- huber6-v5 plus the euro and UK bands and the euro linkers, the two
+  # aggregates and I12823GB as reference series (not held), built by HANDOFF task 89; the label map
+  # gains those rows.
+  store_id: huber6-v6
+  directory_hash: "9b4ac5c7d64b160f9ac47024f94c0437b7ea3d53b611b1bec7083996eedc50f8"
   label_map:
     path: data/universe/label_map.csv
-    sha256: "e98344fd2a91c160021d17df36839b11994ca4359b9b5a08bbe0c5040c1accec"
+    sha256: "14574b89abf5e3c7c678e7bf5b3db9fc30596c33246f0802775231ce0c37dae1"
 
 fred:
   # SUBSTRATE section 5.4: ICE BofA spread series on FRED start 2023-09.

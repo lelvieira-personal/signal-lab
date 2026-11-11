@@ -131,7 +131,8 @@ def test_the_views_block_is_the_one_decisions_0059_names(params):
     """decisions/0059 item 1 and its 2026-10-16 addendum (HANDOFF task 60)."""
     # 0.11.1: decisions/0066 pins the label map with the five Japan rows (HANDOFF task 74)
     # 0.11.2: decisions/0066 names store huber6-v5 (HANDOFF task 77)
-    assert params.params_version == "0.11.2"
+    # 0.11.3: decisions/0068 names store huber6-v6 and pins the label map with its rows (HANDOFF task 89)
+    assert params.params_version == "0.11.3"
     assert params.require("constraints.views.ic_prior") == 0.05
     assert params.require("constraints.views.horizon_rule") == "geometric_mean_rounded"
     assert params.require("constraints.views.standardisation.window") == "expanding"
@@ -139,8 +140,10 @@ def test_the_views_block_is_the_one_decisions_0059_names(params):
     assert params.require("constraints.views.standardisation.winsorise_at") == 3.0
 
 
-def test_params_name_huber6_v5_and_pin_the_label_map(params):
-    """decisions/0058 item 6, decisions/0066: the store read is huber6-v5; the label map is pinned by sha256."""
-    assert params.require("data.characteristics.store_id") == "huber6-v5"
+def test_params_name_huber6_v6_and_pin_the_label_map(params):
+    """decisions/0058 item 6, decisions/0068: the store read is huber6-v6; the label map is pinned by sha256."""
+    assert params.require("data.characteristics.store_id") == "huber6-v6"
     assert params.require("data.characteristics.label_map.path") == "data/universe/label_map.csv"
-    assert len(params.require("data.characteristics.label_map.sha256")) == 64
+    assert params.require("data.characteristics.label_map.sha256") == (
+        "14574b89abf5e3c7c678e7bf5b3db9fc30596c33246f0802775231ce0c37dae1"
+    )
