@@ -1,6 +1,6 @@
 # 0070 -- The horizon of the trading cost in the rebalance objective
 
-**Status:** PROPOSED 2026-11-10 by Cowork, for the owner. It is on the reserved list of `decisions/0069` item 2: every option changes either a level in `params/constraints.yaml` (`IC_prior`) or how the cost of `params/costs.yaml` enters the objective, and so what every later verdict means. Nothing is built from it. The chain's M6 grid (the pilot of `decisions/0059` G) waits on it; the `0068` loader milestone does not and goes on.
+**Status:** RULED 2026-11-11 by the owner (see the owner ruling at the end). PROPOSED 2026-11-10 by Cowork, for the owner. It is on the reserved list of `decisions/0069` item 2: every option changes either a level in `params/constraints.yaml` (`IC_prior`) or how the cost of `params/costs.yaml` enters the objective, and so what every later verdict means. Nothing is built from it. The chain's M6 grid (the pilot of `decisions/0059` G) waits on it; the `0068` loader milestone does not and goes on.
 
 Everything marked **guess** is Cowork's reading, not a measurement.
 
@@ -67,3 +67,16 @@ What it says:
 2. If (b): the half-spread only (recommended), or the shadow term too?
 3. If (b): each hypothesis's own *h* (recommended), or a floor and a cap on it?
 4. The first book: start every run from the no-view book and charge the trade out of it (recommended), or keep the free first book?
+
+**Owner ruling, 2026-11-11** (chat, 11:54 ET: "yes to all", on Cowork's suggestions given in chat at 10:51 ET). Recorded by Cowork.
+
+1. **Option (b):** the trading cost is amortised over the view's horizon in the rebalance objective. The engine still charges every trade its full cost in the net return. `IC_prior` stays 0.05.
+2. **The half-spread only.** The `0040` shadow term is unchanged.
+3. **Each hypothesis's own *h*,** with no floor and no cap. To be revisited if a hypothesis registers with *h* above 26 weeks.
+4. **No free first book.** Every run starts from the no-view (minimum-TE) book, and the trade out of it is charged like any other trade. This holds for the ruler audit too.
+
+**Condition.** (b) and the charged first book have not been run together: task 92 ran (b) on the free first book. The first step of the task that builds this ruling runs both together on task 92's cells (planted IC 0 and 0.35, both expressions, each with its shuffled baseline). If IC 0.35 does not separate from its baseline in both expressions, the task stops there, the M6 grid does not run, and this record returns to the owner.
+
+**Consequence, accepted.** Every recorded audit before this ruling, the ruler audit included, started from a free first book. Those numbers stay as recorded, a true statement about the objective in force when they ran, and are not comparable with runs made after this ruling.
+
+**Build.** Cowork writes the task (and any owner-only patch it needs, citing this record) after HANDOFF task 89 lands; the M6 grid of `0059` G follows it.
