@@ -39,6 +39,7 @@ from typing import Any
 import pandas as pd
 
 from signal_lab.loaders import exusd_analytics as exusd
+from signal_lab.loaders import exusd_extra as extra
 from signal_lab.loaders import fx
 from signal_lab.loaders import japan_govt as japan
 from signal_lab.loaders.base import (
@@ -532,6 +533,15 @@ class BloombergLoader:
             exusd_starts = {**exusd_starts, **japan_starts}
             exusd_currency = {**exusd_currency, **dict(japan_levels.attrs["quote_currency"])}
 
+        # The Euro Treasury and UK Gilt bands and the euro linkers (decisions/0068): euro and
+        # sterling levels, joined and converted the same way. A manifest without its rows loads
+        # as before.
+        extra_levels, extra_starts, extra_report = self._read_extra_levels(universe, markers)
+        if extra_levels is not None:
+            combined = combined.join(extra_levels, how="outer")
+            exusd_starts = {**exusd_starts, **extra_starts}
+            exusd_currency = {**exusd_currency, **dict(extra_levels.attrs["quote_currency"])}
+
         # 1. markers to NaN, never to zero. Then business days only.
         combined = to_missing(combined, markers)
         combined = filter_business_days(combined)
@@ -650,7 +660,50 @@ class BloombergLoader:
                 for t in sorted(japan_starts)
             }
             self.report["japan_govt"] = japan_report
+        if extra_report is not None:
+            extra_report["tickers"] = {
+                t: {
+                    "daily_start": str(extra_starts[t].date()),
+                    "tier": meta[t].tier,
+                    "currency": fx_report["converted"][t]["currency"],
+                    "investable": str(universe[t].get("investable", "")).lower() == "true",
+                    "level_rows_before_holdout": int(panel.levels[t].notna().sum()),
+                    "dates_dropped_for_want_of_a_rate": fx_report["converted"][t][
+                        "n_dates_dropped"
+                    ],
+                }
+                for t in sorted(extra_starts)
+            }
+            self.report["exusd_extra"] = extra_report
         return panel
+
+    def _read_extra_levels(
+        self, universe: dict[str, dict[str, str]], markers: list[str]
+    ) -> tuple[pd.DataFrame | None, dict[str, pd.Timestamp], dict[str, Any] | None]:
+        """
+        The euro and sterling levels of `bbg_exusd_bonds_extra.xlsx` (decisions/0068), their
+        true daily starts and the start of the report, as `_read_japan_levels`. With no
+        `returns_exusd_extra` row in the manifest there is nothing to read.
+        """
+        if not any(r.get("role") == extra.ROLE_LEVELS for r in self.manifest()):
+            return None, {}, None
+        entry = self._entry(extra.ROLE_LEVELS)
+        path = self._path(entry)
+        sha = extra.check_file(path)
+        tickers = extra.tickers_in_universe(universe)
+        levels, quote = extra.levels_from_rows(_sheet_rows(path, entry["sheet"]), markers, tickers)
+        cut = holdout_start(self.params)
+        starts = extra.true_daily_starts(levels, cut)
+        after = int((levels.index >= cut).sum())
+        levels = levels.copy()
+        levels.attrs["quote_currency"] = quote
+        report = {
+            "sha256_prefix": sha[:16],
+            "level_rows": int(len(levels)),
+            "level_rows_on_or_after_holdout": after,
+            "level_tickers": sorted(tickers),
+        }
+        return levels, starts, report
 
     def _read_japan_levels(
         self, universe: dict[str, dict[str, str]], markers: list[str]
@@ -886,6 +939,7 @@ class BloombergLoader:
 
         exusd_report = self._merge_exusd_analytics(by_field, meta, markers, params)
         japan_report = self._merge_japan_analytics(by_field, meta, markers, params)
+        extra_report = self._merge_extra_analytics(by_field, meta, markers, params)
 
         cut = holdout_start(params)
         frames = {
@@ -908,6 +962,9 @@ class BloombergLoader:
         if japan_report is not None:
             self.report["analytics"]["japan_govt"] = japan_report
             self.report.setdefault("japan_govt", {})["analytics"] = japan_report
+        if extra_report is not None:
+            self.report["analytics"]["exusd_extra"] = extra_report
+            self.report.setdefault("exusd_extra", {})["analytics"] = extra_report
         return AnalyticsPanel(fields=frames, meta=meta, snapshot_id=snapshot_id, source=self.source)
 
     def _merge_exusd_analytics(
@@ -991,6 +1048,60 @@ class BloombergLoader:
             elif start < meta[ticker].true_daily_start:
                 meta[ticker] = replace(meta[ticker], true_daily_start=start)
         return {"sha256_prefix": sha[:16], **japan.describe_analytics(added, starts, long)}
+
+    def _merge_extra_analytics(
+        self,
+        by_field: dict[str, dict[str, pd.Series]],
+        meta: dict[str, SeriesMeta],
+        markers: list[str],
+        params: Params,
+    ) -> dict[str, Any] | None:
+        """
+        The analytics of `bbg_exusd_bonds_extra.xlsx` (decisions/0068), merged like the ex-USD
+        and Japan files; a (ticker, field) already present from another file is refused. With a
+        `linker_fields_exusd_extra` row, the FLDS flags of the two linkers are reported (the
+        `_is_number` columns only) beside the dates each linker has a number in the analytics.
+        """
+        if not any(r.get("role") == extra.ROLE_ANALYTICS for r in self.manifest()):
+            return None
+        entry = self._entry(extra.ROLE_ANALYTICS)
+        path = self._path(entry)
+        sha = extra.check_file(path)
+        tickers = extra.tickers_in_universe(read_universe(self.universe_dir))
+        long = extra.analytics_from_rows(_sheet_rows(path, entry["sheet"]), markers, tickers)
+        added, starts, _ = exusd.split_by_field(long, params)
+        for field, cols in added.items():
+            for ticker in cols:
+                if ticker in by_field.get(field, {}):
+                    raise InvariantViolation(
+                        f"{ticker}|{field} is in both analytics files; refusing to pick one"
+                    )
+        for field, cols in added.items():
+            for ticker, series in cols.items():
+                by_field.setdefault(field, {})[ticker] = series
+        for (ticker, _field), start in starts.items():
+            if ticker not in meta:
+                meta[ticker] = SeriesMeta(
+                    series_id=ticker,
+                    true_daily_start=start,
+                    tier=_tier_from_start(start, params),  # type: ignore[arg-type]
+                    section="17. Analytics",
+                    region="17. Analytics",
+                )
+            elif start < meta[ticker].true_daily_start:
+                meta[ticker] = replace(meta[ticker], true_daily_start=start)
+        before = long[long["date"] < holdout_start(params)]
+        report = {
+            "sha256_prefix": sha[:16],
+            **japan.describe_analytics(added, starts, before),
+            "rows_on_or_after_holdout": int(len(long) - len(before)),
+            "index_names": extra.index_names(before),
+            "linker_dates_numeric": extra.linker_dates_numeric(before),
+        }
+        if any(r.get("role") == extra.ROLE_LINKER_FIELDS for r in self.manifest()):
+            lf = self._entry(extra.ROLE_LINKER_FIELDS)
+            report["linker_fields_is_number"] = extra.linker_flags(_sheet_rows(path, lf["sheet"]))
+        return report
 
     @staticmethod
     def _treasury_tickers(index_map: pd.DataFrame) -> set[str]:

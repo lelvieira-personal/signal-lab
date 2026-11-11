@@ -89,7 +89,14 @@ def _same(a: pd.Series, b: pd.Series) -> bool:
 
 
 def compare_with_superseded(
-    old_frames: dict, new_frames: dict, old_manifest: dict, new_manifest: dict, expected_new: list
+    old_frames: dict,
+    new_frames: dict,
+    old_manifest: dict,
+    new_manifest: dict,
+    expected_new: list,
+    expected_removed: list | tuple = (),
+    new_may_be_estimated: bool = False,
+    may_lack_measured: list | tuple = (),
 ) -> dict:
     """
     HANDOFF task 76 (decisions/0066): a store that only adds instruments, against the one it
@@ -97,16 +104,25 @@ def compare_with_superseded(
     stores is equal at tolerance zero with no unmatched row; the only new instruments are
     `expected_new`, and they are in `instruments` and `measured` and in no `loadings` row; the
     factors hash and the weekly returns hash equal the old manifest's. `failures` lists what broke.
+
+    HANDOFF task 89 (decisions/0068): with `new_may_be_estimated`, a new instrument may have
+    `loadings` rows (it is backbone or second tier), and the weekly returns hash, which then
+    covers more columns, is reported rather than required equal; the factors hash still must be.
+    `expected_removed` are instruments of the old store that leave (a reference series, ruling 2);
+    any other instrument only in the old store is a failure. `may_lack_measured` are new
+    instruments with no analytics in any field (the euro linkers, decisions/0068 ruling 5): they
+    may have no `measured` row, and are reported. The defaults are task 76's check.
     """
     failures: list[str] = []
     old_inst = set(old_frames["instruments"]["instrument"])
     new_inst = set(new_frames["instruments"]["instrument"])
     added = sorted(new_inst - old_inst)
+    removed = sorted(old_inst - new_inst)
     if added != sorted(expected_new):
         failures.append(f"new instruments {added} are not the expected {sorted(expected_new)}")
-    if old_inst - new_inst:
-        failures.append(f"instruments only in the old store: {sorted(old_inst - new_inst)}")
-    out: dict = {"new_instruments": added}
+    if removed != sorted(expected_removed):
+        failures.append(f"instruments only in the old store: {removed}")
+    out: dict = {"new_instruments": added, "removed_instruments": removed}
 
     shared = old_inst & new_inst
     for name, key, cols in (
@@ -127,15 +143,21 @@ def compare_with_superseded(
         out[name] = {"cells_compared": int(len(both)), "unmatched": unmatched, "max_abs": maxdiff}
         if unmatched:
             failures.append(f"{name}: {unmatched} unmatched rows on shared instruments")
-        if name == "loadings" and new_f["instrument"].isin(added).any():
-            failures.append("loadings: a new instrument has a loading row")
+        if name == "loadings":
+            estimated_new = sorted(set(new_f.loc[new_f["instrument"].isin(added), "instrument"]))
+            out["new_instruments_estimated"] = estimated_new
+            if estimated_new and not new_may_be_estimated:
+                failures.append("loadings: a new instrument has a loading row")
         if name == "measured":
             missing = sorted(set(added) - set(new_f["instrument"]))
-            if missing:
-                failures.append(f"measured: no row for {missing}")
+            excused = sorted(set(missing) & set(may_lack_measured))
+            out["new_instruments_without_measured_rows"] = excused
+            if sorted(set(missing) - set(excused)):
+                failures.append(f"measured: no row for {sorted(set(missing) - set(excused))}")
     for h in ("factors_hash", "weekly_returns_hash"):
         out[h] = {"old": old_manifest.get(h), "new": new_manifest.get(h)}
-        if old_manifest.get(h) != new_manifest.get(h):
+        reported_only = h == "weekly_returns_hash" and new_may_be_estimated
+        if old_manifest.get(h) != new_manifest.get(h) and not reported_only:
             failures.append(f"{h} differs from the old store's")
     out["failures"] = failures
     return out
@@ -304,6 +326,13 @@ def main(argv=None) -> int:
         help="a decision added to the manifest's `also` list; repeatable",
     )
     parser.add_argument(
+        "--new-from",
+        default="japan",
+        choices=("japan", "exusd-extra"),
+        help="which file's rows the supersedes comparison expects as new: japan (HANDOFF task 76) "
+        "or exusd-extra (HANDOFF task 89, decisions/0068)",
+    )
+    parser.add_argument(
         "--report-only",
         action="store_true",
         help="rewrite report.md from the existing store, after re-hashing it; builds nothing",
@@ -450,11 +479,36 @@ def main(argv=None) -> int:
     if args.supersedes and v4:
         # HANDOFF task 76: on this path the superseded store is compared before anything is
         # written. The new instruments are the universe rows of the Japan file.
-        from signal_lab.loaders import japan_govt
+        from signal_lab.loaders import exusd_extra, japan_govt
 
         old = store.load_store(args.supersedes, args.root)
-        expected_new = japan_govt.tickers_in_universe(universe_rows)
-        cmp = compare_with_superseded(old.frames, frames, old.manifest, manifest, expected_new)
+        if args.new_from == "exusd-extra":
+            # HANDOFF task 89 (decisions/0068): the new instruments are the investable rows of the
+            # euro and UK file, estimated where their tier allows; an old instrument that is no
+            # longer investable (a reference series, ruling 2) leaves.
+            expected_new = [
+                t for t in exusd_extra.tickers_in_universe(universe_rows) if flags.get(t, False)
+            ]
+            old_ids = set(old.frames["instruments"]["instrument"])
+            expected_removed = sorted(t for t in old_ids if not flags.get(t, False))
+            no_analytics = [
+                t
+                for t in expected_new
+                if not any(t in f.columns for f in analytics.fields.values())
+            ]
+            cmp = compare_with_superseded(
+                old.frames,
+                frames,
+                old.manifest,
+                manifest,
+                expected_new,
+                expected_removed=expected_removed,
+                new_may_be_estimated=True,
+                may_lack_measured=no_analytics,
+            )
+        else:
+            expected_new = japan_govt.tickers_in_universe(universe_rows)
+            cmp = compare_with_superseded(old.frames, frames, old.manifest, manifest, expected_new)
         manifest["supersedes_comparison"] = {k: v for k, v in cmp.items() if k != "failures"}
         print(f"against {args.supersedes}: {json.dumps(manifest['supersedes_comparison'])}")
         if cmp["failures"]:

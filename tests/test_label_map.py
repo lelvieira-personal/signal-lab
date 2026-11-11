@@ -23,6 +23,7 @@ from signal_lab.characteristics.exposures import LABEL_MAP_PATH, load_label_map 
 
 DECISION_0054 = REPO_ROOT / "decisions" / "0054-the-label-map.md"
 TRADABLE_ONLY = {"LTP5TRUU"}
+REFERENCE = {"I12823GB"}  # decisions/0068 ruling 2: a reference series, no label-map row (task 89)
 
 
 @pytest.fixture(scope="module")
@@ -56,10 +57,12 @@ def _bond_labels() -> dict[str, tuple[str, str, str]]:
 def test_the_counts_are_the_ones_the_record_expects(label_map):
     m = label_map
     # decisions/0066 admits five Japan government bonds: 84 -> 89 rows, bond 23 -> 28
-    assert len(m) == 89
+    # decisions/0068 (HANDOFF task 89) admits ten euro and UK bands and two euro linkers, and
+    # I12823GB leaves as a reference series: 89 -> 100 rows, bond 28 -> 39
+    assert len(m) == 100
     assert Counter(m.asset_group) == {
         "equity": 54,
-        "bond": 28,
+        "bond": 39,
         "real_asset_equity": 4,
         "commodity": 2,
         "cash": 1,
@@ -76,7 +79,7 @@ def test_the_counts_are_the_ones_the_record_expects(label_map):
     }
     assert Counter(m.region) == {
         "US": 34,
-        "Developed Europe": 16,
+        "Developed Europe": 27,  # decisions/0068: +12, -1 (I12823GB)
         "EM": 15,
         "Global": 13,
         "Japan": 7,  # decisions/0066: +5
@@ -85,19 +88,21 @@ def test_the_counts_are_the_ones_the_record_expects(label_map):
         "Canada": 1,
     }
     bonds = m[m.curve_currency != ""]
-    assert len(bonds) == 29  # the 28 bonds and LD20TRUU (decisions/0066: +5 JPY government)
+    # the 39 bonds and LD20TRUU (decisions/0066: +5 JPY government; decisions/0068: +12, -1)
+    assert len(bonds) == 40
     assert Counter(bonds.curve) == {
         "USD": 16,
         "EUR_multi": 2,
         "USD_real": 1,
-        "EUR": 1,
-        "GBP": 1,
+        "EUR": 5,  # decisions/0068: +4 bands
+        "GBP": 6,  # decisions/0068: +6 bands, -1 (I12823GB)
+        "EUR_real": 2,  # decisions/0068: the two linkers
         "JPY": 6,  # decisions/0066: +5
         "DM_multi": 1,
         "EM_local_multi": 1,
     }
     assert Counter(bonds.rating) == {
-        "Government": 16,  # decisions/0066: +5
+        "Government": 27,  # decisions/0066: +5; decisions/0068: +12, -1
         "HY": 5,
         "IG": 3,
         "Aggregate": 2,
@@ -105,7 +110,7 @@ def test_the_counts_are_the_ones_the_record_expects(label_map):
         "Agency": 1,
     }
     assert Counter(bonds.hy_bucket[bonds.hy_bucket != ""]) == {"Ba": 2, "B": 1, "Caa": 1, "all": 1}
-    assert Counter(bonds.market) == {"DM": 26, "EM": 3}  # decisions/0066: +5
+    assert Counter(bonds.market) == {"DM": 37, "EM": 3}  # decisions/0066: +5; 0068: +12, -1
     assert not m.index.has_duplicates
 
 
@@ -124,9 +129,9 @@ def test_every_equity_region_equals_the_table_in_decisions_0054(label_map):
 def test_every_bond_label_equals_the_table_in_decisions_0054(label_map):
     table = _bond_labels()
     assert len(table) == 25
-    assert set(table) - set(label_map.index) == TRADABLE_ONLY
+    assert set(table) - set(label_map.index) == TRADABLE_ONLY | REFERENCE
     for t, (curve_currency, rating_class, market) in table.items():
-        if t in TRADABLE_ONLY:
+        if t in TRADABLE_ONLY | REFERENCE:
             continue
         row = label_map.loc[t]
         assert (row.curve_currency, row.rating_class, row.market_label) == (

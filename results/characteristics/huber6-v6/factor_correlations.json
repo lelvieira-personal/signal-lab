@@ -1,0 +1,114 @@
+{
+  "full_sample": {
+    "commodities": {
+      "commodities": 1.0,
+      "credit": -0.1605,
+      "dollar": -0.4,
+      "equity": 0.4116,
+      "inflation": 0.3262,
+      "real_yield": -0.09
+    },
+    "credit": {
+      "commodities": -0.1605,
+      "credit": 1.0,
+      "dollar": -0.0293,
+      "equity": -0.3729,
+      "inflation": -0.3618,
+      "real_yield": -0.2485
+    },
+    "dollar": {
+      "commodities": -0.4,
+      "credit": -0.0293,
+      "dollar": 1.0,
+      "equity": -0.2833,
+      "inflation": -0.1252,
+      "real_yield": 0.2768
+    },
+    "equity": {
+      "commodities": 0.4116,
+      "credit": -0.3729,
+      "dollar": -0.2833,
+      "equity": 1.0,
+      "inflation": 0.4017,
+      "real_yield": 0.0204
+    },
+    "inflation": {
+      "commodities": 0.3262,
+      "credit": -0.3618,
+      "dollar": -0.1252,
+      "equity": 0.4017,
+      "inflation": 1.0,
+      "real_yield": -0.155
+    },
+    "real_yield": {
+      "commodities": -0.09,
+      "credit": -0.2485,
+      "dollar": 0.2768,
+      "equity": 0.0204,
+      "inflation": -0.155,
+      "real_yield": 1.0
+    }
+  },
+  "rolling_156w_range": {
+    "credit~commodities": {
+      "max": 0.08080523469558311,
+      "min": -0.3233916082521872
+    },
+    "credit~dollar": {
+      "max": 0.1547248757388772,
+      "min": -0.27845365846744385
+    },
+    "dollar~commodities": {
+      "max": -0.09529847233893798,
+      "min": -0.5979066738266534
+    },
+    "equity~commodities": {
+      "max": 0.7239817860099793,
+      "min": 0.030695212773780973
+    },
+    "equity~credit": {
+      "max": -0.07116517671301667,
+      "min": -0.64287440274528
+    },
+    "equity~dollar": {
+      "max": 0.11449153272448327,
+      "min": -0.5965900648467916
+    },
+    "equity~inflation": {
+      "max": 0.6794135881712736,
+      "min": -0.028539846311262964
+    },
+    "equity~real_yield": {
+      "max": 0.39659223313164815,
+      "min": -0.28099300687431056
+    },
+    "inflation~commodities": {
+      "max": 0.6301494093275144,
+      "min": 0.05483314320446244
+    },
+    "inflation~credit": {
+      "max": -0.019495369101785558,
+      "min": -0.5674928188053924
+    },
+    "inflation~dollar": {
+      "max": 0.2669534151983379,
+      "min": -0.48978756428606535
+    },
+    "real_yield~commodities": {
+      "max": 0.18277485369017746,
+      "min": -0.34130754539093966
+    },
+    "real_yield~credit": {
+      "max": 0.07462219644507635,
+      "min": -0.5897150818395402
+    },
+    "real_yield~dollar": {
+      "max": 0.4553929858866279,
+      "min": 0.0033945032119211175
+    },
+    "real_yield~inflation": {
+      "max": 0.32649005778877455,
+      "min": -0.5024480394913785
+    }
+  }
+}

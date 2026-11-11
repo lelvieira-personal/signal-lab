@@ -51,7 +51,7 @@ H09122US,Bloomberg Euro Treasury 1-10 Y,3. International Government Bonds,2009-0
 H12823US,Bloomberg UK Gilt 1-10 Total R,3. International Government Bonds,2009-08-03,second,True,False,mid,Ex-USD Bonds,hedged (decisions/0013),bbg_index_coverage.csv
 I02513EU,Bloomberg Pan-European Governm,3. International Government Bonds,1999-01-04,backbone,False,True,mid,Ex-USD Bonds,,bbg_index_coverage.csv
 I02913JP,japan_aggregate,3. International Government Bonds,2001-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
-I12823GB,uk_gilt_1_10y,3. International Government Bonds,2006-01-03,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
+I12823GB,uk_gilt_1_10y,3. International Government Bonds,2006-01-03,,False,False,mid,Ex-USD Bonds,reference series: the Gilt bands covering 1-10y start no later than it (decisions/0068 ruling 2),bbg_exusd_bonds_coverage.csv
 LET1TREU,euro_treasury_1_3y,3. International Government Bonds,1999-01-04,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 LG38TRUU,global_agg_ex_usd,3. International Government Bonds,2001-01-02,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_coverage.csv
 LGTRTRGU,Bloomberg Global Aggregate Tre,3. International Government Bonds,2001-02-01,backbone,False,False,mid,Ex-USD Bonds,"the global aggregate restated in another currency, not an instrument (decisions/0052)",bbg_index_coverage.csv
@@ -106,3 +106,17 @@ I29065JP,japan_govt_3_5y,3. International Government Bonds,2013-02-15,,False,Tru
 I29066JP,japan_govt_5_10y,3. International Government Bonds,2013-02-15,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
 I29067JP,japan_govt_10_20y,3. International Government Bonds,2013-02-15,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
 I29068JP,japan_govt_20y_plus,3. International Government Bonds,2013-02-15,,False,True,mid,Ex-USD Bonds,,bbg_japan_govt.xlsx
+LEATTREU,euro_treasury_all,3. International Government Bonds,1998-07-31,,False,False,mid,Ex-USD Bonds,reference series: the all-maturities aggregate of bands the lab holds (decisions/0068 ruling 2 (b)),bbg_exusd_bonds_extra.xlsx
+LET3TREU,euro_treasury_3_5y,3. International Government Bonds,1998-07-31,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+LET5TREU,euro_treasury_5_7y,3. International Government Bonds,1998-07-31,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+LET7TREU,euro_treasury_7_10y,3. International Government Bonds,1998-07-31,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+LET0TREU,euro_treasury_10y_plus,3. International Government Bonds,1998-07-31,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+LSG1TRGU,uk_gilt_all,3. International Government Bonds,2003-07-31,,False,False,mid,Ex-USD Bonds,reference series: the all-maturities aggregate of bands the lab holds (decisions/0068 ruling 2 (b)),bbg_exusd_bonds_extra.xlsx
+I08043GB,uk_gilt_1_3y,3. International Government Bonds,2003-10-09,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+I08044GB,uk_gilt_3_5y,3. International Government Bonds,2003-10-09,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+I08045GB,uk_gilt_5_7y,3. International Government Bonds,2003-10-09,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+I08046GB,uk_gilt_7_10y,3. International Government Bonds,2003-10-09,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+I08047GB,uk_gilt_10_15y,3. International Government Bonds,2003-10-09,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+I08048GB,uk_gilt_15y_plus,3. International Government Bonds,2003-10-09,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+BEIG1T,euro_linker_BEIG1T,3. International Government Bonds,1999-12-31,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx
+BEIG3T,euro_linker_BEIG3T,3. International Government Bonds,1999-12-31,,False,True,mid,Ex-USD Bonds,,bbg_exusd_bonds_extra.xlsx

@@ -177,6 +177,40 @@ JAPAN_GOVT = (
 )
 JAPAN_FIRST_DAILY = "2013-02-15"
 
+# decisions/0068 (rulings of 2026-11-07 and 2026-11-09): the twelve Euro Treasury and UK Gilt rows
+# and the two euro linkers of `bbg_exusd_bonds_extra.xlsx`. Cost bucket mid for all fourteen
+# (ruling A); tier blank, derived by the loader; first_daily is the true daily start the loader
+# found (HANDOFF task 89). The two all-maturities aggregates are reference series (ruling 2 (b)):
+# in the universe and the panel, never investable.
+EXUSD_EXTRA_FILE = "bbg_exusd_bonds_extra.xlsx"
+REFERENCE_BECAUSE = "reference series: the all-maturities aggregate of bands the lab holds (decisions/0068 ruling 2 (b))"
+EXUSD_EXTRA = (
+    # ticker, name, first_daily, not_investable_because
+    ("LEATTREU", "euro_treasury_all", "1998-07-31", REFERENCE_BECAUSE),
+    ("LET3TREU", "euro_treasury_3_5y", "1998-07-31", ""),
+    ("LET5TREU", "euro_treasury_5_7y", "1998-07-31", ""),
+    ("LET7TREU", "euro_treasury_7_10y", "1998-07-31", ""),
+    ("LET0TREU", "euro_treasury_10y_plus", "1998-07-31", ""),
+    ("LSG1TRGU", "uk_gilt_all", "2003-07-31", REFERENCE_BECAUSE),
+    ("I08043GB", "uk_gilt_1_3y", "2003-10-09", ""),
+    ("I08044GB", "uk_gilt_3_5y", "2003-10-09", ""),
+    ("I08045GB", "uk_gilt_5_7y", "2003-10-09", ""),
+    ("I08046GB", "uk_gilt_7_10y", "2003-10-09", ""),
+    ("I08047GB", "uk_gilt_10_15y", "2003-10-09", ""),
+    ("I08048GB", "uk_gilt_15y_plus", "2003-10-09", ""),
+    ("BEIG1T", "euro_linker_BEIG1T", "1999-12-31", ""),
+    ("BEIG3T", "euro_linker_BEIG3T", "1999-12-31", ""),
+)
+# decisions/0068 ruling 2: I12823GB becomes a reference series when the loader report shows the
+# Gilt bands covering 1 to 10 years start no later than it. They do: I08043GB to I08046GB (1-3,
+# 3-5, 5-7 and 7-10 years) start 2003-10-09, I12823GB 2006-01-03 (HANDOFF task 89, step 3).
+DEMOTED_TO_REFERENCE: dict[str, str] = {
+    "I12823GB": (
+        "reference series: the Gilt bands covering 1-10y start no later than it "
+        "(decisions/0068 ruling 2)"
+    ),
+}
+
 
 def reporting_class(ticker: str, section: str) -> str:
     if ticker in REPORTING:
@@ -262,6 +296,28 @@ def build() -> list[dict]:
                 "source_file": "bbg_japan_govt.xlsx",
             }
         )
+
+    for ticker, name, first_daily, because in EXUSD_EXTRA:
+        rows.append(
+            {
+                "ticker": ticker,
+                "name": name,
+                "section": "3. International Government Bonds",
+                "first_daily": first_daily,
+                "tier": "",
+                "hedged": False,
+                "investable": not because,
+                "cost_bucket": cost_bucket(ticker, "Ex-USD Bonds"),
+                "reporting_class": "Ex-USD Bonds",
+                "not_investable_because": because,
+                "source_file": EXUSD_EXTRA_FILE,
+            }
+        )
+
+    for row in rows:
+        if row["ticker"] in DEMOTED_TO_REFERENCE:
+            row["investable"] = False
+            row["not_investable_because"] = DEMOTED_TO_REFERENCE[row["ticker"]]
 
     return sorted(rows, key=lambda r: (r["reporting_class"], r["ticker"]))
 

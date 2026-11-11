@@ -18,3 +18,6 @@ bbg_impvol_values_only.xlsx,IV_Daily_v,series_blocks,various,n/a,implied_vol_dai
 bbg_impvol_values_only.xlsx,Probe_Summary_v,table,n/a,n/a,implied_vol_probe,1,2
 bbg_japan_govt.xlsx,levels,wide_single_date,PX_LAST,JPY,returns_japan_govt,1,2
 bbg_japan_govt.xlsx,analytics,long_date_ticker,various,n/a,analytics_japan_govt,1,2
+bbg_exusd_bonds_extra.xlsx,levels,wide_single_date,PX_LAST,EUR_or_GBP,returns_exusd_extra,1,2
+bbg_exusd_bonds_extra.xlsx,analytics,long_date_ticker,various,n/a,analytics_exusd_extra,1,2
+bbg_exusd_bonds_extra.xlsx,linker_fields,table,n/a,n/a,linker_fields_exusd_extra,1,2

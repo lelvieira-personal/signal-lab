@@ -56,7 +56,7 @@
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
 .DEFAULT_GOAL := check
-.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife audit-phase2-pilot audit-phase2-pilot-smoke audit-phase2-pilot-diag audit-phase2-pilot-horizon jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check japan-report fdr-study impvol-coverage registry-names
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife audit-phase2-pilot audit-phase2-pilot-smoke audit-phase2-pilot-diag audit-phase2-pilot-horizon jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check japan-report exusd-extra-report fdr-study impvol-coverage registry-names
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -224,6 +224,9 @@ fx-check: ## converted NDDLUK against NDDUUK, weekly, same day and lagged: the F
 
 japan-report: ## the Japan loader's per-ticker report: true daily starts against the universe table (HANDOFF task 79, decisions/0066)
 	$(PY) --group dev python scripts/check_japan_report.py
+
+exusd-extra-report: ## the euro and UK bands' loader report: starts, tiers, conversion, the linkers' fields, the duration axis (HANDOFF task 89, decisions/0068)
+	$(PY) --group dev python scripts/check_exusd_extra_report.py
 
 characteristics: ## the estimated half of the characteristic map: Huber loadings on six factors, walk-forward, plus the measured cells (HANDOFF task 51, decisions/0049)
 	$(PY) --group dev python scripts/build_characteristics.py $(if $(ARGS),$(ARGS))

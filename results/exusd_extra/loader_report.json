@@ -1,0 +1,249 @@
+{
+  "analytics_rows_before_holdout": 51451,
+  "analytics_rows_on_or_after_holdout": 0,
+  "file": {
+    "level_rows": 7827,
+    "level_rows_on_or_after_holdout": 0,
+    "sha256_prefix": "7464927042b769de"
+  },
+  "linker_dates_numeric": {
+    "BEIG1T": {
+      "oad_tsy": 0,
+      "oas": 0,
+      "yield_to_worst": 0
+    },
+    "BEIG3T": {
+      "oad_tsy": 0,
+      "oas": 0,
+      "yield_to_worst": 0
+    }
+  },
+  "linker_fields_is_number": {
+    "BEIG1T": {
+      "INDEX_MODIFIED_DURATION": false,
+      "INDEX_OAD_TSY": false,
+      "INDEX_REAL_DURATION": false,
+      "INDEX_REAL_YIELD": false,
+      "INDEX_REAL_YIELD_TO_WORST": false,
+      "INDEX_YIELD_TO_WORST": false,
+      "MODIFIED_DURATION": true,
+      "Test only: no history pulled. Real-duration / real-yield fields to be confirmed via FLDS.": null,
+      "YLD_YTM_MID": false
+    },
+    "BEIG3T": {
+      "INDEX_MODIFIED_DURATION": false,
+      "INDEX_OAD_TSY": false,
+      "INDEX_REAL_DURATION": false,
+      "INDEX_REAL_YIELD": false,
+      "INDEX_REAL_YIELD_TO_WORST": false,
+      "INDEX_YIELD_TO_WORST": false,
+      "MODIFIED_DURATION": true,
+      "Test only: no history pulled. Real-duration / real-yield fields to be confirmed via FLDS.": null,
+      "YLD_YTM_MID": false
+    }
+  },
+  "tickers": {
+    "BEIG1T": {
+      "analytics_starts": {},
+      "currency": "EUR",
+      "daily_start": "1999-12-31",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "estimated loading (minus the real-yield loading)",
+      "index_name": "",
+      "investable": true,
+      "level_rows_before_holdout": 5216,
+      "tier": "backbone"
+    },
+    "BEIG3T": {
+      "analytics_starts": {},
+      "currency": "EUR",
+      "daily_start": "1999-12-31",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "estimated loading (minus the real-yield loading)",
+      "index_name": "",
+      "investable": true,
+      "level_rows_before_holdout": 5218,
+      "tier": "backbone"
+    },
+    "I08043GB": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2009-05-18",
+        "INDEX_OAS_TSY": "2003-10-09",
+        "INDEX_YIELD_TO_WORST": "2009-05-18"
+      },
+      "currency": "GBP",
+      "daily_start": "2003-10-09",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "1-3 Year",
+      "investable": true,
+      "level_rows_before_holdout": 4113,
+      "tier": "second"
+    },
+    "I08044GB": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2004-09-07",
+        "INDEX_OAS_TSY": "2003-10-09",
+        "INDEX_YIELD_TO_WORST": "2004-09-07"
+      },
+      "currency": "GBP",
+      "daily_start": "2003-10-09",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "3-5 Year",
+      "investable": true,
+      "level_rows_before_holdout": 4113,
+      "tier": "second"
+    },
+    "I08045GB": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2006-09-08",
+        "INDEX_OAS_TSY": "2003-10-09",
+        "INDEX_YIELD_TO_WORST": "2006-09-08"
+      },
+      "currency": "GBP",
+      "daily_start": "2003-10-09",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "5-7 Year",
+      "investable": true,
+      "level_rows_before_holdout": 4105,
+      "tier": "second"
+    },
+    "I08046GB": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2015-06-12",
+        "INDEX_OAS_TSY": "2003-10-09",
+        "INDEX_YIELD_TO_WORST": "2015-06-12"
+      },
+      "currency": "GBP",
+      "daily_start": "2003-10-09",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "7-10 Year",
+      "investable": true,
+      "level_rows_before_holdout": 4105,
+      "tier": "second"
+    },
+    "I08047GB": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2014-09-17",
+        "INDEX_OAS_TSY": "2003-10-09",
+        "INDEX_YIELD_TO_WORST": "2014-09-17"
+      },
+      "currency": "GBP",
+      "daily_start": "2003-10-09",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "10-15 Year",
+      "investable": true,
+      "level_rows_before_holdout": 4105,
+      "tier": "second"
+    },
+    "I08048GB": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2014-09-17",
+        "INDEX_OAS_TSY": "2003-10-09",
+        "INDEX_YIELD_TO_WORST": "2014-09-17"
+      },
+      "currency": "GBP",
+      "daily_start": "2003-10-09",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "15+ Year",
+      "investable": true,
+      "level_rows_before_holdout": 4105,
+      "tier": "second"
+    },
+    "LEATTREU": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2002-04-23",
+        "INDEX_OAS_TSY": "2002-09-17",
+        "INDEX_YIELD_TO_WORST": "2002-04-23"
+      },
+      "currency": "EUR",
+      "daily_start": "1998-07-31",
+      "dates_dropped_for_want_of_a_rate": 2,
+      "duration_axis": "none: reference series, not held",
+      "index_name": "Treasury",
+      "investable": false,
+      "level_rows_before_holdout": 5427,
+      "tier": "backbone"
+    },
+    "LET0TREU": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2008-06-06",
+        "INDEX_OAS_TSY": "2002-09-17",
+        "INDEX_YIELD_TO_WORST": "2008-06-06"
+      },
+      "currency": "EUR",
+      "daily_start": "1998-07-31",
+      "dates_dropped_for_want_of_a_rate": 2,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "10+ Year",
+      "investable": true,
+      "level_rows_before_holdout": 5427,
+      "tier": "backbone"
+    },
+    "LET3TREU": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2004-09-07",
+        "INDEX_OAS_TSY": "2002-09-17",
+        "INDEX_YIELD_TO_WORST": "2004-09-07"
+      },
+      "currency": "EUR",
+      "daily_start": "1998-07-31",
+      "dates_dropped_for_want_of_a_rate": 2,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "3-5 Year",
+      "investable": true,
+      "level_rows_before_holdout": 5427,
+      "tier": "backbone"
+    },
+    "LET5TREU": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2009-05-19",
+        "INDEX_OAS_TSY": "2002-09-17",
+        "INDEX_YIELD_TO_WORST": "2009-05-19"
+      },
+      "currency": "EUR",
+      "daily_start": "1998-07-31",
+      "dates_dropped_for_want_of_a_rate": 2,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "5-7 Year",
+      "investable": true,
+      "level_rows_before_holdout": 5427,
+      "tier": "backbone"
+    },
+    "LET7TREU": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2009-05-19",
+        "INDEX_OAS_TSY": "2002-09-17",
+        "INDEX_YIELD_TO_WORST": "2009-05-19"
+      },
+      "currency": "EUR",
+      "daily_start": "1998-07-31",
+      "dates_dropped_for_want_of_a_rate": 2,
+      "duration_axis": "measured OAD where the week has one, estimated loading otherwise",
+      "index_name": "7-10 Year",
+      "investable": true,
+      "level_rows_before_holdout": 5427,
+      "tier": "backbone"
+    },
+    "LSG1TRGU": {
+      "analytics_starts": {
+        "INDEX_OAD_TSY": "2006-03-20",
+        "INDEX_OAS_TSY": "2003-07-31",
+        "INDEX_YIELD_TO_WORST": "2006-03-20"
+      },
+      "currency": "GBP",
+      "daily_start": "2003-07-31",
+      "dates_dropped_for_want_of_a_rate": 0,
+      "duration_axis": "none: reference series, not held",
+      "index_name": "Gilts",
+      "investable": false,
+      "level_rows_before_holdout": 4161,
+      "tier": "second"
+    }
+  }
+}

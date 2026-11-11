@@ -34,7 +34,6 @@ MXUS0UT,equity,US Equities,US,yes,,,,,,,
 MXUSMC,equity,US Equities,US,yes,,,,,,,
 SPXT,equity,US Equities,US,yes,,,,,,,
 I02513EU,bond,Ex-USD Bonds,Developed Europe,no,"European, several (mostly EUR)",Government,DM,EUR_multi,Government,,DM
-I12823GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
 LET1TREU,bond,Ex-USD Bonds,Developed Europe,no,EUR,Government,DM,EUR,Government,,DM
 LP05TREU,bond,Ex-USD Bonds,Developed Europe,no,"European, several (mostly EUR)",IG,DM,EUR_multi,IG,,DM
 MXEU0CD,equity,European Equities,Developed Europe,yes,,,,,,,
@@ -88,3 +87,15 @@ I29065JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
 I29066JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
 I29067JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
 I29068JP,bond,Ex-USD Bonds,Japan,no,JPY,Government,DM,JPY,Government,,DM
+LET3TREU,bond,Ex-USD Bonds,Developed Europe,no,EUR,Government,DM,EUR,Government,,DM
+LET5TREU,bond,Ex-USD Bonds,Developed Europe,no,EUR,Government,DM,EUR,Government,,DM
+LET7TREU,bond,Ex-USD Bonds,Developed Europe,no,EUR,Government,DM,EUR,Government,,DM
+LET0TREU,bond,Ex-USD Bonds,Developed Europe,no,EUR,Government,DM,EUR,Government,,DM
+I08043GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
+I08044GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
+I08045GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
+I08046GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
+I08047GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
+I08048GB,bond,Ex-USD Bonds,Developed Europe,no,GBP,Government,DM,GBP,Government,,DM
+BEIG1T,bond,Ex-USD Bonds,Developed Europe,no,EUR real,"Government, inflation-linked",DM,EUR_real,Government,,DM
+BEIG3T,bond,Ex-USD Bonds,Developed Europe,no,EUR real,"Government, inflation-linked",DM,EUR_real,Government,,DM
