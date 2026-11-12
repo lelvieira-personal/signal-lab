@@ -6845,6 +6845,7 @@ run would have said.
 - **Gate:** `make lint` clean. **`scripts/unattended.sh check-full` rc 0**, 571 s, head `4daa6f9` (the code was uncommitted at the check and is `3648293`), load 1.20 at the start and 1.60 at the end. The directory is under `results/audit/_unattended/`, stamp 20261112-1109.
 - **For Cowork:** runs took about 270 s here against task 92's 63 to 124 s (load was 4 to 5 at the start). Task 94's timing step should expect that. In A+C the first recorded rebalance trades 0.000 (3 decimals) in all four live runs, and the first year about 66 to 77%. Check whether the view really enters at the second date on real data (the synthetic test says it does).
 - **Push:** `git push origin main` after this receipt's commit (range in the session summary).
+- Update (same run): `git push origin main` printed `84e8747..509f018  main -> main`, a fast-forward: `4daa6f9`, `3648293` and the receipt `509f018`. This line is a records-only commit, pushed the same way.
 
 ### 2026-11-11 -- task 89: done, rc 0, commits `f4f5b96`, `2128ab5`, `a631614`, pushed (Claude Code, opus, nightly 2026-11-11T16:45)
 
