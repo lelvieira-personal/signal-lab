@@ -512,6 +512,151 @@ def test_the_defaults_reproduce_the_task_91_row(horizon_runs, diag_runs):
     pd.testing.assert_frame_equal(runs["default"][2].weights, diag_runs[0]["x1"][2].weights)
 
 
+# --- HANDOFF task 93: decisions/0070 built as the default --------------------------------
+
+
+def test_the_0070_grid_is_the_plain_defaults_and_the_recorded_grids_keep_theirs():
+    cells = pilot.cells_0070()
+    assert len(cells) == 8 and len({c.key() for c in cells}) == 8
+    assert not any(c.legacy_objective for c in cells)
+    for expression in pilot.AXIS_OF_EXPRESSION:
+        mine = sorted((c.ic, c.baseline) for c in cells if c.expression == expression)
+        assert mine == [(0.0, False), (0.0, True), (0.35, False), (0.35, True)]
+    for grid in (
+        pilot.pilot_cells(pilot.PILOT_GRID),
+        pilot.pilot_cells(pilot.PILOT_SMOKE_GRID),
+        pilot.diag_cells(),
+        pilot.horizon_cells(),
+    ):
+        assert all(c.legacy_objective for c in grid)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("shadow_form", ["trailing", "created"])
+def test_the_solve_sees_the_half_spread_over_h_and_the_shadow_is_unchanged(
+    small_universe, monkeypatch, shadow_form
+):
+    """(a) and (e): the cost vector the solve is handed, with and without a view horizon."""
+    import signal_lab.portfolio.rebalance as rebalance_module
+    from signal_lab.audit.ladder import audit_cost_model
+
+    universe, params = small_universe
+    costs = audit_cost_model(universe, params)
+    seen: list[dict] = []
+    real = rebalance_module.solve
+
+    def capture(alpha, cov, w0, cost, spec, **kw):
+        seen.append({"cost": cost.copy(), "quad": kw.get("shadow_quadratic")})
+        return real(alpha, cov, w0, cost, spec, **kw)
+
+    monkeypatch.setattr(rebalance_module, "solve", capture)
+    out = {}
+    for h in (None, H):
+        rule = rebalance_module.RebalanceStep(
+            universe, costs, params, "scipy", shadow_form=shadow_form, vol_halflife=None,
+            vol_overlay="per_series", shadow_coeff=40.0, per_rebalance_cap=None,
+            turnover_cap=None, cost_horizon=h,
+        )  # fmt: skip
+        rule.turnover_log = [0.05] * 60  # a trailing year past the shadow's start
+        seen.clear()
+        drifted = None
+        for date in universe.audit_dates()[:2]:
+            cov = universe.covariance(date, None, "per_series")
+            hold = [i for i in universe.holdable if i in cov.ids]
+            drifted = rule.step(date, pd.Series(0.0, index=hold), drifted)
+        out[h] = list(seen)
+    half = costs.half_spread_vector(out[None][1]["cost"].index)
+    assert float(out[H][0]["cost"].abs().max()) == 0.0  # the first book is built free
+    plain, amortised = out[None][1], out[H][1]
+    np.testing.assert_allclose((plain["cost"] - half).to_numpy(), (amortised["cost"] - half / H))
+    if shadow_form == "trailing":
+        assert float((plain["cost"] - half).min()) > 0.0  # the linear shadow is in, undivided
+    else:
+        assert plain["quad"] == amortised["quad"] and plain["quad"][0] > 0.0
+        np.testing.assert_allclose(amortised["cost"].to_numpy(), (half / H).to_numpy())
+
+
+@pytest.fixture(scope="module")
+def runs_0070(pilot_inputs):
+    inputs, params, _ = pilot_inputs
+    import signal_lab.audit.pilot as pilot_module
+
+    arms = {
+        "new": pilot.PilotCell("cross_sectional", 0.35, 0),
+        "switches": pilot.PilotCell("cross_sectional", 0.35, 0, amortise=True, start_noview=True),
+        "legacy": pilot.PilotCell("cross_sectional", 0.35, 0, legacy=True),
+        "noview": pilot.PilotCell("cross_sectional", 0.0, 0, zero_scores=True),
+        "noview_legacy": pilot.PilotCell("cross_sectional", 0.0, 0, zero_scores=True, legacy=True),
+    }
+    out = {}
+    real = pilot_module.run_walk_forward
+    for name, cell in arms.items():
+        seen = {}
+
+        def capture(*args, _seen=seen, **kwargs):
+            _seen["cost_model"] = kwargs["cost_model"]
+            return real(*args, **kwargs)
+
+        pilot_module.run_walk_forward = capture
+        try:
+            keep = {}
+            row, rule, path = pilot.run_pilot_cell(
+                inputs, cell, params, lookahead_veto=veto_lookahead, solver="scipy", keep=keep
+            )
+        finally:
+            pilot_module.run_walk_forward = real
+        out[name] = (row, rule, path, keep, seen["cost_model"])
+    return out
+
+
+@pytest.mark.slow
+def test_the_default_rule_amortises_in_the_solve_and_the_engine_charges_in_full(runs_0070):
+    row, rule, _, keep, engine_costs = runs_0070["new"]
+    assert rule.cost_horizon == rule.h == H and rule.first_book_from_no_view
+    assert rule.costs is engine_costs is keep["costs"]  # no wrapper: the engine's model is whole
+    assert not isinstance(engine_costs, pilot.AmortisedCosts)
+    assert row["legacy"] is False and row["status"] == "ok"
+    legacy = runs_0070["legacy"][1]
+    assert legacy.cost_horizon is None and not legacy.first_book_from_no_view
+
+
+@pytest.mark.slow
+def test_the_default_first_book_is_the_no_view_book_and_the_view_enters_next(runs_0070):
+    _, rule, path, _, _ = runs_0070["new"]
+    _, rule_nv, path_nv, _, _ = runs_0070["noview_legacy"]
+    first = min(rule.books)
+    pd.testing.assert_series_equal(
+        rule.books[first]["weights"], rule_nv.books[first]["weights"], check_names=False
+    )
+    assert float(rule._alpha_rows[first].abs().max()) == 0.0
+    second = sorted(rule._alpha_rows)[1]
+    assert float(rule._alpha_rows[second].abs().max()) > 0.0
+    assert len(path.turnover) == len(path_nv.turnover)  # no row for the first date, as before
+    # the legacy rule's first book carries the view
+    legacy = runs_0070["legacy"][1]
+    assert float(legacy._alpha_rows[min(legacy._alpha_rows)].abs().max()) > 0.0
+
+
+@pytest.mark.slow
+def test_the_no_view_run_is_unchanged(runs_0070):
+    a, b = runs_0070["noview"], runs_0070["noview_legacy"]
+    assert a[1].cost_horizon is None  # a rule with no view keeps a divisor of 1
+    pd.testing.assert_frame_equal(a[2].weights, b[2].weights)
+    for field in ("net_ir", "gross_ir", "transfer", "turnover_annual", "te_ex_ante_mean"):
+        np.testing.assert_equal(a[0][field], b[0][field], err_msg=field)
+
+
+@pytest.mark.slow
+def test_the_defaults_reproduce_task_92s_switches_together_exactly(runs_0070):
+    new, old = runs_0070["new"], runs_0070["switches"]
+    assert isinstance(old[1].costs, pilot.AmortisedCosts) and isinstance(
+        old[1], pilot.FromNoViewRule
+    )
+    pd.testing.assert_frame_equal(new[2].weights, old[2].weights)
+    for field in ("net_ir", "gross_ir", "transfer", "turnover_annual", "te_ex_ante_mean"):
+        np.testing.assert_equal(new[0][field], old[0][field], err_msg=field)
+
+
 def test_a_baseline_twin_is_the_same_arms():
     rows = [
         {"expression": "d", "ic": 0.35, "seed": 0, "ic_prior_multiplier": 1.0, "baseline": b}

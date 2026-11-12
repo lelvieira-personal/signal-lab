@@ -257,10 +257,13 @@ def test_the_shuffle_switched_off_reproduces_todays_score_and_net_ir_bit_for_bit
     universe, params = small_universe
     row, _ = run_cell(
         universe,
-        AuditCell(0.10, 13, 0, shadow_form="trailing", shadow_coefficient=10.0, vol_halflife=None),
+        AuditCell(
+            0.10, 13, 0, shadow_form="trailing", shadow_coefficient=10.0, vol_halflife=None,
+            legacy_0070=True,
+        ),
         params,
         solver="scipy",
-    )
+    )  # fmt: skip
     assert row["net_ir"] == GOLDEN_NET_IR
 
 
@@ -607,10 +610,13 @@ def test_an_explicit_trailing_override_reproduces_the_legacy_golden_bit_for_bit(
     universe, params = small_universe
     explicit, _ = run_cell(
         universe,
-        AuditCell(0.10, 13, 0, shadow_form="trailing", shadow_coefficient=10.0, vol_halflife=None),
+        AuditCell(
+            0.10, 13, 0, shadow_form="trailing", shadow_coefficient=10.0, vol_halflife=None,
+            legacy_0070=True,
+        ),
         params,
         solver="scipy",
-    )
+    )  # fmt: skip
     assert explicit["net_ir"] == GOLDEN_NET_IR
     assert explicit["shadow_form"] == "trailing"
 
@@ -635,7 +641,12 @@ def test_the_default_now_reads_created_marginal_from_params(small_universe):
     universe, params = small_universe
     # `vol_halflife=None`: the pre-task-42 default, no volatility overlay, so this
     # golden still isolates the shadow form (decisions/0042 moved the overlay default).
-    row, _ = run_cell(universe, AuditCell(0.10, 13, 0, vol_halflife=None), params, solver="scipy")
+    row, _ = run_cell(
+        universe,
+        AuditCell(0.10, 13, 0, vol_halflife=None, legacy_0070=True),
+        params,
+        solver="scipy",
+    )
     assert row["shadow_form"] == "created"
     assert row["net_ir"] == GOLDEN_NET_IR_CREATED_MARGINAL
     assert row["net_ir"] != GOLDEN_NET_IR, "the default's pricing changed, so its net IR must too"
@@ -653,7 +664,7 @@ GOLDEN_NET_IR_V080 = -0.4046626602695416
 @pytest.mark.slow
 def test_the_full_default_cell_runs_the_overlay_and_reproduces_its_golden(small_universe):
     universe, params = small_universe
-    row, _ = run_cell(universe, AuditCell(0.10, 13, 0), params, solver="scipy")
+    row, _ = run_cell(universe, AuditCell(0.10, 13, 0, legacy_0070=True), params, solver="scipy")
     assert row["vol_halflife"] == 26.0 and row["vol_overlay"] == "scalar"
     assert row["shadow_form"] == "created"
     assert row["key"].endswith("_vhl26scalar_created")

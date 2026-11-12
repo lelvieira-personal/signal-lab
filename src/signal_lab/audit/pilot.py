@@ -66,6 +66,7 @@ PILOT_SMOKE_GRID = "phase2-pilot-smoke"
 PILOT_GRIDS = (PILOT_GRID, PILOT_SMOKE_GRID)
 PILOT_DIAG_GRID = "phase2-pilot-diag"  # HANDOFF task 91
 PILOT_HORIZON_GRID = "phase2-pilot-horizon"  # HANDOFF task 92
+PILOT_0070_GRID = "phase2-pilot-0070"  # HANDOFF task 93, decisions/0070's condition
 DIAG_SEED = 0
 DIAG_IC = 0.35
 DIAG_MULTIPLIERS = (1.0, 2.0, 4.0, 8.0)
@@ -131,6 +132,12 @@ class PilotCell:
     amortise: bool = False
     amortise_shadow: bool = False
     start_noview: bool = False
+    # decisions/0070 (HANDOFF task 93): False, the default, runs the ruled objective (the
+    # solve sees the half-spread over h, the run starts from the no-view book). True runs the
+    # objective in force before it (divisor 1, the first book built free with the view): the
+    # recorded grids of tasks 90 to 92 pass it, and task 92's switches above are arms on that
+    # objective, so any of them implies it (`legacy_objective`). The key is unchanged.
+    legacy: bool = False
 
     def __post_init__(self) -> None:
         if self.expression not in AXIS_OF_EXPRESSION:
@@ -139,6 +146,11 @@ class PilotCell:
     @property
     def axis(self) -> str:
         return AXIS_OF_EXPRESSION[self.expression]
+
+    @property
+    def legacy_objective(self) -> bool:
+        """True when the rule is built with the pre-0070 objective (`legacy`, or a task 92 arm)."""
+        return self.legacy or self.amortise or self.amortise_shadow or self.start_noview
 
     def key(self) -> str:
         short = "dir" if self.expression == "directional" else "xs"
@@ -159,9 +171,12 @@ class PilotCell:
 
     @property
     def arm(self) -> str:
-        """HANDOFF task 92's arm label: `default`, `A`, `B` or `C`."""
+        """HANDOFF task 92's arm label: `default`, `A`, `B` or `C`; task 93's `A+C` (the
+        amortised half-spread and the no-view first book together, decisions/0070)."""
         if self.amortise and self.amortise_shadow:
             return "B"
+        if self.amortise and self.start_noview:
+            return "A+C"
         if self.amortise:
             return "A"
         if self.start_noview:
@@ -183,12 +198,15 @@ def pilot_cells(grid: str = PILOT_GRID) -> list[PilotCell]:
         for ic in ics:
             for seed in seeds:
                 for baseline in (False, True):
-                    cells.append(PilotCell(expression, ic, seed, baseline=baseline))
+                    cells.append(PilotCell(expression, ic, seed, baseline=baseline, legacy=True))
         if grid == PILOT_GRID:
             for mult in PRIOR_MULTIPLIERS:
                 for seed in seeds:
                     for baseline in (False, True):
-                        cells.append(PilotCell(expression, PRIOR_IC, seed, mult, baseline))
+                        cells.append(
+                            PilotCell(expression, PRIOR_IC, seed, mult, baseline, legacy=True)
+                        )
+    # HANDOFF task 90's grids are recorded: the objective before decisions/0070
     return cells
 
 
@@ -199,12 +217,13 @@ def diag_cells() -> list[PilotCell]:
     costs and the shadow term off. No baselines: the task reads none (14 runs).
     """
     cells: list[PilotCell] = []
+    # recorded (HANDOFF task 91): the objective before decisions/0070
     for expression in AXIS_OF_EXPRESSION:
-        cells.append(PilotCell(expression, 0.0, DIAG_SEED, zero_scores=True))
+        cells.append(PilotCell(expression, 0.0, DIAG_SEED, zero_scores=True, legacy=True))
         for mult in DIAG_MULTIPLIERS:
-            cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED, mult))
+            cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED, mult, legacy=True))
         for ic in (DIAG_IC, 0.0):
-            cells.append(PilotCell(expression, ic, DIAG_SEED, frictionless=True))
+            cells.append(PilotCell(expression, ic, DIAG_SEED, frictionless=True, legacy=True))
     return cells
 
 
@@ -217,8 +236,10 @@ def horizon_cells() -> list[PilotCell]:
     (16 runs).
     """
     cells: list[PilotCell] = []
+    # recorded (HANDOFF task 92): the default arm is task 91's x1 row, the objective before
+    # decisions/0070; the arms A to C imply it (`PilotCell.legacy_objective`)
     for expression in AXIS_OF_EXPRESSION:
-        cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED))
+        cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED, legacy=True))
     for expression in AXIS_OF_EXPRESSION:
         for ic in (0.0, DIAG_IC):
             for baseline in (False, True):
@@ -226,6 +247,23 @@ def horizon_cells() -> list[PilotCell]:
         cells.append(PilotCell(expression, DIAG_IC, DIAG_SEED, amortise=True, amortise_shadow=True))
         for ic in (0.0, DIAG_IC):
             cells.append(PilotCell(expression, ic, DIAG_SEED, start_noview=True))
+    return cells
+
+
+def cells_0070() -> list[PilotCell]:
+    """
+    HANDOFF task 93, the owner's condition on decisions/0070: the half-spread the solve sees
+    divided by h and the no-view first book, together. Both expressions, planted IC 0 and 0.35,
+    h = 13, seed 0, `IC_prior` at the params value, each live run followed by its block-shuffled
+    baseline twin (8 runs). Step 1 ran these as task 92's switches `amortise` and `start_noview`
+    on the old objective (`A-20261112-143331`); since step 4 they are the plain defaults, and
+    every row reproduces step 1's.
+    """
+    cells: list[PilotCell] = []
+    for expression in AXIS_OF_EXPRESSION:
+        for ic in (0.0, DIAG_IC):
+            for baseline in (False, True):
+                cells.append(PilotCell(expression, ic, DIAG_SEED, baseline=baseline))
     return cells
 
 
@@ -563,6 +601,10 @@ def run_pilot_cell(
     if cell.amortise_shadow:
         shadow_coeff = shadow_coeff / cell.horizon
     rule_class = FromNoViewRule if cell.start_noview else Phase2Rule
+    # decisions/0070: the ruled objective unless the cell is recorded (or a task 92 arm). The
+    # no-view arm is a rule with no view (the addendum's item 2, and its reviewer's detail
+    # (i)): it keeps the legacy arguments, so its run is unchanged.
+    legacy = cell.legacy_objective or cell.zero_scores
     clear_usage(inputs.exposures)
     rule = rule_class(
         RowedUniverse(universe, inputs.rowed),
@@ -581,6 +623,8 @@ def run_pilot_cell(
         shadow_coeff=shadow_coeff,
         per_rebalance_cap=default_per,
         turnover_cap=None,
+        amortise_costs=not legacy,
+        free_first_book=legacy,
     )
     panel = _clip_panel(universe.engine_panel(), pd.Timestamp(scores.index[-1]))
     exposure_rule = constant_exposures(pd.DataFrame(0.0, index=universe.holdable, columns=["f0"]))
@@ -631,6 +675,7 @@ def run_pilot_cell(
         "amortise": cell.amortise,
         "amortise_shadow": cell.amortise_shadow,
         "start_noview": cell.start_noview,
+        "legacy": legacy,
         "transfer": float(reports["transfer"]),
         "equity_tracking_variance_share": float(tv["equity"].mean())
         if "equity" in tv.columns
@@ -770,7 +815,9 @@ def with_excess(table: pd.DataFrame) -> pd.DataFrame:
     prior multiplier); a baseline row's excess is NaN, as is a live row with no twin."""
     keys = ["expression", "ic", "seed", "ic_prior_multiplier"]
     # HANDOFF task 92: a twin is the same arm's (a column absent from older tables is skipped)
-    keys += [c for c in ("amortise", "amortise_shadow", "start_noview") if c in table.columns]
+    keys += [
+        c for c in ("amortise", "amortise_shadow", "start_noview", "legacy") if c in table.columns
+    ]
     base = table[table["baseline"].astype(bool)].set_index(keys)["net_ir"]
     live = ~table["baseline"].astype(bool)
     index = pd.MultiIndex.from_frame(table[keys])

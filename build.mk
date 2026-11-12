@@ -56,7 +56,7 @@
 # expect it. Override with UV_PROJECT_ENVIRONMENT=... if you keep the repo on a
 # native Linux path.
 .DEFAULT_GOAL := check
-.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife audit-phase2-pilot audit-phase2-pilot-smoke audit-phase2-pilot-diag audit-phase2-pilot-horizon jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check japan-report exusd-extra-report fdr-study impvol-coverage registry-names
+.PHONY: report cycle digest snapshot clean lock install help inspect-raw coverage universe audit audit-lean audit-baseline-pilot audit-baseline audit-knee audit-power audit-power10 audit-friction audit-friction-created audit-halflife audit-phase2-pilot audit-phase2-pilot-smoke audit-phase2-pilot-diag audit-phase2-pilot-horizon audit-phase2-pilot-0070 jpmaqs-catalogue jpmaqs-candidates jpmaqs-name-search jpmaqs-pull macro-snapshot jpmaqs-coverage measurement-loadings describe-loadings describe-fit characteristics exposures-check exusd-analytics-coverage fx-check japan-report exusd-extra-report fdr-study impvol-coverage registry-names
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -182,6 +182,9 @@ audit-phase2-pilot-diag: ## phase-2 pilot diagnostics: no-view book, IC_prior x1
 
 audit-phase2-pilot-horizon: ## phase-2 pilot: the trading cost's horizon -- half-spread / 13 in the solve, and the shadow too, and the first book from the no-view book -- 16 runs (HANDOFF task 92, decisions/proposed/0070)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-horizon
+
+audit-phase2-pilot-0070: ## phase-2 pilot: decisions/0070's condition -- half-spread / 13 in the solve and the no-view first book, together; IC 0 and 0.35, both expressions, with baselines -- 8 runs (HANDOFF task 93)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-0070
 
 audit: ## the ruler audit on the Bloomberg snapshot (decisions/0023); hours, not minutes
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg

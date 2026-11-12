@@ -277,6 +277,7 @@ def main(argv=None) -> int:
             seed=int(seed_s),
             vol_halflife=args.vol_halflife,
             vol_overlay=args.vol_overlay,
+            legacy_0070=True,  # a recorded probe: the objective before decisions/0070
         )
         name = f"ic{float(ic_s):g}_h{int(h_s)}_s{int(seed_s)}"
         if args.vol_halflife is not None:

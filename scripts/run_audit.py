@@ -879,7 +879,7 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
     estimation_start = str(manifest.get("estimation_start", "dev_start"))
     _, _, ff, _, _ = RM.load_inputs(params, factor_set, estimation_start)
     inputs = pilot.build_inputs(universe, exposures, ff.frame, params)
-    if args.grid in (pilot.PILOT_DIAG_GRID, pilot.PILOT_HORIZON_GRID):
+    if args.grid in (pilot.PILOT_DIAG_GRID, pilot.PILOT_HORIZON_GRID, pilot.PILOT_0070_GRID):
         meta = {
             "snapshot_id": universe.panel.snapshot_id,
             "panel_hash": universe.panel_hash(),
@@ -887,7 +887,7 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
             "estimation_start": estimation_start,
             "prep_seconds": round(time.time() - started, 1),
         }
-        if args.grid == pilot.PILOT_HORIZON_GRID:
+        if args.grid in (pilot.PILOT_HORIZON_GRID, pilot.PILOT_0070_GRID):
             return _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, veto_lookahead)
         return _run_pilot_diag(args, params, run_id, out_root, inputs, meta, veto_lookahead)
     cells = pilot.pilot_cells(args.grid)
@@ -1194,6 +1194,7 @@ def _run_pilot_diag(args, params, run_id, out_root, inputs, meta, lookahead_veto
 HORIZON_REPORT_COLUMNS = [
     "key",
     "arm",
+    "legacy",
     "expression",
     "ic",
     "baseline",
@@ -1239,7 +1240,9 @@ def _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, lookahead_v
     from signal_lab.audit import pilot
 
     started = time.time()
-    cells = pilot.horizon_cells()
+    # HANDOFF task 93: the same runner and report serve decisions/0070's condition grid
+    is_0070 = args.grid == pilot.PILOT_0070_GRID
+    cells = pilot.cells_0070() if is_0070 else pilot.horizon_cells()
     out = Path(out_root) / run_id
     out.mkdir(parents=True, exist_ok=True)
     rows, failure = [], None
@@ -1272,7 +1275,8 @@ def _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, lookahead_v
     table = pilot.with_excess(table)
     table.to_csv(out / "cells.csv", index=False)
     runs = table[HORIZON_REPORT_COLUMNS]
-    first = table[(table["arm"].isin(["default", "C"])) & ~table["baseline"].astype(bool)]
+    first_arms = ["default", "C", "A+C"]
+    first = table[(table["arm"].isin(first_arms)) & ~table["baseline"].astype(bool)]
     first = first[FIRST_BOOK_COLUMNS]
 
     def recs(frame):
@@ -1280,8 +1284,8 @@ def _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, lookahead_v
 
     summary = {
         "run_id": run_id,
-        "kind": "phase2-pilot-horizon",
-        "grid": pilot.PILOT_HORIZON_GRID,
+        "kind": "phase2-pilot-0070" if is_0070 else "phase2-pilot-horizon",
+        "grid": args.grid,
         "source": args.source,
         **meta,
         "params_version": params.params_version,
@@ -1298,13 +1302,27 @@ def _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, lookahead_v
         "first_book": recs(first),
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    if is_0070:
+        title = f"# Phase-2 pilot: decisions/0070's condition {run_id} (HANDOFF task 93)"
+        arms = (
+            "The decisions/0070 defaults (`legacy` False): the half-spread the solve sees "
+            "divided by h = 13 (the engine charges it in full) **and** the first book the "
+            "no-view book, each live run with its block-shuffled baseline twin. Step 1 of the "
+            "task ran the same cells as task 92's switches together (arm `A+C`), "
+            "`A-20261112-143331`."
+        )
+    else:
+        title = f"# Phase-2 pilot: the trading cost's horizon {run_id} (HANDOFF task 92)"
+        arms = (
+            "Arms: `default` (task 91's x1 rows), `A` (half-spread / 13 in the solve, full in "
+            "the engine), `B` (A and the shadow coefficient / 13 in the solve), `C` (the first "
+            "book is the no-view book; costs as in the params)."
+        )
     lines = [
-        f"# Phase-2 pilot: the trading cost's horizon {run_id} (HANDOFF task 92)",
+        title,
         "",
-        "Seed 0, h = 13, `IC_prior` at the params value, through `run_pilot_cell`. Arms: "
-        "`default` (task 91's x1 rows), `A` (half-spread / 13 in the solve, full in the engine), "
-        "`B` (A and the shadow coefficient / 13 in the solve), `C` (the first book is the "
-        "no-view book; costs as in the params). Derived numbers only. **Nothing judged:** "
+        "Seed 0, h = 13, `IC_prior` at the params value, through `run_pilot_cell`. "
+        f"{arms} Derived numbers only. **Nothing judged:** "
         "`IC_prior`, costs and the objective are the owner's (decisions/0069 item 2).",
         "",
         f"- snapshot `{meta['snapshot_id']}`, params `{params.params_version}`, store "
@@ -1315,7 +1333,7 @@ def _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, lookahead_v
         "",
         _md_table(runs),
         "",
-        "## The first book (default and C, live)",
+        "## The first book (default, C and A+C, live)",
         "",
         _md_table(first),
         "",
@@ -1372,10 +1390,15 @@ def main(argv=None) -> int:
         power_cells,
         run_cell,
     )
-    from signal_lab.audit.pilot import PILOT_DIAG_GRID, PILOT_GRIDS, PILOT_HORIZON_GRID
+    from signal_lab.audit.pilot import (
+        PILOT_0070_GRID,
+        PILOT_DIAG_GRID,
+        PILOT_GRIDS,
+        PILOT_HORIZON_GRID,
+    )
     from signal_lab.audit.report import run_id_now, write_outputs
 
-    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID, PILOT_HORIZON_GRID)
+    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID, PILOT_HORIZON_GRID, PILOT_0070_GRID)
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
 

@@ -41,7 +41,7 @@ def small_universe(params, panel):
 @pytest.mark.parametrize("shadow_form", ["trailing", "created"])
 def test_step_with_the_planted_alpha_is_the_audit_rule(small_universe, shadow_form):
     universe, params = small_universe
-    cell = AuditCell(0.20, 13, 0, shadow_form=shadow_form)
+    cell = AuditCell(0.20, 13, 0, shadow_form=shadow_form, legacy_0070=True)
     signal = _plant(universe, cell)
     rule = _OptimiserRule(universe, signal, cell, params, "scipy")
     step = RebalanceStep(

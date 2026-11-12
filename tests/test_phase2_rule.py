@@ -229,10 +229,12 @@ def test_f3_a_positive_duration_score_raises_active_duration(small_universe, set
     zero = make_rule(
         small_universe, settings, stub, dates,
         scores=pd.DataFrame(0.0, index=dates, columns=["d"]), **DURATION,
+        amortise_costs=False, free_first_book=True,
     )  # fmt: skip
     live = make_rule(
         small_universe, settings, stub, dates,
         scores=noise(dates, ["d"], last={"d": 4.0}), **DURATION,
+        amortise_costs=False, free_first_book=True,
     )  # fmt: skip
     base = active(universe, zero(dates[T], None), stub.frame["axis_duration"])
     tilted = active(universe, live(dates[T], None), stub.frame["axis_duration"])
@@ -249,11 +251,13 @@ def test_f3_a_cross_sectional_pair_of_regions_moves_their_weights_apart(
         small_universe, settings, stub, dates,
         scores=pd.DataFrame(0.0, index=dates, columns=["US", "Japan"]),
         axis="region", expression="cross_sectional",
+        amortise_costs=False, free_first_book=True,
     )  # fmt: skip
     live = make_rule(
         small_universe, settings, stub, dates,
         scores=noise(dates, ["US", "Japan"], last={"US": 4.0, "Japan": -4.0}),
         axis="region", expression="cross_sectional",
+        amortise_costs=False, free_first_book=True,
     )  # fmt: skip
     base, tilted = zero(dates[T], None), live(dates[T], None)
     assert live.views.loc[dates[T], "US"] > 0.0 > live.views.loc[dates[T], "Japan"]
@@ -275,6 +279,7 @@ def test_f4_a_region_view_reaches_only_region_view_instruments(
         small_universe, settings, stub, dates,
         scores=noise(dates, ["US", "Japan"], last={"US": 4.0, "Japan": -4.0}),
         axis="region", expression="cross_sectional",
+        amortise_costs=False, free_first_book=True,
     )  # fmt: skip
     rule(dates[T], None)
     alpha = handed_alpha(rule, dates[T])
@@ -290,6 +295,7 @@ def test_f4_a_scoped_view_reaches_only_matching_instruments(small_universe, sett
         small_universe, settings, stub, dates,
         scores=noise(dates, ["d"], last={"d": 4.0}), scope={"curve": ["UST", "EUR"]},
         presence=presence, **DURATION,
+        amortise_costs=False, free_first_book=True,
     )  # fmt: skip
     rule(dates[T], None)
     alpha = handed_alpha(rule, dates[T])
@@ -303,6 +309,7 @@ def test_f4_an_instrument_without_the_label_gets_zero_alpha(small_universe, sett
         small_universe, settings, stub, dates,
         scores=noise(dates, ["UST", "EUR", "JPY"], last={"UST": 4.0, "EUR": -4.0, "JPY": 3.0}),
         group_by="curve", **DURATION,
+        amortise_costs=False, free_first_book=True,
     )  # fmt: skip
     rule(dates[T], None)
     alpha = handed_alpha(rule, dates[T])

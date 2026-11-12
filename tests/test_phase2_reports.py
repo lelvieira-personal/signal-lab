@@ -249,7 +249,9 @@ def test_the_reports_of_a_region_cross_section_run(small_universe, settings, rst
 def test_an_instrument_with_no_row_contributes_nothing_and_is_counted(
     small_universe, settings, rstub, dates
 ):
-    rule = run_rule(small_universe, settings, rstub, dates, n=1)
+    rule = run_rule(
+        small_universe, settings, rstub, dates, n=1, amortise_costs=False, free_first_book=True
+    )
     book = rule.books[dates[T]]
     bench = reports.benchmark_holdings(book["cov"], book["leg_weights"])
     short = book["frame"].iloc[:-2]

@@ -320,6 +320,12 @@ class AuditCell:
     # prices the marginal unit at the turnover IT creates (decisions/0040's
     # ruling), as a convex term the solver sees instead of a per-unit cost.
     shadow_form: str | None = None
+    # decisions/0070 (HANDOFF task 93): False, the default, is the ruled objective -- the solve
+    # sees the half-spread over the cell's `horizon` and the run starts from the no-view book.
+    # True is the objective of every audit recorded before the ruling (divisor 1, the first
+    # book built free with the view); every grid this module defines is such a recorded
+    # configuration and passes it. The key is unchanged either way, so recorded keys decode.
+    legacy_0070: bool = False
 
     def __post_init__(self) -> None:
         if self.shuffle not in SHUFFLES:
@@ -429,9 +435,19 @@ class _OptimiserRule(RebalanceStep):
         cell: AuditCell,
         params: Params,
         solver: str,
+        *,
+        amortise_costs: bool | None = None,
+        free_first_book: bool | None = None,
     ):
+        # decisions/0070: the cell's own `horizon` is the h its planted alpha is scaled by
+        # (`audit.signals`, `ic * sigma * score / sqrt(horizon)`); the legacy arguments
+        # (`amortise_costs=False, free_first_book=True`) default to the cell's `legacy_0070`
         self.signal = signal
         self.cell = cell
+        if amortise_costs is None:
+            amortise_costs = not cell.legacy_0070
+        if free_first_book is None:
+            free_first_book = cell.legacy_0070
         vol_halflife, vol_overlay = resolve_vol_overlay(cell, params)
         override = cell.shadow_coefficient
         super().__init__(
@@ -449,13 +465,18 @@ class _OptimiserRule(RebalanceStep):
             ),
             per_rebalance_cap=cell.per_rebalance_cap,
             turnover_cap=cell.turnover_cap,
+            cost_horizon=int(cell.horizon) if amortise_costs else None,
+            first_book_from_no_view=not free_first_book,
         )
 
     def __call__(self, date: pd.Timestamp, _panel: ReturnPanel, drifted: pd.Series | None = None):
         date = pd.Timestamp(date)
         cov = self.u.covariance(date, self.vol_halflife, self.vol_overlay)
         hold = [h for h in self.u.holdable if h in cov.ids]
-        alpha = self.signal.alpha.reindex(index=[date], columns=hold).iloc[0].fillna(0.0)
+        if self.first_book_has_no_view(drifted):
+            alpha = pd.Series(0.0, index=hold)  # decisions/0070 item 4: the no-view first book
+        else:
+            alpha = self.signal.alpha.reindex(index=[date], columns=hold).iloc[0].fillna(0.0)
         return self.step(date, alpha, drifted)
 
 
@@ -1023,6 +1044,16 @@ def portfolio_veto_verdicts(row: dict[str, Any], params: Params) -> dict[str, An
 # --- the grid -----------------------------------------------------------------
 
 
+def _recorded(cells: list[AuditCell]) -> list[AuditCell]:
+    """
+    decisions/0070 (HANDOFF task 93): every grid below ran before the ruling and is recorded,
+    so its cells carry `legacy_0070=True` (divisor 1, the first book built free with the view)
+    and reproduce; keys are unchanged. The ruled objective is `AuditCell`'s default, for the
+    rerun a later task defines.
+    """
+    return [replace(c, legacy_0070=True) for c in cells]
+
+
 def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCell]:
     """
     The cells decisions/0023 asks for, in the order they run.
@@ -1071,7 +1102,7 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
                 for s in seeds:
                     cells.append(AuditCell(ic, h, s, 0.0, None, None, FRICTIONLESS))
     if lean:
-        return cells
+        return _recorded(cells)
 
     if bool(params.get("audit.include_oracle", True)):
         for h in horizons:
@@ -1100,7 +1131,7 @@ def grid_cells(params: Params | None = None, lean: bool = False) -> list[AuditCe
         for ic in ics:
             for s in seeds:
                 cells.append(AuditCell(ic, stress_h, s, 1.0, None, value, "per_rebalance"))
-    return cells
+    return _recorded(cells)
 
 
 BASELINE_GRIDS = ("baseline-pilot", "baseline")
@@ -1193,12 +1224,14 @@ def baseline_cells(params: Params | None = None, grid: str = "baseline") -> list
         horizons = [13]
     default_per = params.get("audit.per_rebalance_cap_default", None)
     default_per = None if default_per is None else float(default_per)
-    return [
-        AuditCell(ic, h, s, 1.0, None, default_per, BASELINE, baseline=True)
-        for h in horizons
-        for ic in ics
-        for s in seeds
-    ]
+    return _recorded(
+        [
+            AuditCell(ic, h, s, 1.0, None, default_per, BASELINE, baseline=True)
+            for h in horizons
+            for ic in ics
+            for s in seeds
+        ]
+    )
 
 
 def knee_cells(params: Params | None = None) -> list[AuditCell]:
@@ -1218,7 +1251,7 @@ def knee_cells(params: Params | None = None) -> list[AuditCell]:
             cells.append(
                 AuditCell(ic, KNEE_HORIZON, s, 1.0, None, default_per, BASELINE, baseline=True)
             )
-    return cells
+    return _recorded(cells)
 
 
 def power_cells(params: Params | None = None) -> list[AuditCell]:
@@ -1238,25 +1271,27 @@ def power_cells(params: Params | None = None) -> list[AuditCell]:
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
     default_per = None if default_per is None else float(default_per)
-    return [
-        AuditCell(
-            ic,
-            KNEE_HORIZON,
-            s,
-            1.0,
-            None,
-            default_per,
-            BASELINE,
-            baseline=True,
-            shuffle=SCORE_SHUFFLE,
-            perm=p,
-            shadow_form="trailing",
-            vol_halflife=None,
-        )
-        for ic in POWER_IC_RUNGS
-        for s in POWER_SEEDS
-        for p in range(POWER_PERMS)
-    ]
+    return _recorded(
+        [
+            AuditCell(
+                ic,
+                KNEE_HORIZON,
+                s,
+                1.0,
+                None,
+                default_per,
+                BASELINE,
+                baseline=True,
+                shuffle=SCORE_SHUFFLE,
+                perm=p,
+                shadow_form="trailing",
+                vol_halflife=None,
+            )
+            for ic in POWER_IC_RUNGS
+            for s in POWER_SEEDS
+            for p in range(POWER_PERMS)
+        ]
+    )
 
 
 def power10_cells(params: Params | None = None) -> list[AuditCell]:
@@ -1272,25 +1307,27 @@ def power10_cells(params: Params | None = None) -> list[AuditCell]:
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
     default_per = None if default_per is None else float(default_per)
-    return [
-        AuditCell(
-            ic,
-            KNEE_HORIZON,
-            s,
-            1.0,
-            None,
-            default_per,
-            BASELINE,
-            baseline=True,
-            shuffle=SPAN_SHUFFLE,
-            perm=p,
-            shadow_form="trailing",
-            vol_halflife=None,
-        )
-        for ic in POWER10_IC_RUNGS
-        for s in POWER10_SEEDS
-        for p in range(POWER10_PERMS)
-    ]
+    return _recorded(
+        [
+            AuditCell(
+                ic,
+                KNEE_HORIZON,
+                s,
+                1.0,
+                None,
+                default_per,
+                BASELINE,
+                baseline=True,
+                shuffle=SPAN_SHUFFLE,
+                perm=p,
+                shadow_form="trailing",
+                vol_halflife=None,
+            )
+            for ic in POWER10_IC_RUNGS
+            for s in POWER10_SEEDS
+            for p in range(POWER10_PERMS)
+        ]
+    )
 
 
 def friction_cells(params: Params | None = None) -> list[AuditCell]:
@@ -1314,23 +1351,25 @@ def friction_cells(params: Params | None = None) -> list[AuditCell]:
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
     default_per = None if default_per is None else float(default_per)
-    return [
-        AuditCell(
-            ic,
-            KNEE_HORIZON,
-            s,
-            1.0,
-            None,
-            default_per,
-            "base",
-            shadow_coefficient=coef,
-            shadow_form="trailing",
-            vol_halflife=None,
-        )
-        for ic in FRICTION_IC_RUNGS
-        for s in FRICTION_SEEDS
-        for coef in FRICTION_COEFFICIENTS
-    ]
+    return _recorded(
+        [
+            AuditCell(
+                ic,
+                KNEE_HORIZON,
+                s,
+                1.0,
+                None,
+                default_per,
+                "base",
+                shadow_coefficient=coef,
+                shadow_form="trailing",
+                vol_halflife=None,
+            )
+            for ic in FRICTION_IC_RUNGS
+            for s in FRICTION_SEEDS
+            for coef in FRICTION_COEFFICIENTS
+        ]
+    )
 
 
 def friction_created_cells(params: Params | None = None) -> list[AuditCell]:
@@ -1373,24 +1412,26 @@ def halflife_cells(params: Params | None = None) -> list[AuditCell]:
     params = params or get_params()
     default_per = params.get("audit.per_rebalance_cap_default", None)
     default_per = None if default_per is None else float(default_per)
-    return [
-        AuditCell(
-            ic,
-            h,
-            s,
-            1.0,
-            None,
-            default_per,
-            "base",
-            vol_halflife=hl,
-            vol_overlay="scalar" if hl is not None else "per_series",
-            shadow_form="trailing",
-        )
-        for h in HALFLIFE_HORIZONS
-        for ic in HALFLIFE_IC_RUNGS
-        for s in HALFLIFE_SEEDS
-        for hl in HALFLIFE_ARMS
-    ]
+    return _recorded(
+        [
+            AuditCell(
+                ic,
+                h,
+                s,
+                1.0,
+                None,
+                default_per,
+                "base",
+                vol_halflife=hl,
+                vol_overlay="scalar" if hl is not None else "per_series",
+                shadow_form="trailing",
+            )
+            for h in HALFLIFE_HORIZONS
+            for ic in HALFLIFE_IC_RUNGS
+            for s in HALFLIFE_SEEDS
+            for hl in HALFLIFE_ARMS
+        ]
+    )
 
 
 def net_ir_excess(table: pd.DataFrame) -> pd.Series:

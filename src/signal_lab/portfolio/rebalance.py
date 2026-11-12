@@ -74,7 +74,21 @@ class RebalanceStep:
         shadow_coeff: float,
         per_rebalance_cap: float | None,
         turnover_cap: float | None,
+        cost_horizon: int | None = None,
+        first_book_from_no_view: bool = False,
     ):
+        """
+        decisions/0070 (HANDOFF task 93): `cost_horizon` is the view's horizon *h*, in rebalance
+        periods. The half-spread the solve sees on every non-first step is divided by it (the
+        engine still charges every trade in full); `None`, a rule with no view, keeps a divisor
+        of 1. `first_book_from_no_view` tells a rule that carries a view to return the no-view
+        book on its first call (`first_book_has_no_view`). Both defaults here are a step with no
+        view, unchanged; the view rules set them (`Phase2Rule`, `audit.ladder._OptimiserRule`).
+        """
+        if cost_horizon is not None and not cost_horizon > 0:
+            raise ValueError(f"cost_horizon must be positive or None, got {cost_horizon!r}")
+        self.cost_horizon = cost_horizon
+        self.first_book_from_no_view = bool(first_book_from_no_view)
         self.u = universe
         self.params = params
         self.solver = solver
@@ -195,6 +209,15 @@ class RebalanceStep:
             return None
         return pd.DataFrame(self._alpha_rows).T
 
+    def first_book_has_no_view(self, drifted: pd.Series | None) -> bool:
+        """
+        decisions/0070 ruling item 4: True on a view rule's first call (no drifted book) when
+        the run starts from the no-view book. The caller then hands `step` an alpha of 0 on the
+        holdable ids without reading its view, so the first book is the minimum-TE book, built
+        free as every first book is; the trade out of it at the next date is costed and charged.
+        """
+        return drifted is None and self.first_book_from_no_view
+
     def step(self, date: pd.Timestamp, alpha: pd.Series, drifted: pd.Series | None = None):
         """Solve one rebalance. `alpha` is a Series over the holdable ids at `date`,
         missing values already filled with 0.0 by the caller."""
@@ -220,6 +243,10 @@ class RebalanceStep:
             cost = cost * 0.0  # the initial book is built, not traded (engine records no row)
             cap = None
         else:
+            if self.cost_horizon is not None:
+                # decisions/0070: the half-spread amortised over the view's horizon, before the
+                # linear shadow is added, so the 0040 shadow term is unchanged
+                cost = cost / float(self.cost_horizon)
             cap = self.session_cap()
             if self.shadow_form == "created":
                 # HANDOFF task 36: the shadow leaves the linear cost vector entirely

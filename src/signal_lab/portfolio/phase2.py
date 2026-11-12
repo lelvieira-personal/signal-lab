@@ -13,6 +13,10 @@ and reads no file. The chain, all existing pieces:
     alpha  = alpha.alpha_from_views / alpha_from_group_views at the date
     weights = RebalanceStep.step(date, alpha, drifted)
 
+decisions/0070: the solve sees the half-spread divided by `h` (the engine charges it in full), and
+the first book is the no-view book (alpha 0); `amortise_costs=False, free_first_book=True` restore
+the objective of every run recorded before it.
+
 `expected_expression: both` is two tests (decisions/0059 item 2): one rule per test, so `both` is
 refused here. `sigma` is an argument (decisions/0059 addendum item 1, read as keeping the rule
 pure): a Series over the scores' dates, or a frame like the scores, computed by the caller with
@@ -82,8 +86,15 @@ class Phase2Rule(RebalanceStep):
         scope: dict[str, list[str]] | None = None,
         presence: pd.DataFrame | None = None,
         hypothesis_id: str | None = None,
+        amortise_costs: bool = True,
+        free_first_book: bool = False,
         **rebalance_settings: Any,
     ):
+        # decisions/0070 (owner ruling 2026-11-11, delegated build 2026-11-12; HANDOFF task 93):
+        # by default the solve sees the half-spread over this rule's own `self.h` and the run
+        # starts from the no-view book. `amortise_costs=False, free_first_book=True` are the
+        # legacy arguments: divisor 1 and the first book built free with the view, which every
+        # run recorded before the ruling used.
         if expression == "both":
             raise ValueError(
                 "expected_expression 'both' is two tests (decisions/0059 item 2): "
@@ -135,7 +146,15 @@ class Phase2Rule(RebalanceStep):
             mask = alpha_mod.scope_mask(frame, scope)
             self.reach = alpha_mod.check_reach(expression, presence, mask)
 
-        super().__init__(universe, costs, params, solver, **rebalance_settings)
+        super().__init__(
+            universe,
+            costs,
+            params,
+            solver,
+            cost_horizon=self.h if amortise_costs else None,
+            first_book_from_no_view=not free_first_book,
+            **rebalance_settings,
+        )
         self._usage: list[dict[str, Any]] = []
         self.books: dict[pd.Timestamp, dict[str, Any]] = {}
         # True when the universe exposes its weekly panel, so the covariance's `fitted_through`
@@ -169,7 +188,14 @@ class Phase2Rule(RebalanceStep):
         enforce_holdout([date], self.params, "phase-2 rule date")
         cov = self.u.covariance(date, self.vol_halflife, self.vol_overlay)
         hold = [h for h in self.u.holdable if h in cov.ids]
-        alpha = self.alpha_at(date).reindex(hold).fillna(0.0)
+        if self.first_book_has_no_view(drifted):
+            # decisions/0070 item 4: the no-view first book. The view is not read, but a date
+            # the scores do not carry is still refused, as on every other call.
+            if date not in self.views.index:
+                raise ValueError(f"no score for {date.date()}: the scores frame does not carry it")
+            alpha = pd.Series(0.0, index=hold)
+        else:
+            alpha = self.alpha_at(date).reindex(hold).fillna(0.0)
         weights = self.step(date, alpha, drifted)
         self._record(date, cov, weights)
         return weights

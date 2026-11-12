@@ -267,7 +267,8 @@ def main(argv=None) -> int:
     if args.with_base or stage == "3":
         base_ics = [float(x) for x in args.base_ics.split(",")]
         base_cells = [
-            AuditCell(ic=ic, horizon=args.base_horizon, seed=s, standardise=mode)
+            # a recorded probe: the objective before decisions/0070
+            AuditCell(ic=ic, horizon=args.base_horizon, seed=s, standardise=mode, legacy_0070=True)
             for mode in modes
             for ic in base_ics
             for s in range(args.base_seeds)
