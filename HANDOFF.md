@@ -6929,6 +6929,7 @@ run would have said.
 - **For Cowork:** task 94's report should give each expression's first view trade at about index 12 to 13 (revision note 2). The forced sale left out of the solve's turnover and the shadow window is real but small here (0.0015 once). Whether it matters elsewhere is for the review, since `rebalance.py` is a number-making path.
 - **Column of `0062` item 8:** not a stop.
 - **Push:** `git push origin main` after this receipt's commit (see the update line).
+- Update (same run): `git push origin main` printed `22d9260..03d2657  main -> main`, a fast-forward. It carried task 95's stop receipt `619b47b`, `1dc1773`, `2501fa0` and this receipt `03d2657`. This line is a records-only commit, pushed the same way.
 
 ### 2026-11-12 -- task 95: STOPPED at step 1, the fault branch: on date 2 the solve is handed a material alpha and does not trade; nothing committed but this receipt, not pushed (Claude Code, opus, nightly 2026-11-12T16:45)
 
