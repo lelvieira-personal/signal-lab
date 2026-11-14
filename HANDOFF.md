@@ -83,7 +83,9 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 ## Queue
 
-Nightly-release: 94 @2026-11-13T16:50 by=cowork push=yes long
+Nightly-release: 97 @2026-11-14T16:50 by=cowork push=yes model=opus
+
+**As of 2026-11-14 (16:50 ET): task 94 done and pushed (`821f5fc`); task 97 RELEASED by Cowork (afternoon review) under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`; task 98 WRITTEN, NOT released (after 97's receipt); the threshold decision `decisions/proposed/0072` drafted for the owner.** Task 94 ran all 140 runs (9.8 h, $1.39, lookahead passed on all). Region cross-sectional separates by planted IC; duration directional does not at five seeds, and IC 0 runs earn net IR 0.30 (duration) and 0.13 (region) against a zero-view book's -0.077: task 98 measures the null before the owner rules (`0072` recommends ruling after it). `first_trade_index` read the forced `TAMSCI` sale, not the view (update line under 94's receipt); task 98 step 3 reads the view's first trade. Records transcribed into the tree for task 97's step 0 to commit (revision note 1 to task 97): `decisions/0071` moved from `proposed/` (owner rulings of 2026-11-13 and 2026-11-14), the owner's prefill (i) in `decisions/0070`, the `0068` addendum (`BEIG1T` a reference series; the linkers' duration request closed), and the spend-cap "no change" as `OWNER-QUEUE.md` L43, closed. **Carried to the next store task (not written):** `BEIG1T` to `investable` False. The `blpapi` puller of `0071` (c) is built after the M6 grid.
 
 **As of 2026-11-13 (16:50 ET): task 96 done and pushed (`8a65b24`); the `0040` prefill reading is confirmed; task 94 RELEASED `long` by Cowork (afternoon review) under `decisions/0067` and `0069`, `push=yes by=cowork`, Sonnet, for the night of Friday 2026-11-13 (23:00 ET; the poll slots refuse a long line until then); task 97 WRITTEN, NOT released.** Task 96 measured the shadow at 12.3 bp on index 1 falling 1.03 bp a date, the default arms trading only where the best pair net of both legs' shadow turns positive (index 12 duration, 13 region), and both expressions trading at index 1 with the coefficient at 0. Its index-2 finding (a forced sale of `TAMSCI` left out of the solve's turnover and so of the shadow's window) is ruled by Cowork in `decisions/0040`, addendum of 2026-11-13 (the window records both legs), **review pending**; task 97 (Opus) reviews it as its step 1 and builds it, released after task 94's receipt. Task 94's revision note 3 changes its step 0 (it commits the two `decisions/` edits first) and its timing stop (fourteen hours). After 94: Cowork's threshold proposal to the owner from its report (reserved: the pilot's acceptance thresholds). `decisions/proposed/0071` still waits on the owner.
 
@@ -3851,6 +3853,36 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 98. M6, step 6: the pilot's null, measured before the owner rules the thresholds (the baseline's realised IC, the IC 0 runs over ten more seeds and the zero-view floor, the view's first trade); then push
+
+Added 2026-11-14 by Cowork. **Written by Cowork under decisions/0067 and 0069. NOT released: released by Cowork (or a chat session of the owner's) after task 97's receipt.** Suggested release: `push=yes by=cowork model=opus` (a diagnostic). Lane 2: `src/signal_lab/audit/pilot.py` (a new grid and new columns only), `scripts/`, `tests/`, `build.mk`, a report under `results/`. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; no existing column, grid or golden changes. Planted and synthetic data only; no verdict, nothing in the leaderboard store (`0059` addendum of 2026-11-10, point 5). This task measures; it fixes nothing.** Where the text does not settle a build choice outside `0069` item 2, choose, state the basis in the receipt, and go on.
+
+**Why.** Task 94's report (`results/audit/A-20261114-030208/`) is the evidence for the owner's thresholds (`decisions/proposed/0072`). Three of its readings are Cowork's guesses until measured: (1) region cross-sectional separates (slope of `net_ir_excess` on planted IC, t = 6.2) but duration directional does not (t = 1.9), and the duration baseline twins carry a realised IC of 0.00 to 0.15 per seed (`realised_ic_by_column`, the same per seed across ICs): a power property of a one-column view against a noisy twin, or a shuffle that keeps some of the truth; (2) IC 0 runs average net IR 0.30 (duration) and 0.13 (region), against -0.077 for a zero-view book in task 91 (pre-`0070`): a real premium for taking active risk in 2004 to 2019, or a fault; (3) task 94's `first_trade_index` is 1 on every run because its 1e-4 threshold catches the forced `TAMSCI` sale on the second engine date (task 96 step 2), so the owner's look at the prefill (`decisions/0070`, owner line of 2026-11-13) has no first-trade date yet.
+
+**0. Check.** Task 97's receipt is in `## Done`. `git status --short` shows ` M HANDOFF.md` and `?? decisions/proposed/0072-the-pilots-acceptance-thresholds.md` (Cowork's draft for the owner; leave it, do not commit it), nothing else. `make audit-phase2-pilot-g` and `make pilot-first-dates` exist.
+
+**1. The baseline's realised IC under the null (no solves).** A probe, `scripts/pilot_null_probe.py` and `make pilot-null`, that builds the planted IC 0 score for each expression with the pilot's own functions and seeds, block-shuffles it with the same function and block length the baseline twin uses, and computes `realised_ic_by_column` exactly as the pilot's rows do, for planted seeds 0 to 4 and 40 shuffle draws each (200 per expression). First reproduce task 94's IC 0 baseline values for seeds 0 to 4 from `cells.csv` to 1e-9 (that shows the probe uses the same code; if it cannot, say why and stop). Report per expression: the mean, the SD, the 5% and 95% points, and beside the SD the back-of-envelope 1/sqrt(B x K), with B the number of non-overlapping 13-week blocks in the scored window and K the number of columns.
+- **Reading, with its basis:** if the mean is within 3 x SD/sqrt(200) of 0, the shuffle keeps no truth and the twins' 0.00 to 0.15 is their noise (a power property). If not, **stop**: commit the probe and its report only, receipt, push; Cowork rules from it.
+
+**2. The null over ten more seeds, and the zero-view floor.** A new grid `--grid phase2-pilot-null` (`make audit-phase2-pilot-null`), built like `phase2-pilot-g` on the `0070` defaults with no legacy argument: duration directional and region cross-sectional, planted IC 0, *h* 13, seeds 5 to 14, each with its block-shuffled baseline twin (40 runs); plus one zero-score run per expression (`zero_scores`, as task 91's no-view cells; 2 runs). New columns on the new grid's rows only, if the rows do not already carry them: for each of the six factors, the run's mean active exposure and the annualised active return it explains (active exposure at t times the factor's return from t to t+1, summed), from the run's own path before it is discarded, and the unexplained remainder.
+- **Time it** as task 94 did: after the first four runs, extrapolate steps 2 and 3. If they would pass 4.3 hours, run fewer seeds (in order from 5, at least 5 seeds) so they fit, and say so.
+- **Report** (`results/pilot_null/report.md`, `summary.json`), per expression, pooling task 94's IC 0 rows (seeds 0 to 4) with these: n; mean, SD, min and max of net IR and of `net_ir_excess`; the share of runs with net IR >= 0.30 (bar 1's `target_net_ir` as `params/audit.yaml` states it), with excess > 0, and with both; the same net-IR share over every baseline twin; the zero-score run's net IR, active return and cost drag; and the mean over IC 0 runs of each factor's active exposure and explained active return, with the number of seeds on which each factor's contribution has the sign of the mean.
+- **Reading, with its basis (reported, not a stop):** a real premium if the zero-score run's net IR is at most 0 and the IC 0 runs' mean active return is at least two-thirds explained by factor exposures whose sign holds on at least two-thirds of the seeds; otherwise say what is unexplained. Lookahead must pass on every run.
+
+**3. The view's first trade.** Run `make pilot-first-dates` (add `--seeds` and `--ics` flags if needed; stated) with the `default` arm for both expressions, planted IC 0.35, *h* 13, seeds 0 and 1: four runs. For each, give the first index at which the engine's traded notional **less the forced leg** (the sale of instruments that left the holdable set, as task 96 step 2 named it) passes 1e-4, beside task 96's 12 (duration) and 13 (region) at seed 0, and say whether it differs across the two seeds. Report only.
+
+**4. Tests, gate, commit, receipt, push.** Tests: the null grid as data (cells, keys unique, every IC 0 run paired with its twin, the zero-score cells, no legacy argument); the probe's reproduction of one IC 0 baseline value on the synthetic fixture. No existing test or golden edited. `make lint` clean; `scripts/unattended.sh check-scoped` rc 0. Commit citing `HANDOFF task 98, decisions/0059, decisions/proposed/0072`; receipt in `HANDOFF.md` (steps 1 to 3 tables, the two readings and their bases, the runs' seconds); `git push origin main` (report the range it prints).
+
+**Use only task-named commands and `make` targets.** Put any diagnostic in the probe or the runner and run it through a `make` target.
+
+**Stop conditions:** step 0 differs; step 1's fault branch (after its commit and push); a run fails lookahead; more than two runs fail (say which and why); an existing test or golden moves; the check fails twice on the same cause; a task-named command is denied; the push is rejected.
+
+**Not in this task:** any threshold, or a judgement against one (the owner's, `decisions/proposed/0072`); bar 1, bar 2 or the stepdown; the prefill, the shadow, any cost or constraint level or `IC_prior` (the owner's, `0069` item 2); M7.
+
+Expected: step 1 a few minutes; 42 runs at about 250 s (2.9 hours); four probe runs (about 17 minutes); check-scoped about 8 minutes: 3 to 3.5 hours, inside the 5-hour poll wall; $4 to $8 on Opus (a guess, from tasks 94 to 96).
+
+Written and released by Cowork under decisions/0067 and 0069.
+
 ### 97. Review and build `decisions/0040`'s 2026-11-13 addendum: the forced leg of a trade in the trailing turnover window; then push
 
 Added 2026-11-13 by Cowork. **Written by Cowork under decisions/0067 and 0069. NOT released: released by Cowork after task 94's receipt.** Suggested release: `push=yes by=cowork model=opus` (a reviewer step on a number-making path, `0069` item 4). Lane 2: `src/signal_lab/portfolio/rebalance.py`, `tests/`, and one records line in `decisions/0040`. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`.** Synthetic and planted data only. Where the text does not settle a build choice outside `0069` item 2, choose, state the basis in the receipt, and go on.
@@ -3876,6 +3908,8 @@ Added 2026-11-13 by Cowork. **Written by Cowork under decisions/0067 and 0069. N
 Expected: the review 10 to 20 minutes, the build and tests 20 to 40, check-scoped about 8 minutes (check-full longer if goldens move): 45 to 90 minutes, $3 to $7 on Opus (a guess, from tasks 93 and 96).
 
 Written and released by Cowork under decisions/0067 and 0069.
+
+**Revision note 1 to task 97 (Cowork, 2026-11-14 16:50 ET, `decisions/0069` item 3). RELEASED, Opus, `push=yes by=cowork`.** Task 94's receipt is in `## Done`. **Step 0 changes:** HEAD is `821f5fc` or a descendant that touches only `HANDOFF.md`; `git status --short` shows exactly ` M HANDOFF.md`, ` M OWNER-QUEUE.md`, ` M decisions/0068-admitting-the-euro-and-uk-bands-and-the-euro-linkers.md`, ` M decisions/0070-the-horizon-of-the-trading-cost-in-the-objective.md`, `?? decisions/0071-the-bloomberg-puller.md` and `?? decisions/proposed/0072-the-pilots-acceptance-thresholds.md` (Cowork's draft for the owner: leave it, do not commit it). Commit the four records alone first (`OWNER-QUEUE.md`, `decisions/0068-...`, `decisions/0070-...`, `decisions/0071-...`): `records: decisions/0071 (owner rulings of 2026-11-13 and 2026-11-14), the 0068 addendum of 2026-11-14, the owner's prefill (i) in 0070, OWNER-QUEUE L43 closed (Cowork review, HANDOFF task 97)`. If the commit hook refuses one of them, stop: records are Cowork's to fix. Everything else in task 97 is unchanged.
 
 ### 96. M6, step 4c: confirm that the `0040` prefill holds the first thirteen weeks; commit task 95's probe; name the index-2 sale; then push
 
@@ -6925,6 +6959,34 @@ run would have said.
 
 ## Done
 
+### 2026-11-14 -- task 97: done, rc 0, commits `ca1289b`, `1e3ee4a`; the reviewer agrees with the `0040` addendum of 2026-11-13, and the window now records the forced leg; no golden moved; pushed (see the push line) (Claude Code, opus, nightly 2026-11-14T16:50)
+
+- **Step 0 held:** HEAD `821f5fc`; `git status --short` was exactly the six paths of revision note 1. `ca1289b` committed the four records alone with the note's message; the hook accepted it. `decisions/proposed/0072-...` was left as found, uncommitted.
+- **Step 1, the review: agrees.** My line is under the addendum in `decisions/0040`, committed with this receipt. The reversal condition does not hold.
+  - Every turnover the lab reports is the engine's, both legs. `CostModel.turnover` (`costs.py` L124-134) takes the union, `engine.py` L313 records it, and `annualised_turnover`, the `0038` highlight's `turnover_annual` (`ladder.py` L570, L1024) and `turnover_first_year` (`pilot.py` L359-363) read `path.turnover`.
+  - SUBSTRATE §8 measures turnover from the drifted book.
+  - Nothing is on `0069` item 2's list: no level in `params/` moves, and net IR and real costs are untouched.
+  - Two details settled inside the record: (i) date k's forced leg is priced from k+1 (the coefficients are fixed before the trade); (ii) `shadow_paid_bps` prices the solve's `x` without the forced leg, because the sale is not the solve's trade. The per-session cap is unchanged; the annual wall of the turnover-shortfall cells now counts the forced leg, consistent with (b).
+- **Step 2, the build** (`portfolio/rebalance.py`): on a non-first date the window appends `sol.turnover + f`, where `f = Σ|drifted_i|` over the drifted book's instruments outside `hold`. `sol.turnover`, `repair_turnover`, the engine, the cost model and `shadow_paid_bps` are unchanged. `_OptimiserRule` and `Phase2Rule` inherit the step, so this is the one implementation.
+- **Step 3, tests:** new `test_the_window_records_the_forced_sale_of_an_instrument_that_left_the_holdable_set` (`tests/test_rebalance_step.py`). On the synthetic 14-series universe, `audit.pilot.RowedUniverse` drops the largest non-cash, non-leg holding from the holdable set from date k = 3. The test checks:
+  - the sale is forced on k only;
+  - `turnover_log` equals the engine's `CostModel.turnover` on every date, k included, to 1e-12;
+  - the coefficients on k are built from the window without date k;
+  - the coefficients on k+1 equal `created_marginal_quadratic` of the window with the forced leg, and differ from those without it.
+- **Goldens: none moved.** `scripts/unattended.sh check-full` **rc 0**, 597 s, 1169 passed, head `ca1289b` (the build in the tree), load 5.34 at the start and 1.74 at the end, directory `results/audit/_unattended/20261114-165939-check-full/`. No existing test or golden edited. So I list no golden and no forced-leg dates.
+- **Step 4, the pilot's size** (`make pilot-first-dates ARGS="--step 1 --arms default --tag task97 --out results/pilot_first_dates"`, rc 0, 579 s, load 0.17 at the start). The probe has no expression flag, so the named command also ran duration; I did not add a flag.
+  - **Region cross-sectional:** the shadow at index 13 is **0.160 bp** (was 0.080; 2a × 0.00299 as predicted). The first view trade stays at **index 13** (0.0039; was 0.00539). From index 3 the shadow reads 10.4 (was 10.3), with the forced leg in the window.
+  - **Duration directional:** the first view trade stays at **index 12** (0.00396; was 0.00541). The shadow at 13 is 0.371 (was 0.369).
+  - "First traded notional > 1e-4" still reads index 2, the forced `TAMSCI` sale (0.00299), as task 94 found.
+  - Results are under the key `task97` in `results/pilot_first_dates/summary.json` and `report.md`, committed with the build. Planted data only.
+- **Step 5, gate:** `make lint` clean. The full check above was the gate. Commit `1e3ee4a` cites `HANDOFF task 97, decisions/0040, decisions/0069`.
+- **Build choices and their basis:**
+  1. The test uses the pilot's own `RowedUniverse` to make an instrument leave, so it runs the path the pilot runs.
+  2. `shadow_paid_bps` is priced without `f`: the task's expected choice, basis above.
+  3. The pilot run covered both expressions, because that is what the named command does.
+- **For Cowork:** the addendum now stands (review written). The change is consistent with task 94's report (about 0.08 bp of shadow for a year).
+- **Column of `0062` item 8:** not a stop.
+
 ### 2026-11-14 -- task 94: done, rc 0, commits `664f539`, `edb0f57`; the 140-run grid of `0059` G on the `0070` defaults ran complete; pushed (see the update line) (Claude Code, sonnet, nightly 2026-11-13T16:50)
 
 - **Step 0 held:** HEAD `8a65b24`; `git status --short` was exactly the four paths of revision note 3 (i). `664f539` committed the two `decisions/` files alone with the note's message. `decisions/proposed/0071-...` left as found.
@@ -6937,6 +6999,7 @@ run would have said.
 - **For Cowork:** the first-trade column above; on duration at IC 0.10 the excess rises with `IC_prior` (0.037, 0.055, 0.107 at x0.5, x1, x2), on region it falls at x2 (0.108, 0.109, 0.044), and duration's per-seed minimum at x0.5 is -0.20 (reported, not judged); the threshold proposal to the owner is yours. Task 97 may now be released.
 - **Column of `0062` item 8:** not a stop.
 - **Push:** `git push origin main` printed `8a65b24..a84be7a  main -> main`, a fast-forward; it carried `664f539`, `edb0f57` and the receipt `a84be7a`. This update line is a records-only commit, pushed the same way.
+- **Update (Cowork review, 2026-11-14 afternoon, `decisions/0069` items 3 and 5):** verified from the night run's `status.txt` (rc 0, 35665 s, $1.39, 71 turns, 2 denials, both ad-hoc reads the task did not name; head `8a65b24` to `821f5fc`, commits as listed; `origin/main=821f5fc ahead=0`, local value; no owner-only path; the one uncommitted path was the untracked `0071`), `git log`, and `results/audit/A-20261114-030208/cells.csv` and `report.md`. Build choices (1) to (4) accepted: (1) and (3) add without changing a recorded column, (2) puts the task's own stop where it fires unattended, (4) follows the task's command rule. **The first-trade reading is accepted:** every row has `first_date` 2004-01-09 and `first_trade_date` 2004-01-16, so path index 1 is task 96's index 2 (96 counts the no-view first book as index 0), where 96 logged the forced 0.00299; neither a rerun of the grid nor a reading from weights: HANDOFF task 98 step 3 reads the view's first trade on four probe runs, and the column stays as defined (the engine's first trade). The report is accepted as the pilot's evidence; the threshold proposal is `decisions/proposed/0072` (owner). Two readings go to task 98 before the owner rules: duration's weak separation (slope t 1.9 against region's 6.2) beside baseline twins with realised IC 0.00 to 0.15, and IC 0 runs' mean net IR (0.30 duration, 0.13 region) against task 91's zero-view -0.077.
 
 ### 2026-11-13 -- task 96: done, rc 0, commits `1dc1773`, `2501fa0`, pushed; the `0040` prefill reading holds (Claude Code, opus, nightly 2026-11-13T05:55)
 
