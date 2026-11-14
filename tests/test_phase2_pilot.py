@@ -143,6 +143,63 @@ def test_the_grid_is_g_as_data():
     assert len({c.key() for c in full}) == len(full)
 
 
+def test_the_g_grid_is_140_cells_on_the_0070_defaults_with_every_baseline_paired():
+    """HANDOFF task 94: G's grid as data, no legacy argument on any cell."""
+    cells = pilot.g_cells()
+    assert len(cells) == 140 and len({c.key() for c in cells}) == 140
+    assert not any(c.legacy_objective or c.legacy for c in cells)
+    for a, b in zip(cells[::2], cells[1::2], strict=True):  # each live cell is followed by its twin
+        assert not a.baseline and b.baseline
+        assert (a.expression, a.ic, a.seed, a.prior_multiplier) == (
+            b.expression,
+            b.ic,
+            b.seed,
+            b.prior_multiplier,
+        )
+    live = [c for c in cells if not c.baseline]
+    assert len(live) == 70
+    assert {c.prior_multiplier for c in live if c.ic != pilot.PRIOR_IC} == {1.0}
+    assert {c.prior_multiplier for c in live if c.ic == pilot.PRIOR_IC} == {0.5, 1.0, 2.0}
+    assert {c.seed for c in live} == set(pilot.PILOT_SEEDS)
+    assert {c.horizon for c in cells} == {13}
+    # the recorded 140-run grid keeps the legacy objective and the same shape
+    old = pilot.pilot_cells(pilot.PILOT_GRID)
+    assert [(c.expression, c.ic, c.seed, c.prior_multiplier, c.baseline) for c in old] == [
+        (c.expression, c.ic, c.seed, c.prior_multiplier, c.baseline) for c in cells
+    ]
+
+
+def test_the_g_summary_gives_mean_min_max_over_seeds_and_the_first_trade():
+    rows = []
+    for seed, (live, base, first) in enumerate([(0.5, 0.1, 12), (0.3, 0.4, 13)]):
+        common = {
+            "expression": "directional",
+            "ic": 0.35,
+            "seed": seed,
+            "ic_prior_multiplier": 1.0,
+            "transfer": 0.2,
+            "turnover_annual": 0.5,
+            "te_ex_ante_mean": 0.05,
+            "te_p95": 0.06,
+            "equity_tracking_variance_share": 0.1,
+            "bias_stat": 1.0,
+            "inaccurate_share": 0.0,
+            "infeasible_te_share": 0.0,
+            "lookahead_passed": True,
+            "seconds": 10.0,
+            "first_trade_index": first,
+        }
+        rows.append({**common, "baseline": False, "net_ir": live})
+        rows.append({**common, "baseline": True, "net_ir": base})
+    out = pilot.summarise_g(pd.DataFrame(rows))
+    assert len(out) == 1
+    r = out.iloc[0]
+    assert r["n"] == 2
+    assert r["excess_mean"] == pytest.approx(0.15) and r["excess_min"] == pytest.approx(-0.1)
+    assert r["excess_max"] == pytest.approx(0.4) and r["excess_positive_share"] == 0.5
+    assert (r["first_trade_index_min"], r["first_trade_index_max"]) == (12, 13)
+
+
 def test_ic_prior_is_varied_in_memory_never_in_params(params):
     before = params.require("constraints.views.ic_prior")
     doubled = pilot.with_ic_prior(params, 2 * before)

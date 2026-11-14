@@ -67,6 +67,9 @@ PILOT_GRIDS = (PILOT_GRID, PILOT_SMOKE_GRID)
 PILOT_DIAG_GRID = "phase2-pilot-diag"  # HANDOFF task 91
 PILOT_HORIZON_GRID = "phase2-pilot-horizon"  # HANDOFF task 92
 PILOT_0070_GRID = "phase2-pilot-0070"  # HANDOFF task 93, decisions/0070's condition
+# HANDOFF task 94: the grid of decisions/0059 G on the 0070 defaults
+PILOT_G_GRID = "phase2-pilot-g"
+FIRST_TRADE_THRESHOLD = 1e-4  # the traded notional that counts as a trade (HANDOFF tasks 94, 96)
 DIAG_SEED = 0
 DIAG_IC = 0.35
 DIAG_MULTIPLIERS = (1.0, 2.0, 4.0, 8.0)
@@ -207,6 +210,25 @@ def pilot_cells(grid: str = PILOT_GRID) -> list[PilotCell]:
                             PilotCell(expression, PRIOR_IC, seed, mult, baseline, legacy=True)
                         )
     # HANDOFF task 90's grids are recorded: the objective before decisions/0070
+    return cells
+
+
+def g_cells() -> list[PilotCell]:
+    """
+    HANDOFF task 94: the grid of decisions/0059 G on the decisions/0070 defaults (no legacy
+    argument on any cell): 2 expressions x 5 ICs x 5 seeds, plus `IC_prior` at half and twice on
+    the IC 0.10 cells, each live run followed by its block-shuffled baseline twin (140 runs).
+    """
+    cells: list[PilotCell] = []
+    for expression in AXIS_OF_EXPRESSION:
+        for ic in PILOT_ICS:
+            for seed in PILOT_SEEDS:
+                for baseline in (False, True):
+                    cells.append(PilotCell(expression, ic, seed, baseline=baseline))
+        for mult in PRIOR_MULTIPLIERS:
+            for seed in PILOT_SEEDS:
+                for baseline in (False, True):
+                    cells.append(PilotCell(expression, PRIOR_IC, seed, mult, baseline))
     return cells
 
 
@@ -702,6 +724,16 @@ def run_pilot_cell(
         "last_date": str(path.dates[-1].date()),
         "solvers_used": ",".join(sorted(set(diag["solver"].astype(str)))),
     }
+    # HANDOFF task 94: the first date the engine trades (index 0 is the first book, which is
+    # built, not traded); NaN and -1 when no date passes the threshold
+    traded = path.turnover.astype(float).dropna()
+    hit = traded[traded > FIRST_TRADE_THRESHOLD]
+    if len(hit):
+        row["first_trade_date"] = str(pd.Timestamp(hit.index[0]).date())
+        row["first_trade_index"] = int(pd.DatetimeIndex(path.dates).get_loc(hit.index[0]))
+    else:
+        row["first_trade_date"] = ""
+        row["first_trade_index"] = -1
     row.update(
         risk_calibration(
             path.active_returns,
@@ -826,6 +858,40 @@ def with_excess(table: pd.DataFrame) -> pd.DataFrame:
     out["baseline_net_ir"] = floor.where(live)
     out["net_ir_excess"] = (table["net_ir"] - floor).where(live)
     return out
+
+
+def summarise_g(table: pd.DataFrame) -> pd.DataFrame:
+    """
+    HANDOFF task 94's report table: per expression, planted IC and prior multiplier, over seeds
+    (mean, min, max), with the first trade's index beside it. No pass or fail.
+    """
+    live = with_excess(table)
+    live = live[~live["baseline"].astype(bool)]
+    grouped = live.groupby(["expression", "ic", "ic_prior_multiplier"])
+    spec: dict[str, tuple[str, Any]] = {"n": ("net_ir", "count")}
+    for name, col in (
+        ("net_ir", "net_ir"),
+        ("excess", "net_ir_excess"),
+        ("transfer", "transfer"),
+        ("turnover", "turnover_annual"),
+    ):
+        spec[f"{name}_mean"] = (col, "mean")
+        spec[f"{name}_min"] = (col, "min")
+        spec[f"{name}_max"] = (col, "max")
+    spec.update(
+        excess_positive_share=("net_ir_excess", lambda s: float((s > 0).mean())),
+        te_ex_ante_mean=("te_ex_ante_mean", "mean"),
+        te_p95_mean=("te_p95", "mean"),
+        equity_tv_share_mean=("equity_tracking_variance_share", "mean"),
+        bias_stat_mean=("bias_stat", "mean"),
+        inaccurate_share_mean=("inaccurate_share", "mean"),
+        infeasible_share_mean=("infeasible_te_share", "mean"),
+        first_trade_index_min=("first_trade_index", "min"),
+        first_trade_index_max=("first_trade_index", "max"),
+        lookahead_passed=("lookahead_passed", "all"),
+        seconds_mean=("seconds", "mean"),
+    )
+    return grouped.agg(**spec).reset_index()
 
 
 def summarise(table: pd.DataFrame) -> pd.DataFrame:

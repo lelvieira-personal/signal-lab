@@ -824,11 +824,39 @@ def _pilot_report(summary: dict, table, by_cell) -> str:
         "",
         "## Every run",
         "",
-        _md_table(table[PILOT_REPORT_COLUMNS]),
+        _md_table(table[[c for c in PILOT_REPORT_COLUMNS if c in table.columns]]),
         "",
     ]
+    if "first_trade_index" in table.columns:
+        # HANDOFF task 94, revision note 3 (iii): the first date with traded notional above 1e-4
+        # beside each expression's rows, and whether it differs across seeds or ICs
+        live = table[~table["baseline"].astype(bool)]
+        spread = live.groupby("expression")["first_trade_index"].agg(["min", "max", "nunique"])
+        lines += [
+            "## First date with traded notional above 1e-4 (index 0 is the first book)",
+            "",
+            _md_table(
+                live[["key", "first_trade_index", "first_trade_date"]]
+                .sort_values("key")
+                .reset_index(drop=True)
+            ),
+            "",
+            "By expression (live runs): "
+            + "; ".join(
+                f"{e} index {int(r['min'])} to {int(r['max'])} ({int(r['nunique'])} distinct)"
+                for e, r in spread.iterrows()
+            ),
+            "",
+            "Bar 2 carries no threshold (SUBSTRATE section 3): `excess_positive_share` at IC 0 is "
+            "the share of IC 0 runs whose `net_ir_excess` is above 0, the first half of the "
+            "`multiple_testing` veto; the stepdown is not run here. Reported, not judged.",
+            "",
+        ]
     return "\n".join(lines)
 
+
+G_TIMING_CELLS = 4  # HANDOFF task 94: the cells timed before the rest of the grid is run
+G_TIMING_STOP_HOURS = 14.0  # HANDOFF task 94, revision note 3 (ii)
 
 PILOT_REPORT_COLUMNS = [
     "key",
@@ -842,6 +870,7 @@ PILOT_REPORT_COLUMNS = [
     "inaccurate_share",
     "infeasible_te_share",
     "realised_ic_by_column",
+    "first_trade_index",
     "lookahead_passed",
     "seconds",
 ]
@@ -890,7 +919,8 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
         if args.grid in (pilot.PILOT_HORIZON_GRID, pilot.PILOT_0070_GRID):
             return _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, veto_lookahead)
         return _run_pilot_diag(args, params, run_id, out_root, inputs, meta, veto_lookahead)
-    cells = pilot.pilot_cells(args.grid)
+    is_g = args.grid == pilot.PILOT_G_GRID
+    cells = pilot.g_cells() if is_g else pilot.pilot_cells(args.grid)
     prep_seconds = time.time() - started
     if not args.quiet:
         print(
@@ -930,10 +960,27 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
                     f"{row['seconds']:.0f}s",
                     flush=True,
                 )
+            if is_g and i == G_TIMING_CELLS:
+                # HANDOFF task 94 step 1 and revision note 3 (ii): time the first four cells and
+                # extrapolate to the whole grid; past fourteen hours, stop and report
+                mean_s = sum(r["seconds"] for r in rows) / len(rows)
+                extrapolated_h = mean_s * len(cells) / 3600.0
+                print(
+                    f"timing: first {i} cells {mean_s:.0f} s each, {len(cells)} runs extrapolate "
+                    f"to {extrapolated_h:.1f} h",
+                    flush=True,
+                )
+                if extrapolated_h > G_TIMING_STOP_HOURS:
+                    failure = (
+                        f"timing: {len(cells)} runs extrapolate to {extrapolated_h:.1f} h, past "
+                        f"{G_TIMING_STOP_HOURS:g} h"
+                    )
+                    print(f"phase-2 pilot STOPPED: {failure}", file=sys.stderr)
+                    break
     if not rows:
         return 3
     table = pilot.with_excess(pd.DataFrame(rows))
-    by_cell = pilot.summarise(pd.DataFrame(rows))
+    by_cell = (pilot.summarise_g if is_g else pilot.summarise)(pd.DataFrame(rows))
     table.to_csv(out / "cells.csv", index=False)
     summary = {
         "run_id": run_id,
@@ -1393,12 +1440,13 @@ def main(argv=None) -> int:
     from signal_lab.audit.pilot import (
         PILOT_0070_GRID,
         PILOT_DIAG_GRID,
+        PILOT_G_GRID,
         PILOT_GRIDS,
         PILOT_HORIZON_GRID,
     )
     from signal_lab.audit.report import run_id_now, write_outputs
 
-    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID, PILOT_HORIZON_GRID, PILOT_0070_GRID)
+    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID, PILOT_HORIZON_GRID, PILOT_0070_GRID, PILOT_G_GRID)
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
 

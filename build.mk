@@ -186,6 +186,9 @@ audit-phase2-pilot-horizon: ## phase-2 pilot: the trading cost's horizon -- half
 audit-phase2-pilot-0070: ## phase-2 pilot: decisions/0070's condition -- half-spread / 13 in the solve and the no-view first book, together; IC 0 and 0.35, both expressions, with baselines -- 8 runs (HANDOFF task 93)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-0070
 
+audit-phase2-pilot-g: ## phase-2 pilot: the grid of decisions/0059 G on the decisions/0070 defaults -- 2 expressions x IC 0-0.35 x seeds 0-4, IC_prior x0.5/x2 at IC 0.10, each with its baseline -- 140 runs (HANDOFF task 94)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-g
+
 pilot-first-dates: ## phase-2 pilot probe: the first 30 rebalance dates of three arms and the timing of eight runs -- results/pilot_first_dates/ (HANDOFF task 95)
 	$(PY) --group dev python scripts/pilot_first_dates_probe.py $(if $(ARGS),$(ARGS))
 
