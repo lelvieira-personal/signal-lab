@@ -269,7 +269,13 @@ class RebalanceStep:
         )
 
         if not first:
-            self.turnover_log.append(sol.turnover)
+            # decisions/0040, addendum of 2026-11-13 (HANDOFF task 97): the window records the
+            # turnover the book went through on the date, both legs -- the solve's trade plus the
+            # forced sale of anything held that has left the holdable set, which `w0` drops above
+            # and the engine records and charges. The coefficients were fixed before the trade, so
+            # the forced leg is priced from the next date on; `sol.turnover` itself is unchanged.
+            forced = float(drifted[~drifted.index.isin(hold)].abs().sum())
+            self.turnover_log.append(sol.turnover + forced)
             if sol.status.endswith("repair"):
                 self.repair_turnover += sol.turnover
 
