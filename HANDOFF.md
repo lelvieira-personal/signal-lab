@@ -6936,7 +6936,7 @@ run would have said.
 - **Build choices and their basis:** (1) a separate `summarise_g` (the recorded grids' table is unchanged); (2) the timing stop is in the runner after cell 4, so it fires without a human; (3) `first_trade_*` columns were added to every pilot row (new columns only, no existing column changed); (4) no `/proc/loadavg` reading in the grid (denied, not a task-named command).
 - **For Cowork:** the first-trade column above; on duration at IC 0.10 the excess rises with `IC_prior` (0.037, 0.055, 0.107 at x0.5, x1, x2), on region it falls at x2 (0.108, 0.109, 0.044), and duration's per-seed minimum at x0.5 is -0.20 (reported, not judged); the threshold proposal to the owner is yours. Task 97 may now be released.
 - **Column of `0062` item 8:** not a stop.
-- **Push:** `git push origin main` follows this receipt's commit (update line below).
+- **Push:** `git push origin main` printed `8a65b24..a84be7a  main -> main`, a fast-forward; it carried `664f539`, `edb0f57` and the receipt `a84be7a`. This update line is a records-only commit, pushed the same way.
 
 ### 2026-11-13 -- task 96: done, rc 0, commits `1dc1773`, `2501fa0`, pushed; the `0040` prefill reading holds (Claude Code, opus, nightly 2026-11-13T05:55)
 
