@@ -6986,6 +6986,7 @@ run would have said.
   3. The pilot run covered both expressions, because that is what the named command does.
 - **For Cowork:** the addendum now stands (review written). The change is consistent with task 94's report (about 0.08 bp of shadow for a year).
 - **Column of `0062` item 8:** not a stop.
+- **Push:** `git push origin main` printed `821f5fc..8997acf  main -> main`, a fast-forward; it carried `ca1289b`, `1e3ee4a` and the receipt `8997acf`. This push line is a records-only commit, pushed the same way.
 
 ### 2026-11-14 -- task 94: done, rc 0, commits `664f539`, `edb0f57`; the 140-run grid of `0059` G on the `0070` defaults ran complete; pushed (see the update line) (Claude Code, sonnet, nightly 2026-11-13T16:50)
 
