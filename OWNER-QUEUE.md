@@ -213,6 +213,11 @@ directory that gets cloned and archived. Hygiene, owner's call.
 
 ## Closed
 
+### L43. The month's spend cap (`scripts/nightly/config.sh` L4, `MONTH_CAP_USD=100`) may bind before the month ends — CLOSED 2026-11-13 (ruled: no change today)
+**Ruled 2026-11-13 (owner, chat, 19:41 ET: "Agree with all recommendations from the digest"; weekly digest of 2026-11-13, section 1 item 3):** no change today; decide once task 94 has shown what a long run costs. Recorded by Cowork (review, 2026-11-14 afternoon). *For that look:* task 94 (Sonnet, `long`, 9.9 hours, 71 turns) cost $1.39; the month stood at $42.10 before it, $43.49 after (`results/audit/_nightly/20261113-220004-night/status.txt`). The cost of a run is its turns and model, not its wall time.
+
+Added 2026-11-13 by Cowork in the weekly digest; never on this file's Live list.
+
 ### L42. H-2026-0002's curve groups: does a linker sit with its nominal? — CLOSED 2026-11-11 (ruled: (a))
 **Ruled 2026-11-11 (owner, chat, 11:54 ET: "yes to all"):** option (a). For hypotheses on the `real_nominal` axis, H-2026-0002 first, the build maps `USD_real` to `USD` and `EUR_real` to `EUR` when it forms the groups: a linker sits with its nominal. Applied when 0002's signal module is built (M7). Its EUR leg stays `blocked:data` until the linkers' measured duration lands (`decisions/0068`, owner ruling 2026-11-11).
 
