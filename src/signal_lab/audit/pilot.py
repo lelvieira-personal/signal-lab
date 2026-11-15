@@ -73,6 +73,11 @@ PILOT_G_GRID = "phase2-pilot-g"
 # HANDOFF task 98 step 1: the IC 0 baseline's realised IC over other shuffles (no solves)
 NULL_PROBE_SEEDS = (0, 1, 2, 3, 4)
 NULL_PROBE_DRAWS = 40
+# HANDOFF task 99 step 2 (task 98's step 2): the null grid over ten more seeds, and the no-view book
+PILOT_NULL_GRID = "phase2-pilot-null"
+NULL_GRID_SEEDS = tuple(range(5, 15))
+NULL_GRID_MIN_SEEDS = 5
+NULL_ZERO_SEED = 0
 FIRST_TRADE_THRESHOLD = 1e-4  # the traded notional that counts as a trade (HANDOFF tasks 94, 96)
 DIAG_SEED = 0
 DIAG_IC = 0.35
@@ -234,6 +239,52 @@ def g_cells() -> list[PilotCell]:
                 for baseline in (False, True):
                     cells.append(PilotCell(expression, PRIOR_IC, seed, mult, baseline))
     return cells
+
+
+def null_cells(seeds: tuple[int, ...] = NULL_GRID_SEEDS) -> list[PilotCell]:
+    """
+    HANDOFF task 99 step 2 (task 98's step 2): the pilot's null over more seeds, on the
+    decisions/0070 defaults (no legacy argument on any cell). Seed by seed, both expressions,
+    planted IC 0 at h 13, each live run followed by its block-shuffled twin; then one zero-score
+    run per expression (task 91's no-view book; `run_pilot_cell` keeps that arm's own arguments).
+    Seed-major, so a shorter list of seeds is a prefix of this one: 4 x 10 + 2 = 42 runs.
+    """
+    cells: list[PilotCell] = []
+    for seed in seeds:
+        for expression in AXIS_OF_EXPRESSION:
+            for baseline in (False, True):
+                cells.append(PilotCell(expression, 0.0, seed, baseline=baseline))
+    for expression in AXIS_OF_EXPRESSION:
+        cells.append(PilotCell(expression, 0.0, NULL_ZERO_SEED, zero_scores=True))
+    return cells
+
+
+def factor_attribution(
+    active_exposure: pd.DataFrame,
+    factors: pd.DataFrame,
+    active_returns: pd.Series,
+    ppy: float = 52.0,
+) -> dict[str, float]:
+    """
+    HANDOFF task 98 step 2's columns, from a run's own path: for each factor, the mean active
+    exposure over the solved dates, and the annualised active return it explains (exposure at t
+    times the factor's move from t to t+1, averaged over those dates and times `ppy`); and the
+    unexplained remainder, the run's annualised active return less their sum.
+    """
+    names = [c for c in factors.columns if c in active_exposure.columns]
+    x = active_exposure[names].astype(float)
+    nxt = factors[names].astype(float).shift(-1).reindex(x.index)
+    out: dict[str, float] = {}
+    total = 0.0
+    for name in names:
+        contrib = (x[name] * nxt[name]).dropna()
+        explained = float(contrib.mean() * ppy) if len(contrib) else float("nan")
+        out[f"fx_{name}_exposure_mean"] = float(x[name].mean())
+        out[f"fx_{name}_explained_annual"] = explained
+        total += explained if np.isfinite(explained) else 0.0
+    out["fx_explained_annual"] = total
+    out["fx_unexplained_annual"] = float(active_returns.mean() * ppy) - total
+    return out
 
 
 def null_shuffle_rng(seed: int, draw: int) -> np.random.Generator:
@@ -614,12 +665,14 @@ def run_pilot_cell(
     lookahead_veto: Callable[[RunContext, Params], Any],
     solver: str | None = None,
     keep: dict[str, Any] | None = None,
+    attribution: bool = False,
 ) -> tuple[dict[str, Any], Phase2Rule, Any]:
     """
     One pilot run: plant, build the `Phase2Rule`, run the engine, report. Returns the row, the
     rule and the path. `lookahead_veto` is `vetoes.rules.veto_lookahead` (`portfolio` and
     `audit` do not import `vetoes`); a run that fails it is recorded with `lookahead_passed`
-    False and kept.
+    False and kept. `attribution` (the null grid's rows only, HANDOFF task 99 step 2) adds the
+    `factor_attribution` columns; every other grid's row is unchanged.
     """
     started = time.time()
     solver = solver or str(params.get("audit.solver", "auto"))
@@ -785,6 +838,12 @@ def run_pilot_cell(
             ex_ante_mean=row["te_ex_ante_mean"],
         )
     )
+    if attribution:
+        row.update(
+            factor_attribution(
+                reports["active_exposure"], inputs.factors, path.active_returns, rule.ppy
+            )
+        )
     row["seconds"] = time.time() - started
     if keep is not None:
         keep["reports"] = reports

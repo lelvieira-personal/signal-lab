@@ -857,6 +857,8 @@ def _pilot_report(summary: dict, table, by_cell) -> str:
 
 G_TIMING_CELLS = 4  # HANDOFF task 94: the cells timed before the rest of the grid is run
 G_TIMING_STOP_HOURS = 14.0  # HANDOFF task 94, revision note 3 (ii)
+NULL_TIMING_HOURS = 4.3  # HANDOFF task 99 step 2: steps 2 and 3 together
+NULL_STEP3_RUNS = 4  # HANDOFF task 99 step 3: the view's first trade, four runs
 
 PILOT_REPORT_COLUMNS = [
     "key",
@@ -920,7 +922,12 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
             return _run_pilot_horizon(args, params, run_id, out_root, inputs, meta, veto_lookahead)
         return _run_pilot_diag(args, params, run_id, out_root, inputs, meta, veto_lookahead)
     is_g = args.grid == pilot.PILOT_G_GRID
-    cells = pilot.g_cells() if is_g else pilot.pilot_cells(args.grid)
+    is_null = args.grid == pilot.PILOT_NULL_GRID
+    if is_null:
+        cells = pilot.null_cells()
+    else:
+        cells = pilot.g_cells() if is_g else pilot.pilot_cells(args.grid)
+    null_note = None
     prep_seconds = time.time() - started
     if not args.quiet:
         print(
@@ -937,10 +944,18 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
     failure = None
     with open(out / "cells.partial.csv", "w", newline="", encoding="utf-8") as fh:
         writer = None
-        for i, cell in enumerate(cells, start=1):
+        i = 0
+        while i < len(cells):  # an index loop: the null grid may shorten `cells` after timing
+            cell = cells[i]
+            i += 1
             try:
                 row, _, _ = pilot.run_pilot_cell(
-                    inputs, cell, params, lookahead_veto=veto_lookahead, solver=args.solver
+                    inputs,
+                    cell,
+                    params,
+                    lookahead_veto=veto_lookahead,
+                    solver=args.solver,
+                    attribution=is_null,
                 )
             except Exception as exc:  # report which run and stop (HANDOFF task 90 step 4)
                 failure = f"{cell.key()}: {type(exc).__name__}: {exc}"
@@ -977,10 +992,40 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
                     )
                     print(f"phase-2 pilot STOPPED: {failure}", file=sys.stderr)
                     break
+            if is_null and i == G_TIMING_CELLS:
+                # HANDOFF task 99 step 2 (task 98's timing rule, changed): extrapolate this grid
+                # and step 3's four probe runs; past 4.3 hours, fewer seeds, in order from 5,
+                # at least 5. The runs so far are a prefix of the shorter list (seed-major).
+                mean_s = sum(r["seconds"] for r in rows) / len(rows)
+                seeds = pilot.NULL_GRID_SEEDS
+                extra = 2 + NULL_STEP3_RUNS  # the zero-score runs and step 3's runs
+
+                def hours(n: int, mean_s: float = mean_s, extra: int = extra) -> float:
+                    return mean_s * (4 * n + extra) / 3600.0
+
+                fits = [n for n in range(1, len(seeds) + 1) if hours(n) <= NULL_TIMING_HOURS]
+                n_seeds = max(max(fits, default=0), pilot.NULL_GRID_MIN_SEEDS)
+                null_note = {
+                    "timing_cells": i,
+                    "seconds_per_run_first4": round(mean_s, 1),
+                    "extrapolated_hours_all_seeds": round(hours(len(seeds)), 2),
+                    "extrapolated_hours_chosen": round(hours(n_seeds), 2),
+                    "limit_hours": NULL_TIMING_HOURS,
+                    "seeds_run": list(seeds[:n_seeds]),
+                    "fewer_seeds": n_seeds < len(seeds),
+                }
+                print(f"timing: {null_note}", flush=True)
+                if n_seeds < len(seeds):
+                    cells = pilot.null_cells(tuple(seeds[:n_seeds]))
     if not rows:
         return 3
     table = pilot.with_excess(pd.DataFrame(rows))
-    by_cell = (pilot.summarise_g if is_g else pilot.summarise)(pd.DataFrame(rows))
+    if is_null:
+        # the zero-score runs are not IC 0 runs: they stay out of the by-cell table
+        frame = pd.DataFrame(rows)
+        by_cell = pilot.summarise_g(frame[~frame["zero_scores"].astype(bool)])
+    else:
+        by_cell = (pilot.summarise_g if is_g else pilot.summarise)(pd.DataFrame(rows))
     table.to_csv(out / "cells.csv", index=False)
     summary = {
         "run_id": run_id,
@@ -1005,6 +1050,7 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
         "seconds_per_run_mean": float(table["seconds"].mean()),
         "seconds_per_run_max": float(table["seconds"].max()),
         "lookahead_passed": int(table["lookahead_passed"].sum()),
+        "null_timing": null_note,
         "inputs": inputs.notes,
         "by_cell": by_cell.to_dict(orient="records"),
         "runs": table.to_dict(orient="records"),
@@ -1443,10 +1489,18 @@ def main(argv=None) -> int:
         PILOT_G_GRID,
         PILOT_GRIDS,
         PILOT_HORIZON_GRID,
+        PILOT_NULL_GRID,
     )
     from signal_lab.audit.report import run_id_now, write_outputs
 
-    pilot_grids = (*PILOT_GRIDS, PILOT_DIAG_GRID, PILOT_HORIZON_GRID, PILOT_0070_GRID, PILOT_G_GRID)
+    pilot_grids = (
+        *PILOT_GRIDS,
+        PILOT_DIAG_GRID,
+        PILOT_HORIZON_GRID,
+        PILOT_0070_GRID,
+        PILOT_G_GRID,
+        PILOT_NULL_GRID,
+    )
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params
 

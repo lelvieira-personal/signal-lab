@@ -1,0 +1,206 @@
+{
+  "target_net_ir": 0.3,
+  "factors": [
+    "equity",
+    "real_yield",
+    "inflation",
+    "credit",
+    "dollar",
+    "commodities"
+  ],
+  "directional": {
+    "n_live": 15,
+    "n_twins": 15,
+    "net_ir": {
+      "n": 15,
+      "mean": 0.29273316530290633,
+      "sd": 0.258748292198934,
+      "min": -0.2136988482891696,
+      "max": 0.6849985805251373
+    },
+    "net_ir_excess": {
+      "n": 15,
+      "mean": -0.008565790225684685,
+      "sd": 0.08098790462460417,
+      "min": -0.2488083746406861,
+      "max": 0.07230576705271896
+    },
+    "share_net_ir_ge_target": 0.4,
+    "share_excess_gt_0": 0.6666666666666666,
+    "share_both": 0.26666666666666666,
+    "twins_share_net_ir_ge_target": 0.4666666666666667,
+    "twins_net_ir": {
+      "n": 15,
+      "mean": 0.30129895552859104,
+      "sd": 0.24124152298759396,
+      "min": -0.2207372586669891,
+      "max": 0.6428075545601958
+    },
+    "zero_score": {
+      "key": "duration-dir_ic0.00_h13_s0_noview",
+      "net_ir": -0.0770881110266268,
+      "active_return_annual": -0.0009160995482563,
+      "cost_drag_annual": 0.0014137899519582,
+      "turnover_annual": 0.0001894502283507,
+      "legacy": true
+    },
+    "attribution_runs": 10,
+    "active_return_annual_mean": 0.013063483556570582,
+    "factors": [
+      {
+        "factor": "equity",
+        "exposure_mean": 0.050254163954371454,
+        "explained_mean": 0.0056775782738129,
+        "seeds_with_sign_of_mean": 8,
+        "seeds": 10,
+        "sign_holds": true
+      },
+      {
+        "factor": "real_yield",
+        "exposure_mean": -1.2739457706152835,
+        "explained_mean": 0.0032106660738110498,
+        "seeds_with_sign_of_mean": 8,
+        "seeds": 10,
+        "sign_holds": true
+      },
+      {
+        "factor": "inflation",
+        "exposure_mean": -1.8496703153402598,
+        "explained_mean": 0.0025447460655586497,
+        "seeds_with_sign_of_mean": 8,
+        "seeds": 10,
+        "sign_holds": true
+      },
+      {
+        "factor": "credit",
+        "exposure_mean": -0.9447218518236195,
+        "explained_mean": -0.00354221636282672,
+        "seeds_with_sign_of_mean": 9,
+        "seeds": 10,
+        "sign_holds": true
+      },
+      {
+        "factor": "dollar",
+        "exposure_mean": 0.06686222957008153,
+        "explained_mean": 0.001033231530712,
+        "seeds_with_sign_of_mean": 6,
+        "seeds": 10,
+        "sign_holds": false
+      },
+      {
+        "factor": "commodities",
+        "exposure_mean": 0.00639786890152112,
+        "explained_mean": -0.00027722074773860146,
+        "seeds_with_sign_of_mean": 5,
+        "seeds": 10,
+        "sign_holds": false
+      }
+    ],
+    "unexplained_annual_mean": 0.0044166987232412604,
+    "explained_by_sign_holding_factors": 0.007890774050355879,
+    "explained_share_by_sign_holding_factors": 0.6040329148182707,
+    "real_premium": false,
+    "twin_ic_matches_step1_max_gap": 9.020562075079397e-17
+  },
+  "cross_sectional": {
+    "n_live": 15,
+    "n_twins": 15,
+    "net_ir": {
+      "n": 15,
+      "mean": 0.10274647313197613,
+      "sd": 0.1668348979860171,
+      "min": -0.1386292267439135,
+      "max": 0.3949481612264264
+    },
+    "net_ir_excess": {
+      "n": 15,
+      "mean": 0.01376186198373532,
+      "sd": 0.0869524304989977,
+      "min": -0.16682721836491962,
+      "max": 0.1926021116173732
+    },
+    "share_net_ir_ge_target": 0.06666666666666667,
+    "share_excess_gt_0": 0.6,
+    "share_both": 0.06666666666666667,
+    "twins_share_net_ir_ge_target": 0.2,
+    "twins_net_ir": {
+      "n": 15,
+      "mean": 0.0889846111482408,
+      "sd": 0.21083278408649123,
+      "min": -0.3104624258876958,
+      "max": 0.385987839620303
+    },
+    "zero_score": {
+      "key": "region-xs_ic0.00_h13_s0_noview",
+      "net_ir": -0.0770881110266268,
+      "active_return_annual": -0.0009160995482563,
+      "cost_drag_annual": 0.0014137899519582,
+      "turnover_annual": 0.0001894502283507,
+      "legacy": true
+    },
+    "attribution_runs": 10,
+    "active_return_annual_mean": 0.0032442097927877903,
+    "factors": [
+      {
+        "factor": "equity",
+        "exposure_mean": 0.10022164571547232,
+        "explained_mean": 0.0037979336397577696,
+        "seeds_with_sign_of_mean": 10,
+        "seeds": 10,
+        "sign_holds": true
+      },
+      {
+        "factor": "real_yield",
+        "exposure_mean": -0.17542255204398802,
+        "explained_mean": 0.00047437146735731,
+        "seeds_with_sign_of_mean": 8,
+        "seeds": 10,
+        "sign_holds": true
+      },
+      {
+        "factor": "inflation",
+        "exposure_mean": -0.1369279632891285,
+        "explained_mean": -0.0010141166432413098,
+        "seeds_with_sign_of_mean": 8,
+        "seeds": 10,
+        "sign_holds": true
+      },
+      {
+        "factor": "credit",
+        "exposure_mean": -0.4493131750685472,
+        "explained_mean": -0.00097966209037933,
+        "seeds_with_sign_of_mean": 6,
+        "seeds": 10,
+        "sign_holds": false
+      },
+      {
+        "factor": "dollar",
+        "exposure_mean": 0.03059806928227054,
+        "explained_mean": 0.00036508126123103,
+        "seeds_with_sign_of_mean": 5,
+        "seeds": 10,
+        "sign_holds": false
+      },
+      {
+        "factor": "commodities",
+        "exposure_mean": 0.04125513441442853,
+        "explained_mean": -0.0009427711882696182,
+        "seeds_with_sign_of_mean": 7,
+        "seeds": 10,
+        "sign_holds": true
+      }
+    ],
+    "unexplained_annual_mean": 0.0015433733463318903,
+    "explained_by_sign_holding_factors": 0.0023154172756041516,
+    "explained_share_by_sign_holding_factors": 0.7137076278949532,
+    "real_premium": true,
+    "twin_ic_matches_step1_max_gap": 9.020562075079397e-17
+  },
+  "readings_real_premium": {
+    "directional": false,
+    "cross_sectional": true
+  },
+  "null_run": "A-20261115-105504",
+  "task94_run": "A-20261114-030208",
+  "seconds": 0.0
+}

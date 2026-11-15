@@ -141,6 +141,135 @@ def test_the_null_probe_reproduces_an_ic_zero_baseline_and_draws_other_shuffles(
     assert pilot.scored_blocks(factor) == int(twin.truth.notna().any(axis=1).sum()) // H
 
 
+# --- HANDOFF task 99: the null probe's step 1 parts, the null grid, the factor attribution ---
+
+
+def _probe():
+    scripts = str(Path(__file__).resolve().parents[1] / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import pilot_null_probe
+
+    return pilot_null_probe
+
+
+@pytest.mark.parametrize("expression", ["directional", "cross_sectional"])
+def test_the_seed_unit_value_and_variant_k_reproduce_the_built_baseline(params, expression):
+    """Task 99 step 1 (a) and (c): the seed-unit value is the twin's own `realised_ic_by_column`,
+    and the probe's restated plant at (k) is `plant_axis_signal`, live and twin."""
+    probe = _probe()
+    columns = ["d"] if expression == "directional" else ["US", "Japan", "EM", "Canada"]
+    factor = weekly_factor(columns, 6)
+    for baseline in (False, True):
+        built = plant_axis_signal(factor, 0.35, H, 6, expression, params, baseline=baseline)
+        mine = probe.plant_variant(factor, 0.35, 6, expression, params, baseline, "k")
+        gap = np.nanmax(np.abs((mine.score - built.score).to_numpy(float)))
+        assert gap <= 1e-12
+    twin = plant_axis_signal(factor, 0.0, H, 6, expression, params, baseline=True)
+    want = realised_ic(twin)["by_column_mean"]
+    assert pilot.baseline_ic_by_column(factor, expression, 6, params) == pytest.approx(
+        want, abs=1e-12
+    )
+    k = probe.plant_variant(factor, 0.0, 6, expression, params, True, "k")
+    assert realised_ic(k)["by_column_mean"] == pytest.approx(want, abs=1e-12)
+
+
+def test_the_shuffle_correlation_of_an_identity_permutation_is_one(params):
+    """Task 99 step 1 (b): with the rows left in place the correlation is exactly 1."""
+    probe = _probe()
+    truth = plant_axis_signal(
+        weekly_factor(["US", "Japan", "EM"], 2), 0.0, H, 2, "cross_sectional", params
+    ).truth
+    same = probe.shuffle_correlation(truth, None, shuffle=lambda df, block, rng: df)
+    assert same == pytest.approx(1.0, abs=1e-12)
+    drawn = probe.shuffle_correlation(truth, pilot.null_shuffle_rng(0, 0))
+    assert abs(drawn) < 0.5  # a real draw moves the rows
+
+
+@pytest.mark.parametrize("expression", ["directional", "cross_sectional"])
+def test_variant_m_twin_noise_is_orthogonal_to_the_shuffled_and_the_real_truth(params, expression):
+    """Task 99 step 1 (c): (m)'s twin noise is orthogonal to both vectors, per column, to 1e-12;
+    so its IC 0 twin carries exactly 0 about the real truth, as the live cell does."""
+    probe = _probe()
+    columns = ["d"] if expression == "directional" else ["US", "Japan", "EM", "Canada"]
+    factor = weekly_factor(columns, 3)
+    twin = probe.plant_variant(factor, 0.0, 3, expression, params, True, "m")
+    noise = twin.score  # at IC 0 the score is the noise
+    for column in columns:
+        frame = pd.concat(
+            [noise[column], twin.blend_truth[column], twin.truth[column]], axis=1
+        ).dropna()
+        e, s, t = (frame.iloc[:, j].to_numpy(float) for j in range(3))
+        e, s, t = e - e.mean(), s - s.mean(), t - t.mean()
+        assert abs(e @ s) / (np.linalg.norm(e) * np.linalg.norm(s)) < 1e-12
+        assert abs(e @ t) / (np.linalg.norm(e) * np.linalg.norm(t)) < 1e-12
+    assert realised_ic(twin)["by_column_mean"] == pytest.approx(0.0, abs=1e-12)
+    # (k)'s twin is orthogonal to the shuffled truth only, so it keeps a chance IC
+    k = probe.plant_variant(factor, 0.0, 3, expression, params, True, "k")
+    assert abs(realised_ic(k)["by_column_mean"]) > 1e-6
+
+
+def test_the_null_grid_is_ic_zero_on_ten_more_seeds_each_paired_plus_the_zero_score_runs():
+    """Task 99 step 2 (task 98's): the null grid as data."""
+    cells = pilot.null_cells()
+    assert len(cells) == 42 and len({c.key() for c in cells}) == 42
+    assert not any(c.legacy or c.legacy_objective for c in cells)  # no legacy argument
+    runs = [c for c in cells if not c.zero_scores]
+    assert len(runs) == 40
+    assert {c.ic for c in runs} == {0.0} and {c.horizon for c in cells} == {13}
+    assert {c.seed for c in runs} == set(range(5, 15))
+    assert not set(pilot.PILOT_SEEDS) & {c.seed for c in runs}  # no seed of task 94's grid
+    for a, b in zip(runs[::2], runs[1::2], strict=True):  # each live run followed by its twin
+        assert not a.baseline and b.baseline
+        assert (a.expression, a.ic, a.seed) == (b.expression, b.ic, b.seed)
+    zero = [c for c in cells if c.zero_scores]
+    assert sorted(c.expression for c in zero) == sorted(pilot.AXIS_OF_EXPRESSION)
+    assert not any(c.baseline for c in zero)
+    # seed-major: a shorter list of seeds is a prefix of the full one (the timing rule)
+    short = pilot.null_cells(tuple(range(5, 10)))
+    assert len(short) == 22
+    assert [c.key() for c in short[:20]] == [c.key() for c in cells[:20]]
+    assert [c.key() for c in short[20:]] == [c.key() for c in cells[40:]]
+
+
+def test_the_first_view_trade_leaves_out_the_forced_sale_and_its_reinvestment():
+    """Task 99 step 3: the forced sale `f` and the solve's buy-back of its proceeds are both
+    forced; the view's first trade is the first date the rest passes the threshold."""
+    _probe()  # puts scripts/ on the path
+    import pilot_first_dates_probe as fd
+
+    dates = pd.date_range("2004-01-02", periods=5, freq="W-FRI")
+    table = pd.DataFrame(
+        {
+            "index": range(5),
+            "engine_traded_notional": [np.nan, 0.0, 0.003, 0.00005, 0.004],
+            "left_holdable_weight": [np.nan, 0.0, 0.0015, 0.0, 0.0],
+        },
+        index=dates,
+    )
+    out = fd.first_view_trade(table)
+    assert out["sale"]["index"] == 2  # the sale alone leaves the buy-back
+    assert out["both_legs"]["index"] == 4
+    assert fd.first_trade(table)["index"] == 2
+
+
+def test_the_factor_attribution_explains_exposure_times_the_next_move():
+    dates = pd.date_range("2010-01-01", periods=6, freq="W-FRI")
+    factors = pd.DataFrame({"a": [0.0, 0.01, 0.02, -0.01, 0.03, 0.0], "b": 0.001}, index=dates)
+    exposure = pd.DataFrame(
+        {"a": [1.0, 2.0, 0.5, 1.0, 1.0], "b": 0.0, "duration": 9.0}, index=dates[:5]
+    )
+    active = pd.Series([0.001, 0.002, 0.0, 0.001, 0.0, 0.0], index=dates)
+    out = pilot.factor_attribution(exposure, factors, active, ppy=52.0)
+    # a: 1*0.01 + 2*0.02 + 0.5*-0.01 + 1*0.03 + 1*0.0 over five dates
+    want_a = (0.01 + 0.04 - 0.005 + 0.03 + 0.0) / 5 * 52.0
+    assert out["fx_a_explained_annual"] == pytest.approx(want_a)
+    assert out["fx_b_explained_annual"] == pytest.approx(0.0)
+    assert out["fx_a_exposure_mean"] == pytest.approx(1.1)
+    assert "fx_duration_exposure_mean" not in out  # factors only, not the axes
+    assert out["fx_unexplained_annual"] == pytest.approx(active.mean() * 52.0 - want_a)
+
+
 def test_the_cross_sectional_truth_sums_to_zero_across_regions(params):
     factor = weekly_factor(["US", "Japan", "EM", "Canada"], 2)
     plant = plant_axis_signal(factor, 0.2, H, 2, "cross_sectional", params)
@@ -331,6 +460,27 @@ def test_a_pilot_row_has_every_reported_field(pilot_inputs, expression):
     assert live["net_ir_excess"].iloc[0] == pytest.approx(rows[0]["net_ir"] - rows[1]["net_ir"])
     summary = pilot.summarise(pd.DataFrame(rows))
     assert len(summary) == 1 and summary["n"].iloc[0] == 1
+
+
+@pytest.mark.slow
+def test_a_null_grid_row_carries_the_factor_attribution_and_others_do_not(pilot_inputs):
+    """HANDOFF task 99 step 2: the attribution columns are on the null grid's rows only, and the
+    explained parts and the remainder add up to the run's annualised active return."""
+    inputs, params, _ = pilot_inputs
+    cell = pilot.PilotCell("directional", 0.0, 5)
+    plain, _, _ = pilot.run_pilot_cell(
+        inputs, cell, params, lookahead_veto=veto_lookahead, solver="scipy"
+    )
+    assert not any(k.startswith("fx_") for k in plain)
+    row, _, _ = pilot.run_pilot_cell(
+        inputs, cell, params, lookahead_veto=veto_lookahead, solver="scipy", attribution=True
+    )
+    for name in FACTOR_NAMES:
+        assert np.isfinite(row[f"fx_{name}_exposure_mean"])
+        assert np.isfinite(row[f"fx_{name}_explained_annual"])
+    parts = sum(row[f"fx_{name}_explained_annual"] for name in FACTOR_NAMES)
+    assert parts + row["fx_unexplained_annual"] == pytest.approx(row["active_return_annual"])
+    assert row["net_ir"] == pytest.approx(plain["net_ir"], abs=1e-12)  # the run is unchanged
 
 
 # --- HANDOFF task 91: the diagnostic arms --------------------------------------------------

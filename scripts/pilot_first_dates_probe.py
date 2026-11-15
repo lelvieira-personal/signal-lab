@@ -276,6 +276,34 @@ def first_trade(table: pd.DataFrame, threshold: float = TRADE_THRESHOLD) -> dict
     return {"date": str(pd.Timestamp(date).date()), "index": int(hit.loc[date, "index"])}
 
 
+def first_view_trade(table: pd.DataFrame, threshold: float = TRADE_THRESHOLD) -> dict[str, Any]:
+    """HANDOFF task 99 step 3 (task 98's): the first date where the engine's traded notional
+    LESS the forced leg passes `threshold`. The forced leg is the drifted book's weight on
+    instruments outside the step's holdable set, which the engine sells (task 96 step 2;
+    `decisions/0040` addendum of 2026-11-13: the window records `sol.turnover + f`)."""
+    if "left_holdable_weight" not in table.columns:
+        forced = pd.Series(0.0, index=table.index)
+    else:
+        forced = table["left_holdable_weight"].astype(float).fillna(0.0)
+    traded = table["engine_traded_notional"].astype(float)
+    out: dict[str, Any] = {}
+    # `sale`: less the forced sale only (the task's words). `both_legs`: less the sale and its
+    # reinvestment too, because the solve's `w0` leaves the sold instrument out, so the solve
+    # buys back the proceeds (the same notional) whatever the view: a forced leg as well.
+    for name, net in (("sale", traded - forced), ("both_legs", traded - 2.0 * forced)):
+        hit = table[net > threshold]
+        if hit.empty:
+            out[name] = None
+            continue
+        date = hit.index[0]
+        out[name] = {
+            "date": str(pd.Timestamp(date).date()),
+            "index": int(hit.loc[date, "index"]),
+            "traded_less_forced": float(net.loc[date]),
+        }
+    return out
+
+
 def first_alpha(table: pd.DataFrame, costs: Any, h: int) -> dict[str, Any] | None:
     """The first date with a nonzero alpha: its largest |alpha_i| beside half-spread_i / h."""
     hit = table[table["alpha_max_abs"] > 0]
@@ -320,6 +348,7 @@ def probe_cell(inputs, cell, params, lookahead_veto, solver=None, n=N_DATES) -> 
         "path": path,
         "table": table,
         "first_trade": first_trade(table),
+        "first_view_trade": first_view_trade(table),
         "first_alpha": first_alpha(table, keep["costs"], cell.horizon),
         "timing": {
             "key": cell.key(),
@@ -423,7 +452,21 @@ def main(argv=None) -> int:
         help=f"step 1's arms, comma-separated, from {', '.join(KNOWN_ARMS)}",
     )
     ap.add_argument("--tag", default="task96", help="the key this run's results are kept under")
+    ap.add_argument(
+        "--seeds",
+        default=None,
+        help="step 1's planted seeds, comma-separated (default 0; HANDOFF task 99 step 3)",
+    )
+    ap.add_argument(
+        "--ics",
+        default=None,
+        help=f"step 1's planted ICs, comma-separated (default {pilot.DIAG_IC}; HANDOFF task 99)",
+    )
     args = ap.parse_args(argv)
+    # with either flag, step 1's keys name the IC and the seed; without, they are as before
+    grid_keys = args.seeds is not None or args.ics is not None
+    seeds = [int(s) for s in (args.seeds or "0").split(",") if s.strip()]
+    ics = [float(x) for x in (args.ics or str(pilot.DIAG_IC)).split(",") if x.strip()]
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
     unknown = [a for a in arms if a not in KNOWN_ARMS]
     if unknown:
@@ -468,19 +511,29 @@ def main(argv=None) -> int:
     ]
 
     if args.step in ("1", "all"):
-        md += ["## Step 1: the first dates (IC 0.35)", ""]
-        for expression in pilot.AXIS_OF_EXPRESSION:
-            for arm in arms:
-                cell = arm_cell(arm, expression)
+        md += [f"## Step 1: the first dates (IC {', '.join(f'{x:g}' for x in ics)})", ""]
+        runs = [
+            (expression, arm, ic, seed)
+            for expression in pilot.AXIS_OF_EXPRESSION
+            for arm in arms
+            for ic in ics
+            for seed in seeds
+        ]
+        for expression, arm, ic, seed in runs:
+            if True:  # one block per run (the loop above was two levels before task 99)
+                cell = arm_cell(arm, expression, ic, seed)
                 print(f"  step 1: {cell.key()} ({arm})", flush=True)
                 res = probe_cell(inputs, cell, arm_params(arm, params), veto_lookahead)
                 table = res["table"]
                 a_trade = res["first_trade"]
                 key = f"{expression}/{arm}"
+                if grid_keys:
+                    key = f"{key}/ic{ic:.2f}/s{seed}"
                 second = table.iloc[1] if len(table) > 1 else None
                 summary["step1"][key] = {
                     "cell": cell.key(),
                     "first_trade": a_trade,
+                    "first_view_trade": res["first_view_trade"],
                     "first_alpha": res["first_alpha"],
                     "date2_top_trades": second.get("top_trades") if second is not None else None,
                     "date2_entered_holdable": second.get("entered_holdable")
@@ -503,6 +556,8 @@ def main(argv=None) -> int:
                     f"### {expression}, arm {arm} (`{cell.key()}`)",
                     "",
                     f"First traded notional > {TRADE_THRESHOLD:g}: {a_trade}. "
+                    f"First traded notional less the forced leg > {TRADE_THRESHOLD:g}: "
+                    f"{res['first_view_trade']}. "
                     f"First nonzero alpha: {res['first_alpha']}.",
                     "",
                     f"Date 2 largest trades: {summary['step1'][key]['date2_top_trades']}; "
@@ -515,7 +570,11 @@ def main(argv=None) -> int:
                     _md(table[[c for c in TABLE_COLUMNS if c in table.columns]]),
                     "",
                 ]
-                print(f"    first trade {a_trade}; first alpha {res['first_alpha']}", flush=True)
+                print(
+                    f"    first trade {a_trade}; less the forced leg {res['first_view_trade']}; "
+                    f"first alpha {res['first_alpha']}",
+                    flush=True,
+                )
 
     if args.step in ("2", "all"):
         md += [
