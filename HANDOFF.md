@@ -7078,6 +7078,7 @@ run would have said.
 - **For Cowork first:**
   1. Step 3's literal measure reads index 2. Is the both-legs reading the one the owner's prefill look needs?
   2. Duration's attribution misses the two-thirds rule (60%).
+- **Push:** `git push origin main` printed `063560b..5a5eaf0  main -> main`, a fast-forward. It carried `513e20c`, `d0057a3` and the receipt `5a5eaf0`. This push line is a records-only commit, pushed the same way.
 
 ### 2026-11-14 -- task 98: STOPPED on step 1's fault branch (the task's own stop), rc 0 on every command; commit `55afc71` (the probe and its report); steps 2 and 3 not run; pushed as step 1's branch says (see the push line) (Claude Code, opus, nightly 2026-11-14T19:05)
 
