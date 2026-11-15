@@ -83,7 +83,9 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 ## Queue
 
-Nightly-release: 97 @2026-11-14T16:50 by=cowork push=yes model=opus
+Nightly-release: 98 @2026-11-14T19:05 by=cowork push=yes model=opus
+
+**As of 2026-11-14 (19:05 ET): task 97 done and pushed (`6bb6e59`; the `0040` addendum's review agrees, no golden moved); task 98 RELEASED by Cowork (linked owner session) under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`.** The owner ruled `decisions/proposed/0072` conditionally in chat (19:01 ET): the recommendation, (a2) + (b1) + (c1), with (a3) for duration directional if task 98 confirms the power reading, applied by the review that reads task 98's receipt (ruling and its three come-back conditions at the end of the record). The record stays untracked in `proposed/` until then, as task 98's step 0 expects. Task 98's text is unchanged.
 
 **As of 2026-11-14 (16:50 ET): task 94 done and pushed (`821f5fc`); task 97 RELEASED by Cowork (afternoon review) under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`; task 98 WRITTEN, NOT released (after 97's receipt); the threshold decision `decisions/proposed/0072` drafted for the owner.** Task 94 ran all 140 runs (9.8 h, $1.39, lookahead passed on all). Region cross-sectional separates by planted IC; duration directional does not at five seeds, and IC 0 runs earn net IR 0.30 (duration) and 0.13 (region) against a zero-view book's -0.077: task 98 measures the null before the owner rules (`0072` recommends ruling after it). `first_trade_index` read the forced `TAMSCI` sale, not the view (update line under 94's receipt); task 98 step 3 reads the view's first trade. Records transcribed into the tree for task 97's step 0 to commit (revision note 1 to task 97): `decisions/0071` moved from `proposed/` (owner rulings of 2026-11-13 and 2026-11-14), the owner's prefill (i) in `decisions/0070`, the `0068` addendum (`BEIG1T` a reference series; the linkers' duration request closed), and the spend-cap "no change" as `OWNER-QUEUE.md` L43, closed. **Carried to the next store task (not written):** `BEIG1T` to `investable` False. The `blpapi` puller of `0071` (c) is built after the M6 grid.
 
@@ -6958,6 +6960,38 @@ run would have said.
 ---
 
 ## Done
+
+### 2026-11-14 -- task 98: STOPPED on step 1's fault branch (the task's own stop), rc 0 on every command; commit `55afc71` (the probe and its report); steps 2 and 3 not run; pushed as step 1's branch says (see the push line) (Claude Code, opus, nightly 2026-11-14T19:05)
+
+- **Step 0 held:** HEAD `6bb6e59`; `git status --short` was ` M HANDOFF.md` and `?? decisions/proposed/0072-...` (left as found, not committed); task 97's receipt in `## Done`; `make audit-phase2-pilot-g` and `make pilot-first-dates` exist.
+- **Step 1, the probe** (`scripts/pilot_null_probe.py`, `make pilot-null`, **rc 0**, 163 s, no solves; report `results/pilot_null/ic_report.md`, `ic_summary.json`). It uses `pilot.baseline_ic_by_column`, which is `plant_axis_signal` and `realised_ic` as the pilot's rows call them. `plant_axis_signal` gained an optional `shuffle_rng`; the default is the twin's `baseline_rng(seed)`, unchanged.
+  - **Reproduction held:** task 94's IC 0 baseline `realised_ic_by_column`, seeds 0 to 4, both expressions, from `A-20261114-030208/cells.csv`; every gap ≤ 9e-17.
+  - **200 draws a expression** (seeds 0 to 4 × 40 draws):
+
+    | expression | mean | SD | 1/sqrt(B·K) | p05 | p95 | 3·SD/√200 | within |
+    |---|---|---|---|---|---|---|---|
+    | duration directional (B 75, K 1) | +0.0668 | 0.0504 | 0.1155 | +0.0082 | +0.1442 | 0.0107 | **no** |
+    | region cross-sectional (B 75, K 6) | +0.0253 | 0.0432 | 0.0471 | −0.0338 | +0.1014 | 0.0092 | **no** |
+
+  - **Per seed** (mean over 40 draws; within-seed SD 0.007 to 0.011 duration, 0.004 region): duration +0.111, +0.012, +0.036, +0.036, +0.140; region −0.030, +0.038, +0.014, +0.006, +0.099.
+- **Reading under the task's rule: the mean is not within 3·SD/√200 of 0 in either expression, so this is the stop branch.** I committed the probe and its report only, and steps 2 to 4 did not run (no null grid, no zero-score runs, no first-trade probe).
+- **For Cowork's ruling (my reading, not a ruling).** The per-seed table says the twin's realised IC is fixed by the seed, not by the shuffle.
+  - Each seed's 40 draws sit within about 0.01 of one another. The seeds spread from 0.01 to 0.14 (duration) and from −0.03 to 0.10 (region).
+  - The cause is in `plant_axis_signal`. The seed's noise draw `default_rng(seed)` is made orthogonal to the *shuffled* truth, not to the real one. So the twin keeps the noise's chance correlation with the real truth, about N(0, 1/sqrt(B·K)). A live IC 0 cell has exactly 0 by construction.
+  - The 200 draws are therefore five clusters, and SD/√200 understates the uncertainty of their mean. Taking seeds as the unit (n 5): 3 × SD of the seed means / √5 is 0.074 (duration) and 0.064 (region), and both means lie inside it.
+  - Duration's five seed means are all positive (region's four of five). The same `default_rng(seed)` draws both expressions' noise, so the two are not independent evidence.
+  - Whether this makes the twins' 0.00 to 0.15 a power property is Cowork's to rule.
+- **A finding on the way (fixed in the probe before its commit, nothing recorded changes):** `numpy`'s `SeedSequence` ignores trailing zero words, so `default_rng([seed, BASELINE_STREAM, 0])` *is* `baseline_rng(seed)`. The first gate run caught it: my new test failed on it, rc 2 (`results/audit/_unattended/20261114-192819-check-scoped/`). `pilot.null_shuffle_rng` now uses word `draw + 1`, and the probe and the gate were rerun. Any other stream that appends a 0-based index to a seed list ending in a stream constant has the same property. `score_shuffle_rng(seed, 0)` and `score_span_rng(seed, 0)` are not affected, because their stream constants differ from `BASELINE_STREAM`. I did not audit further.
+- **Gate:** `make lint` clean. `scripts/unattended.sh check-scoped` **rc 0**, 313 s, tier SCOPED, head `6bb6e59` (the build in the tree), load 0.97 at the start and 1.67 at the end, `results/audit/_unattended/20261114-193621-check-scoped/`.
+  - It left out eight slow files: `test_audit`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_phase2_rule`, `test_scripts`.
+  - New test: `test_the_null_probe_reproduces_an_ic_zero_baseline_and_draws_other_shuffles` (both expressions, synthetic factor). No existing test or golden edited.
+- **Build choices and their basis:**
+  1. The draws come from a sibling stream of the twin's, so the twin's draw is untouched.
+  2. B is the dates with a forward truth in any column, divided by 13 and floored.
+  3. I wrote the step 2 grid and runner code before step 1's reading. I removed it uncommitted, because the branch commits "the probe and its report only". Nothing of it remains in the tree.
+- **Left uncommitted:** only `decisions/proposed/0072-...` (Cowork's, as found).
+- **Column of `0062` item 8 (my reading):** Cowork alone. The task routes this branch to Cowork ("Cowork rules from it"), and `0069` lets Cowork write the next task. No row of `0062`'s own table names it, so if Cowork reads it otherwise, it goes to the owner.
+- **Push:** step 1's branch says "commit the probe and its report only, receipt, push", and the line has `push=yes`; see the push line.
 
 ### 2026-11-14 -- task 97: done, rc 0, commits `ca1289b`, `1e3ee4a`; the reviewer agrees with the `0040` addendum of 2026-11-13, and the window now records the forced leg; no golden moved; pushed (see the push line) (Claude Code, opus, nightly 2026-11-14T16:50)
 
