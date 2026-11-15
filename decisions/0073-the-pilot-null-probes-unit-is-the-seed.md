@@ -1,0 +1,21 @@
+# 0073 -- The pilot's null probe: the seed is the unit, and the shuffle is tested directly
+
+**Status:** DELEGATED RULING 2026-11-15 by Cowork (morning review), under `decisions/0069` items 3 and 4. Interprets HANDOFF task 98, step 1 (Cowork's own text). Touches no `src/`, golden or store; no second agent is required by `0069` item 4, but HANDOFF task 99 step 1 reads it first and stops if it disagrees.
+
+**Delegated ruling, 2026-11-15, Cowork review**
+
+*The question.* Task 98 stopped on step 1's fault branch: over seeds 0 to 4 x 40 shuffle draws, the IC 0 baseline twin's mean realised IC was +0.067 (duration directional) and +0.025 (region cross-sectional), outside the band 3 x SD/sqrt(200) (0.011 and 0.009) that the task set. Is that a shuffle that keeps truth (a fault, and `decisions/proposed/0072` condition (ii)), or a mis-specified test?
+
+*What the code says* (`src/signal_lab/audit/axis_signals.py` `plant_axis_signal`, read at `063560b`). The twin's noise is `default_rng(seed)` AR(1) with phi = (h-1)/h = 12/13, orthogonalised per column against the *shuffled* truth; the live cell's noise is the same draw orthogonalised against the *real* truth. At IC 0 the twin's score is that noise alone, so its realised IC against the real truth is the noise's chance correlation with it, which the shuffle does not enter except through a small orthogonalisation. A different shuffle of the same seed moves it by about 0.01 (task 98's within-seed SD 0.004 to 0.011); a different seed moves it by about 1/sqrt(B x K) (0.115 duration, 0.047 region). The 200 draws are five clusters, not 200 independent values, so SD/sqrt(200) understates the uncertainty of the mean several-fold.
+
+*Options.* (a) Read the stop as a fault and send `0072` (ii) to the owner as triggered. (b) Take the seed as the unit: 5 seed means, compared with the theoretical SE 1/sqrt(B x K)/sqrt(n). (c) As (b), on more seeds, plus a direct test of the shuffle itself (the correlation of the block-shuffled truth with the real truth, whose draws *are* independent), before the pilot's null grid builds on it.
+
+*Choice: (c).* On today's numbers (b) already reads no fault: duration seed mean +0.067 against SE 0.115/sqrt(5) = 0.052, z = 1.3; region +0.025 against 0.047/sqrt(5) = 0.021, z = 1.2 (Cowork's arithmetic on task 98's per-seed table; the two expressions share the noise draw, so they are not independent evidence). The observed SD of the seed means (0.055 and 0.048) is at or below the theoretical one, which is what noise, not leaked truth, predicts. Five seeds cannot rule out a small leak, so HANDOFF task 99 step 1 repeats the seed-unit test on seeds 0 to 14 (the twins' own draws) and tests the shuffle directly.
+
+*Basis.* First principles: the variance of a mean over clustered draws is set by the number of clusters (the seed fixes the noise, the dominant term); the shuffle is the only path by which truth can reach the twin, so it is tested on its own. Existing records: `decisions/0036` (the baseline is the same plant on block-shuffled truth), `decisions/0059` addendum of 2026-11-10 point 3 (the planted score). Task 98's receipt (per-seed table, the reading under "For Cowork's ruling").
+
+*Which numbers it can move.* None recorded. It decides whether task 98's stop is a fault, and so whether the pilot's null grid (task 99 step 2) may run on the current twin.
+
+*What would reverse it.* Task 99 step 1 finding (i) the mean correlation of the block-shuffled truth with the real truth above 0.05 and beyond 3 x SD/sqrt(200) of 0 in either expression, or (ii) the seed-unit mean over 15 seeds beyond 3 x the theoretical SE; then the shuffle keeps truth, `0072` (ii) is triggered, and it goes to the owner.
+
+*Separate, for the owner (not ruled here; `decisions/proposed/0072`, addendum of 2026-11-15).* The live cell's noise is orthogonalised to the real truth (its realised IC is exactly the planted IC) while the twin's is not (it carries the noise's chance IC, SD about 0.115 on one directional column). That asymmetry is most of why duration directional does not separate at five seeds; it is also what lets the IC 0 false-pass test measure noise at all. It is the design of `0036` and `0059` G, and changing it would change what `net_ir_excess` means, so it is the owner's under his own condition (ii) of `0072`.
