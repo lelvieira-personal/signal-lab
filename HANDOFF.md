@@ -6991,7 +6991,7 @@ run would have said.
   3. I wrote the step 2 grid and runner code before step 1's reading. I removed it uncommitted, because the branch commits "the probe and its report only". Nothing of it remains in the tree.
 - **Left uncommitted:** only `decisions/proposed/0072-...` (Cowork's, as found).
 - **Column of `0062` item 8 (my reading):** Cowork alone. The task routes this branch to Cowork ("Cowork rules from it"), and `0069` lets Cowork write the next task. No row of `0062`'s own table names it, so if Cowork reads it otherwise, it goes to the owner.
-- **Push:** step 1's branch says "commit the probe and its report only, receipt, push", and the line has `push=yes`; see the push line.
+- **Push:** step 1's branch says "commit the probe and its report only, receipt, push", and the line has `push=yes`. `git push origin main` printed `6bb6e59..8d69e2b  main -> main`, a fast-forward; it carried `55afc71` and the receipt `8d69e2b`. This push line is a records-only commit, pushed the same way.
 
 ### 2026-11-14 -- task 97: done, rc 0, commits `ca1289b`, `1e3ee4a`; the reviewer agrees with the `0040` addendum of 2026-11-13, and the window now records the forced leg; no golden moved; pushed (see the push line) (Claude Code, opus, nightly 2026-11-14T16:50)
 
