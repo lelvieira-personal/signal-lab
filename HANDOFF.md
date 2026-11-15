@@ -83,7 +83,10 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 ## Queue
 
-Nightly-release: 98 @2026-11-14T19:05 by=cowork push=yes model=opus
+Nightly-release: 99 @2026-11-15T05:50 by=cowork push=yes model=opus
+
+**As of 2026-11-15 (05:50 ET): task 98 STOPPED on step 1 (receipt `8d69e2b`, pushed `063560b`); Cowork ruled the stop a mis-specified test, not a fault (delegated ruling `decisions/0073`, uncommitted: task 99's step 0 commits it); task 99 WRITTEN AND RELEASED by Cowork (morning review) under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`.** The 200 draws of task 98's probe were five seed clusters (the seed fixes the AR(1) noise; the shuffle moves the twin's IC by about 0.01); with the seed as the unit both means are inside chance (duration z 1.3, region z 1.2). Task 99 repeats that on 15 seeds, tests the shuffle directly, reviews `0073` as its step 1, then runs task 98's steps 2 and 3 unchanged. `decisions/proposed/0072` (owner's conditional ruling) is not applied yet: still 5 IC 0 runs per expression. Its addendum of 2026-11-15 asks the owner one question under his condition (ii): the twin's noise is not orthogonalised to the real truth while the live cell's is ((k) keep, recommended; (m); (n)). Task 99 does not depend on the answer. Checked by Cowork from `src/` (grep, not a test): no other `default_rng` list in `src/` collides under `SeedSequence`'s trailing-zero rule.
+
 
 **As of 2026-11-14 (19:05 ET): task 97 done and pushed (`6bb6e59`; the `0040` addendum's review agrees, no golden moved); task 98 RELEASED by Cowork (linked owner session) under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`.** The owner ruled `decisions/proposed/0072` conditionally in chat (19:01 ET): the recommendation, (a2) + (b1) + (c1), with (a3) for duration directional if task 98 confirms the power reading, applied by the review that reads task 98's receipt (ruling and its three come-back conditions at the end of the record). The record stays untracked in `proposed/` until then, as task 98's step 0 expects. Task 98's text is unchanged.
 
@@ -3855,6 +3858,36 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 99. M6, step 6 (again): the pilot's null with the seed as the unit and the shuffle tested directly; then task 98's steps 2 and 3 (the IC 0 runs on ten more seeds, the zero-view floor, the attribution, the view's first trade); then push
+
+Added 2026-11-15 by Cowork. **Written and released by Cowork under decisions/0067 and 0069**, `push=yes by=cowork model=opus` (a diagnostic). Lane 2: `src/signal_lab/audit/pilot.py` (a new grid and new columns only), `scripts/`, `tests/`, `build.mk`, reports under `results/pilot_null/`, and one records commit. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; no existing column, grid, golden or `plant_axis_signal`'s default path changes. Planted and synthetic data only; no verdict, nothing in the leaderboard store (`0059` addendum of 2026-11-10, point 5). This task measures; it fixes nothing.** Where the text does not settle a build choice outside `0069` item 2, choose, state the basis in the receipt, and go on.
+
+**Why.** Task 98 stopped on step 1 (its receipt in `## Done`). Cowork ruled the stop a mis-specified test, not a shuffle that keeps truth (`decisions/0073`, delegated ruling of 2026-11-15): the 200 draws were five seed clusters, and with the seed as the unit both means are inside chance. This task tests that reading properly, then runs the rest of task 98 unchanged. The owner's thresholds (`decisions/proposed/0072`, ruled conditionally) are applied by the review that reads this receipt.
+
+**0. Check.** Task 98's receipt is in `## Done`. HEAD is `063560b` or a descendant that touches only `HANDOFF.md`. `git status --short` shows exactly ` M HANDOFF.md`, `?? decisions/0073-the-pilot-null-probes-unit-is-the-seed.md` and `?? decisions/proposed/0072-the-pilots-acceptance-thresholds.md` (Cowork's record for the owner: leave it, do not commit it). Commit `decisions/0073-...` alone first: `records: decisions/0073, the pilot null probe's unit is the seed (delegated ruling, Cowork review, HANDOFF task 99)`. If the commit hook refuses it, stop: records are Cowork's to fix. `make pilot-null`, `make audit-phase2-pilot-g` and `make pilot-first-dates` exist.
+
+**1. The null, measured properly (no solves).** First read `decisions/0073`, `plant_axis_signal` (`src/signal_lab/audit/axis_signals.py` L89 on) and task 98's receipt. You did not make the ruling: write `*Reviewer (HANDOFF task 99, <model>, <date>):* agrees | disagrees, because ...` under it. **If you disagree, stop:** commit that line with the receipt, push, run nothing else. Then extend `scripts/pilot_null_probe.py` (flags or a second target, your choice, stated) and run it through `make`:
+- **(a) Seed as the unit.** For planted seeds 0 to 14, both expressions, IC 0: the twin's own draw (`baseline_rng(seed)`, as the grid's rows use it) and its `realised_ic_by_column`. Seeds 0 to 4 must reproduce task 94's values to 1e-9 (if not, say why and stop). Report the 15 values, their mean and SD, the theoretical SE `1/sqrt(B x K)/sqrt(15)` (B and K as task 98 defined them), and z = mean / SE.
+- **(b) The shuffle itself.** For 200 draws `null_shuffle_rng(0, d)`, d = 0 to 199, both expressions: the correlation of `block_shuffle_rows(truth, BASELINE_BLOCK, rng)` with the real `truth`, averaged over columns as `realised_ic`'s `by_column_mean` does (truth only, no noise; these draws are independent). Report the mean, SD, 3 x SD/sqrt(200), and beside them 1/(number of blocks), the small positive bias expected from blocks that land in place.
+- **(c) For the owner's question in `0072`'s addendum of 2026-11-15 (report only).** Inside the probe (no `src/` change), for seeds 0 to 14 and planted IC 0 and 0.35: the realised IC of the live cell and the twin under (k) the code as built, (m) the twin's noise orthogonalised to both the shuffled and the real truth, (n) no orthogonalisation in either cell. Per expression and IC: mean and SD over seeds of the live, the twin, and live minus twin.
+- **Stop branch (`0073`'s reversal):** (b)'s mean above 0.05 **and** beyond 3 x SD/sqrt(200) of 0 in either expression, or |z| in (a) above 3 in either expression. Then commit the probe and its report only, receipt, push, stop: the owner's condition (ii) is then triggered.
+
+**2. The null over ten more seeds, and the zero-view floor.** Exactly task 98's step 2 as written (the grid `--grid phase2-pilot-null`, `make audit-phase2-pilot-null`, 40 runs and 2 zero-score runs, the factor columns, the timing rule, the report `results/pilot_null/report.md` and `summary.json`, the reading and its basis), with one change to the timing rule: if the extrapolation passes 4.3 hours, run fewer seeds (in order from 5, at least 5) and say so **at the top of the receipt**, because fewer than 10 new seeds sends the owner's (b1) back to him (`0072` condition (i)).
+
+**3. The view's first trade.** Exactly task 98's step 3 as written (four runs, the first index of traded notional less the forced leg above 1e-4, beside task 96's 12 and 13).
+
+**4. Tests, gate, commit, receipt, push.** Task 98's step 4, plus tests of step 1's new parts on the synthetic fixture (the seed-unit values reproduce one baseline value; the shuffle correlation of an identity permutation is 1; (m)'s twin noise is orthogonal to both vectors to 1e-12). No existing test or golden edited. `make lint` clean; `scripts/unattended.sh check-scoped` rc 0. Commit citing `HANDOFF task 99, decisions/0059, decisions/0073, decisions/proposed/0072`; receipt in `HANDOFF.md` (step 1's three tables and the reviewer line, steps 2 and 3 as task 98 asked, the runs' seconds); `git push origin main` (report the range it prints).
+
+**Use only task-named commands and `make` targets.** Put any diagnostic in the probe or the runner and run it through a `make` target. To drop an uncommitted edit of your own, edit it back; do not use `git checkout --` (task 98's one denial).
+
+**Stop conditions:** step 0 differs; the reviewer disagrees (after its commit and push); step 1's stop branch (after its commit and push); a run fails lookahead; more than two runs fail (say which and why); an existing test or golden moves; the check fails twice on the same cause; a task-named command is denied; the push is rejected.
+
+**Not in this task:** any threshold, or a judgement against one, and the twin's design ((k), (m) or (n)): the owner's (`decisions/proposed/0072`); bar 1, bar 2 or the stepdown; the prefill, the shadow, any cost or constraint level or `IC_prior` (`0069` item 2); M7.
+
+Expected: step 1 10 to 20 minutes (no solves; task 98's probe took 163 s); 42 runs at about 250 s (2.9 hours); four probe runs (about 17 minutes); check-scoped about 8 minutes: 3.5 to 4 hours, inside the 5-hour poll wall; $5 to $9 on Opus (a guess, from tasks 94 to 98).
+
+Written and released by Cowork under decisions/0067 and 0069.
+
 ### 98. M6, step 6: the pilot's null, measured before the owner rules the thresholds (the baseline's realised IC, the IC 0 runs over ten more seeds and the zero-view floor, the view's first trade); then push
 
 Added 2026-11-14 by Cowork. **Written by Cowork under decisions/0067 and 0069. NOT released: released by Cowork (or a chat session of the owner's) after task 97's receipt.** Suggested release: `push=yes by=cowork model=opus` (a diagnostic). Lane 2: `src/signal_lab/audit/pilot.py` (a new grid and new columns only), `scripts/`, `tests/`, `build.mk`, a report under `results/`. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; no existing column, grid or golden changes. Planted and synthetic data only; no verdict, nothing in the leaderboard store (`0059` addendum of 2026-11-10, point 5). This task measures; it fixes nothing.** Where the text does not settle a build choice outside `0069` item 2, choose, state the basis in the receipt, and go on.
@@ -6961,6 +6994,91 @@ run would have said.
 
 ## Done
 
+### 2026-11-15 -- task 99: done, rc 0 on every command; commits `513e20c` (records: `decisions/0073`), `d0057a3` (the build, the reports, the reviewer line); all ten new seeds run; not the stop branch; pushed (see the push line) (Claude Code, opus, nightly 2026-11-15T05:50)
+
+- **Step 0 held:** HEAD `063560b`; `git status --short` exactly the three paths named. `513e20c` committed `decisions/0073` alone with the task's message; the hook accepted it. `decisions/proposed/0072-...` left as found, uncommitted. The three `make` targets existed.
+- **Step 1, the review: agrees.** The line is under `decisions/0073`, committed in `d0057a3`. In `plant_axis_signal` the twin's noise is `default_rng(seed)`, projected off the *shuffled* truth only. So at IC 0 the twin's IC against the real truth is fixed by the seed, and only the permutation can carry truth into the twin.
+- **Step 1, the probe** (`make pilot-null ARGS="--part task99"`, **rc 0**, 144 s, no solves). Choice: a `--part` flag on the same script. Report: `results/pilot_null/seed_report.md` and `seed_summary.json`.
+  - **(a) The seed as the unit** (the twin's own draw). Seeds 0 to 4 reproduce task 94 to 9e-17.
+
+    | expression | B, K | mean (15 seeds) | SD | SE = 1/sqrt(BK)/sqrt(15) | z |
+    |---|---|---|---|---|---|
+    | duration directional | 75, 1 | −0.0060 | 0.0826 | 0.0298 | −0.20 |
+    | region cross-sectional | 75, 6 | −0.0116 | 0.0534 | 0.0122 | −0.95 |
+
+    - Per-seed duration values, seeds 0 to 14: +.113 +.003 +.033 +.034 +.145 −.136 −.072 −.040 +.107 −.079 −.078 −.052 −.044 +.043 −.067.
+    - Per-seed region values: −.031 +.038 +.020 +.004 +.096 +.016 −.108 −.089 −.025 −.017 +.030 −.012 −.078 −.037 +.020.
+  - **(b) The shuffle itself** (`null_shuffle_rng(0, d)`, 200 draws, truth only). The table's correlation uses the raw `block_shuffle_rows` output, as the task words it.
+
+    | expression | mean | SD | 3·SD/√200 | 1/(blocks) | blocks (rows) |
+    |---|---|---|---|---|---|
+    | duration | +0.0030 | 0.1019 | 0.0216 | 0.0526 | 19 (977) |
+    | region | +0.0091 | 0.0652 | 0.0138 | 0.0526 | 19 (977) |
+
+  - **(c) The twin's design** (report only). The probe restates the plant with the orthogonalisation as a switch, and (k) reproduces `plant_axis_signal` to 9e-16. In (n) the centred draw is still scaled to the column's truth SD. Each cell is the mean (SD) over 15 seeds:
+
+    | expr, IC | live (k) | twin (k) | twin (m) | live (n) | twin (n) | live−twin (k) | (m) | (n) |
+    |---|---|---|---|---|---|---|---|---|
+    | dur 0 | 0 (0) | −.006 (.083) | 0 (0) | −.004 (.082) | −.004 (.082) | +.006 (.083) | 0 (0) | 0 (0) |
+    | dur .35 | .350 (0) | −.003 (.080) | +.002 (.034) | .346 (.067) | −.002 (.083) | +.353 (.080) | +.348 (.034) | +.347 (.035) |
+    | reg 0 | 0 (0) | −.012 (.053) | 0 (0) | −.012 (.054) | −.012 (.054) | +.012 (.053) | 0 (0) | 0 (0) |
+    | reg .35 | .350 (0) | −.012 (.047) | −.001 (.024) | .338 (.045) | −.012 (.047) | +.362 (.047) | +.351 (.024) | +.350 (.023) |
+
+    Under (m) the live cell is as built (.350, SD 0).
+  - **Not the stop branch:** |z| ≤ 3 in both expressions, and (b)'s means are below 0.05 and inside their bands. `0073` stands.
+- **Step 2, the null grid** (`make audit-phase2-pilot-null`, **rc 0**, 10,820 s, `results/audit/A-20261115-105504/`).
+  - **All ten new seeds ran.** Timing after four runs: 255 s a run. Steps 2 and 3 extrapolated to 3.25 h, under the 4.3 h limit.
+  - **42 runs, lookahead passed on all 42**, none failed.
+  - The twins' `realised_ic_by_column` equals step 1 (a)'s values seed by seed (9e-17).
+  - Report: `results/pilot_null/report.md`, `summary.json` (`make pilot-null ARGS="--part report --null-run A-20261115-105504"`, rc 0). It pools task 94's IC 0 rows (seeds 0 to 4, prior ×1) with these.
+
+  | expression | n | net IR mean (SD) [min, max] | excess mean (SD) [min, max] | share net IR ≥ 0.30 / excess > 0 / both | twins: net IR ≥ 0.30 |
+  |---|---|---|---|---|---|
+  | duration dir | 15 | +0.293 (0.259) [−0.214, +0.685] | −0.009 (0.081) [−0.249, +0.072] | 40% / 67% / 27% | 47% (mean +0.301) |
+  | region xs | 15 | +0.103 (0.167) [−0.139, +0.395] | +0.014 (0.087) [−0.167, +0.193] | 7% / 60% / 7% | 20% (mean +0.089) |
+
+  - **Zero-score runs** (both expressions identical): net IR −0.077, active return −0.0009 a year, cost drag 0.0014, turnover 0%. That is task 91's figure. `run_pilot_cell` keeps that arm's legacy arguments (the `0070` addendum's item 2), so it is the same no-view book.
+  - **Factor attribution** (the null grid's 10 IC 0 live runs only; task 94's rows carry none). For each factor, the mean active exposure → the active return it explains a year, with the seeds that have the mean's sign:
+    - **Duration**, mean active return +0.0131: equity +0.050 → +0.0057 (8/10); real_yield −1.27 → +0.0032 (8/10); inflation −1.85 → +0.0025 (8/10); credit −0.94 → −0.0035 (9/10); dollar → +0.0010 (6/10); commodities → −0.0003 (5/10); unexplained +0.0044.
+    - **Region**, mean active return +0.0032: equity +0.100 → +0.0038 (10/10); real_yield → +0.0005 (8/10); inflation → −0.0010 (8/10); credit → −0.0010 (6/10); dollar → +0.0004 (5/10); commodities → −0.0009 (7/10); unexplained +0.0015.
+    - The active return is net, so the unexplained remainder includes costs.
+  - **Reading (task 98's rule, reported, not a stop):**
+    - **Region: a real premium under the rule.** The zero-score run is ≤ 0, and 71% of the mean active return is explained by factors whose sign holds on at least two-thirds of the seeds; most of it is equity (10/10).
+    - **Duration: not shown under the rule.** Only 60% is explained that way, below two-thirds. The remainder is +0.0044 a year unexplained (net of costs) plus the dollar and commodities parts, whose sign does not hold.
+- **Step 3, the view's first trade** (`make pilot-first-dates ARGS="--step 1 --arms default --ics 0.35 --seeds 0,1 --tag task99 --out results/pilot_first_dates"`, **rc 0**, 1246 s; flags `--seeds` and `--ics` added).
+  - **Read literally the measure gives index 2 everywhere.** Traded notional less the forced sale (`left_holdable_weight`) is index 2 on all four runs, at the same notional (0.0014955, equal to 1e-11 across expressions and seeds). It is the solve buying back the sale's proceeds: its `w0` leaves the sold `TAMSCI` out, so it is not the view.
+  - **So I also report the measure less both forced legs**, the sale and its reinvestment (2f). Choice and basis: the engine's index-2 turnover is 2f to 1e-11.
+
+    | run | less the sale | less both legs | task 96 |
+    |---|---|---|---|
+    | duration, seed 0 | 2 | **12** (0.00396) | 12 |
+    | duration, seed 1 | 2 | **16** (0.0586) | — |
+    | region, seed 0 | 2 | **13** (0.00390) | 13 |
+    | region, seed 1 | 2 | **12** (0.00606) | — |
+
+  - **Seed 0 reproduces task 96 and 97's indices and notionals. The index differs across the two seeds** (duration 12 vs 16, region 13 vs 12).
+- **Step 4, tests and gate:** `make lint` clean. `scripts/unattended.sh check-scoped` **rc 0**, 371 s, tier SCOPED, head `513e20c` (the build in the tree), load 4.12 at the start and 1.59 at the end, `results/audit/_unattended/20261115-093653-check-scoped/`.
+  - It left out eight slow files: `test_audit`, `test_engine`, `test_experiment`, `test_measurement_estimators`, `test_measurement_fidelity`, `test_multiple_testing`, `test_phase2_rule`, `test_scripts`.
+  - New tests in `tests/test_phase2_pilot.py`, on synthetic data:
+    - the seed-unit value and (k) reproduce the built twin;
+    - an identity shuffle's correlation is 1;
+    - (m)'s twin noise is orthogonal to both vectors to 1e-12;
+    - the null grid as data (42 cells, keys unique, every IC 0 run paired with its twin, two zero-score cells, no legacy argument, the seed-major prefix);
+    - the attribution's arithmetic, and that the columns appear on null-grid rows only and leave the run unchanged (slow);
+    - the view-trade measure.
+  - No existing test or golden edited.
+- **Build choices and their basis:**
+  1. The new columns go behind `run_pilot_cell(..., attribution=False)`, and only the null grid passes True. So no other grid's row changes.
+  2. The attribution uses the rule's own `reports["active_exposure"]` at each solved date times the factor's next weekly move.
+  3. The zero-score cells use seed 0. Their scores are multiplied by 0, so the seed does not enter.
+  4. The cells are seed-major, so a shorter seed list would be a prefix. The timing rule could then cut seeds without rerunning any.
+  5. The null grid's by-cell table leaves out the zero-score rows, which are not IC 0 runs.
+  6. The report's attribution uses the null grid's runs only.
+- **Left uncommitted:** only `decisions/proposed/0072-...` (Cowork's, as found).
+- **For Cowork first:**
+  1. Step 3's literal measure reads index 2. Is the both-legs reading the one the owner's prefill look needs?
+  2. Duration's attribution misses the two-thirds rule (60%).
+
 ### 2026-11-14 -- task 98: STOPPED on step 1's fault branch (the task's own stop), rc 0 on every command; commit `55afc71` (the probe and its report); steps 2 and 3 not run; pushed as step 1's branch says (see the push line) (Claude Code, opus, nightly 2026-11-14T19:05)
 
 - **Step 0 held:** HEAD `6bb6e59`; `git status --short` was ` M HANDOFF.md` and `?? decisions/proposed/0072-...` (left as found, not committed); task 97's receipt in `## Done`; `make audit-phase2-pilot-g` and `make pilot-first-dates` exist.
@@ -6992,6 +7110,8 @@ run would have said.
 - **Left uncommitted:** only `decisions/proposed/0072-...` (Cowork's, as found).
 - **Column of `0062` item 8 (my reading):** Cowork alone. The task routes this branch to Cowork ("Cowork rules from it"), and `0069` lets Cowork write the next task. No row of `0062`'s own table names it, so if Cowork reads it otherwise, it goes to the owner.
 - **Push:** step 1's branch says "commit the probe and its report only, receipt, push", and the line has `push=yes`. `git push origin main` printed `6bb6e59..8d69e2b  main -> main`, a fast-forward; it carried `55afc71` and the receipt `8d69e2b`. This push line is a records-only commit, pushed the same way.
+
+- Update (Cowork review, 2026-11-15 morning): **the stop is read as Cowork's mis-specified test, not a fault** (delegated ruling `decisions/0073`; reviewed as task 99's step 1). The receipt's reading is accepted: the seed fixes the twin's AR(1) noise draw, so the 200 draws are five clusters; seed means against 1/sqrt(B x K)/sqrt(5) give z 1.3 (duration) and 1.2 (region). Build choices (1) to (3) accepted (a sibling stream leaves the twin untouched; B as defined; the step 2 code removed). **The push after the stop is accepted**: the branch's text said push and the line had `push=yes`; three plain commits, fast-forward. The `SeedSequence` trailing-zero finding: Cowork grepped every `default_rng` in `src/`; the only list constructions are `baseline_rng`, `score_shuffle_rng`, `score_span_rng` and `null_shuffle_rng`, with distinct non-zero stream words, and none has a sibling one word shorter, so no other collision (a grep, not a test; `scripts/` and `tests/` not checked). The one denial (`git checkout --`) was an ad-hoc command; task 99 says not to use it. Task 99 runs step 1 again properly and steps 2 and 3.
 
 ### 2026-11-14 -- task 97: done, rc 0, commits `ca1289b`, `1e3ee4a`; the reviewer agrees with the `0040` addendum of 2026-11-13, and the window now records the forced leg; no golden moved; pushed (see the push line) (Claude Code, opus, nightly 2026-11-14T16:50)
 
