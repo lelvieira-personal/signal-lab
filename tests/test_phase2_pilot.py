@@ -117,6 +117,30 @@ def test_an_ic_zero_cell_and_its_baseline_are_different_shuffles_of_the_same_see
     assert abs(np.corrcoef(both.iloc[:, 0], both.iloc[:, 1])[0, 1]) < 0.5
 
 
+@pytest.mark.parametrize("expression", ["directional", "cross_sectional"])
+def test_the_null_probe_reproduces_an_ic_zero_baseline_and_draws_other_shuffles(params, expression):
+    """HANDOFF task 98 step 1: the probe's value with the twin's own shuffle is the twin's
+    `realised_ic_by_column` exactly; another draw is another shuffle of the same truth."""
+    columns = ["d"] if expression == "directional" else ["US", "Japan", "EM", "Canada"]
+    factor = weekly_factor(columns, 4)
+    twin = plant_axis_signal(factor, 0.0, H, 4, expression, params, baseline=True)
+    want = realised_ic(twin)["by_column_mean"]
+    assert pilot.baseline_ic_by_column(factor, expression, 4, params) == pytest.approx(
+        want, abs=1e-12
+    )
+    other = [
+        pilot.baseline_ic_by_column(
+            factor, expression, 4, params, shuffle_rng=pilot.null_shuffle_rng(4, d)
+        )
+        for d in range(3)
+    ]
+    assert len({round(v, 12) for v in [want, *other]}) == 4
+    # the live IC 0 cell carries no truth by construction; only the twin's noise can
+    live = plant_axis_signal(factor, 0.0, H, 4, expression, params)
+    assert realised_ic(live)["by_column_mean"] == pytest.approx(0.0, abs=1e-9)
+    assert pilot.scored_blocks(factor) == int(twin.truth.notna().any(axis=1).sum()) // H
+
+
 def test_the_cross_sectional_truth_sums_to_zero_across_regions(params):
     factor = weekly_factor(["US", "Japan", "EM", "Canada"], 2)
     plant = plant_axis_signal(factor, 0.2, H, 2, "cross_sectional", params)

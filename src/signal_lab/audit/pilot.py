@@ -60,6 +60,7 @@ from signal_lab.params import Params
 from signal_lab.portfolio import alpha as alpha_mod
 from signal_lab.portfolio.covariance import ledoit_wolf, volatility_scalar
 from signal_lab.portfolio.phase2 import Phase2Rule
+from signal_lab.stats.blocks import BASELINE_STREAM
 
 PILOT_GRID = "phase2-pilot"
 PILOT_SMOKE_GRID = "phase2-pilot-smoke"
@@ -69,6 +70,9 @@ PILOT_HORIZON_GRID = "phase2-pilot-horizon"  # HANDOFF task 92
 PILOT_0070_GRID = "phase2-pilot-0070"  # HANDOFF task 93, decisions/0070's condition
 # HANDOFF task 94: the grid of decisions/0059 G on the 0070 defaults
 PILOT_G_GRID = "phase2-pilot-g"
+# HANDOFF task 98 step 1: the IC 0 baseline's realised IC over other shuffles (no solves)
+NULL_PROBE_SEEDS = (0, 1, 2, 3, 4)
+NULL_PROBE_DRAWS = 40
 FIRST_TRADE_THRESHOLD = 1e-4  # the traded notional that counts as a trade (HANDOFF tasks 94, 96)
 DIAG_SEED = 0
 DIAG_IC = 0.35
@@ -230,6 +234,42 @@ def g_cells() -> list[PilotCell]:
                 for baseline in (False, True):
                     cells.append(PilotCell(expression, PRIOR_IC, seed, mult, baseline))
     return cells
+
+
+def null_shuffle_rng(seed: int, draw: int) -> np.random.Generator:
+    """HANDOFF task 98 step 1: shuffle stream `draw` of planted seed `seed`, a sibling of the
+    twin's `baseline_rng(seed)` (which it never equals), so the twin's own draw is unchanged.
+    The word is `draw + 1`: `SeedSequence` ignores trailing zero words, so `[seed, stream, 0]`
+    would be the twin's own stream."""
+    if int(draw) < 0:
+        raise ValueError("draw must be non-negative")
+    return np.random.default_rng([int(seed), BASELINE_STREAM, int(draw) + 1])
+
+
+def baseline_ic_by_column(
+    factor: pd.DataFrame,
+    expression: str,
+    seed: int,
+    params: Params,
+    shuffle_rng: np.random.Generator | None = None,
+    horizon: int = PILOT_HORIZON,
+) -> float:
+    """
+    The `realised_ic_by_column` a planted IC 0 baseline twin carries, computed exactly as the
+    pilot's rows are (`plant_axis_signal`, `realised_ic`), with the twin's own shuffle when
+    `shuffle_rng` is None and another draw of the same function and block length otherwise.
+    """
+    plant = plant_axis_signal(
+        factor, 0.0, horizon, seed, expression, params, baseline=True, shuffle_rng=shuffle_rng
+    )
+    return float(realised_ic(plant)["by_column_mean"])
+
+
+def scored_blocks(factor: pd.DataFrame, horizon: int = PILOT_HORIZON) -> int:
+    """The number of non-overlapping `horizon`-week blocks in the window a planted score covers
+    (the dates with a forward truth in any column)."""
+    fwd = factor.astype(float)[::-1].rolling(horizon, min_periods=horizon).sum()[::-1].shift(-1)
+    return int(fwd.notna().any(axis=1).sum()) // int(horizon)
 
 
 def diag_cells() -> list[PilotCell]:

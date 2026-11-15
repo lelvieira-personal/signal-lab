@@ -94,6 +94,7 @@ def plant_axis_signal(
     expression: str,
     params: Params,
     baseline: bool = False,
+    shuffle_rng: np.random.Generator | None = None,
 ) -> AxisPlant:
     """
     The planted score for one pilot run. `factor` is weekly, dates x columns (one column per
@@ -101,6 +102,10 @@ def plant_axis_signal(
     runs on the score's index). The score is dropped from the dates whose truth is not
     defined at the end of the frame, so the frame handed to the rule stops at the last date
     with a truth.
+
+    `shuffle_rng` (a baseline only) replaces the twin's permutation stream `baseline_rng(seed)`;
+    HANDOFF task 98's null probe draws other shuffles of the same truth with it. The noise draw
+    is `default_rng(seed)` either way.
     """
     if not 0.0 <= ic <= 1.0:
         raise ValueError(f"ic must be in [0, 1], got {ic}")
@@ -123,7 +128,8 @@ def plant_axis_signal(
     truth = _standardise_truth(fwd, mode)
     blend = truth
     if baseline:
-        shuffled = block_shuffle_rows(truth, BASELINE_BLOCK, baseline_rng(seed))
+        rng_shuffle = baseline_rng(seed) if shuffle_rng is None else shuffle_rng
+        shuffled = block_shuffle_rows(truth, BASELINE_BLOCK, rng_shuffle)
         blend = shuffled.where(truth.notna()).fillna(0.0).where(truth.notna())
 
     rng = np.random.default_rng(seed)
