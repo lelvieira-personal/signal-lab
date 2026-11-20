@@ -83,7 +83,12 @@ one by a line in chat. The pins of item 6 wait for SUBSTRATE v0.14 (task 87).
 
 ## Queue
 
-Nightly-release: 99 @2026-11-15T05:50 by=cowork push=yes model=opus
+Nightly-release: 100 @2026-11-15T16:55 by=cowork push=yes model=opus long
+
+**As of 2026-11-17 (22:40 ET), owner in chat: task 101 HELD; next, the (b1) measurement under the full bar 2 (NOT written yet).** The owner accepted the recommendation on task 101 and then ruled on bar 1 for directional expressions: "1 now and 2 next, agree" (`decisions/0072`, owner rulings of 2026-11-17). Bar 1, (b1) and the 10% stand; duration directional is not accepted; M7 goes ahead on region. **For the review that reads task 100's receipt:** write the next task (number 102 unless taken) to measure the IC 0 duration runs' false passes under the full bar 2 (excess > 0 and the stepdown of `stats.multiple_testing.gate` with at least `min_shuffles` = 100 shuffles, `vetoes.multiple_testing` as in params). First establish whether the phase-2 path calls the gate (a grep of `harness/experiment.py` found no call); if it needs wiring, that is a number-making `src/` change with a reviewer (`0069` item 4). It is long (a guess: a day and a half for 15 runs), so it takes a Thu-Sat night not used by task 100. Report only; the reading goes to the owner. Task 100's step 0 is unaffected by this note (`HANDOFF.md` is already ` M`).
+
+**As of 2026-11-15 (16:55 ET): task 99 done and pushed (`5aa5232`; `0073` stands, its reviewer agrees; all ten new seeds ran); `decisions/0072` APPLIED by Cowork (afternoon review) and moved out of `proposed/`; task 100 WRITTEN AND RELEASED `long` by Cowork under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`, for the night of Thursday 2026-11-19 (23:00 ET; the poll slots refuse a long line until then); task 101 WRITTEN, NOT released (waits on the owner).** Applied on the pooled numbers: region cross-sectional passes (a2) (t 6.17, gap 0.33) and (b1) (1 of 15); duration directional fails (b1) (4 of 15, 27%) and (a2) on the grid's 25 runs (t 1.86). Task 100 is the acceptance run (`decisions/0074`, delegated): region only, fresh seeds 15 to 29, 150 runs, the same bars; its step 1 reviews `0074` and the `0072` application. Task 101 is the owner's (a3) (duration, 20 seeds); Cowork holds it because (b1) fails on a structural tilt the twins share (bar 1 passes duration noise about 40% of the time), which more seeds will not fix: the owner's call (SUBSTRATE §2 / `0072` (b1)). The view's first trade is read net of both forced legs (`decisions/0070` addendum of 2026-11-15): indices 12 to 16. Uncommitted Cowork records for task 100's step 0: ` M decisions/0070-...`, `?? decisions/0072-...`, `?? decisions/0074-...`.
+
 
 **As of 2026-11-15 (05:50 ET): task 98 STOPPED on step 1 (receipt `8d69e2b`, pushed `063560b`); Cowork ruled the stop a mis-specified test, not a fault (delegated ruling `decisions/0073`, uncommitted: task 99's step 0 commits it); task 99 WRITTEN AND RELEASED by Cowork (morning review) under `decisions/0067` and `0069`, `push=yes by=cowork model=opus`.** The 200 draws of task 98's probe were five seed clusters (the seed fixes the AR(1) noise; the shuffle moves the twin's IC by about 0.01); with the seed as the unit both means are inside chance (duration z 1.3, region z 1.2). Task 99 repeats that on 15 seeds, tests the shuffle directly, reviews `0073` as its step 1, then runs task 98's steps 2 and 3 unchanged. `decisions/proposed/0072` (owner's conditional ruling) is not applied yet: still 5 IC 0 runs per expression. Its addendum of 2026-11-15 asks the owner one question under his condition (ii): the twin's noise is not orthogonalised to the real truth while the live cell's is ((k) keep, recommended; (m); (n)). Task 99 does not depend on the answer. Checked by Cowork from `src/` (grep, not a test): no other `default_rng` list in `src/` collides under `SeedSequence`'s trailing-zero rule.
 
@@ -3858,6 +3863,54 @@ report rc and the first line of output. This is the one unknown the push tool ha
 
 Expected: 25 to 35 minutes, interactive.
 
+### 100. M6, step 7: the pilot's acceptance run, region cross-sectional on fresh seeds 15 to 29 (`decisions/0074`); then push
+
+Added 2026-11-15 by Cowork. **Written and released by Cowork under decisions/0067 and 0069**, `push=yes by=cowork model=opus long` (a reviewer step, then a run of about ten hours on planted data). Lane 2: `src/signal_lab/audit/pilot.py` (a new grid only), `scripts/`, `tests/`, `build.mk`, a report under `results/pilot_accept/`, and one records commit. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; no existing column, grid, golden or `plant_axis_signal`'s default path changes. Planted data only; no verdict, nothing in the leaderboard store (`0059` addendum of 2026-11-10, point 5).** Where the text does not settle a build choice outside `0069` item 2, choose, state the basis in the receipt, and go on.
+
+**Why.** `decisions/0072` is applied (its addendum of 2026-11-15): region cross-sectional passes (a2) and (b1) on the pilot's seeds 0 to 14; duration directional does not. The provisional figures were proposed after reading seeds 0 to 4, so Cowork ruled that the acceptance run of `0059` G judges the same bars on seeds that set nothing (`decisions/0074`, delegated ruling of 2026-11-15).
+
+**0. Check.** Task 99's receipt is in `## Done`. HEAD is `5aa5232` or a descendant that touches only `HANDOFF.md`. `git status --short` shows exactly ` M HANDOFF.md`, ` M decisions/0070-the-horizon-of-the-trading-cost-in-the-objective.md`, `?? decisions/0072-the-pilots-acceptance-thresholds.md` and `?? decisions/0074-the-pilots-acceptance-run.md` (`decisions/proposed/` may be an empty directory). Commit the three records alone first: `records: decisions/0072 applied (region cross-sectional passes the pilot, duration directional does not), decisions/0074 the acceptance run (delegated), the 0070 addendum on the view's first trade (Cowork review, HANDOFF task 100)`. If the commit hook refuses it, stop: records are Cowork's to fix. `make audit-phase2-pilot-g` and `make audit-phase2-pilot-null` exist.
+
+**1. The review (you did not make these rulings; `0069` item 4).** Read `decisions/0074`, the 2026-11-15 addendum of `decisions/0072` (and the owner's ruling above it), `decisions/0059` G, and task 99's receipt. Re-run the addendum's table from `results/audit/A-20261114-030208/cells.csv` and `results/audit/A-20261115-105504/cells.csv` inside a `make` target of your choice (for example a `--part accept-check` of `scripts/pilot_null_probe.py`; stated), with excess = live `net_ir` minus its twin's, `IC_prior` x1, zero-score rows left out: the OLS slope and t on the grid's 25 runs and on the 35 pooled, the gap, and the (b1) counts. Check that nothing in either ruling is on `0069` item 2's list. Write one line under each record: `*Reviewer (HANDOFF task 100, <model>, <date>):* agrees | disagrees, because ...`. **If you disagree with either, or your table differs from the addendum's by more than 0.01 in a slope, 0.05 in a t or one run in a count, stop:** commit those lines with the receipt, push, run nothing else.
+
+**2. The acceptance grid.** A new grid `--grid phase2-pilot-accept` (`make audit-phase2-pilot-accept`), built like `phase2-pilot-g` on the `0070` defaults with no legacy argument and no attribution: region cross-sectional only, planted IC 0, 0.05, 0.10, 0.20, 0.35, *h* 13, `IC_prior` x1, seeds 15 to 29, each with its block-shuffled baseline twin: 150 runs, seed-major. **Time it** after the first four runs: if steps 2 and 3 would pass 15 hours, stop after committing what ran (fewer seeds would leave (b1) under 15 IC 0 runs, `0072` condition (i)). Lookahead must pass on every run.
+
+**3. The report** (`results/pilot_accept/report.md`, `summary.json`): per planted IC, n, mean, SD, min and max of net IR and of `net_ir_excess`; the OLS slope of excess on planted IC over the 75 pairs, its t, and the gap (mean excess at IC 0.35 minus at IC 0); the count and share of the 15 IC 0 pairs with net IR >= 0.30 and excess > 0; the share of twins with net IR >= 0.30; the realised IC of live and twin per IC. Then state, as arithmetic only, whether each figure meets `0072`'s (a2) (t >= 2, gap >= 0.10) and (b1) (<= 10%). The acceptance itself is Cowork's review, not this task's.
+
+**4. Tests, gate, commit, receipt, push.** Tests: the acceptance grid as data (150 cells, keys unique, every run paired with its twin, seeds 15 to 29 only, no legacy argument, the seed-major prefix); the step 1 check's arithmetic on a small synthetic table. No existing test or golden edited. `make lint` clean; `scripts/unattended.sh check-scoped` rc 0. Commit citing `HANDOFF task 100, decisions/0059, decisions/0072, decisions/0074`; receipt in `HANDOFF.md` (the reviewer lines, step 1's table beside the addendum's, step 3's tables, the runs' seconds); `git push origin main` (report the range it prints).
+
+**Use only task-named commands and `make` targets.** Put any diagnostic in the probe or the runner and run it through a `make` target. To drop an uncommitted edit of your own, edit it back; do not use `git checkout --`.
+
+**Stop conditions:** step 0 differs; the reviewer disagrees or the table differs (after its commit and push); the timing rule; a run fails lookahead; more than two runs fail (say which and why); an existing test or golden moves; the check fails twice on the same cause; a task-named command is denied; the push is rejected.
+
+**Not in this task:** any change to a threshold or bar, bar 1, bar 2 or the stepdown, the twin's design, the prefill, the shadow, any cost or constraint level or `IC_prior` (`0069` item 2); duration directional and the owner's (a3) (task 101); M7.
+
+Expected: the review and the check target 20 to 40 minutes; 150 runs at about 255 s (10.6 hours, from task 99's timing); check-scoped about 8 minutes: 11 to 12 hours, inside the 18-hour long wall; $5 to $10 on Opus (a guess, from tasks 94 and 99).
+
+Written and released by Cowork under decisions/0067 and 0069.
+
+### 101. M6, the owner's (a3): duration directional on 20 seeds (`decisions/0072`); then push
+
+Added 2026-11-15 by Cowork. **Written by Cowork under decisions/0067 and 0069. NOT released: waits on the owner** (`0072` addendum of 2026-11-15, "(a3)": run it as ruled, or hold it until bar 1 or (b1) for directional expressions is settled). Suggested release: `push=yes by=cowork long` (Sonnet; a run, no ruling to review), on a Thursday to Saturday night not taken by task 100. Lane 2: `src/signal_lab/audit/pilot.py` (a new grid only), `tests/`, `build.mk`, a report under `results/pilot_a3/`. Same limits as task 100 (nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; planted data only; no verdict). Where the text does not settle a build choice outside `0069` item 2, choose, state the basis in the receipt, and go on.
+
+**0. Check.** Task 100's receipt is in `## Done` (or the owner's release says otherwise). `git status --short` shows ` M HANDOFF.md` and nothing else. `make audit-phase2-pilot-g` exists.
+
+**1. The grid.** A new grid `--grid phase2-pilot-a3` (`make audit-phase2-pilot-a3`) on the `0070` defaults, no legacy argument: duration directional, *h* 13, `IC_prior` x1, each run with its twin, the runs that bring seeds 0 to 19 to every planted IC: IC 0.05, 0.10, 0.20, 0.35 on seeds 5 to 19 and IC 0 on seeds 15 to 19 (130 runs, seed-major; seeds 0 to 4 are task 94's, IC 0 seeds 5 to 14 are task 99's). Time it after four runs; stop if it would pass 15 hours. Lookahead must pass on every run.
+
+**2. The report** (`results/pilot_a3/report.md`, `summary.json`), pooling task 94's and task 99's duration rows at `IC_prior` x1 with these (100 pairs): per IC, n, mean and SD of net IR and excess; the slope, t and gap over the 100 pairs; the (b1) count over the 20 IC 0 pairs; the twins' share with net IR >= 0.30. Arithmetic against (a2) and (b1) only; no acceptance.
+
+**3. Tests, gate, commit, receipt, push** as task 100 step 4 (the grid as data: 130 cells, keys unique, paired, the seed and IC set above), citing `HANDOFF task 101, decisions/0059, decisions/0072`.
+
+**Stop conditions:** as task 100's, without the reviewer.
+
+**Not in this task:** as task 100's; region.
+
+**Owner, 2026-11-17 22:26 ET (chat): HELD.** "accept recommendation on task 101": not released until bar 1 or (b1) for directional expressions is settled (`decisions/0072`, owner ruling of 2026-11-17). Do not run it; the text stands for a later release. (Recorded by Cowork.)
+
+Expected: 130 runs at about 255 s (9.2 hours) and the check: 9.5 to 10 hours; $1.50 to $4 on Sonnet (a guess, from task 94).
+
+Written by Cowork under decisions/0067 and 0069.
+
 ### 99. M6, step 6 (again): the pilot's null with the seed as the unit and the shuffle tested directly; then task 98's steps 2 and 3 (the IC 0 runs on ten more seeds, the zero-view floor, the attribution, the view's first trade); then push
 
 Added 2026-11-15 by Cowork. **Written and released by Cowork under decisions/0067 and 0069**, `push=yes by=cowork model=opus` (a diagnostic). Lane 2: `src/signal_lab/audit/pilot.py` (a new grid and new columns only), `scripts/`, `tests/`, `build.mk`, reports under `results/pilot_null/`, and one records commit. **Nothing under `params/`, `vetoes/` or `SUBSTRATE.md`; no existing column, grid, golden or `plant_axis_signal`'s default path changes. Planted and synthetic data only; no verdict, nothing in the leaderboard store (`0059` addendum of 2026-11-10, point 5). This task measures; it fixes nothing.** Where the text does not settle a build choice outside `0069` item 2, choose, state the basis in the receipt, and go on.
@@ -6994,6 +7047,27 @@ run would have said.
 
 ## Done
 
+### 2026-11-19 -- task 100: STOPPED at step 2 on the timing rule (rc 3 from `make audit-phase2-pilot-accept`, make rc 2); steps 0 and 1 done; commit `f32a611` (step 0's records); the rest uncommitted; not pushed (Claude Code, opus, nightly 2026-11-15T16:55)
+
+**What failed.** Step 2's timing rule ("if steps 2 and 3 would pass 15 hours, stop"). `make audit-phase2-pilot-accept` (run `A-20261120-030500`, started 22:05 ET, prepared in 140 s) ran the first four runs in 429, 377, 333 and 315 s, mean **363 s** (task 99 measured about 255 s): 150 runs plus the scoped check (taken as 8 minutes) extrapolate to **15.3 h** (15.1 h for the runs alone), past 15 h, so the runner stopped itself after run 4 and exited 3. Lookahead passed on all four. Load average after the stop (22:31 ET): 4.63, 7.01, 5.90 on a run that holds one thread, so something else was likely running alongside it for at least part of the timing window (not established; the first run also carries the warm-up). I did not run fewer seeds: the task says fewer seeds would leave (b1) under 15 IC 0 runs (`0072` condition (i)), and its rule is to stop.
+
+**Step 0.** Held exactly (task 99's receipt in `## Done`; HEAD `5aa5232`; the four paths as listed). The three records committed alone: `f32a611` (`records: decisions/0072 applied ..., decisions/0074 the acceptance run (delegated), the 0070 addendum ... (HANDOFF task 100)`); the hook accepted it.
+
+**Step 1 (done; the reviewer agrees with both).** `make pilot-null ARGS="--part accept-check"` rc 0 (a new `--part accept-check` of `scripts/pilot_null_probe.py`; output `results/pilot_accept/accept_check.md` and `.json`). My table beside the addendum's (OLS with a constant, classical SE; excess = live net IR minus its twin's; `IC_prior` x1; zero-score rows left out):
+
+| | region xs: check | addendum | duration dir: check | addendum |
+|---|---|---|---|---|
+| slope, t, grid 25 | 0.8821, 6.170 | 0.88, 6.17 | 0.2921, 1.860 | 0.29, 1.86 |
+| slope, t, pooled 35 | 0.8372, 7.281 | 0.84, 7.28 | 0.3307, 2.505 | 0.33, 2.50 |
+| gap, grid / pooled | 0.3258 / 0.2953 | 0.326 / 0.295 | 0.1021 / 0.1197 | 0.102 / 0.120 |
+| (b1) of 15 | 1 (6.7%) | 1 | 4 (26.7%) | 4 |
+
+Every figure within the tolerance (0.01 a slope or gap, 0.05 a t, one run a count). Nothing in either ruling is on `0069` item 2's list. Reviewer lines written at the end of `decisions/0074` and of `decisions/0072` (*agrees*; uncommitted, see below). Choice the text does not settle: the gap was compared at the slope's 0.01 (the task names a slope, a t and a count only).
+
+**Uncommitted, left in the tree for Cowork** (the nightly prompt's stop rule commits only `HANDOFF.md`; the task's "stop after committing what ran" conflicts with it, and I followed the prompt's rule; no check-scoped was run on these): ` M build.mk` (target `audit-phase2-pilot-accept`), ` M scripts/run_audit.py` (the grid's dispatch and its 15-hour timing stop, `ACCEPT_TIMING_HOURS`, `ACCEPT_CHECK_SECONDS`), ` M src/signal_lab/audit/pilot.py` (`PILOT_ACCEPT_GRID`, `ACCEPT_SEEDS`, `accept_cells()`: a new grid only, no existing grid, column or default path touched), ` M scripts/pilot_null_probe.py` (`--part accept-check` and `--part accept-report --accept-run <id>`, the step 3 report, written but not yet run), ` M tests/test_phase2_pilot.py` (two new tests: the grid as data, the check's arithmetic on a synthetic table; no existing test edited), ` M decisions/0072-...` and ` M decisions/0074-...` (the reviewer lines only), `?? results/pilot_accept/` (the step 1 check). `make lint` clean; `make test-fast PYTEST_ARGS="tests/test_phase2_pilot.py"` 35 passed. The four runs are in `results/audit/A-20261120-030500/` (git-ignored).
+
+**Column of `0062` item 8 (my reading):** Cowork alone: "a missed night, a budget or turn stop, a killed run" (a mechanical runtime stop, probably machine load; re-release once as written, on a quiet machine). Owner if the remedy is fewer seeds or a longer limit that changes what (b1) is judged on (`0072` condition (i)).
+
 ### 2026-11-15 -- task 99: done, rc 0 on every command; commits `513e20c` (records: `decisions/0073`), `d0057a3` (the build, the reports, the reviewer line); all ten new seeds run; not the stop branch; pushed (see the push line) (Claude Code, opus, nightly 2026-11-15T05:50)
 
 - **Step 0 held:** HEAD `063560b`; `git status --short` exactly the three paths named. `513e20c` committed `decisions/0073` alone with the task's message; the hook accepted it. `decisions/proposed/0072-...` left as found, uncommitted. The three `make` targets existed.
@@ -7079,6 +7153,8 @@ run would have said.
   1. Step 3's literal measure reads index 2. Is the both-legs reading the one the owner's prefill look needs?
   2. Duration's attribution misses the two-thirds rule (60%).
 - **Push:** `git push origin main` printed `063560b..5a5eaf0  main -> main`, a fast-forward. It carried `513e20c`, `d0057a3` and the receipt `5a5eaf0`. This push line is a records-only commit, pushed the same way.
+
+Update (Cowork review, 2026-11-15 afternoon): build choices (1) to (6) accepted (each keeps the null grid's additions off every other grid's rows, and (4) is what the timing rule needed). "For Cowork first" (1): ruled (b), less both forced legs, in `decisions/0070`'s addendum of 2026-11-15 (the index-2 trade is 2f to 1e-11 on every run, so it is not the view). (2): accepted as reported, and Cowork checked it against the twins in the null grid's `cells.csv`: the twins carry the same factor tilt and the same unexplained remainder as the live IC 0 runs (duration active 1.34% vs 1.31% a year, unexplained 0.40% vs 0.44%), so the remainder is a property of noisy duration views in this window, not leaked truth. `decisions/0072` applied to the pooled numbers (its addendum of 2026-11-15); task 100 is the acceptance run (`decisions/0074`).
 
 ### 2026-11-14 -- task 98: STOPPED on step 1's fault branch (the task's own stop), rc 0 on every command; commit `55afc71` (the probe and its report); steps 2 and 3 not run; pushed as step 1's branch says (see the push line) (Claude Code, opus, nightly 2026-11-14T19:05)
 
