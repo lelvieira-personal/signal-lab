@@ -1,0 +1,166 @@
+{
+  "task94_run": "A-20261114-030208",
+  "null_run": "A-20261115-105504",
+  "target_net_ir": 0.3,
+  "check": {
+    "directional": {
+      "grid": {
+        "n": 25,
+        "slope": 0.2921321540380529,
+        "se": 0.15709781374129414,
+        "t": 1.8595558211849523,
+        "gap": 0.1021258057175896,
+        "b1_n": 5,
+        "b1_count": 1,
+        "b1_share": 0.2
+      },
+      "pooled": {
+        "n": 35,
+        "slope": 0.3307489009558927,
+        "se": 0.1320567097712843,
+        "t": 2.504597468229622,
+        "gap": 0.11969030373888502,
+        "b1_n": 15,
+        "b1_count": 4,
+        "b1_share": 0.26666666666666666
+      }
+    },
+    "cross_sectional": {
+      "grid": {
+        "n": 25,
+        "slope": 0.8820687808326211,
+        "se": 0.14296459591993108,
+        "t": 6.169840687876554,
+        "gap": 0.32579644949507436,
+        "b1_n": 5,
+        "b1_count": 0,
+        "b1_share": 0.0
+      },
+      "pooled": {
+        "n": 35,
+        "slope": 0.8372200291970403,
+        "se": 0.11499035370626569,
+        "t": 7.280784885101377,
+        "gap": 0.29529061463226425,
+        "b1_n": 15,
+        "b1_count": 1,
+        "b1_share": 0.06666666666666667
+      }
+    }
+  },
+  "beside_addendum": [
+    {
+      "expression": "cross_sectional",
+      "figure": "slope (grid)",
+      "addendum": 0.88,
+      "check": 0.8820687808326211,
+      "tol": 0.015,
+      "within": true
+    },
+    {
+      "expression": "cross_sectional",
+      "figure": "t (grid)",
+      "addendum": 6.17,
+      "check": 6.169840687876554,
+      "tol": 0.055,
+      "within": true
+    },
+    {
+      "expression": "cross_sectional",
+      "figure": "slope (pooled)",
+      "addendum": 0.84,
+      "check": 0.8372200291970403,
+      "tol": 0.015,
+      "within": true
+    },
+    {
+      "expression": "cross_sectional",
+      "figure": "t (pooled)",
+      "addendum": 7.28,
+      "check": 7.280784885101377,
+      "tol": 0.055,
+      "within": true
+    },
+    {
+      "expression": "cross_sectional",
+      "figure": "gap (grid)",
+      "addendum": 0.326,
+      "check": 0.32579644949507436,
+      "tol": 0.0105,
+      "within": true
+    },
+    {
+      "expression": "cross_sectional",
+      "figure": "gap (pooled)",
+      "addendum": 0.295,
+      "check": 0.29529061463226425,
+      "tol": 0.0105,
+      "within": true
+    },
+    {
+      "expression": "cross_sectional",
+      "figure": "b1 count (15)",
+      "addendum": 1,
+      "check": 1,
+      "tol": 1,
+      "within": true
+    },
+    {
+      "expression": "directional",
+      "figure": "slope (grid)",
+      "addendum": 0.29,
+      "check": 0.2921321540380529,
+      "tol": 0.015,
+      "within": true
+    },
+    {
+      "expression": "directional",
+      "figure": "t (grid)",
+      "addendum": 1.86,
+      "check": 1.8595558211849523,
+      "tol": 0.055,
+      "within": true
+    },
+    {
+      "expression": "directional",
+      "figure": "slope (pooled)",
+      "addendum": 0.33,
+      "check": 0.3307489009558927,
+      "tol": 0.015,
+      "within": true
+    },
+    {
+      "expression": "directional",
+      "figure": "t (pooled)",
+      "addendum": 2.5,
+      "check": 2.504597468229622,
+      "tol": 0.055,
+      "within": true
+    },
+    {
+      "expression": "directional",
+      "figure": "gap (grid)",
+      "addendum": 0.102,
+      "check": 0.1021258057175896,
+      "tol": 0.0105,
+      "within": true
+    },
+    {
+      "expression": "directional",
+      "figure": "gap (pooled)",
+      "addendum": 0.12,
+      "check": 0.11969030373888502,
+      "tol": 0.0105,
+      "within": true
+    },
+    {
+      "expression": "directional",
+      "figure": "b1 count (15)",
+      "addendum": 4,
+      "check": 4,
+      "tol": 1,
+      "within": true
+    }
+  ],
+  "all_within": true
+}

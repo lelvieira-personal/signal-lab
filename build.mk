@@ -192,6 +192,9 @@ audit-phase2-pilot-g: ## phase-2 pilot: the grid of decisions/0059 G on the deci
 audit-phase2-pilot-null: ## phase-2 pilot: the null over seeds 5-14 -- IC 0, both expressions, each with its baseline, plus the two zero-score runs, with the factor attribution -- 42 runs (HANDOFF task 99 step 2)
 	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-null
 
+audit-phase2-pilot-accept: ## phase-2 pilot: the acceptance run of decisions/0074 -- region cross-sectional, IC 0-0.35, seeds 15-29, each with its baseline -- 150 runs (HANDOFF task 100)
+	$(PY) --group dev python scripts/run_audit.py --source bloomberg --grid phase2-pilot-accept
+
 pilot-null: ## phase-2 pilot null probe: the IC 0 baseline's realised IC over 40 shuffles per seed, no solves -- results/pilot_null/ (HANDOFF task 98)
 	$(PY) --group dev python scripts/pilot_null_probe.py $(if $(ARGS),$(ARGS))
 

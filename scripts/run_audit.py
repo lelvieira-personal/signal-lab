@@ -859,6 +859,9 @@ G_TIMING_CELLS = 4  # HANDOFF task 94: the cells timed before the rest of the gr
 G_TIMING_STOP_HOURS = 14.0  # HANDOFF task 94, revision note 3 (ii)
 NULL_TIMING_HOURS = 4.3  # HANDOFF task 99 step 2: steps 2 and 3 together
 NULL_STEP3_RUNS = 4  # HANDOFF task 99 step 3: the view's first trade, four runs
+# HANDOFF task 100, revision note 1; decisions/0074 addendum of 2026-11-20
+ACCEPT_TIMING_HOURS = 16.0
+ACCEPT_CHECK_SECONDS = 8 * 60  # HANDOFF task 100: check-scoped, about 8 minutes
 
 PILOT_REPORT_COLUMNS = [
     "key",
@@ -923,8 +926,11 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
         return _run_pilot_diag(args, params, run_id, out_root, inputs, meta, veto_lookahead)
     is_g = args.grid == pilot.PILOT_G_GRID
     is_null = args.grid == pilot.PILOT_NULL_GRID
+    is_accept = args.grid == pilot.PILOT_ACCEPT_GRID
     if is_null:
         cells = pilot.null_cells()
+    elif is_accept:
+        cells = pilot.accept_cells()
     else:
         cells = pilot.g_cells() if is_g else pilot.pilot_cells(args.grid)
     null_note = None
@@ -992,6 +998,23 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
                     )
                     print(f"phase-2 pilot STOPPED: {failure}", file=sys.stderr)
                     break
+            if is_accept and i == G_TIMING_CELLS:
+                # HANDOFF task 100 step 2: time the first four runs; if steps 2 and 3 (this grid
+                # and the scoped check) would pass fifteen hours, stop and commit what ran
+                mean_s = sum(r["seconds"] for r in rows) / len(rows)
+                extrapolated_h = (mean_s * len(cells) + ACCEPT_CHECK_SECONDS) / 3600.0
+                print(
+                    f"timing: first {i} runs {mean_s:.0f} s each; {len(cells)} runs and the check "
+                    f"extrapolate to {extrapolated_h:.1f} h (limit {ACCEPT_TIMING_HOURS:g} h)",
+                    flush=True,
+                )
+                if extrapolated_h > ACCEPT_TIMING_HOURS:
+                    failure = (
+                        f"timing: {len(cells)} runs and the check extrapolate to "
+                        f"{extrapolated_h:.1f} h, past {ACCEPT_TIMING_HOURS:g} h"
+                    )
+                    print(f"phase-2 pilot STOPPED: {failure}", file=sys.stderr)
+                    break
             if is_null and i == G_TIMING_CELLS:
                 # HANDOFF task 99 step 2 (task 98's timing rule, changed): extrapolate this grid
                 # and step 3's four probe runs; past 4.3 hours, fewer seeds, in order from 5,
@@ -1025,7 +1048,9 @@ def _run_phase2_pilot(args, params, run_id: str, out_root: str) -> int:
         frame = pd.DataFrame(rows)
         by_cell = pilot.summarise_g(frame[~frame["zero_scores"].astype(bool)])
     else:
-        by_cell = (pilot.summarise_g if is_g else pilot.summarise)(pd.DataFrame(rows))
+        by_cell = (pilot.summarise_g if (is_g or is_accept) else pilot.summarise)(
+            pd.DataFrame(rows)
+        )
     table.to_csv(out / "cells.csv", index=False)
     summary = {
         "run_id": run_id,
@@ -1485,6 +1510,7 @@ def main(argv=None) -> int:
     )
     from signal_lab.audit.pilot import (
         PILOT_0070_GRID,
+        PILOT_ACCEPT_GRID,
         PILOT_DIAG_GRID,
         PILOT_G_GRID,
         PILOT_GRIDS,
@@ -1500,6 +1526,7 @@ def main(argv=None) -> int:
         PILOT_0070_GRID,
         PILOT_G_GRID,
         PILOT_NULL_GRID,
+        PILOT_ACCEPT_GRID,
     )
     from signal_lab.audit.universe import get_universe
     from signal_lab.params import get_params

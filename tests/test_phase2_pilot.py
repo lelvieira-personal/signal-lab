@@ -907,3 +907,72 @@ def test_a_baseline_twin_is_the_same_arms():
     assert table["net_ir_excess"].iloc[0] == pytest.approx(0.1)
     assert table["net_ir_excess"].iloc[2] == pytest.approx(0.3)
     assert np.isnan(table["net_ir_excess"].iloc[4])  # (B) has no twin
+
+
+# --- HANDOFF task 100: the acceptance grid, and the step 1 check's arithmetic ---
+
+
+def test_the_acceptance_grid_is_region_on_fresh_seeds_each_run_paired():
+    """Task 100 step 2 (decisions/0074): the acceptance grid as data."""
+    cells = pilot.accept_cells()
+    assert pilot.PILOT_ACCEPT_GRID == "phase2-pilot-accept"
+    assert len(cells) == 150 and len({c.key() for c in cells}) == 150
+    assert not any(c.legacy or c.legacy_objective for c in cells)  # no legacy argument
+    assert not any(c.zero_scores or c.frictionless for c in cells)
+    assert {c.expression for c in cells} == {"cross_sectional"}
+    assert {c.ic for c in cells} == set(pilot.PILOT_ICS)
+    assert {c.horizon for c in cells} == {13} and {c.prior_multiplier for c in cells} == {1.0}
+    assert {c.seed for c in cells} == set(range(15, 30))  # seeds 15 to 29 only
+    for a, b in zip(cells[::2], cells[1::2], strict=True):  # each live run followed by its twin
+        assert not a.baseline and b.baseline
+        assert (a.expression, a.ic, a.seed) == (b.expression, b.ic, b.seed)
+    # seed-major: a shorter list of seeds is a prefix of the full one (the timing rule)
+    assert [c.seed for c in cells[:10]] == [15] * 10
+    short = pilot.accept_cells(tuple(range(15, 18)))
+    assert len(short) == 30 and [c.key() for c in short] == [c.key() for c in cells[:30]]
+
+
+def _accept_table(seeds=(0, 1, 2), twin_ir=0.2, expression="cross_sectional", slope=0.8):
+    """A small synthetic pilot table: the twin's net IR fixed, the live run's the twin's plus
+    `slope` x IC plus a per-seed offset (-0.01, 0, +0.01, ...), so the excess is known exactly."""
+    rows = []
+    for j, seed in enumerate(seeds):
+        offset = 0.01 * (j - 1)
+        for ic in pilot.PILOT_ICS:
+            base = {"expression": expression, "ic": ic, "seed": seed, "ic_prior_multiplier": 1.0}
+            rows.append({**base, "baseline": False, "net_ir": twin_ir + slope * ic + offset})
+            rows.append({**base, "baseline": True, "net_ir": twin_ir})
+    return pd.DataFrame(rows)
+
+
+def test_the_acceptance_check_arithmetic_on_a_small_table():
+    """Task 100 step 1: slope, t, gap and the (b1) count, against numpy on a table built by hand."""
+    probe = _probe()
+    live = probe.live_pairs(_accept_table())
+    assert len(live) == 15 and live["net_ir_excess"].notna().all()
+    got = probe.a2_b1(live, target=0.30)
+    x, y = live["ic"].to_numpy(float), live["net_ir_excess"].to_numpy(float)
+    coef = np.polyfit(x, y, 1)
+    assert got["slope"] == pytest.approx(coef[0], abs=1e-12)
+    assert got["slope"] == pytest.approx(0.8, abs=1e-12)  # the offsets are orthogonal to IC
+    resid = y - np.polyval(coef, x)
+    se = np.sqrt((resid**2).sum() / (len(x) - 2) / ((x - x.mean()) ** 2).sum())
+    assert got["t"] == pytest.approx(coef[0] / se, rel=1e-9)
+    assert got["gap"] == pytest.approx(0.8 * 0.35, abs=1e-12)
+    # IC 0 runs: excess is the offset (-0.01, 0, +0.01); net IR 0.2 + offset < 0.30: no (b1)
+    assert (got["b1_n"], got["b1_count"]) == (3, 0)
+    # with the twins at 0.30, only the IC 0 run with a positive offset passes both halves
+    high = probe.a2_b1(probe.live_pairs(_accept_table(twin_ir=0.30)), target=0.30)
+    assert (high["b1_n"], high["b1_count"]) == (3, 1)
+    assert high["b1_share"] == pytest.approx(1 / 3)
+    # the check splits by expression and pools the null grid's IC 0 rows only
+    grid = pd.concat([_accept_table(), _accept_table(expression="directional")])
+    null = pd.concat(
+        [_accept_table(seeds=(5, 6), twin_ir=0.30), _accept_table((5, 6), 0.30, "directional")]
+    )
+    check = probe.accept_check(grid.reset_index(drop=True), null.reset_index(drop=True), 0.30)
+    for expression in ("cross_sectional", "directional"):
+        assert check[expression]["grid"]["n"] == 15
+        assert check[expression]["pooled"]["n"] == 17  # two IC 0 runs added
+        assert check[expression]["pooled"]["b1_n"] == 5
+        assert check[expression]["grid"]["slope"] == pytest.approx(0.8, abs=1e-12)

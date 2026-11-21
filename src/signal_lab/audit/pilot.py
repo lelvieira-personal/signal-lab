@@ -78,6 +78,10 @@ PILOT_NULL_GRID = "phase2-pilot-null"
 NULL_GRID_SEEDS = tuple(range(5, 15))
 NULL_GRID_MIN_SEEDS = 5
 NULL_ZERO_SEED = 0
+# HANDOFF task 100 (decisions/0074): the acceptance run, region cross-sectional on fresh seeds
+PILOT_ACCEPT_GRID = "phase2-pilot-accept"
+ACCEPT_EXPRESSION = "cross_sectional"
+ACCEPT_SEEDS = tuple(range(15, 30))
 FIRST_TRADE_THRESHOLD = 1e-4  # the traded notional that counts as a trade (HANDOFF tasks 94, 96)
 DIAG_SEED = 0
 DIAG_IC = 0.35
@@ -256,6 +260,21 @@ def null_cells(seeds: tuple[int, ...] = NULL_GRID_SEEDS) -> list[PilotCell]:
                 cells.append(PilotCell(expression, 0.0, seed, baseline=baseline))
     for expression in AXIS_OF_EXPRESSION:
         cells.append(PilotCell(expression, 0.0, NULL_ZERO_SEED, zero_scores=True))
+    return cells
+
+
+def accept_cells(seeds: tuple[int, ...] = ACCEPT_SEEDS) -> list[PilotCell]:
+    """
+    HANDOFF task 100 step 2 (decisions/0074): the pilot's acceptance run on the decisions/0070
+    defaults (no legacy argument, no attribution): region cross-sectional only, planted IC 0 to
+    0.35 at h 13 and `IC_prior` x1, seeds 15 to 29, each live run followed by its block-shuffled
+    twin. Seed-major, so a shorter list of seeds is a prefix of this one: 5 x 2 x 15 = 150 runs.
+    """
+    cells: list[PilotCell] = []
+    for seed in seeds:
+        for ic in PILOT_ICS:
+            for baseline in (False, True):
+                cells.append(PilotCell(ACCEPT_EXPRESSION, ic, seed, baseline=baseline))
     return cells
 
 

@@ -618,6 +618,267 @@ def null_report(
     return summary, md
 
 
+# ---------------------------------------------------------------------------------------------
+# HANDOFF task 100 (decisions/0072, decisions/0074). Step 1, `--part accept-check`: the
+# reviewer's re-run of the 0072 addendum's table from task 94's and task 99's cells. Step 3,
+# `--part accept-report --accept-run <id>`: the acceptance grid's report. Arithmetic only, no
+# solves, no acceptance (the acceptance is Cowork's review). Both write under results/pilot_accept/.
+# ---------------------------------------------------------------------------------------------
+
+ACCEPT_DIR = Path("results/pilot_accept")
+NULL_RUN = "A-20261115-105504"  # task 99's null grid
+A2_T = 2.0  # decisions/0072 (a2): slope t >= 2
+A2_GAP = 0.10  # decisions/0072 (a2): mean excess at IC 0.35 minus at IC 0 >= 0.10
+B1_SHARE = 0.10  # decisions/0072 (b1): at most 10%
+GAP_HIGH_IC = 0.35
+
+
+def ols_slope(x, y) -> dict[str, float]:
+    """OLS of y on a constant and x: the slope, its classical standard error and t, and n."""
+    xv, yv = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    n = len(xv)
+    xc = xv - xv.mean()
+    sxx = float(np.dot(xc, xc))
+    slope = float(np.dot(xc, yv - yv.mean()) / sxx)
+    resid = yv - yv.mean() - slope * xc
+    se = float(np.sqrt(np.dot(resid, resid) / (n - 2) / sxx))
+    return {"n": int(n), "slope": slope, "se": se, "t": slope / se if se > 0 else float("nan")}
+
+
+def live_pairs(table: pd.DataFrame) -> pd.DataFrame:
+    """The live rows that carry an excess: `IC_prior` x1, no zero-score row, each with its twin
+    (`with_excess` applied if the table has no `net_ir_excess` yet)."""
+    t = table if "net_ir_excess" in table.columns else pilot.with_excess(table)
+    keep = (t["ic_prior_multiplier"].astype(float) == 1.0) & ~t["baseline"].astype(bool)
+    if "zero_scores" in t.columns:
+        keep &= ~t["zero_scores"].astype(bool)
+    out = t[keep].copy()
+    return out[out["net_ir_excess"].notna()]
+
+
+def a2_b1(live: pd.DataFrame, target: float) -> dict[str, Any]:
+    """(a2)'s slope, t and gap and (b1)'s count over a set of live rows (one expression)."""
+    fit = ols_slope(live["ic"], live["net_ir_excess"])
+    by_ic = live.groupby("ic")["net_ir_excess"].mean()
+    gap = float(by_ic.get(GAP_HIGH_IC, np.nan) - by_ic.get(0.0, np.nan))
+    ic0 = live[live["ic"] == 0.0]
+    both = (ic0["net_ir"] >= target) & (ic0["net_ir_excess"] > 0)
+    n0 = int(len(ic0))
+    return {
+        **fit,
+        "gap": gap,
+        "b1_n": n0,
+        "b1_count": int(both.sum()),
+        "b1_share": float(both.mean()) if n0 else float("nan"),
+    }
+
+
+def accept_check(task94: pd.DataFrame, null: pd.DataFrame, target: float) -> dict[str, Any]:
+    """Step 1: per expression, (a2) and (b1) on the grid's 25 runs and on the 35 pooled."""
+    grid = live_pairs(task94)
+    nul = live_pairs(null)
+    nul = nul[nul["ic"] == 0.0]
+    out: dict[str, Any] = {}
+    for expression in pilot.AXIS_OF_EXPRESSION:
+        g = grid[grid["expression"] == expression]
+        p = pd.concat([g, nul[nul["expression"] == expression]], ignore_index=True)
+        out[expression] = {"grid": a2_b1(g, target), "pooled": a2_b1(p, target)}
+    return out
+
+
+# the 0072 addendum of 2026-11-15, as written: (slope, t) grid and pooled, gap grid / pooled, b1
+ADDENDUM = {
+    "cross_sectional": {
+        "grid": (0.88, 6.17),
+        "pooled": (0.84, 7.28),
+        "gap": (0.326, 0.295),
+        "b1": 1,
+    },
+    "directional": {"grid": (0.29, 1.86), "pooled": (0.33, 2.50), "gap": (0.102, 0.120), "b1": 4},
+}
+TOL_SLOPE, TOL_T, TOL_COUNT = 0.01, 0.05, 1
+
+
+def compare_addendum(check: dict[str, Any]) -> list[dict[str, Any]]:
+    """Each figure beside the addendum's, and whether it is within the task's tolerance. The
+    addendum prints the slope to two decimals and the gap to three, so a slope is compared at
+    its printed precision plus the tolerance, and a gap at the slope's tolerance."""
+    rows = []
+    for e, a in ADDENDUM.items():
+        c = check[e]
+        for part in ("grid", "pooled"):
+            rows.append(
+                {
+                    "expression": e,
+                    "figure": f"slope ({part})",
+                    "addendum": a[part][0],
+                    "check": c[part]["slope"],
+                    "tol": TOL_SLOPE + 0.005,
+                }
+            )
+            rows.append(
+                {
+                    "expression": e,
+                    "figure": f"t ({part})",
+                    "addendum": a[part][1],
+                    "check": c[part]["t"],
+                    "tol": TOL_T + 0.005,
+                }
+            )
+        for j, part in enumerate(("grid", "pooled")):
+            rows.append(
+                {
+                    "expression": e,
+                    "figure": f"gap ({part})",
+                    "addendum": a["gap"][j],
+                    "check": c[part]["gap"],
+                    "tol": TOL_SLOPE + 0.0005,
+                }
+            )
+        rows.append(
+            {
+                "expression": e,
+                "figure": "b1 count (15)",
+                "addendum": a["b1"],
+                "check": c["pooled"]["b1_count"],
+                "tol": TOL_COUNT,
+            }
+        )
+    for r in rows:
+        r["within"] = bool(abs(float(r["check"]) - float(r["addendum"])) <= r["tol"])
+    return rows
+
+
+def accept_check_md(check: dict[str, Any], rows: list[dict[str, Any]], target: float) -> list[str]:
+    md = [
+        "# Task 100 step 1: the 0072 addendum's table, re-run by the reviewer",
+        "",
+        f"From `results/audit/{TASK94_RUN}/cells.csv` (the grid, 25 runs an expression) and "
+        f"`results/audit/{NULL_RUN}/cells.csv` (the null grid's IC 0 runs, 10 an expression). "
+        "Excess = live `net_ir` minus its twin's; `IC_prior` x1; zero-score rows left out. OLS "
+        f"with a constant, classical SE. (b1): IC 0 runs with net IR >= {target:.2f} and excess > 0.",
+        "",
+        "| | region cross-sectional | duration directional |",
+        "|---|---|---|",
+    ]
+    x, d = check["cross_sectional"], check["directional"]
+    md += [
+        f"| (a2) slope, t: the grid's runs (n {x['grid']['n']} / {d['grid']['n']}) | "
+        f"{x['grid']['slope']:.4f}, t {x['grid']['t']:.3f} | {d['grid']['slope']:.4f}, t {d['grid']['t']:.3f} |",
+        f"| same, pooled (n {x['pooled']['n']} / {d['pooled']['n']}) | "
+        f"{x['pooled']['slope']:.4f}, t {x['pooled']['t']:.3f} | {d['pooled']['slope']:.4f}, t {d['pooled']['t']:.3f} |",
+        f"| (a2) gap, grid / pooled | {x['grid']['gap']:.4f} / {x['pooled']['gap']:.4f} | "
+        f"{d['grid']['gap']:.4f} / {d['pooled']['gap']:.4f} |",
+        f"| (b1) count of {x['pooled']['b1_n']} / {d['pooled']['b1_n']} | "
+        f"{x['pooled']['b1_count']} ({x['pooled']['b1_share']:.1%}) | {d['pooled']['b1_count']} ({d['pooled']['b1_share']:.1%}) |",
+        "",
+        "Beside the addendum (tolerance: 0.01 a slope or gap, 0.05 a t, one run a count; the "
+        "addendum's printed rounding added):",
+        "",
+        "| expression | figure | addendum | check | within |",
+        "|---|---|---|---|---|",
+        *[
+            f"| {r['expression']} | {r['figure']} | {r['addendum']} | {float(r['check']):.4f} | "
+            f"{'yes' if r['within'] else 'NO'} |"
+            for r in rows
+        ],
+        "",
+        f"All within: {'yes' if all(r['within'] for r in rows) else 'NO'}.",
+        "",
+    ]
+    return md
+
+
+def accept_report(table: pd.DataFrame, target: float) -> tuple[dict[str, Any], list[str]]:
+    """Step 3: the acceptance grid's report (region cross-sectional, seeds 15 to 29)."""
+    t = pilot.with_excess(table) if "net_ir_excess" not in table.columns else table
+    live = live_pairs(t)
+    twins = t[t["baseline"].astype(bool)]
+    per_ic = []
+    for ic in sorted(t["ic"].astype(float).unique()):
+        lv = live[live["ic"] == ic]
+        tw = twins[twins["ic"] == ic]
+        per_ic.append(
+            {
+                "ic": float(ic),
+                "net_ir": _stats(lv["net_ir"]),
+                "net_ir_excess": _stats(lv["net_ir_excess"]),
+                "realised_ic_live": _stats(lv["realised_ic_by_column"]),
+                "realised_ic_twin": _stats(tw["realised_ic_by_column"]),
+            }
+        )
+    fit = a2_b1(live, target)
+    twin_share = float((twins["net_ir"] >= target).mean())
+    a2 = bool(fit["t"] >= A2_T and fit["gap"] >= A2_GAP)
+    b1 = bool(fit["b1_share"] <= B1_SHARE)
+    summary = {
+        "target_net_ir": target,
+        "n_runs": int(len(t)),
+        "n_pairs": int(len(live)),
+        "seeds": sorted(int(s) for s in t["seed"].unique()),
+        "per_ic": per_ic,
+        "slope": fit["slope"],
+        "slope_se": fit["se"],
+        "slope_t": fit["t"],
+        "gap": fit["gap"],
+        "b1_n": fit["b1_n"],
+        "b1_count": fit["b1_count"],
+        "b1_share": fit["b1_share"],
+        "twins_share_net_ir_ge_target": twin_share,
+        "lookahead_passed_all": bool(t["lookahead_passed"].astype(bool).all()),
+        "arithmetic": {
+            "a2_t_ge_2": bool(fit["t"] >= A2_T),
+            "a2_gap_ge_0.10": bool(fit["gap"] >= A2_GAP),
+            "a2_met": a2,
+            "b1_le_10pct": b1,
+        },
+    }
+
+    def row(name: str, s: dict[str, float]) -> str:
+        return (
+            f"| {name} | {s['n']} | {s['mean']:+.4f} | {s['sd']:.4f} | {s['min']:+.4f} | "
+            f"{s['max']:+.4f} |"
+        )
+
+    md = [
+        "# Task 100 step 3: the pilot's acceptance run, region cross-sectional, seeds 15 to 29",
+        "",
+        "decisions/0074 (delegated), judged by decisions/0072's (a2) and (b1) as arithmetic only; "
+        "the acceptance itself is Cowork's review. Planted data, the decisions/0070 defaults, h 13, "
+        f"`IC_prior` x1. {summary['n_runs']} runs, {summary['n_pairs']} live/twin pairs. Lookahead "
+        f"passed on every run: {'yes' if summary['lookahead_passed_all'] else 'NO'}.",
+        "",
+        "## Per planted IC",
+        "",
+        "| IC | quantity | n | mean | SD | min | max |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for p in per_ic:
+        for name, key in (
+            ("net IR", "net_ir"),
+            ("net_ir_excess", "net_ir_excess"),
+            ("realised IC, live", "realised_ic_live"),
+            ("realised IC, twin", "realised_ic_twin"),
+        ):
+            md.append(f"| {p['ic']:.2f} " + row(name, p[key]))
+    md += [
+        "",
+        "## The bars, as arithmetic",
+        "",
+        f"- OLS slope of excess on planted IC over the {summary['n_pairs']} pairs: "
+        f"{fit['slope']:.4f} (SE {fit['se']:.4f}), t {fit['t']:.3f}. (a2) t >= 2: "
+        f"{'meets' if summary['arithmetic']['a2_t_ge_2'] else 'does not meet'}.",
+        f"- Gap, mean excess at IC 0.35 minus at IC 0: {fit['gap']:+.4f}. (a2) gap >= 0.10: "
+        f"{'meets' if summary['arithmetic']['a2_gap_ge_0.10'] else 'does not meet'}.",
+        f"- IC 0 pairs with net IR >= {target:.2f} and excess > 0: {fit['b1_count']} of "
+        f"{fit['b1_n']} ({fit['b1_share']:.1%}). (b1) <= 10%: "
+        f"{'meets' if b1 else 'does not meet'}.",
+        f"- Baseline twins with net IR >= {target:.2f}: {twin_share:.1%} of {len(twins)}.",
+        "",
+    ]
+    return summary, md
+
+
 def _inputs(params):
     import run_measurement as RM
 
@@ -638,19 +899,61 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=str(OUT_DIR))
     ap.add_argument(
         "--part",
-        choices=("task98", "task99", "report"),
+        choices=("task98", "task99", "report", "accept-check", "accept-report"),
         default="task98",
         help="task98: 40 shuffles a seed, seeds 0-4 (ic_report.md); task99: the seed as the "
         "unit over seeds 0-14, the shuffle itself, the twin's design (seed_report.md); report: "
         "the null grid's report (report.md, summary.json; needs --null-run)",
     )
     ap.add_argument("--null-run", default=None, help="the phase2-pilot-null run id (--part report)")
+    ap.add_argument(
+        "--accept-run", default=None, help="the phase2-pilot-accept run id (--part accept-report)"
+    )
     args = ap.parse_args(argv)
 
     from signal_lab.params import get_params
 
     params = get_params()
     started = time.time()
+    if args.part in ("accept-check", "accept-report"):
+        out = Path(args.out) if args.out != str(OUT_DIR) else ACCEPT_DIR
+        out.mkdir(parents=True, exist_ok=True)
+        target = float(params.require("audit.target_net_ir"))
+        if args.part == "accept-check":
+            task94 = pd.read_csv(AUDIT_DIR / TASK94_RUN / "cells.csv")
+            null = pd.read_csv(AUDIT_DIR / NULL_RUN / "cells.csv")
+            check = accept_check(task94, null, target)
+            rows = compare_addendum(check)
+            md = accept_check_md(check, rows, target)
+            ok = all(r["within"] for r in rows)
+            payload = {
+                "task94_run": TASK94_RUN,
+                "null_run": NULL_RUN,
+                "target_net_ir": target,
+                "check": check,
+                "beside_addendum": rows,
+                "all_within": ok,
+            }
+            (out / "accept_check.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            (out / "accept_check.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+            print("\n".join(md))
+            print(f"pilot-null: wrote {out}/accept_check.md and accept_check.json")
+            return 0 if ok else 5
+        if not args.accept_run:
+            print("pilot-null: --part accept-report needs --accept-run", file=sys.stderr)
+            return 2
+        table = pd.read_csv(AUDIT_DIR / args.accept_run / "cells.csv")
+        summary, md = accept_report(table, target)
+        summary["accept_run"] = args.accept_run
+        summary["seconds_per_run_mean"] = float(table["seconds"].mean())
+        summary["seconds_total_runs"] = float(table["seconds"].sum())
+        (out / "summary.json").write_text(
+            json.dumps(summary, indent=2, default=str), encoding="utf-8"
+        )
+        (out / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+        print("\n".join(md))
+        print(f"pilot-null: wrote {out}/report.md and summary.json")
+        return 0
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     if args.part == "report":
